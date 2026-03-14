@@ -1,0 +1,104 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app qbittorrent
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: app-template
+      version: 3.7.3
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  values:
+    defaultPodOptions:
+      securityContext:
+        runAsUser: 568
+        runAsGroup: 568
+        fsGroup: 568
+        fsGroupChangePolicy: OnRootMismatch
+    controllers:
+      qbittorrent:
+        containers:
+          app:
+            image:
+              repository: ghcr.io/home-operations/qbittorrent
+              tag: 5.1.4@sha256:56ecd30a7f5e1357daf5eea2a6935134d329b7b268a3a9b9c67041b65fb87fc6
+            env:
+              QBT_WEBUI_PORT: &port 80
+              QBT_TORRENTING_PORT: &port-bt 50413
+              PUSHOVER_ENABLED: true
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+              limits:
+                memory: 8Gi
+    service:
+      app:
+        controller: *app
+        ports:
+          http:
+            port: *port
+      bittorrent:
+        enabled: true
+        controller: *app
+        annotations:
+          lbipam.cilium.io/ips: "172.16.2.237"
+        type: LoadBalancer
+        externalTrafficPolicy: Local
+        ports:
+          bittorrent:
+            enabled: true
+            port: *port-bt
+            protocol: TCP
+            targetPort: *port-bt
+    route:
+      main:
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        hostnames:
+          - "{{ .Release.Name }}.${SECRET_DOMAIN}"
+    persistence:
+      config:
+        enabled: true
+        type: persistentVolumeClaim
+        storageClass: rook-ceph-block
+        accessMode: ReadWriteOnce
+        size: 5Gi
+        globalMounts:
+          - path: /config
+      downloads:
+        type: nfs
+        server: 172.16.2.246
+        path: /volume1/MULTIMEDIA/DS_Download
+        globalMounts:
+          - path: /mnt/storage/downloads
+      music-qbittorrent:
+        type: nfs
+        server: 172.16.2.246
+        path: /volume1/MULTIMEDIA/MUSIC/.qbittorrent
+        globalMounts:
+          - path: /mnt/storage/music/.qbittorrent
+      video-qbittorrent:
+        type: nfs
+        server: 172.16.2.246
+        path: /volume1/MULTIMEDIA/TVSHOWS/.qbittorrent
+        globalMounts:
+          - path: /mnt/storage/video/.qbittorrent
+      tmp:
+        type: emptyDir

@@ -1,0 +1,8 @@
+---
+# Submit to https://factory.talos.dev/schematics to get the schematic ID
+# Current ID: ff7d469e20dd413c61df4d0ea5d0a2410b48835715789125c9c8777ba8994370
+customization:
+  systemExtensions:
+    officialExtensions:
+      - siderolabs/i915
+      - siderolabs/intel-ucode

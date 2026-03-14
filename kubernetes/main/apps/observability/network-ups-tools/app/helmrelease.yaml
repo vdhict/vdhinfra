@@ -1,0 +1,79 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: network-ups-tools
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: app-template
+      version: 3.7.3
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    defaultPodOptions:
+      nodeSelector:
+        feature.node.kubernetes.io/ups: "true"
+    controllers:
+      network-ups-tools:
+        replicas: 1
+        containers:
+          network-ups-tools:
+            image:
+              repository: ghcr.io/jr0dd/network-ups-tools
+              tag: v2.8.3@sha256:9f8e14d155c6ef05940cee6f8861e259e951eb11750aeddd02539d986dac1ca0
+              pullPolicy: IfNotPresent
+            resources:
+              limits:
+                memory: 128Mi
+              requests:
+                cpu: 25m
+                memory: 128Mi
+            probes:
+              liveness:
+                enabled: true
+              readiness:
+                enabled: true
+            securityContext:
+              privileged: true
+    service:
+      network-ups-tools:
+        controller: network-ups-tools
+        ports:
+          http:
+            port: 3493
+            protocol: TCP
+    persistence:
+      config:
+        type: configMap
+        name: network-ups-tools-config
+        defaultMode: 0400
+        globalMounts:
+          - path: /etc/nut
+    configMaps:
+      config:
+        data:
+          nut.conf: |-
+            MODE=netserver
+          upsd.conf: |-
+            LISTEN 0.0.0.0 3493
+          upsd.users: |-
+          #   [upsmon]
+          #   password = badpassword
+          #   upsmon primary
+          ups.conf: |-
+            [kubernetes]
+            driver = usbhid-ups
+            port = auto
+            desc = "PowerWalker UPS VI 2200 SHL IEC"

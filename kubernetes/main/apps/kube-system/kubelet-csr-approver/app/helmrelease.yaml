@@ -1,0 +1,24 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kubelet-csr-approver
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: kubelet-csr-approver
+  interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    providerRegex: ^(vdhclu01node01|vdhclu01node02|vdhclu01node03)$
+    bypassDnsResolution: true
+    metrics:
+      enable: true
+      serviceMonitor:
+        enabled: true
