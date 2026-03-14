@@ -1,0 +1,15 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-settings
+  namespace: flux-system
+data:
+  CLUSTER_NAME: vdhinfra
+  TIMEZONE: Europe/Amsterdam
+  CLUSTER_DOMAIN: cluster.local
+  CLUSTER_CIDR: 10.42.0.0/16
+  SERVICE_CIDR: 10.43.0.0/16
+  ENVOY_INTERNAL_LB_IP: "172.16.2.241"
+  ENVOY_EXTERNAL_LB_IP: "172.16.2.243"
+  K8S_GATEWAY_LB_IP: "172.16.2.242"

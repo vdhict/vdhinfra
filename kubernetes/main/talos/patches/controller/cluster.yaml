@@ -1,0 +1,22 @@
+cluster:
+  allowSchedulingOnControlPlanes: false
+  apiServer:
+    admissionControl:
+      $$patch: delete
+    extraArgs:
+      enable-aggregator-routing: true
+  controllerManager:
+    extraArgs:
+      bind-address: 0.0.0.0
+  coreDNS:
+    disabled: true
+  etcd:
+    extraArgs:
+      listen-metrics-urls: http://0.0.0.0:2381
+    advertisedSubnets:
+      - 172.16.2.0/23
+  proxy:
+    disabled: true
+  scheduler:
+    extraArgs:
+      bind-address: 0.0.0.0

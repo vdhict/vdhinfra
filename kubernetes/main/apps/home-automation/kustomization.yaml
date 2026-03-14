@@ -1,0 +1,16 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./namespace.yaml
+  - ./home-assistant/install.yaml
+  - ./mosquitto/install.yaml
+  - ./zigbee2mqtt/install.yaml
+  - ./zwave-js-ui/install.yaml
+  - ./node-red/install.yaml
+  - ./esphome/install.yaml
+  - ./mealie/install.yaml
+  - ./music-assistant/install.yaml
+  - ./teslamate/install.yaml
+  - ./scrypted/install.yaml

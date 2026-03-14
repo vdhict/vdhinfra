@@ -1,0 +1,44 @@
+# Age keys
+age.key
+*.agekey
+
+# Kubeconfig
+**/kubeconfig
+**/talosconfig
+
+# Talos generated configs
+**/talos/clusterconfig/
+**/qemu/*.iso
+**/qemu/*.yaml
+**/qemu/*.qcow2
+**/qemu/*.fd
+**/qemu/*.pid
+
+# SOPS encrypted temp files
+*.dec
+*.dec.*
+
+# mise/asdf
+.mise/
+.tool-versions
+
+# Python virtual environment
+.venv/
+
+# Private directory
+.private/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.code-workspace
+
+# Just temp files
+.just/

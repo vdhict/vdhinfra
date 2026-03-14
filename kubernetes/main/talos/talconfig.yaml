@@ -1,0 +1,151 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/budimanjojo/talhelper/master/pkg/config/schemas/talconfig.json
+---
+clusterName: vdhinfra
+
+talosVersion: "${talosVersion}"
+kubernetesVersion: "${kubernetesVersion}"
+
+endpoint: https://172.16.2.240:6443
+
+additionalApiServerCertSans: &sans
+  - "172.16.2.240"
+  - "127.0.0.1"
+additionalMachineCertSans: *sans
+
+clusterPodNets:
+  - "10.42.0.0/16"
+clusterSvcNets:
+  - "10.43.0.0/16"
+
+# Disable built-in Flannel to use Cilium
+cniConfig:
+  name: none
+
+nodes:
+  # --- Control Plane: Beelink EQ14 Pro (Intel N150, 16GB, 500GB M.2 NVMe) ---
+  - hostname: "vdhclu01master01"
+    ipAddress: "172.16.2.84"
+    installDisk: /dev/nvme0n1
+    talosImageURL: factory.talos.dev/installer/ff7d469e20dd413c61df4d0ea5d0a2410b48835715789125c9c8777ba8994370
+    controlPlane: true
+    nodeLabels:
+      node.kubernetes.io/exclude-from-external-load-balancers: ""
+    networkInterfaces:
+      - deviceSelector:
+          hardwareAddr: "TODO:fill:after:first:boot:01"
+        dhcp: false
+        addresses:
+          - "172.16.2.84/23"
+        routes:
+          - network: 0.0.0.0/0
+            gateway: "172.16.2.1"
+        mtu: 1500
+        vip:
+          ip: "172.16.2.240"
+
+  - hostname: "vdhclu01master02"
+    ipAddress: "172.16.2.85"
+    installDisk: /dev/nvme0n1
+    talosImageURL: factory.talos.dev/installer/ff7d469e20dd413c61df4d0ea5d0a2410b48835715789125c9c8777ba8994370
+    controlPlane: true
+    nodeLabels:
+      node.kubernetes.io/exclude-from-external-load-balancers: ""
+    networkInterfaces:
+      - deviceSelector:
+          hardwareAddr: "TODO:fill:after:first:boot:02"
+        dhcp: false
+        addresses:
+          - "172.16.2.85/23"
+        routes:
+          - network: 0.0.0.0/0
+            gateway: "172.16.2.1"
+        mtu: 1500
+        vip:
+          ip: "172.16.2.240"
+
+  - hostname: "vdhclu01master03"
+    ipAddress: "172.16.2.86"
+    installDisk: /dev/nvme0n1
+    talosImageURL: factory.talos.dev/installer/ff7d469e20dd413c61df4d0ea5d0a2410b48835715789125c9c8777ba8994370
+    controlPlane: true
+    nodeLabels:
+      node.kubernetes.io/exclude-from-external-load-balancers: ""
+    networkInterfaces:
+      - deviceSelector:
+          hardwareAddr: "TODO:fill:after:first:boot:03"
+        dhcp: false
+        addresses:
+          - "172.16.2.86/23"
+        routes:
+          - network: 0.0.0.0/0
+            gateway: "172.16.2.1"
+        mtu: 1500
+        vip:
+          ip: "172.16.2.240"
+
+  # --- Workers: Intel NUC 11 (i5-1135G7, NVMe boot + SATA SSD for Ceph) ---
+  - hostname: "vdhclu01node01"
+    ipAddress: "172.16.2.81"
+    installDiskSelector:
+      serial: "2244E6801787"
+    talosImageURL: factory.talos.dev/installer/ff7d469e20dd413c61df4d0ea5d0a2410b48835715789125c9c8777ba8994370
+    controlPlane: false
+    networkInterfaces:
+      - deviceSelector:
+          hardwareAddr: "TODO:fill:from:hardware:01"
+        dhcp: false
+        addresses:
+          - "172.16.2.81/23"
+        routes:
+          - network: 0.0.0.0/0
+            gateway: "172.16.2.1"
+        mtu: 1500
+
+  - hostname: "vdhclu01node02"
+    ipAddress: "172.16.2.82"
+    installDiskSelector:
+      serial: "2244E6801A88"
+    talosImageURL: factory.talos.dev/installer/ff7d469e20dd413c61df4d0ea5d0a2410b48835715789125c9c8777ba8994370
+    controlPlane: false
+    networkInterfaces:
+      - deviceSelector:
+          hardwareAddr: "TODO:fill:from:hardware:02"
+        dhcp: false
+        addresses:
+          - "172.16.2.82/23"
+        routes:
+          - network: 0.0.0.0/0
+            gateway: "172.16.2.1"
+        mtu: 1500
+
+  - hostname: "vdhclu01node03"
+    ipAddress: "172.16.2.83"
+    installDiskSelector:
+      serial: "2244E6801A85"
+    talosImageURL: factory.talos.dev/installer/ff7d469e20dd413c61df4d0ea5d0a2410b48835715789125c9c8777ba8994370
+    controlPlane: false
+    networkInterfaces:
+      - deviceSelector:
+          hardwareAddr: "TODO:fill:from:hardware:03"
+        dhcp: false
+        addresses:
+          - "172.16.2.83/23"
+        routes:
+          - network: 0.0.0.0/0
+            gateway: "172.16.2.1"
+        mtu: 1500
+
+# Global patches (applied to all nodes)
+patches:
+  - "@./patches/global/machine-features.yaml"
+  - "@./patches/global/machine-files.yaml"
+  - "@./patches/global/machine-kubelet.yaml"
+  - "@./patches/global/machine-network.yaml"
+  - "@./patches/global/machine-sysctls.yaml"
+  - "@./patches/global/machine-time.yaml"
+
+# Controller patches (applied to control plane nodes only)
+controlPlane:
+  patches:
+    - "@./patches/controller/api-access.yaml"
+    - "@./patches/controller/cluster.yaml"
