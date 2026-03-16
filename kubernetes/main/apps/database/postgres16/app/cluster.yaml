@@ -1,0 +1,36 @@
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres16
+spec:
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.6-3
+  primaryUpdateStrategy: unsupervised
+  storage:
+    size: 50Gi
+    storageClass: rook-ceph-block
+  superuserSecret:
+    name: cloudnative-pg-secret
+  enableSuperuserAccess: true
+  replicationSlots:
+    highAvailability:
+      enabled: true
+  postgresql:
+    parameters:
+      max_connections: "600"
+      shared_buffers: 512MB
+  bootstrap:
+    initdb:
+      database: app
+      owner: app
+      postInitApplicationSQL:
+        - CREATE DATABASE authelia OWNER app;
+        - CREATE DATABASE grafana OWNER app;
+        - CREATE DATABASE home_assistant OWNER app;
+        - CREATE DATABASE lldap OWNER app;
+        - CREATE DATABASE mealie OWNER app;
+        - CREATE DATABASE readarr_cache OWNER app;
+        - CREATE DATABASE readarr_log OWNER app;
+  monitoring:
+    enablePodMonitor: true
