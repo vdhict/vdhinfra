@@ -8,4 +8,5 @@ resources:
   # Flux-Kustomizations
   - ./external-secrets/install.yaml
   - ./lldap/install.yaml
+  - ./onepassword-connect/install.yaml
   - ./authelia/install.yaml
