@@ -92,7 +92,7 @@ nodes:
     controlPlane: false
     networkInterfaces:
       - deviceSelector:
-          hardwareAddr: "TODO:fill:from:hardware:01"
+          hardwareAddr: "88:ae:dd:62:1b:3c"
         dhcp: false
         addresses:
           - "172.16.2.81/23"
@@ -109,7 +109,7 @@ nodes:
     controlPlane: false
     networkInterfaces:
       - deviceSelector:
-          hardwareAddr: "TODO:fill:from:hardware:02"
+          hardwareAddr: "88:ae:dd:62:29:bf"
         dhcp: false
         addresses:
           - "172.16.2.82/23"
@@ -126,7 +126,7 @@ nodes:
     controlPlane: false
     networkInterfaces:
       - deviceSelector:
-          hardwareAddr: "TODO:fill:from:hardware:03"
+          hardwareAddr: "88:ae:dd:62:17:a6"
         dhcp: false
         addresses:
           - "172.16.2.83/23"
