@@ -6,12 +6,13 @@ kubernetes_dir := justfile_dir()
 bootstrap_dir := kubernetes_dir + '/bootstrap'
 
 [private]
-default: talos kubernetes (kubeconfig "node") wait namespaces resources crds apps kubeconfig
+default: talos kubernetes (kubeconfig "node") wait namespaces secrets resources crds apps kubeconfig
 
 [doc('Install Talos on all nodes')]
 talos:
     just log info "Installing Talos on all nodes..."
-    for n in $(ls {{ kubernetes_dir }}/talos/nodes | sed -e 's/.yaml.j2//'); do \
+    for f in {{ kubernetes_dir }}/talos/clusterconfig/vdhinfra-*.yaml; do \
+      n=$(basename "$f" .yaml | sed 's/^vdhinfra-//'); \
       if ! op=$(just talos apply-node "$n" --insecure 2>&1); then \
         if [[ "$op" == *"certificate required"* ]]; then \
           just log info "Talos already configured, skipping apply" "node" "$n"; \
@@ -44,11 +45,16 @@ wait:
 [doc('Create Kubernetes namespaces')]
 namespaces:
     just log info "Creating namespaces..."
-    find "{{ kubernetes_dir }}/apps" -mindepth 1 -maxdepth 1 -type d -printf "%f\n" | while IFS= read -r ns; do \
+    find "{{ kubernetes_dir }}/apps" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | while IFS= read -r ns; do \
       if ! kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply --server-side -f -; then \
         just log fatal "Failed to apply namespace" "namespace" "$ns"; \
       fi; \
     done
+
+[doc('Apply SOPS age key secret for Flux decryption')]
+secrets:
+    just log info "Applying SOPS age key secret..."
+    sops -d "{{ bootstrap_dir }}/sops-age.sops.yaml" | kubectl apply --server-side -f -
 
 [doc('Apply bootstrap resources')]
 resources:
