@@ -47,7 +47,7 @@ spec:
               TZ: "Europe/Amsterdam"
               POSTGRES_HOST:
               POSTGRES_DB: home_assistant
-              HASS_HTTP_TRUSTED_PROXY_1: 10.96.0.0/16
+              HASS_HTTP_TRUSTED_PROXY_1: 10.43.0.0/16
               HASS_HTTP_TRUSTED_PROXY_2: 172.16.2.0/23
               HASS_HTTP_TRUSTED_PROXY_3: 192.168.12.0/24
             envFrom: *envFrom
