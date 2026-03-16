@@ -1,0 +1,120 @@
+---
+# Restore test stack for home-automation migration validation.
+# This simulates the new cluster's home-automation services locally in Docker
+# using real backup data from the current cluster.
+#
+# Hardware-dependent services (Zigbee2MQTT, Z-Wave JS UI) run WITHOUT their
+# coordinators/USB devices — the goal is to verify config loads, not RF comms.
+
+services:
+  # --- PostgreSQL (simulates CNPG postgres16 cluster) ---
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: testpassword
+      POSTGRES_DB: app
+    volumes:
+      - ./data/postgres:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # --- Mosquitto (MQTT broker) ---
+  mosquitto:
+    image: eclipse-mosquitto:2
+    volumes:
+      - ./data/mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./data/mosquitto/data:/mosquitto/data
+    ports:
+      - "1883:1883"
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -t '$$SYS/broker/uptime' -C 1 -W 3"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # --- Home Assistant ---
+  home-assistant:
+    image: ghcr.io/home-operations/home-assistant:2026.3.1
+    volumes:
+      - ./data/home-assistant:/config
+    environment:
+      TZ: "Europe/Amsterdam"
+      # Point to test postgres — HA uses POSTGRES_URL or recorder db_url in configuration.yaml
+      HASS_EXTERNAL_URL: "http://localhost:8123"
+      HASS_PURGE_KEEP_DAYS: "30"
+      HASS_UNIT_SYSTEM: "metric"
+      HASS_HTTP_TRUSTED_PROXY_1: "172.16.0.0/12"
+      HASS_HTTP_TRUSTED_PROXY_2: "10.0.0.0/8"
+      HASS_HTTP_TRUSTED_PROXY_3: "192.168.0.0/16"
+      # Database connection for the postgres-init pattern
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: home_assistant
+      POSTGRES_USER: postgres
+      POSTGRES_PASS: testpassword
+    ports:
+      - "8123:8123"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8123/api/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
+
+  # --- Zigbee2MQTT (NO coordinator — config validation only) ---
+  zigbee2mqtt:
+    image: ghcr.io/koenkk/zigbee2mqtt:latest
+    volumes:
+      - ./data/zigbee2mqtt:/app/data
+    environment:
+      TZ: "Europe/Amsterdam"
+    ports:
+      - "8080:8080"
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    # Zigbee2MQTT will fail to connect to coordinator — that's expected.
+    # We just want to verify config loads and the frontend serves.
+    restart: "on-failure"
+
+  # --- Z-Wave JS UI (NO USB device — config validation only) ---
+  zwave-js-ui:
+    image: zwavejs/zwave-js-ui:latest
+    volumes:
+      - ./data/zwave-js-ui:/usr/src/app/store
+    environment:
+      TZ: "Europe/Amsterdam"
+    ports:
+      - "8091:8091"
+      - "3000:3000"
+    # Will fail to open serial port — expected. Config/network keys load is the test.
+    restart: "on-failure"
+
+  # --- Node-Red ---
+  node-red:
+    image: nodered/node-red:latest
+    volumes:
+      - ./data/node-red:/data
+    environment:
+      TZ: "Europe/Amsterdam"
+    ports:
+      - "1880:1880"
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:1880/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
