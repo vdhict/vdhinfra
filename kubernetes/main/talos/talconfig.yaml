@@ -32,7 +32,7 @@ nodes:
       node.kubernetes.io/exclude-from-external-load-balancers: ""
     networkInterfaces:
       - deviceSelector:
-          hardwareAddr: "TODO:fill:after:first:boot:01"
+          hardwareAddr: "78:55:36:03:d3:ab"
         dhcp: false
         addresses:
           - "172.16.2.84/23"
@@ -52,7 +52,7 @@ nodes:
       node.kubernetes.io/exclude-from-external-load-balancers: ""
     networkInterfaces:
       - deviceSelector:
-          hardwareAddr: "TODO:fill:after:first:boot:02"
+          hardwareAddr: "78:55:36:04:90:19"
         dhcp: false
         addresses:
           - "172.16.2.85/23"
@@ -72,7 +72,7 @@ nodes:
       node.kubernetes.io/exclude-from-external-load-balancers: ""
     networkInterfaces:
       - deviceSelector:
-          hardwareAddr: "TODO:fill:after:first:boot:03"
+          hardwareAddr: "78:55:36:04:97:ce"
         dhcp: false
         addresses:
           - "172.16.2.86/23"
