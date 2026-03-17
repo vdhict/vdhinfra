@@ -1,6 +1,6 @@
 ---
 # Submit to https://factory.talos.dev/schematics to get the schematic ID
-# Current ID: ff7d469e20dd413c61df4d0ea5d0a2410b48835715789125c9c8777ba8994370
+# Current ID: 4b3cd373a192c8469e859b7a0cfbed3ecc3577c4a2d346a37b0aeff9cd17cdb0
 customization:
   systemExtensions:
     officialExtensions:
