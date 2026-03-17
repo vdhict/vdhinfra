@@ -26,7 +26,7 @@ nodes:
   - hostname: "vdhclu01master01"
     ipAddress: "172.16.2.84"
     installDisk: /dev/nvme0n1
-    talosImageURL: factory.talos.dev/installer/ff7d469e20dd413c61df4d0ea5d0a2410b48835715789125c9c8777ba8994370
+    talosImageURL: factory.talos.dev/installer/4b3cd373a192c8469e859b7a0cfbed3ecc3577c4a2d346a37b0aeff9cd17cdb0
     controlPlane: true
     nodeLabels:
       node.kubernetes.io/exclude-from-external-load-balancers: ""
@@ -46,7 +46,7 @@ nodes:
   - hostname: "vdhclu01master02"
     ipAddress: "172.16.2.85"
     installDisk: /dev/nvme0n1
-    talosImageURL: factory.talos.dev/installer/ff7d469e20dd413c61df4d0ea5d0a2410b48835715789125c9c8777ba8994370
+    talosImageURL: factory.talos.dev/installer/4b3cd373a192c8469e859b7a0cfbed3ecc3577c4a2d346a37b0aeff9cd17cdb0
     controlPlane: true
     nodeLabels:
       node.kubernetes.io/exclude-from-external-load-balancers: ""
@@ -66,7 +66,7 @@ nodes:
   - hostname: "vdhclu01master03"
     ipAddress: "172.16.2.86"
     installDisk: /dev/nvme0n1
-    talosImageURL: factory.talos.dev/installer/ff7d469e20dd413c61df4d0ea5d0a2410b48835715789125c9c8777ba8994370
+    talosImageURL: factory.talos.dev/installer/4b3cd373a192c8469e859b7a0cfbed3ecc3577c4a2d346a37b0aeff9cd17cdb0
     controlPlane: true
     nodeLabels:
       node.kubernetes.io/exclude-from-external-load-balancers: ""
@@ -88,7 +88,7 @@ nodes:
     ipAddress: "172.16.2.81"
     installDiskSelector:
       serial: "2244E6801787"
-    talosImageURL: factory.talos.dev/installer/ff7d469e20dd413c61df4d0ea5d0a2410b48835715789125c9c8777ba8994370
+    talosImageURL: factory.talos.dev/installer/4b3cd373a192c8469e859b7a0cfbed3ecc3577c4a2d346a37b0aeff9cd17cdb0
     controlPlane: false
     networkInterfaces:
       - deviceSelector:
@@ -105,7 +105,7 @@ nodes:
     ipAddress: "172.16.2.82"
     installDiskSelector:
       serial: "2244E6801A88"
-    talosImageURL: factory.talos.dev/installer/ff7d469e20dd413c61df4d0ea5d0a2410b48835715789125c9c8777ba8994370
+    talosImageURL: factory.talos.dev/installer/4b3cd373a192c8469e859b7a0cfbed3ecc3577c4a2d346a37b0aeff9cd17cdb0
     controlPlane: false
     networkInterfaces:
       - deviceSelector:
@@ -122,7 +122,7 @@ nodes:
     ipAddress: "172.16.2.83"
     installDiskSelector:
       serial: "2244E6801A85"
-    talosImageURL: factory.talos.dev/installer/ff7d469e20dd413c61df4d0ea5d0a2410b48835715789125c9c8777ba8994370
+    talosImageURL: factory.talos.dev/installer/4b3cd373a192c8469e859b7a0cfbed3ecc3577c4a2d346a37b0aeff9cd17cdb0
     controlPlane: false
     networkInterfaces:
       - deviceSelector:
