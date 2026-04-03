@@ -23,9 +23,6 @@ spec:
       retries: 3
   uninstall:
     keepHistory: false
-  dependsOn:
-    - name: openebs
-      namespace: storage
   values:
     crds:
       create: true
