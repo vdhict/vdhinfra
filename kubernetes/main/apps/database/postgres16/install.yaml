@@ -12,6 +12,7 @@ spec:
   dependsOn:
     - name: cloudnative-pg
     - name: external-secrets-stores
+    - name: rook-ceph-cluster
   path: ./kubernetes/main/apps/database/postgres16/app
   sourceRef:
     kind: GitRepository

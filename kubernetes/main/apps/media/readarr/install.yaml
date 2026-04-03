@@ -12,7 +12,7 @@ spec:
   dependsOn:
     - name: cloudnative-pg
       namespace: flux-system
-    - name: external-secrets
+    - name: external-secrets-stores
       namespace: flux-system
     - name: rook-ceph-cluster
       namespace: flux-system
