@@ -1,1 +1,2 @@
-{{ (fromYaml (readFile (printf "../../../apps/%s/%s/app/helmrelease.yaml" .Release.Namespace .Release.Name))).spec.values | toYaml }}
+{{ $values := (fromYaml (readFile (printf "../../../apps/%s/%s/app/helmrelease.yaml" .Release.Namespace .Release.Name))).spec.values | toYaml }}
+{{ $values | replace "${CLUSTER_CIDR}" "10.42.0.0/16" | replace "${SERVICE_CIDR}" "10.43.0.0/16" | replace "${SECRET_DOMAIN}" "placeholder.local" }}
