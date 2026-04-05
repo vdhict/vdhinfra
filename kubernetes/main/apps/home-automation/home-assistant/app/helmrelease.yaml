@@ -99,7 +99,7 @@ spec:
           - hass.${SECRET_DOMAIN}
         rules:
           - backendRefs:
-              - name: home-assistant-app
+              - name: home-assistant
                 port: 8123
       code-server:
         parentRefs:
@@ -110,7 +110,7 @@ spec:
           - hass-code.${SECRET_DOMAIN}
         rules:
           - backendRefs:
-              - name: home-assistant-app
+              - name: home-assistant
                 port: 12321
 
     persistence:
