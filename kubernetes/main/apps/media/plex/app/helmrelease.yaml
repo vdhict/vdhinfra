@@ -24,7 +24,7 @@ spec:
       retries: 3
   dependsOn:
     - name: intel-device-plugins-gpu
-      namespace: system
+      namespace: gpu-system
     - name: rook-ceph-cluster
       namespace: rook-ceph
   values:
