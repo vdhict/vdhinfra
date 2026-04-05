@@ -1,0 +1,20 @@
+---
+# Stable aliases for Envoy Gateway auto-generated service names.
+# The actual service names contain a hash derived from the Gateway UID
+# (e.g., envoy-network-envoy-external-27f017ad). These ExternalName
+# services provide stable names for consumers like cloudflared.
+apiVersion: v1
+kind: Service
+metadata:
+  name: envoy-external
+spec:
+  type: ExternalName
+  externalName: envoy-network-envoy-external-27f017ad.network.svc.cluster.local
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: envoy-internal
+spec:
+  type: ExternalName
+  externalName: envoy-network-envoy-internal-1102ed95.network.svc.cluster.local
