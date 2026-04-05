@@ -26,7 +26,7 @@ spec:
     metrics:
       prometheus:
         compression:
-          type: Zstd
+          type: Gzip
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
@@ -106,8 +106,6 @@ metadata:
   name: envoy
 spec:
   compressor:
-    - type: Zstd
-      zstd: {}
     - type: Brotli
       brotli: {}
     - type: Gzip
