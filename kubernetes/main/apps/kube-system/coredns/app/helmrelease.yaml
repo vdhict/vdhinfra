@@ -27,6 +27,15 @@ spec:
     replicaCount: 2
     servers:
       - zones:
+          - zone: ${SECRET_DOMAIN}
+        port: 53
+        plugins:
+          - name: forward
+            parameters: . ${K8S_GATEWAY_LB_IP}
+          - name: errors
+          - name: cache
+            parameters: 5
+      - zones:
           - zone: .
             scheme: dns://
             use_tcp: true
@@ -48,7 +57,7 @@ spec:
               pods insecure
               fallthrough in-addr.arpa ip6.arpa
           - name: forward
-            parameters: . /etc/resolv.conf
+            parameters: . 1.1.1.1 8.8.8.8
           - name: cache
             parameters: 30
           - name: loop

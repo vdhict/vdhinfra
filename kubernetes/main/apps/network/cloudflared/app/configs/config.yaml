@@ -1,10 +1,11 @@
 ---
 originRequest:
   originServerName: "external.${SECRET_DOMAIN}"
+  noTLSVerify: true
 
 ingress:
   - hostname: "${SECRET_DOMAIN}"
-    service: https://envoy-external-network.network.svc.cluster.local:443
+    service: https://envoy-network-envoy-external-27f017ad.network.svc.cluster.local:443
   - hostname: "*.${SECRET_DOMAIN}"
-    service: https://envoy-external-network.network.svc.cluster.local:443
+    service: https://envoy-network-envoy-external-27f017ad.network.svc.cluster.local:443
   - service: http_status:404
