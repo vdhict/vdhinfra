@@ -8,3 +8,4 @@ resources:
   - ./qbittorrent/install.yaml
   - ./readarr/install.yaml
   - ./calibre/install.yaml
+  - ./radarr/install.yaml
