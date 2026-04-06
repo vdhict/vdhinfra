@@ -84,7 +84,7 @@ spec:
         type: emptyDir
       media:
         type: nfs
-        server: ${NFS_SERVER}
+        server: 172.16.2.246
         path: /volume1/MULTIMEDIA
         globalMounts:
           - path: /media
