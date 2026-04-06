@@ -68,7 +68,7 @@ spec:
           - "{{ .Release.Name }}.${SECRET_DOMAIN}"
         rules:
           - backendRefs:
-              - name: esphome-app
+              - name: esphome
                 port: 6052
 
     persistence:

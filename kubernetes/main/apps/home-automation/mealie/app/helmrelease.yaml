@@ -65,7 +65,7 @@ spec:
           - "{{ .Release.Name }}.${SECRET_DOMAIN}"
         rules:
           - backendRefs:
-              - name: mealie-mealie
+              - name: mealie
                 port: 9000
 
     persistence:
