@@ -89,7 +89,7 @@ spec:
           - zwave.${SECRET_DOMAIN}
         rules:
           - backendRefs:
-              - name: zwave-js-ui-main
+              - name: zwave-js-ui
                 port: *port
 
     persistence:

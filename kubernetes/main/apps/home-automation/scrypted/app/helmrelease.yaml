@@ -80,7 +80,7 @@ spec:
           - "{{ .Release.Name }}.${SECRET_DOMAIN}"
         rules:
           - backendRefs:
-              - name: scrypted-app
+              - name: scrypted
                 port: 11080
 
     persistence:

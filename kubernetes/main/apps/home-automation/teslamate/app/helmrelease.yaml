@@ -92,5 +92,5 @@ spec:
           - "{{ .Release.Name }}.${SECRET_DOMAIN}"
         rules:
           - backendRefs:
-              - name: teslamate-app
+              - name: teslamate
                 port: 4000
