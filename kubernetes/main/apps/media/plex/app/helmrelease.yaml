@@ -113,9 +113,15 @@ spec:
               - path:
                   type: PathPrefix
                   value: /library/streams
+            timeouts:
+              request: "0s"
+              backendRequest: "0s"
           - backendRefs:
               - name: plex
                 port: *port
+            timeouts:
+              request: "0s"
+              backendRequest: "0s"
     persistence:
       config:
         existingClaim: plex
