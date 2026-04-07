@@ -47,6 +47,23 @@ def b64u(b: bytes) -> str:
     return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
 
 
+def normalize_pem(raw: str) -> str:
+    """Reconstruct a PEM with proper line breaks even if the stored value
+    has had its newlines flattened to spaces (e.g. pasted into a 1Password
+    single-line field). PEM is a deterministic format: a BEGIN/END marker
+    pair around base64 wrapped at 64 chars, so we can always rebuild it."""
+    import re
+    text = raw.strip()
+    m = re.match(r"(-----BEGIN [A-Z0-9 ]+-----)(.*?)(-----END [A-Z0-9 ]+-----)\s*$", text, re.S)
+    if not m:
+        return raw  # Not a PEM we recognize — pass through, let openssl complain
+    header, body, footer = m.groups()
+    # Strip ALL whitespace from base64 body, then re-wrap at 64 chars
+    body = re.sub(r"\s+", "", body)
+    lines = [body[i:i + 64] for i in range(0, len(body), 64)]
+    return header + "\n" + "\n".join(lines) + "\n" + footer + "\n"
+
+
 def mint_installation_token() -> str | None:
     """Sign a JWT with the App private key (via openssl) and exchange for an
     installation access token. Returns None on any failure."""
@@ -62,9 +79,18 @@ def mint_installation_token() -> str | None:
     pb = b64u(json.dumps(payload, separators=(",", ":")).encode())
     signing_input = f"{hb}.{pb}".encode()
 
+    # Normalize the PEM in case it was stored on a single line in 1Password.
+    # Write to a tempfile so openssl gets a clean parse target.
+    raw = KEY_PATH.read_text()
+    pem = normalize_pem(raw)
+    norm_path = tempfile.NamedTemporaryFile(mode="w", suffix=".pem", delete=False)
     try:
+        norm_path.write(pem)
+        norm_path.flush()
+        norm_path.close()
+        os.chmod(norm_path.name, 0o600)
         proc = subprocess.run(
-            ["openssl", "dgst", "-sha256", "-sign", str(KEY_PATH)],
+            ["openssl", "dgst", "-sha256", "-sign", norm_path.name],
             input=signing_input, capture_output=True, check=True, timeout=10,
         )
     except subprocess.CalledProcessError as e:
@@ -73,6 +99,11 @@ def mint_installation_token() -> str | None:
     except (subprocess.TimeoutExpired, FileNotFoundError) as e:
         log(f"git_push: openssl sign failed: {e}")
         return None
+    finally:
+        try:
+            os.unlink(norm_path.name)
+        except Exception:  # noqa: BLE001
+            pass
 
     jwt = f"{hb}.{pb}.{b64u(proc.stdout)}"
     req = urllib.request.Request(
