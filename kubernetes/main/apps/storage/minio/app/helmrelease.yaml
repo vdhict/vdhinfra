@@ -59,7 +59,11 @@ spec:
     defaultPodOptions:
       securityContext:
         runAsNonRoot: true
-        runAsUser: 1032
+        # UID 1024 matches the .minio.sys files already on /volume1/minio
+        # from a previous MinIO install. The Synology NFS share has
+        # root_squash, so we can't chown existing files from a pod —
+        # match the existing UID instead.
+        runAsUser: 1024
         runAsGroup: 100
         fsGroup: 100
         fsGroupChangePolicy: OnRootMismatch
