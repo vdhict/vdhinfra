@@ -124,6 +124,24 @@ def classify(raw: dict, trends: dict, triage: dict) -> tuple[str, str, list[dict
         issues.append({"sev": "warn", "area": "esphome",
                        "msg": f"{esphome['offline']} ESPHome device(s) offline"})
 
+    # Offsite backup mirror to Azure Blob
+    offsite = sections.get("offsite", {}) or {}
+    if offsite.get("configured"):
+        if offsite.get("status") == "stale":
+            hrs = offsite.get("hours_since_last_success", "?")
+            issues.append({"sev": "warn", "area": "offsite",
+                           "msg": f"Offsite mirror is stale — last successful sync {hrs}h ago (threshold 36h)"})
+        elif offsite.get("status") == "never":
+            issues.append({"sev": "warn", "area": "offsite",
+                           "msg": "Offsite mirror CronJob has never had a successful run"})
+        elif offsite.get("suspended"):
+            issues.append({"sev": "warn", "area": "offsite",
+                           "msg": "Offsite mirror CronJob is suspended"})
+    elif offsite.get("status") == "missing":
+        # CronJob does not exist — we don't want to flag this as an error
+        # before the user has deployed the offsite mirror app
+        pass
+
     # Trend alerts (informational)
     for a in (trends or {}).get("alerts", []):
         issues.append({"sev": a["severity"], "area": "trend", "msg": a["message"]})
@@ -152,6 +170,7 @@ def render_markdown(date: str, raw: dict, triage: dict, trends: dict, color: str
     ceph = sections.get("ceph", {})
     pg = sections.get("postgres", {})
     ha = sections.get("ha", {})
+    offsite = sections.get("offsite", {}) or {}
 
     lines: list[str] = []
     lines.append(f"# Cluster Health — {date}")
@@ -174,6 +193,13 @@ def render_markdown(date: str, raw: dict, triage: dict, trends: dict, color: str
     lines.append(f"| CNPG Clusters Ready | {pg.get('ready', '?')}/{pg.get('total', '?')} |")
     lines.append(f"| HA API | {'reachable' if ha.get('api_reachable') else 'UNREACHABLE'} |")
     lines.append(f"| HA Entities | {ha.get('entity_count', '?')} |")
+    if offsite.get("configured"):
+        hrs = offsite.get("hours_since_last_success")
+        ago = f"{hrs}h ago" if hrs is not None else "never"
+        emoji = {"ok": "🟢", "stale": "🟡", "never": "🟡"}.get(offsite.get("status"), "?")
+        lines.append(f"| Offsite mirror (Azure) | {emoji} last sync {ago} |")
+    else:
+        lines.append("| Offsite mirror (Azure) | not configured |")
     lines.append(f"| HA Unavailable States | {ha.get('unavailable_states', '?')} |")
     lines.append("")
 

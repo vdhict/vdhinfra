@@ -1,0 +1,12 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location":           { "value": "westeurope" },
+    "storageAccountName": { "value": "vdhinfrabackups" },
+    "containerName":      { "value": "vdhinfra-backups" },
+    "accessTier":         { "value": "Cool" },
+    "archiveAfterDays":   { "value": 90 },
+    "deleteAfterDays":    { "value": 365 }
+  }
+}

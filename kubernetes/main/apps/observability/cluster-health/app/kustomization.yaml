@@ -29,6 +29,7 @@ configMapGenerator:
       - scripts/collect_zwave.py
       - scripts/collect_mqtt.sh
       - scripts/collect_esphome.py
+      - scripts/collect_offsite.py
       - scripts/collect_prom.py
       - scripts/triage.py
       - scripts/trends.py

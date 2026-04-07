@@ -1,0 +1,115 @@
+---
+# Daily one-way mirror of the MinIO bucket contents to Azure Blob Storage.
+#
+# rclone is configured purely via env vars (RCLONE_CONFIG_<remote>_<field>),
+# so no config file is mounted. Both the source (MinIO via S3) and the
+# destination (Azure Blob) credentials come from the cluster-secret created
+# by the ExternalSecret in this directory.
+#
+# Sync semantics:
+#   - One-way: local-minio → azure (deletions on the source are mirrored)
+#   - Per-bucket subdirs preserved: cnpg-backups/* and volsync/*
+#   - --checksum: rclone skips blobs that match by ETag (S3) / md5 (Azure),
+#     so an unchanged blob doesn't get re-uploaded.
+#   - --transfers 4: low parallelism, low NAS load, fine for ~2 GiB
+#
+# Failure mode: any non-zero exit triggers Job failure → cluster-health
+# notices in the daily report (via the K8s API CronJob lastSuccessfulTime).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: minio-offsite-mirror
+  namespace: storage
+spec:
+  schedule: "30 4 * * *"
+  timeZone: Europe/Amsterdam
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 604800
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: rclone
+              image: rclone/rclone:1.69.1
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  echo "[mirror] starting at $(date -u +%FT%TZ)"
+                  echo "[mirror] source: local-minio (in-cluster)"
+                  echo "[mirror] dest:   azure:${AZURE_CONTAINER}"
+
+                  # Sync each bucket as its own top-level prefix in the Azure container
+                  for bucket in cnpg-backups volsync; do
+                    echo "[mirror] === syncing $bucket ==="
+                    rclone sync \
+                      "local-minio:$bucket" \
+                      "azure:${AZURE_CONTAINER}/$bucket" \
+                      --checksum \
+                      --transfers 4 \
+                      --checkers 8 \
+                      --stats 30s \
+                      --stats-one-line \
+                      --stats-log-level NOTICE \
+                      --use-server-modtime
+                  done
+
+                  echo "[mirror] done at $(date -u +%FT%TZ)"
+                  echo "[mirror] container size:"
+                  rclone size "azure:${AZURE_CONTAINER}"
+              env:
+                - name: TZ
+                  value: Europe/Amsterdam
+                # ---- source: in-cluster MinIO over S3 API ----
+                - name: RCLONE_CONFIG_LOCAL-MINIO_TYPE
+                  value: s3
+                - name: RCLONE_CONFIG_LOCAL-MINIO_PROVIDER
+                  value: Minio
+                - name: RCLONE_CONFIG_LOCAL-MINIO_ENDPOINT
+                  value: http://minio.storage.svc.cluster.local:9000
+                - name: RCLONE_CONFIG_LOCAL-MINIO_ENV_AUTH
+                  value: "false"
+                - name: RCLONE_CONFIG_LOCAL-MINIO_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: minio-offsite-mirror-secret
+                      key: MINIO_ROOT_USER
+                - name: RCLONE_CONFIG_LOCAL-MINIO_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: minio-offsite-mirror-secret
+                      key: MINIO_ROOT_PASSWORD
+                # ---- destination: Azure Blob Storage ----
+                - name: RCLONE_CONFIG_AZURE_TYPE
+                  value: azureblob
+                - name: RCLONE_CONFIG_AZURE_ACCOUNT
+                  valueFrom:
+                    secretKeyRef:
+                      name: minio-offsite-mirror-secret
+                      key: AZURE_STORAGE_ACCOUNT
+                - name: RCLONE_CONFIG_AZURE_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: minio-offsite-mirror-secret
+                      key: AZURE_STORAGE_KEY
+                # The container name is templated into the script body
+                - name: AZURE_CONTAINER
+                  valueFrom:
+                    secretKeyRef:
+                      name: minio-offsite-mirror-secret
+                      key: AZURE_CONTAINER
+              resources:
+                requests: { cpu: 100m, memory: 256Mi }
+                limits:   { cpu: 1000m, memory: 1Gi }
