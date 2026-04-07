@@ -49,14 +49,14 @@ spec:
                   set -e
                   echo "[mirror] starting at $(date -u +%FT%TZ)"
                   echo "[mirror] source: local-minio (in-cluster)"
-                  echo "[mirror] dest:   azure:${AZURE_CONTAINER}"
+                  echo "[mirror] dest:   azure:$${AZURE_CONTAINER}"
 
                   # Sync each bucket as its own top-level prefix in the Azure container
                   for bucket in cnpg-backups volsync; do
                     echo "[mirror] === syncing $bucket ==="
                     rclone sync \
                       "local-minio:$bucket" \
-                      "azure:${AZURE_CONTAINER}/$bucket" \
+                      "azure:$${AZURE_CONTAINER}/$bucket" \
                       --checksum \
                       --transfers 4 \
                       --checkers 8 \
@@ -68,7 +68,7 @@ spec:
 
                   echo "[mirror] done at $(date -u +%FT%TZ)"
                   echo "[mirror] container size:"
-                  rclone size "azure:${AZURE_CONTAINER}"
+                  rclone size "azure:$${AZURE_CONTAINER}"
               env:
                 - name: TZ
                   value: Europe/Amsterdam
