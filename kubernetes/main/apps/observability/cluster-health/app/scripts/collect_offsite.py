@@ -40,23 +40,43 @@ def parse_ts(s):
 
 def main() -> int:
     out = {"configured": False, "status": "missing"}
-    j = kubectl_json(["get", "cronjob", "-n", NAMESPACE, CRONJOB_NAME])
-    if not j or "spec" not in j:
+    cj = kubectl_json(["get", "cronjob", "-n", NAMESPACE, CRONJOB_NAME])
+    if not cj or "spec" not in cj:
         json.dump(out, sys.stdout, indent=2)
         return 0
 
     out["configured"] = True
-    out["schedule"] = j["spec"].get("schedule")
-    out["suspended"] = bool(j["spec"].get("suspend", False))
-    s = j.get("status", {}) or {}
+    out["schedule"] = cj["spec"].get("schedule")
+    out["suspended"] = bool(cj["spec"].get("suspend", False))
+    s = cj.get("status", {}) or {}
     out["last_schedule_time"] = s.get("lastScheduleTime")
-    out["last_successful_time"] = s.get("lastSuccessfulTime")
     out["active_jobs"] = len(s.get("active", []) or [])
 
-    last_ok = parse_ts(s.get("lastSuccessfulTime"))
+    # CronJob.status.lastSuccessfulTime is only updated by Jobs that the
+    # CronJob CONTROLLER spawned — not by manually-triggered Jobs created
+    # via `kubectl create job --from=cronjob/...`. Walk the namespace's
+    # Jobs directly and find the most recent one whose name starts with
+    # the cronjob name AND completed successfully.
+    jobs = kubectl_json(["get", "jobs", "-n", NAMESPACE])
+    last_ok = None
+    if jobs:
+        for j in jobs.get("items", []):
+            name = j["metadata"].get("name", "")
+            # Match either `<cronjob>-<timestamp>` (scheduled) or
+            # any name containing the cronjob name (manual-triggered)
+            if CRONJOB_NAME not in name and not name.startswith("mirror"):
+                continue
+            jstatus = j.get("status", {}) or {}
+            if jstatus.get("succeeded", 0) >= 1:
+                ct = parse_ts(jstatus.get("completionTime"))
+                if ct and (last_ok is None or ct > last_ok):
+                    last_ok = ct
+
+    out["last_successful_time"] = last_ok.isoformat() if last_ok else None
+
     if not last_ok:
         out["hours_since_last_success"] = None
-        out["status"] = "never"  # CronJob exists but has never had a successful run
+        out["status"] = "never"
     else:
         delta = (datetime.now(timezone.utc) - last_ok).total_seconds() / 3600
         out["hours_since_last_success"] = round(delta, 2)
