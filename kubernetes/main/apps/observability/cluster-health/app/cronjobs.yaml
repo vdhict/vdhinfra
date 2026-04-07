@@ -102,7 +102,7 @@ spec:
             - name: triage
               image: ghcr.io/vdhict/cluster-health:v0.1.0
               imagePullPolicy: IfNotPresent
-              command: ["/usr/bin/python3", "/scripts/triage.py"]
+              command: ["python3", "/scripts/triage.py"]
               env:
                 - name: TZ
                   value: Europe/Amsterdam
@@ -167,9 +167,9 @@ spec:
               args:
                 - |
                   set -e
-                  /usr/bin/python3 /scripts/trends.py
-                  /usr/bin/python3 /scripts/report.py
-                  /usr/bin/python3 /scripts/git_push.py || echo "git push failed, continuing"
+                  python3 /scripts/trends.py
+                  python3 /scripts/report.py
+                  python3 /scripts/git_push.py || echo "git push failed, continuing"
               env:
                 - name: TZ
                   value: Europe/Amsterdam
@@ -250,7 +250,7 @@ spec:
             - name: notify
               image: ghcr.io/vdhict/cluster-health:v0.1.0
               imagePullPolicy: IfNotPresent
-              command: ["/usr/bin/python3", "/scripts/notify.py"]
+              command: ["python3", "/scripts/notify.py"]
               env:
                 - name: TZ
                   value: Europe/Amsterdam
