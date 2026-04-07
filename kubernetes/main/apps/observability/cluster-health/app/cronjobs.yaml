@@ -1,0 +1,266 @@
+---
+# Shared anchors via YAML are not supported across docs in kustomize, so the
+# CronJobs duplicate spec sections. Keep them in sync when editing.
+#
+# All CronJobs share:
+#   - serviceAccount: cluster-health
+#   - image: ghcr.io/vdhict/cluster-health (built from ./image/Dockerfile)
+#   - PVC mounted at /data
+#   - scripts ConfigMap mounted at /scripts
+#   - secret mounted at /secrets
+#   - env: HA_TOKEN, HA_NOTIFY_TARGET, REPORT_BASE_URL, PROM_URL
+#
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: health-collect
+  namespace: observability
+spec:
+  schedule: "0 2 * * *"
+  timeZone: Europe/Amsterdam
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 604800
+      template:
+        spec:
+          serviceAccountName: cluster-health
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+          containers:
+            - name: collect
+              image: ghcr.io/vdhict/cluster-health:v0.1.0
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-c", "/scripts/collect.sh"]
+              env:
+                - name: TZ
+                  value: Europe/Amsterdam
+                - name: PROM_URL
+                  value: http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090
+                - name: HA_URL
+                  value: http://home-assistant.home-automation.svc.cluster.local:8123
+                - name: MQTT_HOST
+                  value: mosquitto.home-automation.svc.cluster.local
+                - name: REPORT_BASE_URL
+                  value: https://health.${SECRET_DOMAIN}
+              envFrom:
+                - secretRef:
+                    name: cluster-health-secret
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                - name: scripts
+                  mountPath: /scripts
+              resources:
+                requests: { cpu: 50m, memory: 128Mi }
+                limits: { cpu: 1000m, memory: 512Mi }
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: cluster-health-data
+            - name: scripts
+              configMap:
+                name: cluster-health-scripts
+                defaultMode: 0755
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: health-triage
+  namespace: observability
+spec:
+  schedule: "0 3 * * *"
+  timeZone: Europe/Amsterdam
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 604800
+      template:
+        spec:
+          serviceAccountName: cluster-health
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+          containers:
+            - name: triage
+              image: ghcr.io/vdhict/cluster-health:v0.1.0
+              imagePullPolicy: IfNotPresent
+              command: ["/usr/bin/python3", "/scripts/triage.py"]
+              env:
+                - name: TZ
+                  value: Europe/Amsterdam
+                - name: HA_URL
+                  value: http://home-assistant.home-automation.svc.cluster.local:8123
+                # Flip to "false" after first night's audit log review
+                - name: DRY_RUN
+                  value: "true"
+              envFrom:
+                - secretRef:
+                    name: cluster-health-secret
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                - name: scripts
+                  mountPath: /scripts
+              resources:
+                requests: { cpu: 50m, memory: 128Mi }
+                limits: { cpu: 500m, memory: 256Mi }
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: cluster-health-data
+            - name: scripts
+              configMap:
+                name: cluster-health-scripts
+                defaultMode: 0755
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: health-report
+  namespace: observability
+spec:
+  schedule: "0 6 * * *"
+  timeZone: Europe/Amsterdam
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 604800
+      template:
+        spec:
+          serviceAccountName: cluster-health
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+          containers:
+            - name: report
+              image: ghcr.io/vdhict/cluster-health:v0.1.0
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  /usr/bin/python3 /scripts/trends.py
+                  /usr/bin/python3 /scripts/report.py
+                  /usr/bin/python3 /scripts/git_push.py || echo "git push failed, continuing"
+              env:
+                - name: TZ
+                  value: Europe/Amsterdam
+                - name: PROM_URL
+                  value: http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090
+                - name: REPORT_BASE_URL
+                  value: https://health.${SECRET_DOMAIN}
+                - name: GIT_REMOTE
+                  value: git@github.com:vdhict/vdhinfra.git
+                - name: GIT_BRANCH
+                  value: main
+                - name: GIT_AUTHOR_NAME
+                  value: cluster-health-bot
+                - name: GIT_AUTHOR_EMAIL
+                  value: cluster-health@bluejungle.net
+              envFrom:
+                - secretRef:
+                    name: cluster-health-secret
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                - name: scripts
+                  mountPath: /scripts
+                - name: secret
+                  mountPath: /secrets
+                  readOnly: true
+              resources:
+                requests: { cpu: 50m, memory: 256Mi }
+                limits: { cpu: 1000m, memory: 1Gi }
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: cluster-health-data
+            - name: scripts
+              configMap:
+                name: cluster-health-scripts
+                defaultMode: 0755
+            - name: secret
+              secret:
+                secretName: cluster-health-secret
+                defaultMode: 0400
+                items:
+                  - key: github-deploy-key
+                    path: id_ed25519
+                  - key: known_hosts
+                    path: known_hosts
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: health-notify
+  namespace: observability
+spec:
+  schedule: "0 8 * * *"
+  timeZone: Europe/Amsterdam
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 604800
+      template:
+        spec:
+          serviceAccountName: cluster-health
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+          containers:
+            - name: notify
+              image: ghcr.io/vdhict/cluster-health:v0.1.0
+              imagePullPolicy: IfNotPresent
+              command: ["/usr/bin/python3", "/scripts/notify.py"]
+              env:
+                - name: TZ
+                  value: Europe/Amsterdam
+                - name: HA_URL
+                  value: http://home-assistant.home-automation.svc.cluster.local:8123
+                - name: REPORT_BASE_URL
+                  value: https://health.${SECRET_DOMAIN}
+              envFrom:
+                - secretRef:
+                    name: cluster-health-secret
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                - name: scripts
+                  mountPath: /scripts
+              resources:
+                requests: { cpu: 10m, memory: 64Mi }
+                limits: { cpu: 100m, memory: 128Mi }
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: cluster-health-data
+            - name: scripts
+              configMap:
+                name: cluster-health-scripts
+                defaultMode: 0755

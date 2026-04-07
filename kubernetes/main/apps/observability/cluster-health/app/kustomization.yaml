@@ -1,0 +1,32 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./externalsecret.yaml
+  - ./rbac.yaml
+  - ./pvc.yaml
+  - ./cronjobs.yaml
+  - ./web.yaml
+  - ./httproute.yaml
+configMapGenerator:
+  - name: cluster-health-scripts
+    files:
+      - scripts/collect.sh
+      - scripts/collect_k8s.py
+      - scripts/collect_ceph.sh
+      - scripts/collect_postgres.sh
+      - scripts/collect_ha.py
+      - scripts/collect_z2m.py
+      - scripts/collect_zwave.py
+      - scripts/collect_mqtt.sh
+      - scripts/collect_esphome.py
+      - scripts/collect_prom.py
+      - scripts/triage.py
+      - scripts/trends.py
+      - scripts/report.py
+      - scripts/notify.py
+      - scripts/git_push.py
+      - scripts/lib.py
+generatorOptions:
+  disableNameSuffixHash: false

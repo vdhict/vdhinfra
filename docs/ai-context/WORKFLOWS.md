@@ -488,6 +488,34 @@ kubectl get pods -n database -l cnpg.io/cluster=immich
 
 ---
 
+## Daily Health Report
+
+The `cluster-health` app at `kubernetes/main/apps/observability/cluster-health/` runs four CronJobs that produce a daily report of cluster + Home Assistant health, perform conservative auto-fixes, and publish a web UI.
+
+**Schedule (Europe/Amsterdam):**
+- 02:00 — `health-collect`: gathers raw signals (kubectl, ceph, postgres, HA API, Prometheus)
+- 03:00 — `health-triage`: applies auto-fix rules (pod cleanup, Flux reconcile, rollout-restart for CrashLoop / HA integrations)
+- 06:00 — `health-report`: trends, markdown + HTML report, git push of summary
+- 08:00 — `health-notify`: HA mobile push with link to today's report
+
+**Web UI:** `https://health.${SECRET_DOMAIN}` (envoy-internal, last 14 days indexed)
+
+**Reports in git:** `docs/health-reports/YYYY-MM-DD.md`
+
+**Auto-fix audit:** every action lands in `/data/triage/audit.jsonl` on the shared PVC, plus that day's `triage/<date>.json`.
+
+**Dry-run safety net:** the `health-triage` CronJob ships with `DRY_RUN=true`. Review the first night's audit log, then flip `DRY_RUN` to `false` in `app/cronjobs.yaml` and reconcile.
+
+**Manual trigger:**
+```bash
+kubectl create job --from=cronjob/health-collect health-collect-now -n observability
+kubectl logs -n observability job/health-collect-now -f
+```
+
+**Tuning:** scripts live in `app/scripts/` and are mounted via a `configMapGenerator` — edits land via Flux on the next reconcile, no image rebuild needed.
+
+---
+
 **See Also**:
 
 - `ARCHITECTURE.md` - System architecture and component relationships

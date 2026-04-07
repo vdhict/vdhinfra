@@ -1,0 +1,53 @@
+---
+name: Build cluster-health image
+on:
+  push:
+    branches: [main]
+    paths:
+      - "kubernetes/main/apps/observability/cluster-health/image/**"
+      - ".github/workflows/build-cluster-health-image.yml"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to publish (e.g. v0.1.0)"
+        required: true
+        default: "v0.1.0"
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/cluster-health
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute tags
+        id: tags
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tags=${{ env.IMAGE }}:${{ github.event.inputs.tag }},${{ env.IMAGE }}:latest" >> "$GITHUB_OUTPUT"
+          else
+            SHA_SHORT=$(echo "${{ github.sha }}" | cut -c1-7)
+            echo "tags=${{ env.IMAGE }}:sha-${SHA_SHORT},${{ env.IMAGE }}:latest" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: kubernetes/main/apps/observability/cluster-health/image
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          provenance: false
