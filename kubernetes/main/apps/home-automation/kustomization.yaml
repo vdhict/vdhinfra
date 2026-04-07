@@ -12,5 +12,4 @@ resources:
   - ./esphome/install.yaml
   - ./mealie/install.yaml
   - ./music-assistant/install.yaml
-  - ./teslamate/install.yaml
   - ./scrypted/install.yaml
