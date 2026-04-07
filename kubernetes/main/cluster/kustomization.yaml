@@ -4,7 +4,13 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: flux-system
 resources:
+  # cluster-settings (plain ConfigMap, safe to manage via Flux).
   - ./cluster-settings.yaml
-  - ./cluster-secrets.sops.yaml
+  # cluster-secrets is INTENTIONALLY excluded — the parent flux-system
+  # Kustomization that owns this directory has no sops decryption
+  # configured, so adding the encrypted file here would land raw ENC[...]
+  # text in the live Secret. The Secret is bootstrapped once via helmfile;
+  # to update it, decrypt locally with sops and `kubectl apply` directly
+  # (or add `decryption.provider: sops` to the flux-system KS itself).
   - ./cluster-apps.yaml
   - ./repositories
