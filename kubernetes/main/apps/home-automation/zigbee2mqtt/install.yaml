@@ -13,7 +13,12 @@ spec:
     - name: mosquitto
     - name: external-secrets-stores
     - name: rook-ceph-cluster
+    - name: volsync
   path: ./kubernetes/main/apps/home-automation/zigbee2mqtt/app
+  postBuild:
+    substitute:
+      APP: zigbee2mqtt
+      VOLSYNC_CLAIM: zigbee2mqtt-config
   sourceRef:
     kind: GitRepository
     name: flux-system

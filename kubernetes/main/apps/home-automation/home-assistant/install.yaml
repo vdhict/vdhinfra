@@ -13,7 +13,12 @@ spec:
     - name: external-secrets-stores
     - name: cloudnative-pg
     - name: rook-ceph-cluster
+    - name: volsync
   path: ./kubernetes/main/apps/home-automation/home-assistant/app
+  postBuild:
+    substitute:
+      APP: home-assistant
+      VOLSYNC_CLAIM: home-assistant-config
   sourceRef:
     kind: GitRepository
     name: flux-system
