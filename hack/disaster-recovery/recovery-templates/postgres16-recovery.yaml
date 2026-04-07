@@ -1,0 +1,54 @@
+---
+# CNPG cluster manifest for ONE-SHOT recovery from a barman base backup +
+# WAL archive on MinIO. Apply this in place of the canonical
+# kubernetes/main/apps/database/postgres16/app/cluster.yaml manifest, wait
+# for recovery to complete, then DELETE this file and re-apply the
+# canonical one (the recovery script handles this for you).
+#
+# Required substitutions (handled by 20-restore-postgres.sh):
+#   ${RECOVERY_BACKUP_ID}     — barman base backup ID, e.g. 20260407T160846
+#   ${RECOVERY_TARGET_TIME}   — optional ISO8601 timestamp for PITR; empty
+#                               for "latest available WAL"
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres16
+  namespace: database
+spec:
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.6-3
+  primaryUpdateStrategy: unsupervised
+  storage:
+    size: 50Gi
+    storageClass: rook-ceph-block
+  superuserSecret:
+    name: cloudnative-pg-secret
+  enableSuperuserAccess: true
+  postgresql:
+    parameters:
+      max_connections: "600"
+      shared_buffers: 512MB
+  bootstrap:
+    recovery:
+      source: postgres16-source
+      # When RECOVERY_TARGET_TIME is unset, CNPG recovers to the end of
+      # the available WAL stream. Otherwise it stops replay at that point.
+      # ${RECOVERY_TARGET_TIME_BLOCK}
+  externalClusters:
+    - name: postgres16-source
+      barmanObjectStore:
+        destinationPath: s3://cnpg-backups/postgres16
+        endpointURL: http://minio.storage.svc.cluster.local:9000
+        s3Credentials:
+          accessKeyId:
+            name: cnpg-backup-secret
+            key: AWS_ACCESS_KEY_ID
+          secretAccessKey:
+            name: cnpg-backup-secret
+            key: AWS_SECRET_ACCESS_KEY
+        wal:
+          compression: gzip
+        data:
+          compression: gzip
+  monitoring:
+    enablePodMonitor: true
