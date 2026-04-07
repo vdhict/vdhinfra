@@ -29,4 +29,7 @@ configMapGenerator:
       - scripts/git_push.py
       - scripts/lib.py
 generatorOptions:
-  disableNameSuffixHash: false
+  # Stable name — kustomize's hashed-name volume ref rewriting is unreliable
+  # for CronJob volumes. Without this the CronJobs mount a stale (or missing)
+  # ConfigMap on every script update.
+  disableNameSuffixHash: true
