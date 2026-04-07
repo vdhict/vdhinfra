@@ -202,8 +202,11 @@ def render_markdown(date: str, raw: dict, triage: dict, trends: dict, color: str
         lines.append("")
         lines.append("| Time | Action | Target | Reason | Outcome |")
         lines.append("|---|---|---|---|---|")
+        def cell(s):
+            # Escape pipes inside markdown table cells; collapse newlines
+            return str(s).replace("|", "\\|").replace("\n", " ").strip()
         for e in audit[:50]:
-            lines.append(f"| {e['ts']} | {e['action']} | `{e['target']}` | {e['reason']} | {e['outcome']} |")
+            lines.append(f"| {cell(e['ts'])} | {cell(e['action'])} | `{cell(e['target'])}` | {cell(e['reason'])} | {cell(e['outcome'])} |")
     lines.append("")
 
     # Trends
