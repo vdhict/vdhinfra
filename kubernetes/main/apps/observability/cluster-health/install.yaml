@@ -19,6 +19,9 @@ spec:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-  wait: true
+  # wait: false on purpose — the ExternalSecret stays NotReady until the
+  # 1Password item is created, but the rest of the system is independent
+  # (CronJobs + Deployment mount the secret with optional: true).
+  wait: false
   interval: 30m
   timeout: 5m
