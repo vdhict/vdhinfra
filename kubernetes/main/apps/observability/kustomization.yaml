@@ -16,3 +16,4 @@ resources:
   - ./nut-exporter/install.yaml
   - ./speedtest-exporter/install.yaml
   - ./unpoller/install.yaml
+  - ./cluster-health/install.yaml
