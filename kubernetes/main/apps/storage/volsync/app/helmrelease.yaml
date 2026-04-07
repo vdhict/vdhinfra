@@ -1,0 +1,40 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd-community/flux2-schemas/main/helmrelease-helm-v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: volsync
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: volsync
+      version: 0.13.1
+      sourceRef:
+        kind: HelmRepository
+        name: backube
+        namespace: flux-system
+  install:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    metrics:
+      disableAuth: true
+    manageCRDs: true
+    # Movers — restic disabled, kopia is what the component uses
+    rclone:
+      repository: quay.io/backube/volsync
+    restic:
+      repository: quay.io/backube/volsync
+    rsync:
+      repository: quay.io/backube/volsync
+    rsyncTls:
+      repository: quay.io/backube/volsync
+    syncthing:
+      repository: quay.io/backube/volsync

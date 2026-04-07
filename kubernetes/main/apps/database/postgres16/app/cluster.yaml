@@ -34,3 +34,38 @@ spec:
         - CREATE DATABASE readarr_log OWNER app;
   monitoring:
     enablePodMonitor: true
+  backup:
+    # Daily base backups + continuous WAL archiving to MinIO. Retention
+    # is enforced by the ScheduledBackup CRD via barman's --retention
+    # policy. 7-day window covers PITR; older backups are pruned by
+    # barman on the next backup. Reuses the existing minio-secret root
+    # creds (mapped to AWS_* by the cnpg-backup-secret ExternalSecret).
+    barmanObjectStore:
+      destinationPath: s3://cnpg-backups/postgres16
+      endpointURL: http://minio.storage.svc.cluster.local:9000
+      s3Credentials:
+        accessKeyId:
+          name: cnpg-backup-secret
+          key: AWS_ACCESS_KEY_ID
+        secretAccessKey:
+          name: cnpg-backup-secret
+          key: AWS_SECRET_ACCESS_KEY
+      wal:
+        compression: gzip
+        maxParallel: 4
+      data:
+        compression: gzip
+        immediateCheckpoint: false
+        jobs: 2
+    retentionPolicy: "7d"
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: postgres16-daily
+spec:
+  schedule: "0 30 2 * * *"  # 02:30 daily (cron has 6 fields in CNPG)
+  backupOwnerReference: self
+  cluster:
+    name: postgres16
+  method: barmanObjectStore
