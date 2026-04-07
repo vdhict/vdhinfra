@@ -79,7 +79,7 @@ spec:
         controller: minio
         type: LoadBalancer
         annotations:
-          io.cilium/lb-ipam-ips: 172.16.2.244
+          lbipam.cilium.io/ips: 172.16.2.245
         ports:
           s3:
             port: 9000
