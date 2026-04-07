@@ -12,5 +12,6 @@ resources:
   # Flux-Kustomizations
   - openebs/install.yaml
   - minio/install.yaml
+  - minio-offsite-mirror/install.yaml
   - snapshot-controller/install.yaml
   - volsync/install.yaml

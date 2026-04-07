@@ -36,7 +36,7 @@ spec:
             fsGroup: 1000
           containers:
             - name: collect
-              image: ghcr.io/vdhict/cluster-health:v0.2.1
+              image: ghcr.io/vdhict/cluster-health:v0.3.0
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "-c", "/scripts/collect.sh"]
               env:
@@ -100,7 +100,7 @@ spec:
             fsGroup: 1000
           containers:
             - name: triage
-              image: ghcr.io/vdhict/cluster-health:v0.2.1
+              image: ghcr.io/vdhict/cluster-health:v0.3.0
               imagePullPolicy: IfNotPresent
               command: ["python3", "/scripts/triage.py"]
               env:
@@ -161,7 +161,7 @@ spec:
             fsGroup: 1000
           containers:
             - name: report
-              image: ghcr.io/vdhict/cluster-health:v0.2.1
+              image: ghcr.io/vdhict/cluster-health:v0.3.0
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "-c"]
               args:
@@ -252,7 +252,7 @@ spec:
             fsGroup: 1000
           containers:
             - name: notify
-              image: ghcr.io/vdhict/cluster-health:v0.2.1
+              image: ghcr.io/vdhict/cluster-health:v0.3.0
               imagePullPolicy: IfNotPresent
               command: ["python3", "/scripts/notify.py"]
               env:
