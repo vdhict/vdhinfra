@@ -2,8 +2,13 @@
 # yaml-language-server: $schema=https://json.schemastore.org/kustomization
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
+# Active backup only — references the app's existing PVC by name and
+# starts producing snapshots to MinIO. Does NOT create or replace the
+# data PVC, so it composes safely with apps that declare PVCs inline
+# via helmrelease .persistence.
+#
+# For restore: see ../volsync-restore (separate component to be added
+# manually during a recovery operation).
 resources:
-  - pvc.yaml
-  - replicationdestination.yaml
   - replicationsource.yaml
   - secrets.yaml

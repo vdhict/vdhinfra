@@ -1,0 +1,23 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+# Restore-time component — DO NOT include this in normal app
+# kustomizations. Use it manually during a recovery operation:
+#
+# 1. Scale the app workload to 0 (so the live PVC is unbound).
+# 2. Delete the live PVC.
+# 3. Add `components: [../../../../components/volsync-restore]` to the
+#    app's app/kustomization.yaml temporarily.
+# 4. Set postBuild.substitute.APP / VOLSYNC_CLAIM in the install.yaml
+#    to match what you want to restore into.
+# 5. Reconcile — the new PVC is created with dataSourceRef pointing at
+#    the ReplicationDestination, which restores from the latest snapshot.
+# 6. Scale the app back up.
+# 7. Remove the components: line and reconcile again.
+#
+# This avoids leaving restore-only resources active during normal ops
+# (which would conflict with PVCs created inline by helmrelease values).
+resources:
+  - pvc.yaml
+  - replicationdestination.yaml
