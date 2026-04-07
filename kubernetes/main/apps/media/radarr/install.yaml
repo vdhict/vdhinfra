@@ -12,7 +12,12 @@ spec:
   dependsOn:
     - name: external-secrets-stores
     - name: rook-ceph-cluster
+    - name: volsync
   path: ./kubernetes/main/apps/media/radarr/app
+  postBuild:
+    substitute:
+      APP: radarr
+      VOLSYNC_CLAIM: radarr-config
   sourceRef:
     kind: GitRepository
     name: flux-system

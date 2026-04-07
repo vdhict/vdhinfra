@@ -13,7 +13,12 @@ spec:
     - name: external-secrets-stores
     - name: cloudnative-pg
     - name: rook-ceph-cluster
+    - name: volsync
   path: ./kubernetes/main/apps/home-automation/mealie/app
+  postBuild:
+    substitute:
+      APP: mealie
+      VOLSYNC_CLAIM: mealie
   sourceRef:
     kind: GitRepository
     name: flux-system

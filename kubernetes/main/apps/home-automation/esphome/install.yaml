@@ -9,7 +9,13 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  dependsOn:
+    - name: volsync
   path: ./kubernetes/main/apps/home-automation/esphome/app
+  postBuild:
+    substitute:
+      APP: esphome
+      VOLSYNC_CLAIM: esphome-config
   sourceRef:
     kind: GitRepository
     name: flux-system
