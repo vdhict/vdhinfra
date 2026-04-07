@@ -40,12 +40,15 @@ spec:
               mountPath: /var/cache/nginx
             - name: run
               mountPath: /var/run
+          # TCP probes — the HTTP root may serve a directory listing or 404
+          # until the first health-report job populates /web. nginx itself
+          # being up is what matters for traffic; content lands afterwards.
           readinessProbe:
-            httpGet: { path: /, port: http }
-            initialDelaySeconds: 5
+            tcpSocket: { port: http }
+            initialDelaySeconds: 2
           livenessProbe:
-            httpGet: { path: /, port: http }
-            initialDelaySeconds: 30
+            tcpSocket: { port: http }
+            initialDelaySeconds: 15
           resources:
             requests: { cpu: 10m, memory: 32Mi }
             limits: { cpu: 200m, memory: 128Mi }
