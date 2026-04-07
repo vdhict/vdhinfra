@@ -9,6 +9,7 @@ RUN apk add --no-cache \
       curl \
       git \
       openssh-client \
+      openssl \
       jq \
       mosquitto-clients \
       tzdata \

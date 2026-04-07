@@ -36,7 +36,7 @@ spec:
             fsGroup: 1000
           containers:
             - name: collect
-              image: ghcr.io/vdhict/cluster-health:v0.1.0
+              image: ghcr.io/vdhict/cluster-health:v0.2.0
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "-c", "/scripts/collect.sh"]
               env:
@@ -100,7 +100,7 @@ spec:
             fsGroup: 1000
           containers:
             - name: triage
-              image: ghcr.io/vdhict/cluster-health:v0.1.0
+              image: ghcr.io/vdhict/cluster-health:v0.2.0
               imagePullPolicy: IfNotPresent
               command: ["python3", "/scripts/triage.py"]
               env:
@@ -161,7 +161,7 @@ spec:
             fsGroup: 1000
           containers:
             - name: report
-              image: ghcr.io/vdhict/cluster-health:v0.1.0
+              image: ghcr.io/vdhict/cluster-health:v0.2.0
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "-c"]
               args:
@@ -178,13 +178,19 @@ spec:
                 - name: REPORT_BASE_URL
                   value: https://health.${SECRET_DOMAIN}
                 - name: GIT_REMOTE
-                  value: git@github.com:vdhict/vdhinfra.git
+                  value: https://github.com/vdhict/vdhinfra.git
                 - name: GIT_BRANCH
                   value: main
                 - name: GIT_AUTHOR_NAME
                   value: cluster-health-bot
                 - name: GIT_AUTHOR_EMAIL
                   value: cluster-health@bluejungle.net
+                # GitHub App identifiers — non-secret, used to mint a
+                # short-lived installation token at runtime in git_push.py.
+                - name: GITHUB_APP_ID
+                  value: "3302753"
+                - name: GITHUB_APP_INSTALLATION_ID
+                  value: "122063656"
               envFrom:
                 # Optional so the CronJob can run before the 1Password item
                 # exists. notify.py / git_push.py / collect_ha.py all degrade
@@ -217,10 +223,8 @@ spec:
                 defaultMode: 0400
                 optional: true
                 items:
-                  - key: github-deploy-key
-                    path: id_ed25519
-                  - key: known_hosts
-                    path: known_hosts
+                  - key: github-app-key.pem
+                    path: github-app-key.pem
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -248,7 +252,7 @@ spec:
             fsGroup: 1000
           containers:
             - name: notify
-              image: ghcr.io/vdhict/cluster-health:v0.1.0
+              image: ghcr.io/vdhict/cluster-health:v0.2.0
               imagePullPolicy: IfNotPresent
               command: ["python3", "/scripts/notify.py"]
               env:
