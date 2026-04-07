@@ -2,7 +2,10 @@
 # yaml-language-server: $schema=https://json.schemastore.org/kustomization
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: storage
+# No top-level namespace — would override the explicit `namespace: flux-system`
+# on each child Flux Kustomization, dumping them in storage ns where the
+# kustomize-controller doesn't reconcile them. Each install.yaml sets its
+# own namespace explicitly.
 resources:
   # Pre Flux-Kustomizations
   - namespace.yaml
