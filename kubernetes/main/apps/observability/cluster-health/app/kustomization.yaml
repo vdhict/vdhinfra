@@ -11,6 +11,11 @@ resources:
   - ./httproute.yaml
 configMapGenerator:
   - name: cluster-health-scripts
+    # Exempt from Flux postBuild substitution — the scripts contain
+    # ${VAR} and $$ shell expansions that would otherwise be wiped.
+    options:
+      annotations:
+        kustomize.toolkit.fluxcd.io/substitute: disabled
     files:
       - scripts/collect.sh
       - scripts/collect_k8s.py
