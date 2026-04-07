@@ -16,6 +16,9 @@ spec:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-  wait: true
+  # wait: false — same reason as cluster-health: Flux KS health checks
+  # for HelmReleases sometimes loop indefinitely. The HR has its own
+  # reconcile loop and the controller pod is what matters.
+  wait: false
   interval: 30m
   timeout: 5m
