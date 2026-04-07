@@ -67,7 +67,10 @@ def mint_installation_token() -> str | None:
             ["openssl", "dgst", "-sha256", "-sign", str(KEY_PATH)],
             input=signing_input, capture_output=True, check=True, timeout=10,
         )
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
+    except subprocess.CalledProcessError as e:
+        log(f"git_push: openssl sign failed rc={e.returncode}: {e.stderr.decode(errors='replace').strip()[:300]}")
+        return None
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
         log(f"git_push: openssl sign failed: {e}")
         return None
 
