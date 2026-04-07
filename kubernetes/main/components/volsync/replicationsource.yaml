@@ -8,23 +8,26 @@ spec:
   sourcePVC: ${VOLSYNC_CLAIM:=${APP}}
   trigger:
     schedule: 0 * * * *
-  kopia:
+  restic:
+    # Snapshot copyMethod: VolSync clones the source PVC via a
+    # VolumeSnapshot, mounts the clone read-only into the mover pod,
+    # and runs restic against the clone. The live PVC stays attached
+    # to the app the whole time.
+    copyMethod: Snapshot
     accessModes:
       - ${VOLSYNC_SNAP_ACCESSMODES:=ReadWriteOnce}
     cacheAccessModes:
       - ${VOLSYNC_CACHE_ACCESSMODES:=ReadWriteOnce}
     cacheCapacity: ${VOLSYNC_CAPACITY:=5Gi}
     cacheStorageClassName: ${VOLSYNC_CACHE_SNAPSHOTCLASS:=openebs-hostpath}
-    compression: zstd-fastest
-    copyMethod: Snapshot
+    storageClassName: ${VOLSYNC_STORAGECLASS:=rook-ceph-block}
+    volumeSnapshotClassName: ${VOLSYNC_SNAPSHOTCLASS:=csi-ceph-blockpool}
     moverSecurityContext:
       runAsUser: ${VOLSYNC_PUID:=2000}
       runAsGroup: ${VOLSYNC_PGID:=2000}
       fsGroup: ${VOLSYNC_PGID:=2000}
-    parallelism: 2
     repository: ${APP}-volsync-secret
     retain:
       hourly: 24
       daily: 7
-    storageClassName: ${VOLSYNC_STORAGECLASS:=rook-ceph-block}
-    volumeSnapshotClassName: ${VOLSYNC_SNAPSHOTCLASS:=csi-ceph-blockpool}
+    pruneIntervalDays: 7
