@@ -6,7 +6,8 @@ metadata:
   name: &app cluster-health
   namespace: flux-system
 spec:
-  targetNamespace: observability
+  # No targetNamespace — the rook-ceph Role/RoleBinding for pods/exec must
+  # land in rook-ceph, not observability. All resources set namespace explicitly.
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app

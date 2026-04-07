@@ -2,6 +2,8 @@
 # yaml-language-server: $schema=https://json.schemastore.org/kustomization
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+# Note: no top-level `namespace:` — kustomize would override per-resource
+# namespaces with it, breaking the rook-ceph Role for ceph exec.
 resources:
   - ./externalsecret.yaml
   - ./rbac.yaml
@@ -11,6 +13,7 @@ resources:
   - ./httproute.yaml
 configMapGenerator:
   - name: cluster-health-scripts
+    namespace: observability
     # Exempt from Flux postBuild substitution — the scripts contain
     # ${VAR} and $$ shell expansions that would otherwise be wiped.
     options:
