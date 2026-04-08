@@ -88,12 +88,10 @@ spec:
         path: /volume1/MULTIMEDIA/DS_Download
         globalMounts:
           - path: /mnt/storage/downloads
-      music-qbittorrent:
-        type: nfs
-        server: 172.16.2.246
-        path: /volume1/MULTIMEDIA/MUSIC/.qbittorrent
-        globalMounts:
-          - path: /mnt/storage/music/.qbittorrent
+      # music-qbittorrent removed 2026-04-08 — /volume1/MULTIMEDIA/MUSIC/.qbittorrent
+      # does not exist on the NAS and has been blocking the deployment for weeks.
+      # Re-add this mount after creating the directory on Synology if music
+      # downloads via qbittorrent are needed again.
       video-qbittorrent:
         type: nfs
         server: 172.16.2.246
