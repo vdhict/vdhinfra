@@ -22,21 +22,29 @@ def main() -> int:
     date = today()
     md_path = REPORTS_DIR / f"{date}.md"
     if not md_path.exists():
-        log(f"notify: no report at {md_path}")
-        return 0
-    md = md_path.read_text()
-    headline = "Cluster Health"
-    m = re.search(r"\*\*(.+?)\*\*", md)
-    if m:
-        headline = m.group(1)
-
-    title = "Cluster Health"
-    if "🔴" in headline:
-        title = "🔴 Cluster Health — action needed"
-    elif "🟡" in headline:
-        title = "🟡 Cluster Health — warnings"
+        # The report job failed (or didn't run). DO NOT exit silently —
+        # the user explicitly relies on this notification at 08:00 every
+        # day. Send a critical alert pointing them at the report job
+        # logs so they know SOMETHING went wrong before noon.
+        log(f"notify: no report at {md_path} — escalating as critical alert")
+        title = "🔴 Cluster Health — REPORT MISSING"
+        headline = (f"No report generated for {date}. "
+                    "The health-report cronjob failed or has not run. "
+                    "Investigate: kubectl -n observability logs job/health-report-<latest>")
     else:
-        title = "🟢 Cluster Health — all good"
+        md = md_path.read_text()
+        headline = "Cluster Health"
+        m = re.search(r"\*\*(.+?)\*\*", md)
+        if m:
+            headline = m.group(1)
+
+        title = "Cluster Health"
+        if "🔴" in headline:
+            title = "🔴 Cluster Health — action needed"
+        elif "🟡" in headline:
+            title = "🟡 Cluster Health — warnings"
+        else:
+            title = "🟢 Cluster Health — all good"
 
     url = f"{report_base}/{date}.html" if report_base else ""
     body = {

@@ -143,7 +143,7 @@ def classify(raw: dict, trends: dict, triage: dict) -> tuple[str, str, list[dict
         pass
 
     # Trend alerts (informational)
-    for a in (trends or {}).get("alerts", []):
+    for a in ((trends or {}).get("alerts") or []):
         issues.append({"sev": a["severity"], "area": "trend", "msg": a["message"]})
 
     crit = sum(1 for i in issues if i["sev"] == "crit")
@@ -238,7 +238,7 @@ def render_markdown(date: str, raw: dict, triage: dict, trends: dict, color: str
     # Trends
     lines.append("## Trends (7d)")
     lines.append("")
-    pvc = (trends or {}).get("pvc_fill", []) if trends else []
+    pvc = ((trends or {}).get("pvc_fill") or []) if trends else []
     if pvc:
         lines.append("### PVC fill projection")
         lines.append("")
@@ -249,14 +249,14 @@ def render_markdown(date: str, raw: dict, triage: dict, trends: dict, color: str
             d_str = f"**{d}**" if d is not None and d < 30 else (str(d) if d else "—")
             lines.append(f"| {p['namespace']}/{p['pvc']} | {p['current_pct']}% | {p['growth_pct_per_day']}%/d | {d_str} |")
         lines.append("")
-    if (trends or {}).get("ceph_raw"):
-        c = trends["ceph_raw"]
+    c = (trends or {}).get("ceph_raw") or {}
+    if c:
         lines.append(f"### Ceph raw")
         lines.append("")
         lines.append(f"Current **{c['current_pct']}%**, growing **{c['growth_pct_per_day']}%/day**, "
                      f"projected to hit 80% in **{c.get('days_to_80pct', '—')}** days.")
         lines.append("")
-    np = (trends or {}).get("node_pressure", {}) if trends else {}
+    np = ((trends or {}).get("node_pressure") or {}) if trends else {}
     if np:
         lines.append("### Node pressure (7d avg / max)")
         lines.append("")
@@ -399,12 +399,13 @@ def render_html(date: str, color: str, headline: str, md: str, trends: dict) -> 
     body = md_to_html(md)
     # Inject SVG charts after the trends headings
     charts = []
-    for p in (trends or {}).get("pvc_fill", [])[:5]:
+    for p in ((trends or {}).get("pvc_fill") or [])[:5]:
         charts.append(f"<h4>{html.escape(p['namespace'])}/{html.escape(p['pvc'])}</h4>")
         charts.append(render_svg_chart(p.get("series", [])))
-    if (trends or {}).get("ceph_raw", {}).get("series"):
+    ceph_raw = (trends or {}).get("ceph_raw") or {}
+    if ceph_raw.get("series"):
         charts.append("<h4>Ceph raw usage</h4>")
-        charts.append(render_svg_chart(trends["ceph_raw"]["series"], color="#ef6c00"))
+        charts.append(render_svg_chart(ceph_raw["series"], color="#ef6c00"))
     chart_block = "\n".join(charts)
 
     nav = '<nav><a href="index.html">← All reports</a></nav>'
