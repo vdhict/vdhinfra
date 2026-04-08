@@ -1,0 +1,39 @@
+---
+# Separate LoadBalancer Service for direct LAN access to MinIO.
+#
+# Why a separate Service (not via the helmrelease's `service:` block):
+# bjw-s/app-template enters "multi-service mode" the moment you define
+# more than one service entry, and ALL services get a `<release>-<key>`
+# suffix in their name. That renames the canonical `minio` Service to
+# `minio-app`, breaking every consumer hardcoded to
+# `minio.storage.svc.cluster.local` (postgres barman backup, VolSync,
+# the offsite mirror cronjob, etc). Keeping the LB as a raw resource
+# avoids that footgun entirely — the chart's `minio` Service is
+# untouched.
+#
+# Cilium L2 announces this IP on the cluster subnet (172.16.2.0/23).
+# Used by the Mac Mini agent for direct rclone access without going
+# through the K8s API server proxy.
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio-lb
+  namespace: storage
+  annotations:
+    lbipam.cilium.io/ips: 172.16.2.245
+  labels:
+    app.kubernetes.io/name: minio
+    app.kubernetes.io/component: lan-access
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: minio
+  ports:
+    - name: s3
+      port: 9000
+      targetPort: 9000
+      protocol: TCP
+    - name: http
+      port: 9001
+      targetPort: 9001
+      protocol: TCP
