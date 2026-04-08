@@ -73,18 +73,6 @@ spec:
             port: 9001
           s3:
             port: 9000
-      # LoadBalancer for direct LAN access (Mac Mini, manual mc CLI, etc).
-      # Cilium L2 announces this IP on the cluster subnet.
-      lb:
-        controller: minio
-        type: LoadBalancer
-        annotations:
-          lbipam.cilium.io/ips: 172.16.2.245
-        ports:
-          s3:
-            port: 9000
-          http:
-            port: 9001
     serviceMonitor:
       app:
         serviceName: minio
