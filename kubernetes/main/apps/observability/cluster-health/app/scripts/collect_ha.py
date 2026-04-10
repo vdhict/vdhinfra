@@ -72,6 +72,21 @@ def main() -> int:
     out["automations_total"] = len(automations)
     out["automations_off"] = sum(1 for a in automations if a.get("state") == "off")
 
+    # Mac Mini agent heartbeat — sensor.mac_mini_heartbeat is updated
+    # every 5 min by a launchd job on the Mac Mini. State is an ISO
+    # timestamp; age >15 min means the agent is probably down.
+    hb = next((s for s in states if s.get("entity_id") == "sensor.mac_mini_heartbeat"), None)
+    if hb:
+        hb_ts = parse_ts(hb.get("state"))
+        hb_age = int((now - hb_ts).total_seconds()) if hb_ts else None
+        out["mac_mini_heartbeat"] = {
+            "last_beat": hb.get("state"),
+            "age_seconds": hb_age,
+            "hostname": (hb.get("attributes") or {}).get("hostname"),
+            "claude_version": (hb.get("attributes") or {}).get("claude_version"),
+            "status": "ok" if hb_age and hb_age < 900 else ("stale" if hb_age else "unknown"),
+        }
+
     return 0 if json.dump(out, sys.stdout, indent=2, default=str) is None else 0
 
 

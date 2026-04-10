@@ -142,6 +142,13 @@ def classify(raw: dict, trends: dict, triage: dict) -> tuple[str, str, list[dict
         # before the user has deployed the offsite mirror app
         pass
 
+    # Mac Mini agent heartbeat
+    hb = (ha or {}).get("mac_mini_heartbeat") or {}
+    if hb.get("status") == "stale":
+        age = hb.get("age_seconds", 0) or 0
+        issues.append({"sev": "warn", "area": "mac-mini",
+                       "msg": f"Mac Mini agent heartbeat stale — last beat {age//60}m ago (threshold 15m)"})
+
     # Trend alerts (informational)
     for a in ((trends or {}).get("alerts") or []):
         issues.append({"sev": a["severity"], "area": "trend", "msg": a["message"]})
@@ -201,6 +208,15 @@ def render_markdown(date: str, raw: dict, triage: dict, trends: dict, color: str
     else:
         lines.append("| Offsite mirror (Azure) | not configured |")
     lines.append(f"| HA Unavailable States | {ha.get('unavailable_states', '?')} |")
+    hb = ha.get("mac_mini_heartbeat") or {}
+    if hb:
+        age = hb.get("age_seconds")
+        if age is not None:
+            ago = f"{age//60}m ago" if age < 3600 else f"{age//3600}h ago"
+        else:
+            ago = "unknown"
+        emoji = {"ok": "🟢", "stale": "🟡"}.get(hb.get("status"), "🔴")
+        lines.append(f"| Mac Mini agent | {emoji} last beat {ago} ({hb.get('claude_version', '?')}) |")
     lines.append("")
 
     # Issues
