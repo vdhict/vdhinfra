@@ -40,7 +40,7 @@ services:
 
   # --- Home Assistant ---
   home-assistant:
-    image: ghcr.io/home-operations/home-assistant:2026.4.1
+    image: ghcr.io/home-operations/home-assistant:2026.4.3
     volumes:
       - ./data/home-assistant:/config
     environment:
