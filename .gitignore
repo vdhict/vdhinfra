@@ -42,3 +42,7 @@ Thumbs.db
 
 # Just temp files
 .just/
+
+# Python bytecode (from local script testing)
+__pycache__/
+*.pyc

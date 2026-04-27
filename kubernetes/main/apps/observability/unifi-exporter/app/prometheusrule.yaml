@@ -1,0 +1,104 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/prometheusrule_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: unifi-exporter
+  namespace: observability
+  labels:
+    # kube-prometheus-stack scrapes any rule with this label by default
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: unifi-exporter.health
+      interval: 1m
+      rules:
+        - alert: UnifiExporterDown
+          expr: max_over_time(unifi_exporter_up[5m]) == 0
+          for: 5m
+          labels:
+            severity: warning
+            component: unifi-exporter
+          annotations:
+            summary: UniFi exporter cannot reach the controller
+            description: |
+              The UniFi exporter has failed to poll the controller for 5+ minutes.
+              Without it, port-flap and PoE alerts below silently stop firing.
+              Check `kubectl -n observability logs deploy/unifi-exporter` and the
+              UNIFI_API_KEY secret.
+
+    - name: unifi-exporter.network
+      interval: 1m
+      rules:
+        - alert: UnifiPortDown
+          # 0 = link down. We only care about watchlist ports — the
+          # exporter only exports those, so the metric absence implies
+          # not-watched.
+          expr: unifi_port_up == 0
+          for: 2m
+          labels:
+            severity: warning
+            component: unifi-exporter
+          annotations:
+            summary: "Switch port down: {{ $labels.friendly }} ({{ $labels.sw_name }} port {{ $labels.port_idx }})"
+            description: |
+              {{ $labels.friendly }} ({{ $labels.client_mac }}) has been L2-down on
+              {{ $labels.sw_name }} port {{ $labels.port_idx }} for 2+ minutes.
+
+        - alert: UnifiPortFlapping
+          # >=3 link-down events in the last 30 min. Catches the SLZB
+          # pattern: brief drops that don't trigger UnifiPortDown.
+          expr: increase(unifi_port_link_down_count[30m]) >= 3
+          for: 0m
+          labels:
+            severity: warning
+            component: unifi-exporter
+          annotations:
+            summary: "Port flapping: {{ $labels.friendly }} ({{ $labels.sw_name }} port {{ $labels.port_idx }})"
+            description: |
+              {{ $labels.friendly }} on {{ $labels.sw_name }} port {{ $labels.port_idx }}
+              registered {{ $value | humanize }} link-down events in the last 30 minutes.
+              Likely cause: cable, connector, or PoE-supply instability.
+
+        - alert: UnifiPortRxErrors
+          # Any growth in rx_errors is suspect on a wired LAN.
+          expr: increase(unifi_port_rx_errors_total[15m]) > 0
+          for: 5m
+          labels:
+            severity: warning
+            component: unifi-exporter
+          annotations:
+            summary: "RX errors growing: {{ $labels.friendly }} ({{ $labels.sw_name }} port {{ $labels.port_idx }})"
+            description: |
+              {{ $value | humanize }} new RX errors on {{ $labels.friendly }} in 15 min.
+              On a healthy LAN this should stay at zero — typically a cable issue.
+
+        - alert: UnifiPortPoeUnhealthy
+          # PoE module says the powered device is not OK while link is up.
+          expr: unifi_port_poe_good == 0 and unifi_port_up == 1
+          for: 5m
+          labels:
+            severity: warning
+            component: unifi-exporter
+          annotations:
+            summary: "PoE unhealthy: {{ $labels.friendly }} ({{ $labels.sw_name }} port {{ $labels.port_idx }})"
+            description: |
+              Switch reports PoE not-good for {{ $labels.friendly }} while the
+              link is up. May indicate undervoltage or the powered device is
+              drawing erratically.
+
+        - alert: UnifiClientStale
+          # No L2 frames from a watched device for 5 min while the port
+          # claims it's up — this is the SLZB hang signature.
+          expr: unifi_client_last_seen_seconds_ago > 300 and unifi_port_up == 1
+          for: 2m
+          labels:
+            severity: warning
+            component: unifi-exporter
+          annotations:
+            summary: "Client silent: {{ $labels.friendly }} ({{ $labels.client_ip }})"
+            description: |
+              {{ $labels.friendly }} has not been seen at L2 for {{ $value | humanize }} seconds
+              while {{ $labels.sw_name }} port {{ $labels.port_idx }} is up. This matches
+              the recurring SLZB-06 IP-stack hang where the chip stays powered but stops
+              talking. Power-cycle the port via UniFi or unplug/replug the device.

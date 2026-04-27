@@ -50,6 +50,8 @@ spec:
                   value: mosquitto.home-automation.svc.cluster.local
                 - name: REPORT_BASE_URL
                   value: https://health.${SECRET_DOMAIN}
+                - name: UNIFI_BASE_URL
+                  value: https://172.16.2.1/proxy/network
               envFrom:
                 # Optional so the CronJob can run before the 1Password item
                 # exists. notify.py / git_push.py / collect_ha.py all degrade

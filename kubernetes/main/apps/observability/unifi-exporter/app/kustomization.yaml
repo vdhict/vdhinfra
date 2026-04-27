@@ -1,0 +1,21 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./secrets.yaml
+  - ./deployment.yaml
+  - ./podmonitor.yaml
+  - ./prometheusrule.yaml
+configMapGenerator:
+  - name: unifi-exporter-scripts
+    namespace: observability
+    options:
+      annotations:
+        # Scripts contain Python f-strings with ${...}-looking patterns
+        # we don't want Flux's substitution to touch.
+        kustomize.toolkit.fluxcd.io/substitute: disabled
+    files:
+      - scripts/exporter.py
+generatorOptions:
+  disableNameSuffixHash: true

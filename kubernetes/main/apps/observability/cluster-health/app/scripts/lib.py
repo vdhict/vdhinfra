@@ -112,6 +112,32 @@ def ha_get(path: str) -> Any:
     return http_get_json(f"{base}{path}", headers={"Authorization": f"Bearer {token}"})
 
 
+def unifi_get(path: str, timeout: int = 10) -> Any:
+    """GET against the UniFi controller. `path` is appended verbatim to UNIFI_BASE_URL.
+
+    Examples (legacy v4 API, still exposed by the integration controller):
+        unifi_get("/api/s/default/stat/device")
+        unifi_get("/api/s/default/stat/device/<switch_mac>")
+
+    UniFi's TLS uses a self-signed cert, so we disable verification.
+    """
+    base = os.environ.get("UNIFI_BASE_URL", "").rstrip("/")
+    key = os.environ.get("UNIFI_API_KEY", "")
+    if not base or not key:
+        return None
+    import ssl
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    req = urllib.request.Request(f"{base}{path}", headers={"X-API-KEY": key, "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
+            return json.loads(r.read().decode())
+    except Exception as e:  # noqa: BLE001
+        log(f"unifi GET {path} failed: {e}")
+        return None
+
+
 def write_json(path: Path, data: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2, sort_keys=True, default=str))
