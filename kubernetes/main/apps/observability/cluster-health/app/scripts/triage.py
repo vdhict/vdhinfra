@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, "/scripts")
@@ -225,6 +225,53 @@ def rule_ha_integration_restart(raw: dict, audit: list, cd: dict) -> None:
             stamp_cooldown(cd, cd_key)
 
 
+def rule_network_anomaly(raw: dict, audit: list) -> None:
+    """Advisory rule (no auto-fix): flag UniFi ports with rx_errors > 0 or
+    elevated link_down_count vs the prior day. Surfaces problems that
+    today only manifest as 'z2m bridge offline' with no upstream cause."""
+    section = (raw.get("sections") or {}).get("network") or {}
+    ports = section.get("ports") or []
+    if not ports:
+        return
+
+    prior_date = (datetime.now(timezone.utc).date() - timedelta(days=1)).isoformat()
+    prior = read_json(RAW_DIR / f"{prior_date}.json", {}) or {}
+    prior_ports = {
+        f"{p.get('sw_mac')}:{p.get('port_idx')}": p
+        for p in (prior.get("sections", {}).get("network", {}).get("ports") or [])
+    }
+    flap_warn = section.get("thresholds", {}).get("flap_count_warn", 5)
+    rx_warn = section.get("thresholds", {}).get("rx_errors_warn", 1)
+
+    for p in ports:
+        key = f"{p.get('sw_mac')}:{p.get('port_idx')}"
+        prev = prior_ports.get(key) or {}
+        prev_flap = prev.get("link_down_count", 0) or 0
+        cur_flap = p.get("link_down_count", 0) or 0
+        flap_delta = cur_flap - prev_flap
+        rx_err = p.get("rx_errors", 0) or 0
+
+        reasons = []
+        if rx_err >= rx_warn:
+            reasons.append(f"rx_errors={rx_err}")
+        if flap_delta >= 2:
+            reasons.append(f"link_down_count +{flap_delta} ({prev_flap}→{cur_flap})")
+        elif cur_flap >= flap_warn and prev_flap == 0:
+            # First-day baseline already over threshold
+            reasons.append(f"link_down_count={cur_flap} (≥{flap_warn})")
+        if not reasons:
+            continue
+
+        audit.append({
+            "ts": now_iso(),
+            "action": "network_anomaly_flagged",
+            "target": f"{p.get('sw_name')}/port-{p.get('port_idx')} ({p.get('friendly') or p.get('client_mac')})",
+            "reason": "; ".join(reasons),
+            "dry_run": DRY_RUN,
+            "outcome": "advisory",
+        })
+
+
 def main() -> int:
     date = today()
     raw_path = RAW_DIR / f"{date}.json"
@@ -240,6 +287,7 @@ def main() -> int:
     rule_flux_reconcile(raw, audit, cd)
     rule_crashloop_restart(raw, audit, cd)
     rule_ha_integration_restart(raw, audit, cd)
+    rule_network_anomaly(raw, audit)
 
     save_cooldowns(cd)
 
