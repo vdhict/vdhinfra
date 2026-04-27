@@ -1,0 +1,28 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app unifi-exporter
+  namespace: flux-system
+spec:
+  targetNamespace: observability
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  dependsOn:
+    - name: kube-prometheus-stack
+    - name: external-secrets-stores
+  path: ./kubernetes/main/apps/observability/unifi-exporter/app
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  # wait: false — the ExternalSecret stays NotReady until the 1Password
+  # property exists. Deployment mounts the Secret with optional: true so
+  # the Pod can crashloop visibly with an actionable error rather than
+  # blocking the namespace reconciliation.
+  wait: false
+  interval: 30m
+  timeout: 5m

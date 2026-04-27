@@ -45,6 +45,7 @@ run_collector z2m        python3 /scripts/collect_z2m.py
 run_collector zwave      python3 /scripts/collect_zwave.py
 run_collector esphome    python3 /scripts/collect_esphome.py
 run_collector offsite    python3 /scripts/collect_offsite.py
+run_collector network    python3 /scripts/collect_network.py
 
 # Merge into one document
 TMP="$TMP" OUT="$OUT" DATE="$DATE" python3 <<'PY'
@@ -58,7 +59,7 @@ merged = {
     "collected_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     "sections": {},
 }
-for name in ("k8s", "prom", "ceph", "postgres", "mqtt", "ha", "z2m", "zwave", "esphome", "offsite"):
+for name in ("k8s", "prom", "ceph", "postgres", "mqtt", "ha", "z2m", "zwave", "esphome", "offsite", "network"):
     p = os.path.join(tmp, f"{name}.json")
     try:
         with open(p) as f:
