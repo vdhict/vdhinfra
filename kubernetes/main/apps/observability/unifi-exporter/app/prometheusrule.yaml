@@ -74,8 +74,10 @@ spec:
               On a healthy LAN this should stay at zero — typically a cable issue.
 
         - alert: UnifiPortPoeUnhealthy
-          # PoE module says the powered device is not OK while link is up.
-          expr: unifi_port_poe_good == 0 and unifi_port_up == 1
+          # PoE module says the device is not OK *while it's actually
+          # drawing power*. Without the watts>0 guard this fires for
+          # every self-powered device on a PoE switch (NUCs, pikvm, etc.).
+          expr: unifi_port_poe_good == 0 and unifi_port_poe_power_watts > 0
           for: 5m
           labels:
             severity: warning
@@ -84,8 +86,8 @@ spec:
             summary: "PoE unhealthy: {{ $labels.friendly }} ({{ $labels.sw_name }} port {{ $labels.port_idx }})"
             description: |
               Switch reports PoE not-good for {{ $labels.friendly }} while the
-              link is up. May indicate undervoltage or the powered device is
-              drawing erratically.
+              device is drawing {{ $value | humanize }}W. May indicate
+              undervoltage or the powered device is drawing erratically.
 
         - alert: UnifiClientStale
           # No L2 frames from a watched device for 5 min while the port
