@@ -6,7 +6,7 @@ SOPS_AGE_KEY_FILE = "{{config_root}}/age.key"
 
 [tools]
 # Cluster management
-"aqua:budimanjojo/talhelper" = "3.1.8"
+"aqua:budimanjojo/talhelper" = "3.1.9"
 "aqua:siderolabs/talos" = "1.13.0"
 "aqua:kubernetes/kubernetes/kubectl" = "1.35.4"
 "aqua:fluxcd/flux2" = "2.8.6"
