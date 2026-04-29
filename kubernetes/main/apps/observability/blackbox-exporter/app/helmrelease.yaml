@@ -1,0 +1,86 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: blackbox-exporter
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: app-template
+      version: 3.7.3
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile: { type: RuntimeDefault }
+    controllers:
+      blackbox-exporter:
+        replicas: 1
+        containers:
+          app:
+            image:
+              repository: quay.io/prometheus/blackbox-exporter
+              tag: v0.27.0
+              pullPolicy: IfNotPresent
+            args:
+              - --config.file=/etc/blackbox/blackbox.yml
+              - --web.listen-address=:9115
+            resources:
+              limits:
+                memory: 64Mi
+              requests:
+                cpu: 10m
+                memory: 16Mi
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet: { path: /-/healthy, port: 9115 }
+                  initialDelaySeconds: 5
+                  periodSeconds: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet: { path: /-/healthy, port: 9115 }
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: ["ALL"]
+                # ICMP probes need raw socket. Keep this even though
+                # the slzb-tcp probe doesn't need it — future probes will.
+                add: ["NET_RAW"]
+    persistence:
+      config:
+        type: configMap
+        name: blackbox-exporter-config
+        globalMounts:
+          - path: /etc/blackbox/blackbox.yml
+            subPath: blackbox.yml
+            readOnly: true
+    service:
+      app:
+        controller: blackbox-exporter
+        ports:
+          http:
+            port: 9115
