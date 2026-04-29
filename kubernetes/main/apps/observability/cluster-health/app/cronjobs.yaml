@@ -287,3 +287,70 @@ spec:
               configMap:
                 name: cluster-health-scripts
                 defaultMode: 0755
+---
+# z2m bridge auto-recovery — runs every 5 min, restarts the
+# zigbee2mqtt deployment when the HA bridge has been offline >=10 min
+# (clears stuck half-open TCP sessions to the SLZB-06 coordinator).
+# Cooldown 30m to prevent thrashing if the underlying device is dead.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: health-z2m-watchdog
+  namespace: observability
+spec:
+  schedule: "*/5 * * * *"
+  timeZone: Europe/Amsterdam
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 3600
+      template:
+        spec:
+          serviceAccountName: cluster-health
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+          containers:
+            - name: watchdog
+              image: ghcr.io/vdhict/cluster-health:v0.3.0
+              imagePullPolicy: IfNotPresent
+              command: ["python3", "/scripts/z2m_watchdog.py"]
+              env:
+                - name: TZ
+                  value: Europe/Amsterdam
+                - name: HA_URL
+                  value: http://home-assistant.home-automation.svc.cluster.local:8123
+                # Flip to "false" once the user has audited a few dry-run
+                # cycles and is ready to let the watchdog auto-restart.
+                - name: DRY_RUN
+                  value: "true"
+                - name: Z2M_OFFLINE_MIN_MINUTES
+                  value: "10"
+                - name: Z2M_RESTART_COOLDOWN_MINUTES
+                  value: "30"
+              envFrom:
+                - secretRef:
+                    name: cluster-health-secret
+                    optional: true
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                - name: scripts
+                  mountPath: /scripts
+              resources:
+                requests: { cpu: 10m, memory: 32Mi }
+                limits: { cpu: 200m, memory: 128Mi }
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: cluster-health-data
+            - name: scripts
+              configMap:
+                name: cluster-health-scripts
+                defaultMode: 0755
