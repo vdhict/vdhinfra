@@ -1,0 +1,47 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/prometheusrule_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: blackbox-exporter
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: blackbox-exporter.health
+      interval: 1m
+      rules:
+        - alert: BlackboxProbeFailure
+          # `probe_success == 0` for any target. Generic alert so future
+          # probes get coverage automatically.
+          expr: probe_success == 0
+          for: 3m
+          labels:
+            severity: warning
+            component: blackbox-exporter
+          annotations:
+            summary: "Probe failing: {{ $labels.target_friendly }} ({{ $labels.instance }})"
+            description: |
+              Blackbox probe to {{ $labels.instance }} (module {{ $labels.module }})
+              has been failing for 3+ minutes. Service-level reachability
+              from inside the cluster is broken even if L1/L2 looks fine.
+
+        - alert: ZigbeeCoordinatorTcpDown
+          # Tighter alert for the SLZB specifically — this is the bridge
+          # auto-recovery's primary signal source. 2-min for: matches the
+          # z2m watchdog's 10-min offline threshold (covers 4 probe cycles).
+          expr: probe_success{target_friendly="slzb-06"} == 0
+          for: 2m
+          labels:
+            severity: warning
+            component: blackbox-exporter
+          annotations:
+            summary: "Zigbee coordinator TCP wedged: {{ $labels.instance }}"
+            description: |
+              The SLZB-06 is not accepting TCP connections on 6638 from
+              inside the cluster, even though physical-layer alerts may
+              be silent. This is the failure mode the z2m watchdog
+              (health-z2m-watchdog CronJob) restarts the bridge for.
+              If the watchdog is in DRY_RUN, restart manually:
+              `kubectl -n home-automation rollout restart deploy/zigbee2mqtt`

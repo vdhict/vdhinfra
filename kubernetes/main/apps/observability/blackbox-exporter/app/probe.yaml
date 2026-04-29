@@ -1,0 +1,28 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/probe_v1.json
+# Probes the SLZB-06 Zigbee coordinator's TCP socket. Catches the
+# half-open-session wedge where the chip is L2-fine but won't accept a
+# new TCP client — the failure mode that produced the 30h z2m outage.
+# Direct TCP probe sees this; the L1/L2 unifi-exporter metrics don't.
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: slzb-tcp
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: blackbox-exporter
+spec:
+  jobName: blackbox-tcp
+  prober:
+    url: blackbox-exporter.observability.svc.cluster.local:9115
+    path: /probe
+  module: tcp_lan_5s
+  interval: 30s
+  scrapeTimeout: 10s
+  targets:
+    staticConfig:
+      static:
+        - slzb.vdh.lan:6638
+      labels:
+        target_friendly: slzb-06
+        target_role: zigbee-coordinator

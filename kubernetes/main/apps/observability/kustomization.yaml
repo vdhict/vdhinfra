@@ -17,4 +17,5 @@ resources:
   - ./speedtest-exporter/install.yaml
   - ./unpoller/install.yaml
   - ./unifi-exporter/install.yaml
+  - ./blackbox-exporter/install.yaml
   - ./cluster-health/install.yaml
