@@ -1,0 +1,36 @@
+---
+# Blackbox-exporter probe definitions. Each `module` is a named probe
+# config the Probe CR references. Keep modules tightly scoped — generic
+# "tcp_connect" without a 5s timeout is too lenient for our LAN.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blackbox-exporter-config
+  namespace: observability
+data:
+  blackbox.yml: |
+    modules:
+      tcp_lan_5s:
+        prober: tcp
+        timeout: 5s
+        tcp:
+          # IPv4 only — UDM serves IPv6 on this LAN but the SLZB and
+          # most of our LAN devices don't, so v4 is the deterministic
+          # path.
+          preferred_ip_protocol: ip4
+          ip_protocol_fallback: false
+      icmp_lan:
+        prober: icmp
+        timeout: 5s
+        icmp:
+          preferred_ip_protocol: ip4
+          ip_protocol_fallback: false
+      http_2xx:
+        prober: http
+        timeout: 5s
+        http:
+          preferred_ip_protocol: ip4
+          ip_protocol_fallback: false
+          valid_status_codes: [200, 204]
+          fail_if_ssl: false
+          fail_if_not_ssl: false
