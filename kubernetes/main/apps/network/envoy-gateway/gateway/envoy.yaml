@@ -51,12 +51,14 @@ metadata:
     external-dns.alpha.kubernetes.io/target: external.${SECRET_DOMAIN}
 spec:
   gatewayClassName: envoy
-  # Do NOT set spec.addresses on a LoadBalancer-typed Gateway: envoy-gateway v1.3.0
-  # mirrors that into Service.spec.externalIPs, which collides with the IP that
-  # Cilium LB IPAM puts in Service.status.loadBalancer.ingress (via lbipam.cilium.io/ips).
-  # The collision triggers `frontend already owned by another service` in cilium-agent
-  # and silently disables L2 announcement → ARP incomplete on the LB IP → LAN clients
-  # cannot reach Envoy. Fixed 2026-05-02 by reverting PR #69.
+  # Pin the address that gets reported in Gateway.status.addresses so k8s-gateway
+  # (oriedge/k8s_gateway v0.4.0) can resolve in-cluster hostnames reliably. Without
+  # this, envoy-gateway's address auto-discovery has been flaky after pod restarts —
+  # 2026-05-02 incident: addresses went empty overnight, returned NXDOMAIN for every
+  # *.bluejungle.net lookup on LAN.
+  addresses:
+    - type: IPAddress
+      value: ${ENVOY_EXTERNAL_LB_IP}
   infrastructure:
     annotations:
       external-dns.alpha.kubernetes.io/hostname: external.${SECRET_DOMAIN}
@@ -87,8 +89,10 @@ metadata:
     external-dns.alpha.kubernetes.io/target: internal.${SECRET_DOMAIN}
 spec:
   gatewayClassName: envoy
-  # See envoy-external above: spec.addresses on a LoadBalancer Gateway breaks
-  # Cilium L2 announcement. Rely on lbipam.cilium.io/ips + auto-status only.
+  # See envoy-external above for rationale (2026-05-02 LAN-DNS incident).
+  addresses:
+    - type: IPAddress
+      value: ${ENVOY_INTERNAL_LB_IP}
   infrastructure:
     annotations:
       external-dns.alpha.kubernetes.io/hostname: internal.${SECRET_DOMAIN}
