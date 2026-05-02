@@ -85,23 +85,24 @@ spec:
                 - -c
                 - |
                   set -eu
+                  # $$ escapes Flux variable substitution so the shell sees $.
                   for pair in \
                     "envoy-internal:envoy-network-envoy-internal-1102ed95:${ENVOY_INTERNAL_LB_IP}" \
                     "envoy-external:envoy-network-envoy-external-27f017ad:${ENVOY_EXTERNAL_LB_IP}"; do
-                    gw="${pair%%:*}"; rest="${pair#*:}"
-                    svc="${rest%%:*}"; ip="${rest#*:}"
+                    gw="$${pair%%:*}"; rest="$${pair#*:}"
+                    svc="$${rest%%:*}"; ip="$${rest#*:}"
                     # Strip spec.externalIPs from the data-plane LB Service so Cilium L2 announce works.
-                    if kubectl get svc -n network "$svc" -o jsonpath='{.spec.externalIPs}' 2>/dev/null | grep -q .; then
-                      kubectl patch svc -n network "$svc" --type=json \
+                    if kubectl get svc -n network "$$svc" -o jsonpath='{.spec.externalIPs}' 2>/dev/null | grep -q .; then
+                      kubectl patch svc -n network "$$svc" --type=json \
                         -p='[{"op":"remove","path":"/spec/externalIPs"}]' || true
-                      echo "stripped externalIPs from $svc"
+                      echo "stripped externalIPs from $$svc"
                     fi
                     # Force Gateway.status.addresses to the LB IP so k8s-gateway returns the right answer.
-                    cur=$(kubectl get gateway -n network "$gw" -o jsonpath='{.status.addresses[0].value}' 2>/dev/null || echo "")
-                    if [ "$cur" != "$ip" ]; then
-                      kubectl patch gateway -n network "$gw" --subresource=status --type=merge \
-                        -p="{\"status\":{\"addresses\":[{\"type\":\"IPAddress\",\"value\":\"$ip\"}]}}" || true
-                      echo "set $gw status.addresses=$ip (was: $cur)"
+                    cur=$$(kubectl get gateway -n network "$$gw" -o jsonpath='{.status.addresses[0].value}' 2>/dev/null || echo "")
+                    if [ "$$cur" != "$$ip" ]; then
+                      kubectl patch gateway -n network "$$gw" --subresource=status --type=merge \
+                        -p="{\"status\":{\"addresses\":[{\"type\":\"IPAddress\",\"value\":\"$$ip\"}]}}" || true
+                      echo "set $$gw status.addresses=$$ip (was: $$cur)"
                     fi
                   done
               env:
