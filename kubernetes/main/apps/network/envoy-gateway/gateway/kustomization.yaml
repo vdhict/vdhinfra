@@ -7,3 +7,4 @@ resources:
   - ./envoy.yaml
   - ./podmonitor.yaml
   - ./service-aliases.yaml
+  - ./status-keeper.yaml

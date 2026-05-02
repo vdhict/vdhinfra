@@ -1,0 +1,124 @@
+---
+# Workaround for the 2026-05-02 envoy-gateway v1.3.0 + Cilium LB IPAM
+# conflict. Two invariants need to be maintained that envoy-gateway will
+# not maintain on its own:
+#   1. Service.spec.externalIPs must be empty on the envoy data-plane LB
+#      Services. envoy-gateway populates externalIPs from
+#      Gateway.spec.addresses; that collides with the IP Cilium LB IPAM
+#      writes to status.loadBalancer.ingress, which makes cilium-agent log
+#      `frontend already owned by another service` and silently disables
+#      L2 announcement. ARP goes incomplete on 172.16.2.241/243 → LAN
+#      access to Envoy is broken.
+#   2. Gateway.status.addresses must be the LB IP. With externalIPs
+#      cleared, envoy-gateway 1.3.0 fails to populate status.addresses
+#      from the LB ingress IP and either leaves it empty or writes the
+#      ClusterIP. k8s-gateway (oriedge/k8s_gateway v0.4.0) reads
+#      status.addresses to answer LAN DNS, so the wrong value breaks
+#      *.bluejungle.net resolution.
+#
+# Remove this workaround after either:
+#   - envoy-gateway is upgraded to a version that handles spec.addresses
+#     + LB IPAM cleanly (and the k8s-gateway dependency is replaced —
+#     it pins GRPCRoute v1alpha2 so envoy-gateway 1.7+ breaks DNS), OR
+#   - lbipam.cilium.io/ips is dropped from the Gateway infrastructure
+#     annotations and the L2 announcement policy is reconfigured to
+#     announce externalIPs.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: envoy-gateway-status-keeper
+  namespace: network
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: envoy-gateway-status-keeper
+  namespace: network
+rules:
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "patch"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["gateways"]
+    verbs: ["get", "list"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["gateways/status"]
+    verbs: ["patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: envoy-gateway-status-keeper
+  namespace: network
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: envoy-gateway-status-keeper
+subjects:
+  - kind: ServiceAccount
+    name: envoy-gateway-status-keeper
+    namespace: network
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: envoy-gateway-status-keeper
+  namespace: network
+spec:
+  schedule: "* * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 300
+      template:
+        spec:
+          serviceAccountName: envoy-gateway-status-keeper
+          restartPolicy: Never
+          containers:
+            - name: kubectl
+              image: docker.io/bitnami/kubectl:1.32.3
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -eu
+                  for pair in \
+                    "envoy-internal:envoy-network-envoy-internal-1102ed95:${ENVOY_INTERNAL_LB_IP}" \
+                    "envoy-external:envoy-network-envoy-external-27f017ad:${ENVOY_EXTERNAL_LB_IP}"; do
+                    gw="${pair%%:*}"; rest="${pair#*:}"
+                    svc="${rest%%:*}"; ip="${rest#*:}"
+                    # Strip spec.externalIPs from the data-plane LB Service so Cilium L2 announce works.
+                    if kubectl get svc -n network "$svc" -o jsonpath='{.spec.externalIPs}' 2>/dev/null | grep -q .; then
+                      kubectl patch svc -n network "$svc" --type=json \
+                        -p='[{"op":"remove","path":"/spec/externalIPs"}]' || true
+                      echo "stripped externalIPs from $svc"
+                    fi
+                    # Force Gateway.status.addresses to the LB IP so k8s-gateway returns the right answer.
+                    cur=$(kubectl get gateway -n network "$gw" -o jsonpath='{.status.addresses[0].value}' 2>/dev/null || echo "")
+                    if [ "$cur" != "$ip" ]; then
+                      kubectl patch gateway -n network "$gw" --subresource=status --type=merge \
+                        -p="{\"status\":{\"addresses\":[{\"type\":\"IPAddress\",\"value\":\"$ip\"}]}}" || true
+                      echo "set $gw status.addresses=$ip (was: $cur)"
+                    fi
+                  done
+              env:
+                - name: ENVOY_INTERNAL_LB_IP
+                  value: "${ENVOY_INTERNAL_LB_IP}"
+                - name: ENVOY_EXTERNAL_LB_IP
+                  value: "${ENVOY_EXTERNAL_LB_IP}"
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 1001
+                capabilities:
+                  drop: ["ALL"]
