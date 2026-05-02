@@ -1,0 +1,69 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app external-dns-unifi
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: external-dns
+      version: 1.20.0
+      sourceRef:
+        kind: HelmRepository
+        name: external-dns
+        namespace: flux-system
+  values:
+    fullnameOverride: *app
+    # Stage 1 of the k8s-gateway → external-dns→UDM migration. Sits alongside the
+    # Cloudflare external-dns instance. Distinct txtOwnerId so the two instances
+    # don't fight over each other's TXT registry records on the same domain.
+    provider:
+      name: webhook
+      webhook:
+        image:
+          repository: ghcr.io/kashalls/external-dns-unifi-webhook
+          tag: v0.8.2
+        env:
+          - name: UNIFI_HOST
+            value: "https://172.16.2.1"
+          - name: UNIFI_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: external-dns-unifi-secret
+                key: api-key
+          - name: UNIFI_EXTERNAL_CONTROLLER
+            value: "false"
+          - name: UNIFI_SKIP_TLS_VERIFY
+            value: "true"
+          - name: UNIFI_SITE
+            value: default
+          - name: LOG_LEVEL
+            value: info
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: http-webhook
+          initialDelaySeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: http-webhook
+          initialDelaySeconds: 10
+          timeoutSeconds: 5
+    extraArgs:
+      - --crd-source-apiversion=externaldns.k8s.io/v1alpha1
+      - --crd-source-kind=DNSEndpoint
+      - --gateway-name=envoy-internal
+      - --gateway-name=envoy-external
+    policy: sync
+    sources: ["crd", "gateway-httproute"]
+    txtPrefix: k8s.unifi.
+    txtOwnerId: unifi
+    domainFilters: ["${SECRET_DOMAIN}"]
+    serviceMonitor:
+      enabled: true
+    podAnnotations:
+      secret.reloader.stakater.com/reload: external-dns-unifi-secret
