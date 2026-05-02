@@ -12,11 +12,11 @@ cp_count := '1'
 worker_count := '3'
 # Custom schematic with random.trust_cpu=on for fast VM boot
 talos_schematic := '455913e9d0d6786ecee2af4cb88d3b672e796e7013fbbd387db0211948c53ad2'
-talos_version := 'v1.12.4'
-kubernetes_version := '1.35.2'
+talos_version := 'v1.12.6'
+kubernetes_version := '1.35.3'
 memory_cp := '4096'
 memory_worker := '6144'
-cpus := '2'
+cpus := '4'
 boot_disk_size := '20G'
 osd_disk_size := '5G'
 
@@ -189,6 +189,14 @@ apply-config:
     #!/usr/bin/env bash
     set -euo pipefail
 
+    # Isolate talosctl context to the test cluster — never touch the default
+    # context (which points at PROD: 172.16.2.84/85/86). A previous version of
+    # this recipe ended with `talosctl config merge / endpoint / node` against
+    # the default config; that contaminated the prod context and made
+    # `bootstrap` below talk to prod nodes by accident. Always pin TALOSCONFIG
+    # to the test directory.
+    export TALOSCONFIG="{{ qemu_dir }}/talosconfig"
+
     echo "=== Generating and applying Talos configs ==="
 
     # Collect IPs
@@ -273,14 +281,15 @@ apply-config:
       talosctl apply-config --insecure --nodes "$ip" --file "{{ qemu_dir }}/worker.yaml"
     done
 
-    # Set up talosctl context
+    # Set up the test talosctl context — written to TALOSCONFIG only (already
+    # pinned to {{ qemu_dir }}/talosconfig at the top of the recipe). Do NOT
+    # `talosctl config merge` here: that mutates the user's default context.
     talosctl gen config "talos-test" "https://${endpoint}:6443" \
       --with-secrets "{{ qemu_dir }}/secrets.yaml" \
       --output "{{ qemu_dir }}/talosconfig" \
       --output-types talosconfig \
       --force
     cp "{{ qemu_dir }}/talosconfig" "{{ kubernetes_dir }}/talosconfig"
-    talosctl config merge "{{ qemu_dir }}/talosconfig" 2>/dev/null || true
     talosctl config endpoint "$endpoint"
     talosctl config node "$endpoint"
 
@@ -290,6 +299,10 @@ apply-config:
 bootstrap:
     #!/usr/bin/env bash
     set -euo pipefail
+
+    # Pin TALOSCONFIG to the test cluster so neither this recipe nor any
+    # talosctl call inside it can hit prod nodes (the default context).
+    export TALOSCONFIG="{{ qemu_dir }}/talosconfig"
 
     echo "=== Bootstrapping Kubernetes ==="
     endpoint=$(talosctl config info 2>&1 | grep Endpoints | awk '{print $2}')
@@ -346,18 +359,54 @@ bootstrap:
 
 [doc('Fetch kubeconfig')]
 kubeconfig:
-    talosctl kubeconfig -f --force-context-name talos-test "{{ kubernetes_dir }}/kubeconfig"
+    TALOSCONFIG="{{ qemu_dir }}/talosconfig" talosctl kubeconfig -f --force-context-name talos-test "{{ kubernetes_dir }}/kubeconfig"
 
 [doc('Destroy all QEMU test VMs')]
 destroy:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "=== Destroying QEMU test cluster ==="
-    for pid in $(pgrep -f "qemu-system.*-name {{ cluster_prefix }}" || true); do
-      name=$(ps -p "$pid" -o args= 2>/dev/null | sed -n 's/.*-name \([^ ]*\).*/\1/p')
-      echo "  Killing $name (PID $pid)..."
-      sudo kill "$pid" 2>/dev/null || true
+
+    # killall with SIGKILL — qemu runs as root, so this needs sudo. Do NOT swallow
+    # errors: if sudo fails (e.g. missing sudoers rule) we need to know, not silently
+    # leak zombie VMs that the next `start` will mistake for running instances.
+    if pgrep -f "qemu-system.*-name {{ cluster_prefix }}" > /dev/null 2>&1; then
+      echo "  Killing qemu-system-aarch64 processes..."
+      sudo killall -KILL qemu-system-aarch64 || {
+        echo "  ERROR: sudo killall failed."
+        echo "  If prompted for a password that wasn't entered, either:"
+        echo "    1. Run 'sudo killall -9 qemu-system-aarch64' manually, or"
+        echo "    2. Add to /etc/sudoers.d/qemu-test:"
+        echo "       sheijden ALL=(ALL) NOPASSWD: /usr/bin/killall qemu-system-aarch64"
+        exit 1
+      }
+
+      # Verify: give the kernel 2s to reap, then confirm no qemu processes remain.
+      sleep 2
+      if pgrep -f "qemu-system.*-name {{ cluster_prefix }}" > /dev/null 2>&1; then
+        echo "  ERROR: qemu processes survived SIGKILL — something is wrong."
+        ps -o pid,command -p "$(pgrep -f 'qemu-system.*-name {{ cluster_prefix }}' | tr '\n' ',' | sed 's/,$//')" || true
+        exit 1
+      fi
+      echo "  All VMs killed."
+    else
+      echo "  No VMs running."
+    fi
+
+    # Clean up the vmnet-shared bridge that macOS creates for QEMU VMs.
+    # If left behind, its reject-flagged default route breaks Go's net.Dial
+    # (kubectl, helm, etc.) even though ping/curl still work.
+    for bridge in $(ifconfig -l | tr ' ' '\n' | grep bridge); do
+      if ifconfig "$bridge" 2>/dev/null | grep -q "192.168.2.1"; then
+        echo "  Cleaning up $bridge (vmnet-shared bridge)..."
+        for member in $(ifconfig "$bridge" 2>/dev/null | grep "member:" | awk '{print $2}'); do
+          sudo ifconfig "$bridge" deletem "$member" 2>/dev/null || true
+        done
+        sudo ifconfig "$bridge" down 2>/dev/null || true
+        sudo ifconfig "$bridge" destroy 2>/dev/null || true
+      fi
     done
+
     rm -f "{{ qemu_dir }}"/*.pid
     rm -f "{{ kubernetes_dir }}/kubeconfig" "{{ kubernetes_dir }}/talosconfig"
     rm -f "{{ qemu_dir }}"/*.qcow2 "{{ qemu_dir }}"/*.fd
