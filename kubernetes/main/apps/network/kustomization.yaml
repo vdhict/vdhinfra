@@ -9,4 +9,3 @@ resources:
   - ./envoy-gateway/install.yaml
   - ./external-dns/install.yaml
   - ./external-dns-unifi/install.yaml
-  - ./k8s-gateway/install.yaml
