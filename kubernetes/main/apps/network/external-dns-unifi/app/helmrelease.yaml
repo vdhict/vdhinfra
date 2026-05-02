@@ -56,6 +56,13 @@ spec:
     extraArgs:
       - --crd-source-apiversion=externaldns.k8s.io/v1alpha1
       - --crd-source-kind=DNSEndpoint
+      # Use a custom annotation prefix so this instance does not pick up
+      # the `external-dns.alpha.kubernetes.io/target: external.bluejungle.net`
+      # annotation on the Gateway resources (that is meant for the Cloudflare
+      # external-dns instance). With this prefix unset on resources, the
+      # gateway-httproute source falls back to Gateway.status.addresses,
+      # producing direct A records on UDM rather than CNAMEs that UDM rejects.
+      - --annotation-prefix=external-dns-unifi.bluejungle.net/
     policy: sync
     sources: ["crd", "gateway-httproute"]
     txtPrefix: k8s.unifi.
