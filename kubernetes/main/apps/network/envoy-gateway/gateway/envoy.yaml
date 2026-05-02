@@ -20,6 +20,18 @@ spec:
               memory: 1Gi
       envoyService:
         externalTrafficPolicy: Cluster
+        # Clear spec.externalIPs after envoy-gateway populates it from
+        # Gateway.spec.addresses. Without this, the IP appears twice on the
+        # Service (once via externalIPs, once via Cilium LB IPAM's
+        # status.loadBalancer.ingress) and Cilium logs `frontend already
+        # owned by another service`, silently disabling L2 announcement →
+        # ARP incomplete on the LB IP → LAN clients can't reach Envoy.
+        # 2026-05-02 incident root cause.
+        patch:
+          type: StrategicMerge
+          value:
+            spec:
+              externalIPs: []
   shutdown:
     drainTimeout: 180s
   # telemetry.metrics.prometheus.compression removed 2026-04-08 — Envoy
