@@ -12,5 +12,8 @@ data:
   SERVICE_CIDR: 10.43.0.0/16
   ENVOY_INTERNAL_LB_IP: "172.16.2.241"
   ENVOY_EXTERNAL_LB_IP: "172.16.2.243"
-  K8S_GATEWAY_LB_IP: "172.16.2.242"
+  # Authoritative DNS for ${SECRET_DOMAIN}. Was 172.16.2.242 (k8s-gateway,
+  # retired 2026-05-02 → external-dns→UDM migration). Now points at the UDM
+  # Pro Max which serves per-hostname A records written by external-dns-unifi.
+  LAN_DNS_IP: "172.16.2.1"
   NFS_SERVER: "172.16.2.246"

@@ -30,8 +30,16 @@ spec:
           - zone: ${SECRET_DOMAIN}
         port: 53
         plugins:
+          # Forward in-cluster lookups for ${SECRET_DOMAIN} to the LAN DNS
+          # (UDM Pro Max — serves per-hostname A records written by
+          # external-dns-unifi). 1.1.1.1 is a sequential fallback so a UDM
+          # outage does not blackhole every *.${SECRET_DOMAIN} lookup;
+          # Cloudflare's public records resolve to the tunnel and work
+          # end-to-end (slower path but functional).
           - name: forward
-            parameters: . ${K8S_GATEWAY_LB_IP}
+            parameters: . ${LAN_DNS_IP} 1.1.1.1
+            configBlock: |-
+              policy sequential
           - name: errors
           - name: cache
             parameters: 5
