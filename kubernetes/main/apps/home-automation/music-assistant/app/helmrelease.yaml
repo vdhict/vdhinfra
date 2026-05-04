@@ -49,6 +49,19 @@ spec:
           http:
             port: 8095
 
+    route:
+      main:
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        hostnames:
+          - "{{ .Release.Name }}.${SECRET_DOMAIN}"
+        rules:
+          - backendRefs:
+              - name: music-assistant
+                port: 8095
+
     persistence:
       media:
         type: nfs
