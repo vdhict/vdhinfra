@@ -56,7 +56,7 @@ spec:
             namespace: network
             sectionName: https
         hostnames:
-          - "{{ .Release.Name }}.${SECRET_DOMAIN}"
+          - "mass.${SECRET_DOMAIN}"
         rules:
           - backendRefs:
               - name: music-assistant
