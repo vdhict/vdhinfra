@@ -64,7 +64,7 @@ spec:
       # producing direct A records on UDM rather than CNAMEs that UDM rejects.
       - --annotation-prefix=external-dns-unifi.bluejungle.net/
     policy: sync
-    sources: ["crd", "gateway-httproute"]
+    sources: ["crd", "gateway-httproute", "service"]
     txtPrefix: k8s.unifi.
     txtOwnerId: unifi
     domainFilters: ["${SECRET_DOMAIN}"]
