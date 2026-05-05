@@ -13,3 +13,4 @@ resources:
   - ./mealie/install.yaml
   - ./music-assistant/install.yaml
   - ./scrypted/install.yaml
+  - ./evcc/install.yaml
