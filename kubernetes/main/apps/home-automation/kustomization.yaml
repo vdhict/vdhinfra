@@ -14,3 +14,4 @@ resources:
   - ./music-assistant/install.yaml
   - ./scrypted/install.yaml
   - ./evcc/install.yaml
+  - ./tesla-public-key/install.yaml
