@@ -1,0 +1,129 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app tesla-http-proxy
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: app-template
+      version: 3.7.3
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  maxHistory: 2
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  uninstall:
+    keepHistory: false
+  values:
+    # Self-hosted Tesla Vehicle Command Proxy. Receives signed-payload-less
+    # HTTPS requests from evcc with the user's Bearer token, signs the
+    # request body with our ECDSA private key (paired as a virtual key on
+    # the car), and forwards to Tesla's Fleet API. Internal-only — the LB
+    # IP sits on the LAN and the DNS A record (tesla-proxy.bluejungle.net)
+    # is published to the UDM only, not to Cloudflare.
+    controllers:
+      tesla-http-proxy:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: docker.io/tesla/vehicle-command
+              tag: "0.4.1"
+            args:
+              - --tls-key
+              - /tls/tls.key
+              - --cert
+              - /tls/tls.crt
+              - --key-file
+              - /key/fleet-key.pem
+              - --port
+              - "4443"
+              - --host
+              - 0.0.0.0
+            env:
+              TZ: Europe/Amsterdam
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: &port 4443
+                  initialDelaySeconds: 10
+                  periodSeconds: 30
+                  timeoutSeconds: 3
+                  failureThreshold: 3
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: *port
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                  timeoutSeconds: 3
+                  failureThreshold: 3
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                memory: 128Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: { type: RuntimeDefault }
+
+    service:
+      app:
+        controller: *app
+        type: LoadBalancer
+        annotations:
+          lbipam.cilium.io/ips: "172.16.2.246"
+          external-dns-unifi.bluejungle.net/hostname: "tesla-proxy.${SECRET_DOMAIN}"
+        ports:
+          https:
+            port: 443
+            targetPort: *port
+            protocol: TCP
+
+    persistence:
+      tls:
+        type: secret
+        name: tesla-proxy-tls
+        advancedMounts:
+          tesla-http-proxy:
+            app:
+              - path: /tls
+                readOnly: true
+      key:
+        type: secret
+        name: tesla-http-proxy-secret
+        advancedMounts:
+          tesla-http-proxy:
+            app:
+              - path: /key
+                readOnly: true

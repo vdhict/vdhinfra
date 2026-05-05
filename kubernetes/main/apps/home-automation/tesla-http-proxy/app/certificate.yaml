@@ -1,0 +1,25 @@
+---
+# Real LE cert for the proxy's inbound TLS. tesla-http-proxy refuses to
+# run without TLS by design (the upstream maintainers explicitly omit a
+# --insecure flag) — see github.com/teslamotors/vehicle-command, comment
+# on the http-proxy main.go.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: tesla-proxy
+spec:
+  secretName: tesla-proxy-tls
+  dnsNames:
+    - tesla-proxy.bluejungle.net
+  duration: 2160h    # 90d, LE max
+  renewBefore: 360h  # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-production
+  usages:
+    - digital signature
+    - server auth
