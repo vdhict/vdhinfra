@@ -2,7 +2,7 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app evcc
+  name: &app tesla-http-proxy
   namespace: flux-system
 spec:
   targetNamespace: home-automation
@@ -11,10 +11,9 @@ spec:
       app.kubernetes.io/name: *app
   dependsOn:
     - name: external-secrets-stores
-    - name: mosquitto
-    - name: home-assistant
-    - name: tesla-http-proxy
-  path: ./kubernetes/main/apps/home-automation/evcc/app
+    - name: cert-manager
+    - name: tesla-public-key
+  path: ./kubernetes/main/apps/home-automation/tesla-http-proxy/app
   sourceRef:
     kind: GitRepository
     name: flux-system
