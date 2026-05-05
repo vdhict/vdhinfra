@@ -33,7 +33,7 @@ spec:
         containers:
           app:
             image:
-              repository: ghcr.io/evcc-io/evcc
+              repository: docker.io/evcc/evcc
               tag: 0.306.1
             args:
               - --config
