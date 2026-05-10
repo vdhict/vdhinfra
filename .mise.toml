@@ -23,7 +23,7 @@ cilium-hubble = "latest"
 "aqua:getsops/sops" = "3.13.0"
 
 # CLI utilities
-"aqua:casey/just" = "1.50.0"
+"aqua:casey/just" = "1.51.0"
 "aqua:charmbracelet/gum" = "0.17.0"
 "aqua:cli/cli" = "2.92.0"
 "aqua:jqlang/jq" = "1.8.1"
