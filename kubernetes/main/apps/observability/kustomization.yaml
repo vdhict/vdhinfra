@@ -18,3 +18,4 @@ resources:
   - ./unpoller/install.yaml
   - ./blackbox-exporter/install.yaml
   - ./cluster-health/install.yaml
+  - ./unifi-exporter/install.yaml
