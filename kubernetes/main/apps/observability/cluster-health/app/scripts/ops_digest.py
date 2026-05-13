@@ -180,20 +180,33 @@ def sync_renovate_commits(workdir: Path) -> int:
         env["GIT_AUTHOR_EMAIL"] = env.get("GIT_AUTHOR_EMAIL", "ops-digest@bluejungle.net")
         env["GIT_COMMITTER_NAME"] = env["GIT_AUTHOR_NAME"]
         env["GIT_COMMITTER_EMAIL"] = env["GIT_AUTHOR_EMAIL"]
-        subprocess.run(["git", "-C", str(workdir), "add", "ops/changes.jsonl"], env=env)
-        subprocess.run(
+        subprocess.run(["git", "-C", str(workdir), "config", "user.name", env["GIT_AUTHOR_NAME"]],
+                       capture_output=True)
+        subprocess.run(["git", "-C", str(workdir), "config", "user.email", env["GIT_AUTHOR_EMAIL"]],
+                       capture_output=True)
+        subprocess.run(["git", "-C", str(workdir), "add", "ops/changes.jsonl"],
+                       env=env, capture_output=True)
+        commit = subprocess.run(
             ["git", "-C", str(workdir), "commit", "-m",
              f"chore(ops): backfill {added} Renovate auto-merge change record(s)"],
-            env=env, capture_output=True,
+            env=env, capture_output=True, text=True,
         )
+        if commit.returncode != 0:
+            log(f"ops_digest renovate-sync: commit failed: {commit.stderr[:200]}")
+            return added
         tok = mint_installation_token()
-        if tok:
-            remote_path = GIT_REMOTE.removeprefix("https://")
-            subprocess.run(
-                ["git", "-C", str(workdir), "push",
-                 f"https://x-access-token:{tok}@{remote_path}", GIT_BRANCH],
-                env=env, capture_output=True, timeout=60,
-            )
+        if not tok:
+            return added
+        remote_path = GIT_REMOTE.removeprefix("https://")
+        push = subprocess.run(
+            ["git", "-C", str(workdir), "push",
+             f"https://x-access-token:{tok}@{remote_path}", GIT_BRANCH],
+            env=env, capture_output=True, text=True, timeout=60,
+        )
+        if push.returncode != 0:
+            log(f"ops_digest renovate-sync: push failed: {push.stderr[:200]}")
+        else:
+            log(f"ops_digest renovate-sync: pushed {added} change record(s)")
     return added
 
 

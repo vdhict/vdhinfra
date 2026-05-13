@@ -37,7 +37,13 @@ HA_TOKEN = os.environ.get("HA_TOKEN", "")
 
 
 def run(cmd, **kw):
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=kw.get("timeout", 60))
+    """subprocess.run wrapper. Forwards env, cwd, etc. — earlier version
+    silently dropped these which is why the post-scan commit-back
+    appeared to succeed but never actually pushed."""
+    kw.setdefault("capture_output", True)
+    kw.setdefault("text", True)
+    kw.setdefault("timeout", 60)
+    return subprocess.run(cmd, **kw)
 
 
 def clone(workdir: Path) -> bool:
@@ -373,14 +379,25 @@ def main() -> int:
         env["GIT_AUTHOR_EMAIL"] = env.get("GIT_AUTHOR_EMAIL", "argus@bluejungle.net")
         env["GIT_COMMITTER_NAME"] = env["GIT_AUTHOR_NAME"]
         env["GIT_COMMITTER_EMAIL"] = env["GIT_AUTHOR_EMAIL"]
+        # git needs user.name / user.email via config too on alpine
+        run(["git", "-C", str(workdir), "config", "user.name", env["GIT_AUTHOR_NAME"]])
+        run(["git", "-C", str(workdir), "config", "user.email", env["GIT_AUTHOR_EMAIL"]])
         tok = mint_installation_token()
         if tok:
             remote_path = GIT_REMOTE.removeprefix("https://")
             run(["git", "-C", str(workdir), "add", "ops/changes.jsonl", "ops/incidents.jsonl"], env=env)
-            run(["git", "-C", str(workdir), "commit", "-m",
-                 f"chore(security): Argus posture scan {chg}"], env=env)
-            run(["git", "-C", str(workdir), "push",
-                 f"https://x-access-token:{tok}@{remote_path}", GIT_BRANCH], env=env, timeout=60)
+            commit = run(["git", "-C", str(workdir), "commit", "-m",
+                          f"chore(security): Argus posture scan {chg}"], env=env)
+            if commit.returncode != 0:
+                log(f"argus: nothing to commit or commit failed: {commit.stderr[:200]}")
+            else:
+                push = run(["git", "-C", str(workdir), "push",
+                            f"https://x-access-token:{tok}@{remote_path}", GIT_BRANCH],
+                           env=env, timeout=60)
+                if push.returncode != 0:
+                    log(f"argus: push failed: {push.stderr[:300]}")
+                else:
+                    log("argus: pushed posture-scan events back to repo")
 
         post_summary_to_ha(chg, by_sev, os.environ.get("REPORT_BASE_URL", ""))
         return 0
