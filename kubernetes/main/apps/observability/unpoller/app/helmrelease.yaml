@@ -5,10 +5,6 @@ kind: HelmRelease
 metadata:
   name: unpoller
 spec:
-  # Suspended 2026-05-13 — UDM crashing under poller load (inc-2026-05-13-003).
-  # unpoller had 133 restarts in 22 days; its retry bursts are a likely
-  # contributor. Do not unsuspend without first investigating the crash root cause.
-  suspend: true
   interval: 30m
   chart:
     spec:
