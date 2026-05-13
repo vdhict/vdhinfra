@@ -64,7 +64,8 @@ RISK_TIERS = {"low", "medium", "high"}
 ENGINEERS = {
     "infra-ops", "udm-engineer", "ha-engineer", "k8s-engineer",
     "change-qa", "security-engineer", "pentest-engineer",
-    "design-engineer", "user",
+    "design-engineer", "it-researcher", "frontend-engineer",
+    "user",
 }
 
 # ── tiny utils ──────────────────────────────────────────────────────────
@@ -528,159 +529,498 @@ def cmd_digest(args):
 
 
 def cmd_dashboard(args):
-    """Render a self-contained HTML dashboard.
+    """Render the ops portal v2.
 
-    Writes to PATH if given, otherwise stdout. Pure static HTML+CSS;
-    no JavaScript needed for the basic view.
+    --html PATH writes the portal. PATH semantics:
+      - directory (or path not ending in .html): write the multi-page portal
+        (index.html, changes.html, incidents.html, cmdb.html, risks.html,
+        team.html). The default mode.
+      - ends in .html: write the legacy single-page mega-dashboard to that
+        file (back-compat for any external caller still expecting one file).
+    If --html is omitted, the index page is written to stdout.
+
+    Lean by design: server-rendered HTML+CSS, no JS, no external assets,
+    target <50 kB per page (excluding the data payload itself). System fonts
+    only. color-scheme: light dark for automatic dark mode.
     """
+    state = _gather_portal_state()
+    if not args.html:
+        sys.stdout.write(_render_index(state))
+        return
+
+    out = Path(args.html)
+    # Single-file mode for back-compat: arg ends in .html and the path isn't
+    # an existing directory.
+    if out.suffix == ".html" and not out.is_dir():
+        out.parent.mkdir(parents=True, exist_ok=True)
+        page = _render_index(state)
+        out.write_text(page)
+        print(f"wrote {out} ({len(page)} bytes)")
+        return
+
+    # Directory mode — the v2 portal.
+    out.mkdir(parents=True, exist_ok=True)
+    pages = {
+        "index.html": _render_index(state),
+        "changes.html": _render_changes(state),
+        "incidents.html": _render_incidents(state),
+        "cmdb.html": _render_cmdb(state),
+        "risks.html": _render_risks(state),
+        "team.html": _render_team(state),
+    }
+    total = 0
+    for name, body in pages.items():
+        p = out / name
+        p.write_text(body)
+        n = len(body)
+        total += n
+        print(f"wrote {p} ({n} bytes)")
+    print(f"portal total {total} bytes across {len(pages)} pages")
+
+
+# ── ops portal v2 — rendering helpers ───────────────────────────────────
+
+_PORTAL_CSS = """
+:root{color-scheme:light dark}
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+ margin:0;padding:0 16px 48px;max-width:1100px;line-height:1.4}
+@media(min-width:640px){body{padding:0 24px 48px}}
+header{position:sticky;top:0;background:Canvas;padding:14px 0 10px;
+ border-bottom:1px solid #ccc4;z-index:10}
+h1{margin:0 0 4px;font-size:1.25rem}
+h2{margin:24px 0 8px;font-size:1rem;border-bottom:1px solid #ccc4;padding-bottom:4px}
+nav.tabs{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;font-size:.88rem}
+nav.tabs a{color:inherit;text-decoration:none;padding:2px 8px;border-radius:6px;border:1px solid transparent}
+nav.tabs a:hover{border-color:#ccc4}
+nav.tabs a.cur{border-color:#888;font-weight:600}
+.meta{color:#888;font-size:.78rem;margin-top:4px}
+.meta a{color:inherit}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+ gap:10px;margin:14px 0}
+.kpi{padding:10px 12px;border:1px solid #ccc4;border-radius:8px}
+.kpi .v{font-size:1.5rem;font-weight:600;font-variant-numeric:tabular-nums}
+.kpi .l{font-size:.72rem;color:#888;text-transform:uppercase;letter-spacing:.04em}
+.kpi.alert{border-color:#c0392b}
+.kpi.alert .v{color:#c0392b}
+table{border-collapse:collapse;width:100%;font-size:.86rem}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #ccc4;vertical-align:top}
+th{font-weight:600;color:#888;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em}
+td.ts,td.num{font-variant-numeric:tabular-nums;color:#888;font-size:.78rem;white-space:nowrap}
+td.pill{font-weight:600;text-transform:uppercase;font-size:.7rem;white-space:nowrap}
+tr.r-low td.pill{color:#2a9d3f}
+tr.r-medium td.pill{color:#c08a00}
+tr.r-high td.pill{color:#c0392b}
+tr.s-sev3 td.pill{color:#c08a00}
+tr.s-sev2 td.pill{color:#c0392b}
+tr.s-sev1 td.pill{color:#c0392b;font-weight:800}
+.tag{display:inline-block;font-size:.68rem;padding:1px 6px;border-radius:999px;
+ border:1px solid #ccc4;color:#888;text-transform:uppercase;letter-spacing:.04em}
+.tag.sens{color:#c0392b;border-color:#c0392b}
+.tag.ok{color:#2a9d3f;border-color:#2a9d3f}
+.empty{color:#888;text-align:center;padding:14px;font-style:italic}
+.banner{padding:10px 14px;border:1px solid #c08a00;border-radius:8px;
+ background:#fff5cf;margin:12px 0}
+.banner.red{border-color:#c0392b;background:#ffe5e0}
+@media(prefers-color-scheme:dark){
+ .banner{background:#3a2c0a}
+ .banner.red{background:#3a1a14}
+}
+.banner h3{margin:0 0 4px;font-size:.95rem}
+.banner ul{margin:4px 0 0 18px;padding:0;font-size:.85rem}
+details{margin:4px 0;font-size:.82rem}
+summary{cursor:pointer;color:#888}
+code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.84rem}
+.evt{margin:2px 0;padding:2px 6px;border-left:2px solid #ccc4;color:#888}
+.cardlist{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
+.card{padding:10px 12px;border:1px solid #ccc4;border-radius:8px;font-size:.86rem}
+.card h3{margin:0 0 4px;font-size:.95rem}
+.card .who{color:#888;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em}
+footer{color:#888;font-size:.74rem;margin-top:36px;padding-top:14px;border-top:1px solid #ccc4}
+"""
+
+
+def _gather_portal_state() -> dict:
     chgs = fold_changes(read_events(CHANGES))
     incs = fold_incidents(read_events(INCIDENTS))
     cmdb = load_cmdb().get("components", {})
     freezes = load_freeze().get("freezes") or []
-    locks = sorted([p.name for p in LOCK_DIR.iterdir() if p.is_file() and p.name != ".gitkeep"])
+    risks = _load_risks().get("risks") or []
+    locks = sorted([p.name for p in LOCK_DIR.iterdir()
+                    if p.is_file() and p.name != ".gitkeep"])
     now = dt.datetime.now(dt.timezone.utc)
     cutoff_7d = now - dt.timedelta(days=7)
-
-    open_chgs = [c for c in chgs.values() if c["status"] not in {"closed", "rejected", "rolled_back"}]
+    open_chgs = [c for c in chgs.values()
+                 if c["status"] not in {"closed", "rejected", "rolled_back"}]
     open_incs = [i for i in incs.values() if i["status"] != "closed"]
     recent_chgs = [c for c in chgs.values() if _ts(c.get("last_ts")) >= cutoff_7d]
     recent_incs = [i for i in incs.values() if _ts(i.get("last_ts")) >= cutoff_7d]
-    risk_counts = {r: sum(1 for c in recent_chgs if c.get("risk") == r) for r in ("low","medium","high")}
+    return {
+        "now": now,
+        "chgs": chgs, "incs": incs,
+        "open_chgs": open_chgs, "open_incs": open_incs,
+        "recent_chgs": recent_chgs, "recent_incs": recent_incs,
+        "cmdb": cmdb, "freezes": freezes, "risks": risks, "locks": locks,
+        "active_freezes": [f for f in freezes if _freeze_active(f)],
+    }
 
-    def row_chg(c):
-        risk = c.get("risk") or "?"
-        return (
-            f'<tr class="r-{risk}"><td>{c["id"]}</td><td class="risk">{risk}</td>'
-            f'<td>{c["status"]}</td><td>{_h(c.get("resource") or "?")}</td>'
-            f'<td>{_h(c.get("summary") or "")}</td><td class="ts">{(c.get("last_ts") or "")[:19].replace("T"," ")}</td></tr>'
-        )
 
-    def row_inc(i):
-        sev = i.get("severity") or "?"
-        return (
-            f'<tr class="s-{sev}"><td>{i["id"]}</td><td class="sev">{sev}</td>'
-            f'<td>{i["status"]}</td><td>{_h(i.get("summary") or "")}</td>'
-            f'<td class="ts">{(i.get("last_ts") or "")[:19].replace("T"," ")}</td></tr>'
-        )
+def _load_risks() -> dict:
+    path = OPS_DIR / "accepted_risks.yaml"
+    if not path.exists():
+        return {"risks": []}
+    try:
+        import yaml  # type: ignore
+        with path.open() as f:
+            return yaml.safe_load(f) or {"risks": []}
+    except ImportError:
+        # Tiny fallback for our exact schema.
+        risks: list[dict] = []
+        cur: dict | None = None
+        with path.open() as f:
+            for raw in f:
+                line = raw.rstrip("\n")
+                s = line.strip()
+                if not s or s.startswith("#"):
+                    continue
+                if line.startswith("  - "):
+                    if cur is not None:
+                        risks.append(cur)
+                    cur = {}
+                    k, _, v = s[2:].partition(":")
+                    if v.strip():
+                        cur[k.strip()] = v.strip().strip('"')
+                elif line.startswith("    ") and cur is not None and ":" in s:
+                    k, _, v = s.partition(":")
+                    cur[k.strip()] = v.strip().strip('"')
+        if cur is not None:
+            risks.append(cur)
+        return {"risks": risks}
 
-    cmdb_rows = "".join(
-        f'<tr><td>{cid}</td><td>{_h(c.get("type",""))}</td><td>{_h(c.get("owner_agent",""))}</td><td>{"yes" if c.get("sensitive") else ""}</td><td>{_h(c.get("description",""))}</td></tr>'
-        for cid, c in sorted(cmdb.items())
+
+def _page(title: str, current: str, body: str, gen_ts: dt.datetime,
+          extra_meta: str = "") -> str:
+    tabs = [
+        ("index.html", "Overview"),
+        ("changes.html", "Changes"),
+        ("incidents.html", "Incidents"),
+        ("cmdb.html", "CMDB"),
+        ("risks.html", "Risks"),
+        ("team.html", "Team"),
+        ("reports.html", "Health reports"),
+    ]
+    nav = "".join(
+        f'<a href="{href}"{" class=\"cur\"" if href == current else ""}>{_h(label)}</a>'
+        for href, label in tabs
+    )
+    return (
+        '<!doctype html>\n'
+        '<html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<meta http-equiv="refresh" content="600">'
+        f'<title>{_h(title)} · vdhinfra ops</title>'
+        f'<style>{_PORTAL_CSS}</style></head><body>'
+        '<header><h1>vdhinfra ops portal</h1>'
+        f'<nav class="tabs">{nav}</nav>'
+        f'<div class="meta">Generated {gen_ts.isoformat(timespec="seconds")} · '
+        'auto-refresh 10m'
+        f'{(" · " + extra_meta) if extra_meta else ""}'
+        '</div></header>'
+        f'{body}'
+        '<footer>Event-sourced from <code>ops/</code> in <code>vdhict/vdhinfra</code>. '
+        'CLI: <code>./ops/ops status</code>. '
+        'Read-only — writes happen via the CLI only.</footer>'
+        '</body></html>\n'
     )
 
-    open_chg_rows = "".join(row_chg(c) for c in sorted(open_chgs, key=lambda x: x.get("last_ts") or "", reverse=True)) or '<tr><td colspan="6" class="empty">none</td></tr>'
-    open_inc_rows = "".join(row_inc(i) for i in sorted(open_incs, key=lambda x: x.get("last_ts") or "", reverse=True)) or '<tr><td colspan="5" class="empty">none</td></tr>'
-    recent_chg_rows = "".join(row_chg(c) for c in sorted(recent_chgs, key=lambda x: x.get("last_ts") or "", reverse=True)) or '<tr><td colspan="6" class="empty">none</td></tr>'
-    recent_inc_rows = "".join(row_inc(i) for i in sorted(recent_incs, key=lambda x: x.get("last_ts") or "", reverse=True)) or '<tr><td colspan="5" class="empty">none</td></tr>'
 
-    active_freezes = [f for f in freezes if _freeze_active(f)]
-    freeze_block = ""
-    if active_freezes:
-        items = "".join(f'<li><strong>{_h(f.get("name",""))}</strong> — ends {f.get("ends","?")}, blocks {f.get("blocks")}: {_h(f.get("reason",""))}</li>' for f in active_freezes)
-        freeze_block = f'<section class="freeze"><h2>⚠ Active freeze windows</h2><ul>{items}</ul></section>'
+def _chg_row(c: dict, with_resource: bool = True) -> str:
+    risk = c.get("risk") or "?"
+    cells = [
+        f'<td><a href="changes.html#{_h(c["id"])}">{_h(c["id"])}</a></td>',
+        f'<td class="pill">{_h(risk)}</td>',
+        f'<td>{_h(c["status"])}</td>',
+    ]
+    if with_resource:
+        cells.append(f'<td>{_h(c.get("resource") or "?")}</td>')
+    cells.append(f'<td>{_h((c.get("summary") or ""))}</td>')
+    cells.append(f'<td class="ts">{_h((c.get("last_ts") or "")[:16].replace("T"," "))}</td>')
+    return f'<tr class="r-{_h(risk)}">{"".join(cells)}</tr>'
+
+
+def _inc_row(i: dict) -> str:
+    sev = i.get("severity") or "?"
+    return (
+        f'<tr class="s-{_h(sev)}">'
+        f'<td><a href="incidents.html#{_h(i["id"])}">{_h(i["id"])}</a></td>'
+        f'<td class="pill">{_h(sev)}</td>'
+        f'<td>{_h(i["status"])}</td>'
+        f'<td>{_h(i.get("summary") or "")}</td>'
+        f'<td class="ts">{_h((i.get("last_ts") or "")[:16].replace("T"," "))}</td>'
+        '</tr>'
+    )
+
+
+def _kpi(value, label, alert: bool = False) -> str:
+    cls = "kpi alert" if alert else "kpi"
+    return f'<div class="{cls}"><div class="v">{_h(str(value))}</div><div class="l">{_h(label)}</div></div>'
+
+
+def _render_index(s: dict) -> str:
+    risk_counts = {r: sum(1 for c in s["recent_chgs"] if c.get("risk") == r)
+                   for r in ("low", "medium", "high")}
+    sev_counts = {sv: sum(1 for i in s["open_incs"] if i.get("severity") == sv)
+                  for sv in ("sev1", "sev2", "sev3")}
+    open_chgs_sorted = sorted(s["open_chgs"],
+                              key=lambda x: x.get("last_ts") or "", reverse=True)
+    open_incs_sorted = sorted(s["open_incs"],
+                              key=lambda x: x.get("last_ts") or "", reverse=True)
+
+    banners = []
+    if s["active_freezes"]:
+        items = "".join(
+            f'<li><strong>{_h(f.get("name",""))}</strong> — '
+            f'ends {_h(f.get("ends","?"))} · blocks {_h(", ".join(f.get("blocks") or []))}: '
+            f'{_h(f.get("reason",""))}</li>'
+            for f in s["active_freezes"])
+        banners.append(
+            f'<div class="banner"><h3>Change-freeze active</h3><ul>{items}</ul></div>')
+    if sev_counts["sev1"] or sev_counts["sev2"]:
+        banners.append(
+            '<div class="banner red"><h3>High-severity incident open</h3>'
+            f'<ul><li>{sev_counts["sev1"]} sev1 · {sev_counts["sev2"]} sev2 — see '
+            '<a href="incidents.html">incidents</a></li></ul></div>')
+    banner_block = "".join(banners)
+
+    kpis = (
+        f'<section class="kpis">'
+        + _kpi(len(s["open_chgs"]), "open changes")
+        + _kpi(len(s["open_incs"]), "open incidents", alert=bool(sev_counts["sev1"] or sev_counts["sev2"]))
+        + _kpi(len(s["active_freezes"]), "active freezes",
+               alert=bool(s["active_freezes"]))
+        + _kpi(len(s["locks"]), "active locks")
+        + _kpi(f"{risk_counts['low']}/{risk_counts['medium']}/{risk_counts['high']}",
+               "risk 7d (L/M/H)")
+        + _kpi(len(s["cmdb"]), "cmdb components")
+        + _kpi(len(s["risks"]), "accepted risks")
+        + '</section>'
+    )
+
+    chg_rows = ("".join(_chg_row(c) for c in open_chgs_sorted[:15])
+                or '<tr><td colspan="6" class="empty">no open changes</td></tr>')
+    inc_rows = ("".join(_inc_row(i) for i in open_incs_sorted[:10])
+                or '<tr><td colspan="5" class="empty">no open incidents</td></tr>')
 
     lock_block = ""
-    if locks:
-        rows = "".join(f'<tr><td>{_h(l)}</td><td>{_h((LOCK_DIR / l).read_text().strip())}</td></tr>' for l in locks)
-        lock_block = f'<section><h2>Active locks</h2><table><thead><tr><th>resource</th><th>holder</th></tr></thead><tbody>{rows}</tbody></table></section>'
+    if s["locks"]:
+        rows = "".join(
+            f'<tr><td><code>{_h(l)}</code></td>'
+            f'<td>{_h((LOCK_DIR / l).read_text().strip())}</td></tr>'
+            for l in s["locks"])
+        lock_block = (
+            '<section><h2>Active locks</h2><table>'
+            '<thead><tr><th>resource</th><th>holder</th></tr></thead>'
+            f'<tbody>{rows}</tbody></table></section>')
 
-    html = f"""<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta http-equiv="refresh" content="60">
-<title>vdhinfra ops</title>
-<style>
-  :root {{ color-scheme: light dark; }}
-  body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-         margin: 0; padding: 0 24px 48px; max-width: 1400px; }}
-  header {{ position: sticky; top:0; background: Canvas; padding: 16px 0; border-bottom: 1px solid #ccc4; }}
-  h1 {{ margin: 0; font-size: 1.4rem; }}
-  h2 {{ margin: 28px 0 8px; font-size: 1.05rem; border-bottom: 1px solid #ccc4; padding-bottom: 4px; }}
-  .meta {{ color: #888; font-size: .85rem; }}
-  .kpis {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 14px 0; }}
-  .kpi {{ padding: 12px 14px; border: 1px solid #ccc4; border-radius: 8px; }}
-  .kpi .v {{ font-size: 1.6rem; font-weight: 600; }}
-  .kpi .l {{ font-size: .8rem; color: #888; text-transform: uppercase; letter-spacing: .04em; }}
-  table {{ border-collapse: collapse; width: 100%; font-size: .88rem; }}
-  th, td {{ text-align: left; padding: 6px 10px; border-bottom: 1px solid #ccc4; }}
-  th {{ font-weight: 600; color: #888; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; }}
-  td.ts {{ font-variant-numeric: tabular-nums; color: #888; font-size: .8rem; white-space: nowrap; }}
-  td.risk, td.sev {{ font-weight: 600; text-transform: uppercase; font-size: .72rem; }}
-  tr.r-low td.risk {{ color: #2a9d3f; }}
-  tr.r-medium td.risk {{ color: #c08a00; }}
-  tr.r-high td.risk {{ color: #c0392b; }}
-  tr.s-sev3 td.sev {{ color: #c08a00; }}
-  tr.s-sev2 td.sev {{ color: #c0392b; }}
-  tr.s-sev1 td.sev {{ color: #c0392b; font-weight: 800; }}
-  td.empty {{ color: #888; text-align: center; padding: 14px; }}
-  .freeze {{ padding: 14px; background: #fff5cf; border: 1px solid #c08a00; border-radius: 8px; margin-top: 14px; }}
-  @media (prefers-color-scheme: dark) {{
-    .freeze {{ background: #3a2c0a; }}
-  }}
-  footer {{ color: #888; font-size: .78rem; margin-top: 36px; }}
-</style>
-</head>
-<body>
-<header>
-  <h1>vdhinfra ops portal</h1>
-  <div class="meta">Generated {now.isoformat(timespec="seconds")} · auto-refresh 60s · <a href="/">health</a></div>
-</header>
+    body = (
+        f'{banner_block}{kpis}'
+        '<section><h2>Open changes <span class="tag">'
+        f'{len(s["open_chgs"])}</span></h2><table>'
+        '<thead><tr><th>id</th><th>risk</th><th>status</th>'
+        '<th>resource</th><th>summary</th><th>updated</th></tr></thead>'
+        f'<tbody>{chg_rows}</tbody></table>'
+        '<p class="meta"><a href="changes.html">All changes →</a></p></section>'
+        '<section><h2>Open incidents <span class="tag">'
+        f'{len(s["open_incs"])}</span></h2><table>'
+        '<thead><tr><th>id</th><th>sev</th><th>status</th>'
+        '<th>summary</th><th>updated</th></tr></thead>'
+        f'<tbody>{inc_rows}</tbody></table>'
+        '<p class="meta"><a href="incidents.html">All incidents →</a></p></section>'
+        f'{lock_block}'
+    )
+    return _page("Overview", "index.html", body, s["now"])
 
-{freeze_block}
 
-<section>
-  <div class="kpis">
-    <div class="kpi"><div class="v">{len(open_chgs)}</div><div class="l">open changes</div></div>
-    <div class="kpi"><div class="v">{len(open_incs)}</div><div class="l">open incidents</div></div>
-    <div class="kpi"><div class="v">{len(locks)}</div><div class="l">active locks</div></div>
-    <div class="kpi"><div class="v">{len(recent_chgs)}</div><div class="l">changes / 7d</div></div>
-    <div class="kpi"><div class="v">{risk_counts['low']}/{risk_counts['medium']}/{risk_counts['high']}</div><div class="l">low / med / high / 7d</div></div>
-    <div class="kpi"><div class="v">{len(cmdb)}</div><div class="l">cmdb components</div></div>
-  </div>
-</section>
+def _event_line(e: dict) -> str:
+    ts = (e.get("ts") or "")[:19].replace("T", " ")
+    pl = e.get("payload") or {}
+    pl_short = ", ".join(f"{k}={_h(_short(v))}" for k, v in pl.items()) if pl else ""
+    return (f'<div class="evt"><code>{_h(ts)}</code> '
+            f'<strong>{_h(e.get("event",""))}</strong> '
+            f'· {_h(e.get("actor",""))} '
+            f'{("· " + pl_short) if pl_short else ""}</div>')
 
-<section>
-  <h2>Open changes</h2>
-  <table><thead><tr><th>id</th><th>risk</th><th>status</th><th>resource</th><th>summary</th><th>updated</th></tr></thead>
-  <tbody>{open_chg_rows}</tbody></table>
-</section>
 
-<section>
-  <h2>Open incidents</h2>
-  <table><thead><tr><th>id</th><th>sev</th><th>status</th><th>summary</th><th>updated</th></tr></thead>
-  <tbody>{open_inc_rows}</tbody></table>
-</section>
+def _short(v) -> str:
+    if isinstance(v, list):
+        return ", ".join(str(x) for x in v)
+    s = str(v)
+    return s if len(s) <= 120 else s[:117] + "…"
 
-{lock_block}
 
-<section>
-  <h2>Recent changes (7 days)</h2>
-  <table><thead><tr><th>id</th><th>risk</th><th>status</th><th>resource</th><th>summary</th><th>updated</th></tr></thead>
-  <tbody>{recent_chg_rows}</tbody></table>
-</section>
+def _render_changes(s: dict) -> str:
+    items = sorted(s["chgs"].values(),
+                   key=lambda x: x.get("last_ts") or "", reverse=True)
+    open_count = len(s["open_chgs"])
+    rows = []
+    for c in items:
+        rid = _h(c["id"])
+        risk = c.get("risk") or "?"
+        evts = "".join(_event_line(e) for e in c.get("events", []))
+        rows.append(
+            f'<tr class="r-{_h(risk)}" id="{rid}">'
+            f'<td><code>{rid}</code></td>'
+            f'<td class="pill">{_h(risk)}</td>'
+            f'<td>{_h(c["status"])}</td>'
+            f'<td>{_h(c.get("resource") or "?")}</td>'
+            f'<td>{_h(c.get("summary") or "")}'
+            f'<details><summary>{len(c.get("events", []))} events</summary>{evts}</details></td>'
+            f'<td class="ts">{_h((c.get("last_ts") or "")[:16].replace("T"," "))}</td>'
+            '</tr>'
+        )
+    body_rows = "".join(rows) or '<tr><td colspan="6" class="empty">no changes</td></tr>'
+    body = (
+        '<section><h2>All changes '
+        f'<span class="tag">{len(items)}</span> '
+        f'<span class="tag">{open_count} open</span></h2>'
+        '<table>'
+        '<thead><tr><th>id</th><th>risk</th><th>status</th>'
+        '<th>resource</th><th>summary · events</th><th>updated</th></tr></thead>'
+        f'<tbody>{body_rows}</tbody></table></section>'
+    )
+    return _page("Changes", "changes.html", body, s["now"])
 
-<section>
-  <h2>Recent incidents (7 days)</h2>
-  <table><thead><tr><th>id</th><th>sev</th><th>status</th><th>summary</th><th>updated</th></tr></thead>
-  <tbody>{recent_inc_rows}</tbody></table>
-</section>
 
-<section>
-  <h2>CMDB ({len(cmdb)} components)</h2>
-  <table><thead><tr><th>id</th><th>type</th><th>owner</th><th>sensitive</th><th>description</th></tr></thead>
-  <tbody>{cmdb_rows}</tbody></table>
-</section>
+def _render_incidents(s: dict) -> str:
+    items = sorted(s["incs"].values(),
+                   key=lambda x: x.get("last_ts") or "", reverse=True)
+    open_count = len(s["open_incs"])
+    rows = []
+    for i in items:
+        rid = _h(i["id"])
+        sev = i.get("severity") or "?"
+        evts = "".join(_event_line(e) for e in i.get("events", []))
+        rows.append(
+            f'<tr class="s-{_h(sev)}" id="{rid}">'
+            f'<td><code>{rid}</code></td>'
+            f'<td class="pill">{_h(sev)}</td>'
+            f'<td>{_h(i["status"])}</td>'
+            f'<td>{_h(i.get("summary") or "")}'
+            f'<details><summary>{len(i.get("events", []))} events</summary>{evts}</details></td>'
+            f'<td class="ts">{_h((i.get("last_ts") or "")[:16].replace("T"," "))}</td>'
+            '</tr>'
+        )
+    body_rows = "".join(rows) or '<tr><td colspan="5" class="empty">no incidents</td></tr>'
+    body = (
+        '<section><h2>All incidents '
+        f'<span class="tag">{len(items)}</span> '
+        f'<span class="tag">{open_count} open</span></h2>'
+        '<table>'
+        '<thead><tr><th>id</th><th>sev</th><th>status</th>'
+        '<th>summary · events</th><th>updated</th></tr></thead>'
+        f'<tbody>{body_rows}</tbody></table></section>'
+    )
+    return _page("Incidents", "incidents.html", body, s["now"])
 
-<footer>vdhinfra ops portal · event-sourced from ops/ in the repo · for the underlying CLI: <code>just ops status</code></footer>
-</body></html>
-"""
 
-    if args.html:
-        Path(args.html).write_text(html)
-        print(f"wrote {args.html} ({len(html)} bytes)")
-    else:
-        sys.stdout.write(html)
+def _render_cmdb(s: dict) -> str:
+    cmdb = s["cmdb"]
+    by_owner: dict[str, list[tuple[str, dict]]] = defaultdict(list)
+    for cid, c in cmdb.items():
+        by_owner[c.get("owner_agent", "unknown")].append((cid, c))
+    sections = []
+    for owner in sorted(by_owner.keys()):
+        rows = []
+        for cid, c in sorted(by_owner[owner]):
+            sens = '<span class="tag sens">sensitive</span>' if c.get("sensitive") else ""
+            deps = ", ".join(c.get("depends_on") or []) or "—"
+            rows.append(
+                f'<tr><td><code>{_h(cid)}</code> {sens}</td>'
+                f'<td>{_h(c.get("type",""))}</td>'
+                f'<td>{_h(c.get("description",""))}</td>'
+                f'<td class="num">{_h(deps)}</td>'
+                '</tr>'
+            )
+        sections.append(
+            f'<section><h2>{_h(owner)} '
+            f'<span class="tag">{len(by_owner[owner])}</span></h2>'
+            '<table><thead><tr><th>id</th><th>type</th><th>description</th>'
+            '<th>depends_on</th></tr></thead>'
+            f'<tbody>{"".join(rows)}</tbody></table></section>'
+        )
+    body = (
+        f'<p class="meta">{len(cmdb)} components, grouped by owner agent.</p>'
+        + "".join(sections)
+    )
+    return _page("CMDB", "cmdb.html", body, s["now"])
+
+
+def _render_risks(s: dict) -> str:
+    risks = s["risks"]
+    if not risks:
+        body = '<section><p class="empty">no accepted risks on file</p></section>'
+        return _page("Accepted risks", "risks.html", body, s["now"])
+    rows = []
+    for r in sorted(risks, key=lambda x: x.get("id", "")):
+        adr = r.get("adr", "")
+        adr_link = (f'<a href="https://github.com/vdhict/vdhinfra/blob/main/{_h(adr)}">'
+                    f'{_h(adr)}</a>') if adr else "—"
+        rows.append(
+            f'<tr><td><code>{_h(r.get("id",""))}</code></td>'
+            f'<td>{_h(r.get("finding_title",""))}</td>'
+            f'<td>{_h(r.get("rationale",""))}</td>'
+            f'<td>{adr_link}</td>'
+            f'<td class="ts">{_h(r.get("accepted_by",""))}<br>'
+            f'<small>{_h(r.get("accepted_at",""))} → review {_h(r.get("review_by",""))}</small></td>'
+            '</tr>'
+        )
+    body = (
+        '<section><h2>Accepted risks '
+        f'<span class="tag">{len(risks)}</span></h2>'
+        '<table><thead><tr><th>id</th><th>finding</th><th>rationale</th>'
+        '<th>ADR</th><th>by / dates</th></tr></thead>'
+        f'<tbody>{"".join(rows)}</tbody></table></section>'
+    )
+    return _page("Accepted risks", "risks.html", body, s["now"])
+
+
+def _render_team(s: dict) -> str:
+    # The team is small and stable; embed inline rather than parsing roster.md.
+    members = [
+        ("Atlas", "Infra OPS Manager", "infra-ops",
+         "Sole user-facing voice. Dispatches specialists. Owns the change log."),
+        ("Hestia", "Home Assistant engineer", "ha-engineer",
+         "HA core, /config/*.yaml, dashboards, integrations, kiosks."),
+        ("Iris", "UDM / network / Cloudflare engineer", "udm-engineer",
+         "UDM Pro, UniFi network, Cloudflare DNS + tunnel."),
+        ("Hephaestus (Heph)", "Kubernetes / Talos / Flux / storage engineer",
+         "k8s-engineer",
+         "Cluster, Flux, Cilium, Rook-Ceph, VolSync, ExternalSecrets."),
+        ("Themis", "Change quality gate", "change-qa",
+         "Lint, kubeconform, hass config check, freeze checks, rollback presence."),
+        ("Argus", "Security engineer (analytical)", "security-engineer",
+         "Per-change security review + weekly posture scans."),
+        ("Pan", "Pentest engineer (active)", "pentest-engineer",
+         "Active probing, fuzzing, exploit attempts — always pre-approved."),
+        ("Daedalus", "Design / architecture engineer", "design-engineer",
+         "Design docs, ADRs, refactor plans — never touches production."),
+        ("Athena", "Research analyst", "it-researcher",
+         "Tight sourced research docs on ITSM / SRE / tools / patterns."),
+        ("Apollo", "Frontend designer + developer", "frontend-engineer",
+         "UI for internal web surfaces; server-rendered HTML+CSS, no SPA."),
+    ]
+    cards = "".join(
+        f'<div class="card"><h3>{_h(name)}</h3>'
+        f'<div class="who">{_h(role)} · <code>{_h(agent)}</code></div>'
+        f'<p>{_h(desc)}</p></div>'
+        for name, role, agent, desc in members
+    )
+    body = (
+        '<section><p class="meta">The household\'s infrastructure team. '
+        'You always talk to Atlas; Atlas dispatches.</p>'
+        f'<div class="cardlist">{cards}</div></section>'
+    )
+    return _page("Team", "team.html", body, s["now"])
 
 
 def _h(s: str) -> str:
