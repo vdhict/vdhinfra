@@ -112,6 +112,19 @@ spec:
           - backendRefs:
               - name: home-assistant
                 port: 12321
+      # LAN-only kiosk hostname. No Cloudflare DNS entry; no AAAA leakage.
+      # Lets the kitchen tablet keep `local_only: True` on its user.
+      kiosk:
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        hostnames:
+          - keuken.${SECRET_DOMAIN}
+        rules:
+          - backendRefs:
+              - name: home-assistant
+                port: 8123
 
     persistence:
       config:
