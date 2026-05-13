@@ -1,0 +1,31 @@
+# Machine-readable list of accepted risks. Argus reads this to suppress
+# matching findings (downgrades severity to `info`, adds an `accepted_risk`
+# pointer to the entry id and ADR).
+#
+# Each entry MUST link to an ADR in docs/adr/. Risks without an ADR are
+# not real "acceptances" — they're "we forgot to write it down" which
+# defeats the purpose.
+#
+# Schema:
+#   id:              short stable id, format ar-NNN
+#   adr:             path to the ADR doc (required)
+#   finding_title:   exact title (or regex if anchored with ^...$) the
+#                    finding must have to match
+#   target:          exact target string (or regex) the finding must have
+#   accepted_by:     who decided (user|atlas|...)
+#   accepted_at:     YYYY-MM-DD
+#   review_by:       YYYY-MM-DD (annual unless ADR says otherwise)
+#   rationale:       one-line summary; full reasoning lives in the ADR
+#
+# Argus's matching is conservative: both finding_title AND target must
+# match. If you find this suppressing too much, tighten the patterns.
+
+risks:
+  - id: ar-001
+    adr: docs/adr/0001-flux-cluster-admin.md
+    finding_title: "ClusterRoleBinding grants cluster-admin"
+    target: "^(cluster-reconciler-flux-system|flux-operator) -> ServiceAccount/(kustomize-controller|helm-controller|flux-operator)/flux-system$"
+    accepted_by: user
+    accepted_at: 2026-05-13
+    review_by: 2027-05-13
+    rationale: Flux v2 requires cluster-admin on its core controllers; multi-tenant Flux + custom ClusterRole alternatives rejected as too costly for this scale.
