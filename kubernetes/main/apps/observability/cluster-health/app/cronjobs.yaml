@@ -354,3 +354,154 @@ spec:
               configMap:
                 name: cluster-health-scripts
                 defaultMode: 0755
+---
+# Renders the ops portal HTML into /data/web/ops.html every 10 minutes by
+# shallow-cloning the repo and running `ops/ops dashboard --html`. nginx
+# (cluster-health-ui) serves /data/web, so the result is reachable at
+# https://health.bluejungle.net/ops.html.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ops-dashboard-render
+  namespace: observability
+spec:
+  schedule: "*/10 * * * *"
+  timeZone: Europe/Amsterdam
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 3600
+      template:
+        spec:
+          serviceAccountName: cluster-health
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+          containers:
+            - name: render
+              image: ghcr.io/vdhict/cluster-health:v0.3.0
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-c", "/scripts/ops_render.sh"]
+              env:
+                - name: TZ
+                  value: Europe/Amsterdam
+                - name: GIT_REMOTE
+                  value: https://github.com/vdhict/vdhinfra.git
+                - name: GIT_BRANCH
+                  value: main
+                - name: GITHUB_APP_ID
+                  value: "3302753"
+                - name: GITHUB_APP_INSTALLATION_ID
+                  value: "122063656"
+              envFrom:
+                - secretRef:
+                    name: cluster-health-secret
+                    optional: true
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                - name: scripts
+                  mountPath: /scripts
+                - name: secret
+                  mountPath: /secrets
+                  readOnly: true
+              resources:
+                requests: { cpu: 20m, memory: 96Mi }
+                limits: { cpu: 500m, memory: 256Mi }
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: cluster-health-data
+            - name: scripts
+              configMap:
+                name: cluster-health-scripts
+                defaultMode: 0755
+            - name: secret
+              secret:
+                secretName: cluster-health-secret
+                defaultMode: 0400
+                optional: true
+                items:
+                  - key: github-app-key.pem
+                    path: github-app-key.pem
+---
+# Posts a daily digest to HA's persistent_notification at 06:30 local
+# (30 minutes after the health-report job at 06:00). Best-effort.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ops-digest
+  namespace: observability
+spec:
+  schedule: "30 6 * * *"
+  timeZone: Europe/Amsterdam
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 604800
+      template:
+        spec:
+          serviceAccountName: cluster-health
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+          containers:
+            - name: digest
+              image: ghcr.io/vdhict/cluster-health:v0.3.0
+              imagePullPolicy: IfNotPresent
+              command: ["python3", "/scripts/ops_digest.py"]
+              env:
+                - name: TZ
+                  value: Europe/Amsterdam
+                - name: GIT_REMOTE
+                  value: https://github.com/vdhict/vdhinfra.git
+                - name: GIT_BRANCH
+                  value: main
+                - name: HA_URL
+                  value: http://home-assistant.home-automation.svc.cluster.local:8123
+                - name: REPORT_BASE_URL
+                  value: https://health.${SECRET_DOMAIN}
+                - name: DIGEST_DAYS
+                  value: "1"
+                - name: GITHUB_APP_ID
+                  value: "3302753"
+                - name: GITHUB_APP_INSTALLATION_ID
+                  value: "122063656"
+              envFrom:
+                - secretRef:
+                    name: cluster-health-secret
+                    optional: true
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: secret
+                  mountPath: /secrets
+                  readOnly: true
+              resources:
+                requests: { cpu: 10m, memory: 64Mi }
+                limits: { cpu: 200m, memory: 256Mi }
+          volumes:
+            - name: scripts
+              configMap:
+                name: cluster-health-scripts
+                defaultMode: 0755
+            - name: secret
+              secret:
+                secretName: cluster-health-secret
+                defaultMode: 0400
+                optional: true
+                items:
+                  - key: github-app-key.pem
+                    path: github-app-key.pem
