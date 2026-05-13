@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -29,6 +30,67 @@ from pathlib import Path
 sys.path.insert(0, "/scripts")
 from git_push import mint_installation_token  # noqa: E402
 from lib import log, today  # noqa: E402
+
+
+def load_accepted_risks(workdir: Path) -> list[dict]:
+    """Read ops/accepted_risks.yaml from the cloned repo. Returns the list
+    of risks, or [] if the file is absent or unparseable. Used by
+    apply_accepted_risks() to downgrade matching findings."""
+    p = workdir / "ops" / "accepted_risks.yaml"
+    if not p.exists():
+        return []
+    # Tiny YAML parser is fine — schema is flat.
+    try:
+        import yaml  # type: ignore
+        with p.open() as f:
+            data = yaml.safe_load(f) or {}
+        return data.get("risks") or []
+    except ImportError:
+        # Fall back: parse by hand. Schema is intentionally simple.
+        risks: list[dict] = []
+        cur: dict | None = None
+        for raw in p.read_text().splitlines():
+            line = raw.rstrip()
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            if line.startswith("  - id:"):
+                if cur:
+                    risks.append(cur)
+                cur = {"id": line.split("id:", 1)[1].strip()}
+                continue
+            if cur is None or not line.startswith("    "):
+                continue
+            k, _, v = line.strip().partition(":")
+            cur[k.strip()] = v.strip()
+        if cur:
+            risks.append(cur)
+        return risks
+
+
+def apply_accepted_risks(findings: list[dict], risks: list[dict]) -> list[dict]:
+    """For each finding that matches an accepted-risk entry (both
+    finding_title AND target patterns), downgrade severity to `info` and
+    attach an `accepted_risk` pointer. Returns the modified list (in place)."""
+    if not risks:
+        return findings
+    compiled = []
+    for r in risks:
+        try:
+            t = re.compile(r.get("finding_title", "") or ".*")
+            g = re.compile(r.get("target", "") or ".*")
+        except re.error as e:
+            log(f"argus: bad regex in accepted_risk {r.get('id','?')}: {e}")
+            continue
+        compiled.append((r, t, g))
+    for f in findings:
+        for r, t_re, g_re in compiled:
+            if t_re.search(f.get("title", "")) and g_re.search(f.get("target", "")):
+                f["original_severity"] = f.get("severity")
+                f["severity"] = "info"
+                f["accepted_risk"] = r.get("id")
+                f["accepted_risk_adr"] = r.get("adr")
+                break
+    return findings
 
 GIT_REMOTE = os.environ.get("GIT_REMOTE", "https://github.com/vdhict/vdhinfra.git")
 GIT_BRANCH = os.environ.get("GIT_BRANCH", "main")
@@ -363,9 +425,18 @@ def main() -> int:
                     "owner_agent": "k8s-engineer",
                 })
 
+        # Apply accepted-risk suppressions BEFORE counting and incident creation
+        risks = load_accepted_risks(workdir)
+        all_findings = apply_accepted_risks(all_findings, risks)
+
         by_sev: dict = {}
+        suppressed = 0
         for f in all_findings:
             by_sev[f["severity"]] = by_sev.get(f["severity"], 0) + 1
+            if f.get("accepted_risk"):
+                suppressed += 1
+        if suppressed:
+            log(f"argus: {suppressed} finding(s) suppressed via accepted_risks.yaml")
 
         ops_event(chg, "validated", {
             "status": "pass",
