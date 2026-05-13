@@ -15,7 +15,6 @@ resources:
   - ./network-ups-tools/install.yaml
   - ./nut-exporter/install.yaml
   - ./speedtest-exporter/install.yaml
-  - ./unpoller/install.yaml
   - ./blackbox-exporter/install.yaml
   - ./cluster-health/install.yaml
   - ./unifi-exporter/install.yaml
