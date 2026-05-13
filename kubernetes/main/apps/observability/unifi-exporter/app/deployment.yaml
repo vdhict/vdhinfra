@@ -14,7 +14,9 @@ metadata:
   labels:
     app.kubernetes.io/name: unifi-exporter
 spec:
-  replicas: 1
+  # Stopped 2026-05-13 — UDM crashing under poller load (inc-2026-05-13-003).
+  # Restore (set 1) only after UDM stability is understood and confirmed.
+  replicas: 0
   strategy:
     type: Recreate
   selector:
