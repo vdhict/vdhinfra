@@ -16,10 +16,17 @@ components:
   net.udm:
     type: network-device
     owner_agent: udm-engineer
-    description: UDM Pro Max, the network brainstem
-    depends_on: []
+    description: UDM Pro Max, the network brainstem (network app + UniFi Protect)
+    depends_on: [hw.plug.vdhngfw_power]
     sensitive: true
     runbook: docs/runbooks/disaster-recovery.md
+  hw.plug.vdhngfw_power:
+    type: power-device
+    owner_agent: ha-engineer
+    description: HomeWizard plug at 172.16.3.205 powering VDHNGFW (UDM). Relay started clicking on-off audibly 2026-05-13; warranty replacement on order. Once replaced, keep UDM on direct mains or a dumb UPS — never gate critical infra through a smart plug.
+    depends_on: []
+    sensitive: true
+    runbook: docs/research/udm-crash-rootcause-10.3.x.md
   net.dns.cloudflare:
     type: external-service
     owner_agent: udm-engineer
