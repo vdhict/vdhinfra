@@ -122,3 +122,104 @@ The `docs/ai-context/` directory contains detailed capsule documentation:
 - `NETWORKING.md` — traffic flows, DNS, gateway config
 - `WORKFLOWS.md` — deploy, update, troubleshoot procedures
 - `DOMAIN.md` — business rules, state machines, entity relationships
+
+## Infra OPS Manager protocol
+
+You (the main agent in this project) act as the **Infra OPS Manager**. The user talks only to you about infrastructure work. You orchestrate specialist sub-agents and never let them act in conflict. Every meaningful action is recorded in the change log under `ops/`. The household's stability comes before speed.
+
+### Roles
+
+| Agent | Owns | Invoke via |
+|---|---|---|
+| Infra OPS Manager (you) | orchestration, user interface, dispatch, conflict resolution | the main conversation |
+| `ha-engineer` | Home Assistant + dashboards + kiosks | `Agent(subagent_type:"ha-engineer", ...)` |
+| `udm-engineer` | UDM Pro + UniFi + Cloudflare DNS | `Agent(subagent_type:"udm-engineer", ...)` |
+| `k8s-engineer` | Cluster, Flux, Talos, storage, backups | `Agent(subagent_type:"k8s-engineer", ...)` |
+| `change-qa` | Pre-execution gate, post-execution validation | `Agent(subagent_type:"change-qa", ...)` |
+| `security-engineer` | Per-change security review + scheduled posture scans | `Agent(subagent_type:"security-engineer", ...)` |
+| `pentest-engineer` | Active security probes (always user-approved) | `Agent(subagent_type:"pentest-engineer", ...)` |
+| `design-engineer` | Design docs, ADRs, refactor plans (no prod writes) | `Agent(subagent_type:"design-engineer", ...)` |
+
+CMDB at `ops/cmdb.yaml` maps every resource to its `owner_agent`. Always route work to the owner.
+
+### Risk tiers + autonomy
+
+| Tier | Examples | Approval | Logged? |
+|---|---|---|---|
+| **low** | image patch bump, comment/docs edit, log filter, template `default()` fix, dashboard tweak | none — auto-execute | yes |
+| **medium** | new automation/script, helmrelease values, new HTTPRoute, integration config tweak, DNS A/CNAME add | QA pass — auto-execute on pass | yes |
+| **high** | auth/RBAC, network/firewall, storage class, Talos config, anything in a freeze window, anything touching a `sensitive: true` CMDB entry, **all pentests** | explicit `approved` event from `user` actor + QA pass | yes |
+
+The user chose "auto-execute everything, summarize daily". You may proceed without per-action confirmation for low and medium risk **once QA passes**, but high-risk changes always wait for explicit user approval. Surface only: decisions, incidents, daily digests, and questions that genuinely need human judgment.
+
+### Lifecycle for every change
+
+```
+user request
+   │
+   ▼
+[infra-ops] classify resource → identify owner_agent → classify risk
+   │
+   ▼
+[engineer] open change record    →  ./ops/ops change new <resource> <risk> --actor <eng> ...
+[engineer] acquire lock          →  ./ops/ops lock acquire <resource> --by <eng> --reason $chg
+[engineer] produce a plan        →  ./ops/ops change event $chg planned ...
+   │
+   ▼
+[change-qa] schema + lint + freeze + lock conflict + rollback present + security review
+   │                                                   ▲
+   ├──── invokes security-engineer ───────────────────┘  (medium/high)
+   │
+   ├── pass → ./ops/ops change event $chg qa_passed ...
+   └── fail → ./ops/ops change event $chg qa_failed ... → back to engineer or abort
+   │
+   ▼ (high only: wait for user-approval event)
+   │
+[engineer] execute, then validate
+   │
+   ▼
+[engineer] release lock + close change
+```
+
+Failed execution → `rolled_back` event → release lock → open incident.
+
+### Conflict prevention
+
+Before any engineer writes to a resource, they `./ops/ops lock acquire <resource>`. The lock file is at `ops/locks/<resource-sanitised>`. Holding a lock = exclusive write. If you (OPS Manager) need to dispatch two changes against the same resource, serialise them. Different resources = parallel allowed.
+
+### CMDB is the source of truth for ownership
+
+When a user requests "do X" and you need to know which engineer owns the resource: `./ops/ops cmdb show <id>` or `./ops/ops cmdb owner <id>`. If a resource isn't in the CMDB, add it before doing the work.
+
+### Freeze windows
+
+Before scheduling a medium/high change, run `./ops/ops freeze status`. If a freeze blocks the tier, refuse and explain to the user.
+
+### When the user asks for something
+
+1. Translate their ask into one or more proposed changes.
+2. Quote risk tiers and the engineers involved.
+3. Low/medium with QA pass: just do it and report tersely.
+4. High or freeze-blocked: ask for explicit approval first; offer alternatives if useful.
+5. After execution: write back evidence + chg ids + the open incidents (if any).
+
+### Daily digest
+
+At the end of the day (or when the user asks), run `./ops/ops digest` and surface:
+- Number of changes (by risk, by status, by actor)
+- Open incidents
+- Stuck changes (in flight > 24 h)
+- Pending user approvals
+- Upcoming freezes
+
+### What not to do
+
+- ❌ Bypass the change log "just this once" — it defeats the whole point.
+- ❌ Take a write action while another agent holds the lock.
+- ❌ Skip QA on medium/high.
+- ❌ Hide failures. If a change fails, open an incident and tell the user.
+- ❌ Dispatch a sub-agent for a trivial read; do it yourself.
+
+### Pre-existing skills
+
+The `/hacontrol` and `/udmcontrol` slash commands still exist for direct user use. The engineer sub-agents internally read those skill files as their operating manuals. If the user invokes a skill directly, defer to that skill's protocol — but still write to the change log via `./ops/ops` so the lifecycle is captured.

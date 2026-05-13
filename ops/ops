@@ -1,0 +1,633 @@
+#!/usr/bin/env python3
+"""ops — Infrastructure operations CLI.
+
+Reads the event-sourced state under ./ops and renders current state or
+appends new events. Single Python file, no external deps.
+
+Usage:
+  ops status                                          # one-screen dashboard
+  ops change new <resource> <risk> --reason "..." \
+      --actor <agent> --summary "..."                 # opens a change, prints chg id
+  ops change event <chg> <event> [--actor X] \
+      [--payload-json '{...}']                        # append an event
+  ops change show <chg>                               # render full lifecycle
+  ops change list [--open|--closed|--today]
+  ops incident new <severity> --summary "..." \
+      --actor <agent>
+  ops incident event <inc> <event> [--actor X] [--payload-json '{...}']
+  ops incident show <inc>
+  ops incident list [--open|--today]
+  ops lock acquire <resource> --by <agent> --reason <chg-or-text>
+  ops lock release <resource>
+  ops lock list
+  ops cmdb show <id>
+  ops cmdb owner <id>
+  ops freeze status                                   # any active blocks?
+  ops digest [--days N]                               # daily/weekly digest
+
+Risk tiers: low | medium | high
+Events:
+  change:   requested planned qa_passed qa_failed approved rejected
+            executed validated rolled_back closed
+  incident: opened investigated mitigated resolved postmortem closed
+"""
+
+from __future__ import annotations
+import argparse
+import json
+import os
+import re
+import sys
+import time
+import datetime as dt
+from pathlib import Path
+from collections import defaultdict
+
+OPS_DIR = Path(__file__).resolve().parent
+CHANGES = OPS_DIR / "changes.jsonl"
+INCIDENTS = OPS_DIR / "incidents.jsonl"
+CMDB = OPS_DIR / "cmdb.yaml"
+FREEZE = OPS_DIR / "freeze.yaml"
+LOCK_DIR = OPS_DIR / "locks"
+
+CHANGE_EVENTS = {
+    "requested", "planned", "qa_passed", "qa_failed",
+    "approved", "rejected", "executed", "validated",
+    "rolled_back", "closed",
+}
+INCIDENT_EVENTS = {
+    "opened", "investigated", "mitigated", "resolved",
+    "postmortem", "closed",
+}
+RISK_TIERS = {"low", "medium", "high"}
+ENGINEERS = {
+    "infra-ops", "udm-engineer", "ha-engineer", "k8s-engineer",
+    "change-qa", "security-engineer", "pentest-engineer",
+    "design-engineer", "user",
+}
+
+# ── tiny utils ──────────────────────────────────────────────────────────
+
+def now_iso() -> str:
+    return dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def today_str() -> str:
+    return dt.date.today().isoformat()
+
+
+def next_id(prefix: str, log: Path) -> str:
+    """Find next sequential id for today, e.g. chg-2026-05-13-003."""
+    today = today_str()
+    pat = re.compile(rf"^{re.escape(prefix)}-{re.escape(today)}-(\d+)$")
+    n = 0
+    if log.exists():
+        with log.open() as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    evt = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                m = pat.match(evt.get("chg") or evt.get("inc") or "")
+                if m:
+                    n = max(n, int(m.group(1)))
+    return f"{prefix}-{today}-{n + 1:03d}"
+
+
+def append_event(log: Path, evt: dict) -> None:
+    line = json.dumps(evt, separators=(",", ":"), ensure_ascii=False, sort_keys=True)
+    with log.open("a") as f:
+        f.write(line + "\n")
+
+
+def read_events(log: Path) -> list[dict]:
+    if not log.exists():
+        return []
+    out = []
+    with log.open() as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                out.append(json.loads(line))
+            except json.JSONDecodeError as e:
+                print(f"warning: bad json in {log.name}: {e}", file=sys.stderr)
+    return out
+
+
+def fold_changes(events: list[dict]) -> dict[str, dict]:
+    """Reduce events to current state per chg id."""
+    state: dict[str, dict] = {}
+    for e in events:
+        chg = e.get("chg")
+        if not chg:
+            continue
+        cur = state.setdefault(chg, {
+            "id": chg,
+            "resource": e.get("resource"),
+            "risk": e.get("risk"),
+            "actor": e.get("actor"),
+            "events": [],
+            "status": "requested",
+            "summary": None,
+            "reason": None,
+            "first_ts": e.get("ts"),
+            "last_ts": e.get("ts"),
+        })
+        cur["events"].append(e)
+        cur["last_ts"] = e.get("ts") or cur["last_ts"]
+        # update headline fields
+        if e.get("resource"):
+            cur["resource"] = e["resource"]
+        if e.get("risk"):
+            cur["risk"] = e["risk"]
+        payload = e.get("payload") or {}
+        if "summary" in payload and not cur["summary"]:
+            cur["summary"] = payload["summary"]
+        if "reason" in payload and not cur["reason"]:
+            cur["reason"] = payload["reason"]
+        event = e.get("event")
+        if event:
+            cur["status"] = event
+    return state
+
+
+def fold_incidents(events: list[dict]) -> dict[str, dict]:
+    state: dict[str, dict] = {}
+    for e in events:
+        inc = e.get("inc")
+        if not inc:
+            continue
+        cur = state.setdefault(inc, {
+            "id": inc,
+            "severity": e.get("severity"),
+            "actor": e.get("actor"),
+            "events": [],
+            "status": "opened",
+            "summary": None,
+            "first_ts": e.get("ts"),
+            "last_ts": e.get("ts"),
+        })
+        cur["events"].append(e)
+        cur["last_ts"] = e.get("ts") or cur["last_ts"]
+        if e.get("severity"):
+            cur["severity"] = e["severity"]
+        payload = e.get("payload") or {}
+        if "summary" in payload and not cur["summary"]:
+            cur["summary"] = payload["summary"]
+        if e.get("event"):
+            cur["status"] = e["event"]
+    return state
+
+
+def load_cmdb() -> dict:
+    """Minimal YAML loader for the cmdb (good-enough subset)."""
+    if not CMDB.exists():
+        return {"components": {}}
+    # Pull in pyyaml if available; otherwise tiny parser sufficient for our schema
+    try:
+        import yaml  # type: ignore
+        with CMDB.open() as f:
+            return yaml.safe_load(f) or {"components": {}}
+    except ImportError:
+        return _tiny_yaml_load(CMDB)
+
+
+def load_freeze() -> dict:
+    if not FREEZE.exists():
+        return {"freezes": []}
+    try:
+        import yaml  # type: ignore
+        with FREEZE.open() as f:
+            return yaml.safe_load(f) or {"freezes": []}
+    except ImportError:
+        return _tiny_yaml_load(FREEZE)
+
+
+def _tiny_yaml_load(path: Path) -> dict:
+    """Last-resort flat YAML parser for our schema (component map only)."""
+    components: dict[str, dict] = {}
+    freezes: list[dict] = []
+    cur_key = None
+    cur_obj: dict | None = None
+    section = None
+    with path.open() as f:
+        for raw in f:
+            line = raw.rstrip("\n")
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            indent = len(line) - len(line.lstrip())
+            stripped = line.strip()
+            if indent == 0 and stripped.endswith(":"):
+                section = stripped[:-1]
+                continue
+            if section == "components" and indent == 2 and stripped.endswith(":"):
+                cur_key = stripped[:-1]
+                cur_obj = {}
+                components[cur_key] = cur_obj
+                continue
+            if section == "components" and cur_obj is not None and indent == 4 and ":" in stripped:
+                k, _, v = stripped.partition(":")
+                v = v.strip()
+                if v.startswith("[") and v.endswith("]"):
+                    inner = v[1:-1].strip()
+                    cur_obj[k.strip()] = [x.strip() for x in inner.split(",") if x.strip()]
+                else:
+                    if v.lower() == "true": cur_obj[k.strip()] = True
+                    elif v.lower() == "false": cur_obj[k.strip()] = False
+                    else: cur_obj[k.strip()] = v
+                continue
+    return {"components": components, "freezes": freezes}
+
+
+# ── ANSI ────────────────────────────────────────────────────────────────
+
+class C:
+    BOLD = "\033[1m"; DIM = "\033[2m"; RESET = "\033[0m"
+    RED = "\033[31m"; YEL = "\033[33m"; GRN = "\033[32m"; CYAN = "\033[36m"
+
+
+def risk_color(r: str) -> str:
+    return {"low": C.GRN, "medium": C.YEL, "high": C.RED}.get(r or "", "")
+
+
+def sev_color(s: str) -> str:
+    return {"sev3": C.YEL, "sev2": C.RED, "sev1": C.RED + C.BOLD}.get(s or "", "")
+
+
+# ── commands ────────────────────────────────────────────────────────────
+
+def cmd_status(args):
+    chgs = fold_changes(read_events(CHANGES))
+    incs = fold_incidents(read_events(INCIDENTS))
+    open_chgs = [c for c in chgs.values() if c["status"] not in {"closed", "rejected", "rolled_back"}]
+    open_incs = [i for i in incs.values() if i["status"] != "closed"]
+    today = today_str()
+    today_chgs = [c for c in chgs.values() if (c["first_ts"] or "").startswith(today)]
+    today_incs = [i for i in incs.values() if (i["first_ts"] or "").startswith(today)]
+    locks = sorted([p.name for p in LOCK_DIR.iterdir() if p.is_file() and p.name != ".gitkeep"])
+    freezes = load_freeze().get("freezes") or []
+
+    print(f"{C.BOLD}ops status — {today}{C.RESET}")
+    print()
+    print(f"{C.BOLD}OPEN CHANGES ({len(open_chgs)}){C.RESET}")
+    for c in sorted(open_chgs, key=lambda x: x["last_ts"] or "")[-20:]:
+        rc = risk_color(c["risk"])
+        print(f"  {c['id']}  {rc}{(c['risk'] or '?'):<6}{C.RESET}  {c['status']:<10}  {c['resource'] or '?':<35}  {(c['summary'] or '')[:60]}")
+    if not open_chgs:
+        print(f"  {C.DIM}none{C.RESET}")
+    print()
+
+    print(f"{C.BOLD}OPEN INCIDENTS ({len(open_incs)}){C.RESET}")
+    for i in sorted(open_incs, key=lambda x: x["last_ts"] or ""):
+        sc = sev_color(i["severity"])
+        print(f"  {i['id']}  {sc}{(i['severity'] or '?'):<5}{C.RESET}  {i['status']:<12}  {(i['summary'] or '')[:80]}")
+    if not open_incs:
+        print(f"  {C.DIM}none{C.RESET}")
+    print()
+
+    print(f"{C.BOLD}ACTIVE LOCKS ({len(locks)}){C.RESET}")
+    for l in locks:
+        body = (LOCK_DIR / l).read_text().strip()
+        print(f"  {l}  {C.DIM}{body}{C.RESET}")
+    if not locks:
+        print(f"  {C.DIM}none{C.RESET}")
+    print()
+
+    print(f"{C.BOLD}TODAY{C.RESET}  changes={len(today_chgs)}  incidents={len(today_incs)}")
+    if freezes:
+        active = [f for f in freezes if _freeze_active(f)]
+        if active:
+            print(f"  {C.RED}freeze active:{C.RESET} {', '.join(f['name'] for f in active)}")
+
+
+def _freeze_active(f: dict) -> bool:
+    try:
+        s = dt.datetime.fromisoformat((f.get("starts") or "").replace("Z", "+00:00"))
+        e = dt.datetime.fromisoformat((f.get("ends") or "").replace("Z", "+00:00"))
+        return s <= dt.datetime.now(dt.timezone.utc) <= e
+    except Exception:
+        return False
+
+
+def cmd_change_new(args):
+    chg = next_id("chg", CHANGES)
+    if args.risk not in RISK_TIERS:
+        sys.exit(f"risk must be one of: {sorted(RISK_TIERS)}")
+    if args.actor not in ENGINEERS:
+        sys.exit(f"actor must be one of: {sorted(ENGINEERS)}")
+    if not _resource_known(args.resource):
+        print(f"warning: resource '{args.resource}' is not in cmdb; consider adding it", file=sys.stderr)
+    evt = {
+        "chg": chg,
+        "ts": now_iso(),
+        "event": "requested",
+        "actor": args.actor,
+        "resource": args.resource,
+        "risk": args.risk,
+        "payload": {
+            "summary": args.summary or "",
+            "reason": args.reason or "",
+            "requested_by": args.requested_by or args.actor,
+        },
+    }
+    append_event(CHANGES, evt)
+    print(chg)
+
+
+def cmd_change_event(args):
+    if args.event not in CHANGE_EVENTS:
+        sys.exit(f"event must be one of: {sorted(CHANGE_EVENTS)}")
+    if args.actor and args.actor not in ENGINEERS:
+        sys.exit(f"actor must be one of: {sorted(ENGINEERS)}")
+    payload = json.loads(args.payload_json) if args.payload_json else {}
+    evt = {
+        "chg": args.chg,
+        "ts": now_iso(),
+        "event": args.event,
+        "actor": args.actor or "infra-ops",
+        "payload": payload,
+    }
+    append_event(CHANGES, evt)
+    print(f"appended {args.event} to {args.chg}")
+
+
+def cmd_change_show(args):
+    chgs = fold_changes(read_events(CHANGES))
+    c = chgs.get(args.chg)
+    if not c:
+        sys.exit(f"no such change: {args.chg}")
+    rc = risk_color(c["risk"])
+    print(f"{C.BOLD}{c['id']}{C.RESET}  {rc}{c['risk']}{C.RESET}  resource={c['resource']}  status={c['status']}")
+    if c["summary"]:
+        print(f"  summary: {c['summary']}")
+    if c["reason"]:
+        print(f"  reason:  {c['reason']}")
+    print()
+    for e in c["events"]:
+        print(f"  {e['ts']}  {e['event']:<12}  {e['actor']:<18}  {json.dumps(e.get('payload') or {}, ensure_ascii=False)}")
+
+
+def cmd_change_list(args):
+    chgs = fold_changes(read_events(CHANGES))
+    items = list(chgs.values())
+    if args.open:
+        items = [c for c in items if c["status"] not in {"closed", "rejected", "rolled_back"}]
+    elif args.closed:
+        items = [c for c in items if c["status"] in {"closed", "rejected", "rolled_back"}]
+    if args.today:
+        items = [c for c in items if (c["first_ts"] or "").startswith(today_str())]
+    items.sort(key=lambda x: x["last_ts"] or "", reverse=True)
+    for c in items:
+        rc = risk_color(c["risk"])
+        print(f"{c['id']}  {rc}{(c['risk'] or '?'):<6}{C.RESET}  {c['status']:<10}  {c['resource'] or '?':<35}  {(c['summary'] or '')[:60]}")
+
+
+def cmd_incident_new(args):
+    inc = next_id("inc", INCIDENTS)
+    if args.severity not in {"sev1", "sev2", "sev3"}:
+        sys.exit("severity must be sev1|sev2|sev3")
+    evt = {
+        "inc": inc,
+        "ts": now_iso(),
+        "event": "opened",
+        "actor": args.actor or "infra-ops",
+        "severity": args.severity,
+        "payload": {"summary": args.summary or ""},
+    }
+    append_event(INCIDENTS, evt)
+    print(inc)
+
+
+def cmd_incident_event(args):
+    if args.event not in INCIDENT_EVENTS:
+        sys.exit(f"event must be one of: {sorted(INCIDENT_EVENTS)}")
+    payload = json.loads(args.payload_json) if args.payload_json else {}
+    evt = {
+        "inc": args.inc,
+        "ts": now_iso(),
+        "event": args.event,
+        "actor": args.actor or "infra-ops",
+        "payload": payload,
+    }
+    append_event(INCIDENTS, evt)
+    print(f"appended {args.event} to {args.inc}")
+
+
+def cmd_incident_show(args):
+    incs = fold_incidents(read_events(INCIDENTS))
+    i = incs.get(args.inc)
+    if not i:
+        sys.exit(f"no such incident: {args.inc}")
+    sc = sev_color(i["severity"])
+    print(f"{C.BOLD}{i['id']}{C.RESET}  {sc}{i['severity']}{C.RESET}  status={i['status']}")
+    if i["summary"]:
+        print(f"  summary: {i['summary']}")
+    print()
+    for e in i["events"]:
+        print(f"  {e['ts']}  {e['event']:<14}  {e['actor']:<18}  {json.dumps(e.get('payload') or {}, ensure_ascii=False)}")
+
+
+def cmd_incident_list(args):
+    incs = fold_incidents(read_events(INCIDENTS))
+    items = list(incs.values())
+    if args.open:
+        items = [i for i in items if i["status"] != "closed"]
+    if args.today:
+        items = [i for i in items if (i["first_ts"] or "").startswith(today_str())]
+    items.sort(key=lambda x: x["last_ts"] or "", reverse=True)
+    for i in items:
+        sc = sev_color(i["severity"])
+        print(f"{i['id']}  {sc}{(i['severity'] or '?'):<5}{C.RESET}  {i['status']:<12}  {(i['summary'] or '')[:80]}")
+
+
+def cmd_lock_acquire(args):
+    p = LOCK_DIR / args.resource.replace("/", "_")
+    if p.exists():
+        body = p.read_text().strip()
+        sys.exit(f"lock held: {body}")
+    p.write_text(f"{args.by} ts={now_iso()} reason={args.reason}\n")
+    print(f"acquired {p.name}")
+
+
+def cmd_lock_release(args):
+    p = LOCK_DIR / args.resource.replace("/", "_")
+    if p.exists():
+        p.unlink()
+        print(f"released {p.name}")
+    else:
+        sys.exit(f"no lock held on {args.resource}")
+
+
+def cmd_lock_list(args):
+    for p in sorted(LOCK_DIR.iterdir()):
+        if p.is_file() and p.name != ".gitkeep":
+            print(f"{p.name}  {p.read_text().strip()}")
+
+
+def cmd_cmdb_show(args):
+    db = load_cmdb()
+    c = db["components"].get(args.id)
+    if not c:
+        sys.exit(f"no such component: {args.id}")
+    for k, v in c.items():
+        print(f"  {k}: {v}")
+
+
+def cmd_cmdb_owner(args):
+    db = load_cmdb()
+    c = db["components"].get(args.id)
+    if not c:
+        sys.exit(f"no such component: {args.id}")
+    print(c.get("owner_agent", "?"))
+
+
+def cmd_freeze_status(args):
+    freezes = load_freeze().get("freezes") or []
+    active = [f for f in freezes if _freeze_active(f)]
+    if not active:
+        print("no active freezes")
+        return
+    for f in active:
+        print(f"{f['name']}: blocks={f.get('blocks')}  ends={f.get('ends')}  reason={f.get('reason')}")
+
+
+def cmd_digest(args):
+    days = args.days or 1
+    cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)
+    chgs = fold_changes(read_events(CHANGES))
+    incs = fold_incidents(read_events(INCIDENTS))
+    recent_chgs = [c for c in chgs.values() if _ts(c.get("last_ts")) >= cutoff]
+    recent_incs = [i for i in incs.values() if _ts(i.get("last_ts")) >= cutoff]
+    by_status: dict[str, int] = defaultdict(int)
+    by_actor: dict[str, int] = defaultdict(int)
+    for c in recent_chgs:
+        by_status[c["status"]] += 1
+        by_actor[c["actor"] or "?"] += 1
+    print(f"{C.BOLD}Digest — last {days} day(s){C.RESET}")
+    print(f"changes: {len(recent_chgs)}   incidents: {len(recent_incs)}")
+    if by_status:
+        print("  by status:", ", ".join(f"{k}={v}" for k, v in sorted(by_status.items())))
+    if by_actor:
+        print("  by actor:", ", ".join(f"{k}={v}" for k, v in sorted(by_actor.items())))
+    print()
+    if recent_chgs:
+        print(f"{C.BOLD}Changes:{C.RESET}")
+        for c in sorted(recent_chgs, key=lambda x: x["last_ts"] or "", reverse=True):
+            rc = risk_color(c["risk"])
+            print(f"  {c['id']}  {rc}{(c['risk'] or '?'):<6}{C.RESET}  {c['status']:<10}  {c['resource'] or '?':<35}  {(c['summary'] or '')[:60]}")
+    if recent_incs:
+        print(f"{C.BOLD}Incidents:{C.RESET}")
+        for i in sorted(recent_incs, key=lambda x: x["last_ts"] or "", reverse=True):
+            sc = sev_color(i["severity"])
+            print(f"  {i['id']}  {sc}{(i['severity'] or '?'):<5}{C.RESET}  {i['status']:<12}  {(i['summary'] or '')[:80]}")
+
+
+def _ts(s: str | None) -> dt.datetime:
+    if not s:
+        return dt.datetime.fromtimestamp(0, dt.timezone.utc)
+    try:
+        return dt.datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except Exception:
+        return dt.datetime.fromtimestamp(0, dt.timezone.utc)
+
+
+def _resource_known(resource: str) -> bool:
+    db = load_cmdb()
+    return resource in (db.get("components") or {})
+
+
+# ── argparse plumbing ───────────────────────────────────────────────────
+
+def main():
+    p = argparse.ArgumentParser(prog="ops")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    sub.add_parser("status", help="one-screen ops dashboard").set_defaults(fn=cmd_status)
+
+    chg = sub.add_parser("change", help="change record commands")
+    chg_sub = chg.add_subparsers(dest="chg_cmd", required=True)
+    n = chg_sub.add_parser("new")
+    n.add_argument("resource")
+    n.add_argument("risk")
+    n.add_argument("--reason", default="")
+    n.add_argument("--summary", default="")
+    n.add_argument("--actor", required=True)
+    n.add_argument("--requested-by")
+    n.set_defaults(fn=cmd_change_new)
+    e = chg_sub.add_parser("event")
+    e.add_argument("chg")
+    e.add_argument("event")
+    e.add_argument("--actor")
+    e.add_argument("--payload-json", default="")
+    e.set_defaults(fn=cmd_change_event)
+    sh = chg_sub.add_parser("show")
+    sh.add_argument("chg")
+    sh.set_defaults(fn=cmd_change_show)
+    ls = chg_sub.add_parser("list")
+    ls.add_argument("--open", action="store_true")
+    ls.add_argument("--closed", action="store_true")
+    ls.add_argument("--today", action="store_true")
+    ls.set_defaults(fn=cmd_change_list)
+
+    inc = sub.add_parser("incident", help="incident record commands")
+    inc_sub = inc.add_subparsers(dest="inc_cmd", required=True)
+    ni = inc_sub.add_parser("new")
+    ni.add_argument("severity")
+    ni.add_argument("--summary", default="")
+    ni.add_argument("--actor")
+    ni.set_defaults(fn=cmd_incident_new)
+    ie = inc_sub.add_parser("event")
+    ie.add_argument("inc")
+    ie.add_argument("event")
+    ie.add_argument("--actor")
+    ie.add_argument("--payload-json", default="")
+    ie.set_defaults(fn=cmd_incident_event)
+    ish = inc_sub.add_parser("show")
+    ish.add_argument("inc")
+    ish.set_defaults(fn=cmd_incident_show)
+    ils = inc_sub.add_parser("list")
+    ils.add_argument("--open", action="store_true")
+    ils.add_argument("--today", action="store_true")
+    ils.set_defaults(fn=cmd_incident_list)
+
+    lk = sub.add_parser("lock", help="resource locks")
+    lk_sub = lk.add_subparsers(dest="lk_cmd", required=True)
+    la = lk_sub.add_parser("acquire")
+    la.add_argument("resource")
+    la.add_argument("--by", required=True)
+    la.add_argument("--reason", required=True)
+    la.set_defaults(fn=cmd_lock_acquire)
+    lr = lk_sub.add_parser("release")
+    lr.add_argument("resource")
+    lr.set_defaults(fn=cmd_lock_release)
+    ll = lk_sub.add_parser("list")
+    ll.set_defaults(fn=cmd_lock_list)
+
+    cm = sub.add_parser("cmdb")
+    cm_sub = cm.add_subparsers(dest="cm_cmd", required=True)
+    cms = cm_sub.add_parser("show")
+    cms.add_argument("id")
+    cms.set_defaults(fn=cmd_cmdb_show)
+    cmo = cm_sub.add_parser("owner")
+    cmo.add_argument("id")
+    cmo.set_defaults(fn=cmd_cmdb_owner)
+
+    fr = sub.add_parser("freeze")
+    fr_sub = fr.add_subparsers(dest="fr_cmd", required=True)
+    frs = fr_sub.add_parser("status")
+    frs.set_defaults(fn=cmd_freeze_status)
+
+    dg = sub.add_parser("digest")
+    dg.add_argument("--days", type=int, default=1)
+    dg.set_defaults(fn=cmd_digest)
+
+    args = p.parse_args()
+    args.fn(args)
+
+
+if __name__ == "__main__":
+    main()

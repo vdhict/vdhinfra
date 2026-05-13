@@ -1,0 +1,234 @@
+# CMDB — component inventory. Every "thing" in the infrastructure has an entry here
+# so engineers and the QA gate can reason about ownership, dependencies, sensitivity.
+#
+# Schema per component:
+#   type: short kind (k8s-node, k8s-app, network-device, ha-config-file, external-service, ...)
+#   owner_agent: which engineer agent owns this resource
+#   description: 1-line human description
+#   depends_on: [<id>, ...]
+#   sensitive: true if changes here require security review
+#   runbook: optional path to a runbook in docs/runbooks/
+#   external_id: optional id in another system (CF zone, UDM device id, ...)
+
+components:
+
+  # ── Network (UDM/UniFi) ──────────────────────────────────────────────
+  net.udm:
+    type: network-device
+    owner_agent: udm-engineer
+    description: UDM Pro Max, the network brainstem
+    depends_on: []
+    sensitive: true
+    runbook: docs/runbooks/disaster-recovery.md
+  net.dns.cloudflare:
+    type: external-service
+    owner_agent: udm-engineer
+    description: Cloudflare DNS + Tunnel for *.bluejungle.net
+    depends_on: [net.udm]
+    sensitive: true
+  net.dns.unifi-static:
+    type: network-config
+    owner_agent: udm-engineer
+    description: UDM Pro static-dns table (A/CNAME only — never AAAA)
+    depends_on: [net.udm]
+    sensitive: true
+  net.cloudflared:
+    type: k8s-app
+    owner_agent: k8s-engineer
+    description: Cloudflare Tunnel client; routes *.bluejungle.net traffic into envoy-external
+    depends_on: [k8s.cluster, net.dns.cloudflare]
+    sensitive: true
+
+  # ── Kubernetes cluster ───────────────────────────────────────────────
+  k8s.cluster:
+    type: k8s-cluster
+    owner_agent: k8s-engineer
+    description: Talos cluster, 3 CP + 3 worker, Flux-managed
+    depends_on: [net.udm]
+    sensitive: true
+  k8s.cni.cilium:
+    type: k8s-app
+    owner_agent: k8s-engineer
+    description: Cilium CNI + L2 announce for LoadBalancer VIPs
+    depends_on: [k8s.cluster]
+    sensitive: true
+  k8s.gateway.envoy-external:
+    type: k8s-app
+    owner_agent: k8s-engineer
+    description: Envoy Gateway listening on 172.16.2.243 (public-facing via Cloudflare tunnel)
+    depends_on: [k8s.cni.cilium]
+    sensitive: true
+  k8s.gateway.envoy-internal:
+    type: k8s-app
+    owner_agent: k8s-engineer
+    description: Envoy Gateway listening on 172.16.2.241 (LAN-only)
+    depends_on: [k8s.cni.cilium]
+    sensitive: true
+  k8s.storage.rook-ceph:
+    type: k8s-app
+    owner_agent: k8s-engineer
+    description: Rook-Ceph block + filesystem; backs every stateful service
+    depends_on: [k8s.cluster]
+    sensitive: true
+  k8s.gitops.flux:
+    type: k8s-app
+    owner_agent: k8s-engineer
+    description: Flux v2 GitOps engine reconciling this repo
+    depends_on: [k8s.cluster]
+    sensitive: true
+  k8s.secrets.external-secrets:
+    type: k8s-app
+    owner_agent: k8s-engineer
+    description: ExternalSecrets pulling from 1Password Connect
+    depends_on: [k8s.cluster]
+    sensitive: true
+  k8s.secrets.sops:
+    type: tooling
+    owner_agent: k8s-engineer
+    description: SOPS + age-encrypted secrets in the repo
+    depends_on: []
+    sensitive: true
+
+  # ── Home Assistant + automations ─────────────────────────────────────
+  ha.pod:
+    type: k8s-app
+    owner_agent: ha-engineer
+    description: home-automation/home-assistant deployment
+    depends_on: [k8s.cluster, k8s.storage.rook-ceph]
+    sensitive: false
+  ha.config.configuration_yaml:
+    type: ha-config-file
+    owner_agent: ha-engineer
+    description: /config/configuration.yaml in the PVC. Auth providers, http config, includes.
+    depends_on: [ha.pod]
+    sensitive: true
+  ha.config.automations_yaml:
+    type: ha-config-file
+    owner_agent: ha-engineer
+    description: /config/automations.yaml — all UI-managed automations
+    depends_on: [ha.pod]
+    sensitive: false
+  ha.config.scripts_yaml:
+    type: ha-config-file
+    owner_agent: ha-engineer
+    description: /config/scripts.yaml
+    depends_on: [ha.pod]
+    sensitive: false
+  ha.config.scenes_yaml:
+    type: ha-config-file
+    owner_agent: ha-engineer
+    description: /config/scenes.yaml
+    depends_on: [ha.pod]
+    sensitive: false
+  ha.config.lovelace_keuken:
+    type: ha-config-file
+    owner_agent: ha-engineer
+    description: .storage/lovelace.dashboard_keuken — kitchen tablet dashboard
+    depends_on: [ha.pod]
+    sensitive: false
+  ha.auth.storage:
+    type: ha-config-file
+    owner_agent: ha-engineer
+    description: .storage/auth — user accounts and refresh tokens. NEVER edit while HA running.
+    depends_on: [ha.pod]
+    sensitive: true
+  ha.kiosk.pixel_tablet:
+    type: external-device
+    owner_agent: ha-engineer
+    description: Pixel Tablet running Fully Kiosk Browser, kitchen dashboard. IP 172.16.3.17.
+    depends_on: [ha.pod, net.udm]
+    sensitive: false
+  ha.kiosk.thinksmartview:
+    type: external-device
+    owner_agent: ha-engineer
+    description: ThinkSmartView running Fully Kiosk Browser, kantoor dashboard. IP fluctuates.
+    depends_on: [ha.pod, net.udm]
+    sensitive: false
+
+  # ── Smart-home backends HA depends on ────────────────────────────────
+  ha.integ.hue_bridge:
+    type: external-device
+    owner_agent: ha-engineer
+    description: Philips Hue Bridge at 172.16.3.9, manages all outdoor + most indoor lighting
+    depends_on: [net.udm]
+    sensitive: false
+  ha.integ.zigbee2mqtt:
+    type: k8s-app
+    owner_agent: ha-engineer
+    description: Zigbee2MQTT in cluster
+    depends_on: [ha.pod, k8s.cluster]
+    sensitive: false
+  ha.integ.zwave_js:
+    type: k8s-app
+    owner_agent: ha-engineer
+    description: Z-Wave JS UI in cluster
+    depends_on: [ha.pod, k8s.cluster]
+    sensitive: false
+  ha.integ.node_red:
+    type: k8s-app
+    owner_agent: ha-engineer
+    description: Node-RED in cluster
+    depends_on: [ha.pod, k8s.cluster]
+    sensitive: false
+  ha.integ.mosquitto:
+    type: k8s-app
+    owner_agent: ha-engineer
+    description: MQTT broker; backbone for many integrations
+    depends_on: [k8s.cluster]
+    sensitive: false
+
+  # ── Storage backends ─────────────────────────────────────────────────
+  storage.synology_nas:
+    type: external-device
+    owner_agent: k8s-engineer
+    description: Synology NAS at 172.16.2.246, NFS exports for media
+    depends_on: [net.udm]
+    sensitive: false
+  db.cnpg.postgres:
+    type: k8s-app
+    owner_agent: k8s-engineer
+    description: CloudNativePG cluster — HA db backend + others
+    depends_on: [k8s.storage.rook-ceph]
+    sensitive: true
+
+  # ── Backups / DR ─────────────────────────────────────────────────────
+  backup.volsync:
+    type: k8s-app
+    owner_agent: k8s-engineer
+    description: VolSync for PVC backups via Kopia
+    depends_on: [k8s.storage.rook-ceph, storage.synology_nas]
+    sensitive: true
+  backup.azure_offsite:
+    type: external-service
+    owner_agent: k8s-engineer
+    description: Azure Blob offsite mirror (per backup-plan memory)
+    depends_on: [backup.volsync]
+    sensitive: true
+
+  # ── Identity + secrets ───────────────────────────────────────────────
+  auth.onepassword_connect:
+    type: k8s-app
+    owner_agent: k8s-engineer
+    description: 1Password Connect; secret source of truth for ExternalSecrets
+    depends_on: [k8s.cluster]
+    sensitive: true
+
+  # ── Observability ────────────────────────────────────────────────────
+  obs.prometheus:
+    type: k8s-app
+    owner_agent: k8s-engineer
+    description: kube-prometheus-stack
+    depends_on: [k8s.cluster]
+    sensitive: false
+  obs.grafana:
+    type: k8s-app
+    owner_agent: k8s-engineer
+    description: Grafana for cluster + Ceph + HA dashboards
+    depends_on: [obs.prometheus]
+    sensitive: false
+  obs.health_report:
+    type: k8s-app
+    owner_agent: k8s-engineer
+    description: cluster-health-report (https://health.bluejungle.net) — to be extended into the ops portal
+    depends_on: [k8s.cluster]
+    sensitive: false

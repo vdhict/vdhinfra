@@ -1,0 +1,10 @@
+# Active change-freeze windows.
+# OPS Manager refuses any change in the blocked tiers during an active window.
+# Low-risk changes still flow even during freezes (image patch bumps, log filters, etc.).
+freezes: []
+# Example:
+# - name: christmas_holiday_freeze
+#   starts: 2026-12-23T00:00:00Z
+#   ends: 2027-01-02T00:00:00Z
+#   blocks: [medium, high]
+#   reason: family at home, no breakage tolerated
