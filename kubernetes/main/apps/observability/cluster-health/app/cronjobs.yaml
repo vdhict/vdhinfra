@@ -512,3 +512,86 @@ spec:
                 items:
                   - key: github-app-key.pem
                     path: github-app-key.pem
+---
+# Argus — weekly security posture scan. Sundays 04:00 local (off-peak,
+# after the daily collect at 02:00). Read-only checks; high-severity
+# findings auto-open incidents.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: argus-posture-scan
+  namespace: observability
+spec:
+  schedule: "0 4 * * 0"
+  timeZone: Europe/Amsterdam
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 4
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 1209600
+      template:
+        spec:
+          serviceAccountName: cluster-health
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+          containers:
+            - name: argus
+              image: ghcr.io/vdhict/cluster-health:v0.3.0
+              imagePullPolicy: IfNotPresent
+              command: ["python3", "/scripts/ops_security_scan.py"]
+              env:
+                - name: TZ
+                  value: Europe/Amsterdam
+                - name: GIT_REMOTE
+                  value: https://github.com/vdhict/vdhinfra.git
+                - name: GIT_BRANCH
+                  value: main
+                - name: GIT_AUTHOR_NAME
+                  value: argus-bot
+                - name: GIT_AUTHOR_EMAIL
+                  value: argus@bluejungle.net
+                - name: HA_URL
+                  value: http://home-assistant.home-automation.svc.cluster.local:8123
+                - name: REPORT_BASE_URL
+                  value: https://health.${SECRET_DOMAIN}
+                - name: GITHUB_APP_ID
+                  value: "3302753"
+                - name: GITHUB_APP_INSTALLATION_ID
+                  value: "122063656"
+              envFrom:
+                - secretRef:
+                    name: cluster-health-secret
+                    optional: true
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                - name: scripts
+                  mountPath: /scripts
+                - name: secret
+                  mountPath: /secrets
+                  readOnly: true
+              resources:
+                requests: { cpu: 50m, memory: 192Mi }
+                limits: { cpu: 1000m, memory: 512Mi }
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: cluster-health-data
+            - name: scripts
+              configMap:
+                name: cluster-health-scripts
+                defaultMode: 0755
+            - name: secret
+              secret:
+                secretName: cluster-health-secret
+                defaultMode: 0400
+                optional: true
+                items:
+                  - key: github-app-key.pem
+                    path: github-app-key.pem
