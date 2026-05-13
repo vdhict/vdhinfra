@@ -42,6 +42,7 @@ configMapGenerator:
       - scripts/gh_app_token.py
       - scripts/ops_render.sh
       - scripts/ops_digest.py
+      - scripts/ops_security_scan.py
 generatorOptions:
   # Stable name — kustomize's hashed-name volume ref rewriting is unreliable
   # for CronJob volumes. Without this the CronJobs mount a stale (or missing)
