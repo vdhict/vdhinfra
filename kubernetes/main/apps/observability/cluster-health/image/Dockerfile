@@ -9,11 +9,13 @@ RUN apk add --no-cache \
       ca-certificates \
       curl \
       git \
+      graphviz \
       openssh-client \
       openssl \
       jq \
       mosquitto-clients \
       py3-yaml \
+      ttf-dejavu \
       tzdata \
  && curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl" \
       -o /usr/local/bin/kubectl \

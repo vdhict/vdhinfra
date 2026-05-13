@@ -9,6 +9,14 @@
 #   sensitive: true if changes here require security review
 #   runbook: optional path to a runbook in docs/runbooks/
 #   external_id: optional id in another system (CF zone, UDM device id, ...)
+#
+# Phase-2a extensions (added 2026-05-13, see docs/design/topology-cmdb-extension.md):
+#   tier: integer 0–5 (0=internet, 1=perimeter, 2=lan, 3=clients, 4=cluster, 5=services)
+#   group: free-text sub-system tag (wan, tunnel, core-network, lan-dns, power, ...)
+#   sla_tier: family-critical | ops-only | nice-to-have
+#   health_source: URI for live join (unifi://, k8s://, prometheus://, http(s)://, ha://, none:<reason>)
+#   physical_link_to: [id, ...] — physical L2 uplinks (network tier only)
+# Rolled out tier-1 (perimeter) only in this PR; tiers 2–5 follow in phase 2b–e.
 
 components:
 
@@ -20,6 +28,11 @@ components:
     depends_on: [hw.plug.vdhngfw_power]
     sensitive: true
     runbook: docs/runbooks/disaster-recovery.md
+    tier: 1
+    group: core-network
+    sla_tier: family-critical
+    health_source: unifi://device/udm-pro-max
+    physical_link_to: [net.isp.kpn]
   hw.plug.vdhngfw_power:
     type: power-device
     owner_agent: ha-engineer
@@ -27,24 +40,75 @@ components:
     depends_on: []
     sensitive: true
     runbook: docs/research/udm-crash-rootcause-10.3.x.md
+    tier: 1
+    group: power
+    sla_tier: family-critical
+    health_source: ha://switch.vdhngfw_power
+    physical_link_to: []
   net.dns.cloudflare:
     type: external-service
     owner_agent: udm-engineer
     description: Cloudflare DNS + Tunnel for *.bluejungle.net
     depends_on: [net.udm]
     sensitive: true
+    tier: 0
+    group: wan
+    sla_tier: family-critical
+    health_source: https://1.1.1.1/cdn-cgi/trace
   net.dns.unifi-static:
     type: network-config
     owner_agent: udm-engineer
     description: UDM Pro static-dns table (A/CNAME only — never AAAA)
     depends_on: [net.udm]
     sensitive: true
+    tier: 1
+    group: lan-dns
+    sla_tier: family-critical
+    health_source: none:config-only-no-runtime-status
   net.cloudflared:
     type: k8s-app
     owner_agent: k8s-engineer
     description: Cloudflare Tunnel client; routes *.bluejungle.net traffic into envoy-external
     depends_on: [k8s.cluster, net.dns.cloudflare]
     sensitive: true
+    tier: 1
+    group: tunnel
+    sla_tier: family-critical
+    health_source: k8s://deploy/network/cloudflared
+
+  # ── Topology placeholders (TODO — Iris phase 2b adapter fills these) ─
+  net.isp.kpn:
+    type: external-service
+    owner_agent: udm-engineer
+    description: "TODO: KPN fiber WAN uplink. Placeholder for topology diagram; live status arrives with Iris's WAN probe."
+    depends_on: []
+    sensitive: false
+    tier: 0
+    group: wan
+    sla_tier: family-critical
+    health_source: none:awaiting-iris-wan-probe
+  net.switch.poesw01:
+    type: network-device
+    owner_agent: udm-engineer
+    description: "TODO: rack PoE switch (placeholder). Iris will replace with real device id + MAC once the unifi_topology adapter lands."
+    depends_on: [net.udm, hw.plug.vdhngfw_power]
+    sensitive: false
+    tier: 2
+    group: core-network
+    sla_tier: family-critical
+    health_source: none:awaiting-iris-unifi-adapter
+    physical_link_to: [net.udm]
+  net.ap.kantoor:
+    type: network-device
+    owner_agent: udm-engineer
+    description: "TODO: kantoor access point (placeholder). Iris fills in MAC + UniFi device id when the adapter ships."
+    depends_on: [net.switch.poesw01]
+    sensitive: false
+    tier: 2
+    group: core-network
+    sla_tier: family-critical
+    health_source: none:awaiting-iris-unifi-adapter
+    physical_link_to: [net.switch.poesw01]
 
   # ── Kubernetes cluster ───────────────────────────────────────────────
   k8s.cluster:
@@ -65,12 +129,20 @@ components:
     description: Envoy Gateway listening on 172.16.2.243 (public-facing via Cloudflare tunnel)
     depends_on: [k8s.cni.cilium]
     sensitive: true
+    tier: 4
+    group: gateway
+    sla_tier: family-critical
+    health_source: k8s://deploy/network/envoy-envoy-external
   k8s.gateway.envoy-internal:
     type: k8s-app
     owner_agent: k8s-engineer
     description: Envoy Gateway listening on 172.16.2.241 (LAN-only)
     depends_on: [k8s.cni.cilium]
     sensitive: true
+    tier: 4
+    group: gateway
+    sla_tier: family-critical
+    health_source: k8s://deploy/network/envoy-envoy-internal
   k8s.storage.rook-ceph:
     type: k8s-app
     owner_agent: k8s-engineer

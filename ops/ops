@@ -567,6 +567,7 @@ def cmd_dashboard(args):
         "cmdb.html": _render_cmdb(state),
         "risks.html": _render_risks(state),
         "team.html": _render_team(state),
+        "topology.html": _render_topology_page(state),
     }
     total = 0
     for name, body in pages.items():
@@ -637,6 +638,55 @@ code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-s
 .card h3{margin:0 0 4px;font-size:.95rem}
 .card .who{color:#888;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em}
 footer{color:#888;font-size:.74rem;margin-top:36px;padding-top:14px;border-top:1px solid #ccc4}
+/* family pill — single big verdict at top of index */
+.pill-family{display:flex;align-items:center;gap:14px;margin:14px 0 8px;
+ padding:14px 18px;border-radius:12px;border:2px solid;font-size:1rem;line-height:1.3}
+.pill-family .dot{width:22px;height:22px;border-radius:50%;flex:0 0 22px}
+.pill-family .label{font-size:1.4rem;font-weight:700;letter-spacing:.01em}
+.pill-family .reason{color:#666;font-size:.86rem;margin-top:2px}
+.pill-family.ok{border-color:#2a9d3f;background:#e8f7eb}
+.pill-family.ok .dot{background:#2a9d3f}
+.pill-family.ok .label{color:#1d6b2c}
+.pill-family.degraded{border-color:#c08a00;background:#fff5cf}
+.pill-family.degraded .dot{background:#c08a00}
+.pill-family.degraded .label{color:#8a6200}
+.pill-family.down{border-color:#c0392b;background:#ffe5e0}
+.pill-family.down .dot{background:#c0392b}
+.pill-family.down .label{color:#8c2114}
+.pill-family.unknown{border-color:#888;background:#f0f0f0}
+.pill-family.unknown .dot{background:#888}
+.pill-family.unknown .label{color:#555}
+.pill-family .body{flex:1;min-width:0}
+.pill-footnote{color:#888;font-size:.72rem;margin:-4px 0 12px;font-style:italic}
+@media(prefers-color-scheme:dark){
+ .pill-family.ok{background:#152a18}
+ .pill-family.degraded{background:#2a220a}
+ .pill-family.down{background:#2a1410}
+ .pill-family.unknown{background:#1f1f1f}
+}
+/* topology page — css-grid fallback path */
+.topo{margin:14px 0}
+.topo-row{border:1px solid #ccc4;border-radius:8px;padding:10px 12px;margin:6px 0}
+.topo-row h3{margin:0 0 8px;font-size:.82rem;color:#888;
+ text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+.topo-groups{display:flex;flex-wrap:wrap;gap:14px}
+.topo-group{display:flex;flex-direction:column;gap:4px;min-width:0}
+.topo-group-label{font-size:.66rem;color:#888;text-transform:uppercase;letter-spacing:.04em}
+.topo-nodes{display:flex;flex-wrap:wrap;gap:6px}
+.topo-node{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;
+ border:1px solid #ccc4;border-radius:6px;font-size:.82rem;
+ text-decoration:none;color:inherit;background:Canvas}
+.topo-node:hover{border-color:#888}
+.topo-node .s{width:8px;height:8px;border-radius:50%;flex:0 0 8px;background:#888}
+.topo-node.ok .s{background:#2a9d3f}
+.topo-node.warning .s{background:#c08a00}
+.topo-node.down .s{background:#c0392b}
+.topo-node.unknown .s{background:#888}
+.topo-node.fc{font-weight:600}
+.topo-arrow{text-align:center;color:#888;font-size:1.1rem;line-height:1;margin:-2px 0}
+.topo-svg{width:100%;height:auto;max-width:100%;display:block;margin:12px 0}
+.topo-svg a{cursor:pointer}
+.topo-note{color:#888;font-size:.78rem;margin:8px 0}
 """
 
 
@@ -702,6 +752,7 @@ def _page(title: str, current: str, body: str, gen_ts: dt.datetime,
           extra_meta: str = "") -> str:
     tabs = [
         ("index.html", "Overview"),
+        ("topology.html", "Topology"),
         ("changes.html", "Changes"),
         ("incidents.html", "Incidents"),
         ("cmdb.html", "CMDB"),
@@ -822,8 +873,9 @@ def _render_index(s: dict) -> str:
             '<thead><tr><th>resource</th><th>holder</th></tr></thead>'
             f'<tbody>{rows}</tbody></table></section>')
 
+    pill_block = _render_family_pill(s)
     body = (
-        f'{banner_block}{kpis}'
+        f'{pill_block}{banner_block}{kpis}'
         '<section><h2>Open changes <span class="tag">'
         f'{len(s["open_chgs"])}</span></h2><table>'
         '<thead><tr><th>id</th><th>risk</th><th>status</th>'
@@ -982,6 +1034,358 @@ def _render_risks(s: dict) -> str:
         f'<tbody>{"".join(rows)}</tbody></table></section>'
     )
     return _page("Accepted risks", "risks.html", body, s["now"])
+
+
+# ── family pill + topology (phase 2a, chg-2026-05-13-027) ──────────────
+
+# Cached unifi-topology load so multiple page renders share one read.
+_UNIFI_TOPO_PATH = Path("/data/unifi-topology.json")
+
+
+def _load_unifi_topology() -> dict:
+    """Read Iris's /data/unifi-topology.json adapter output if present.
+
+    Returns ``{cmdb_id: {status, last_seen, link}}``. Empty dict when the
+    file is missing — the renderer degrades gracefully per ADR-0002.
+    """
+    p = _UNIFI_TOPO_PATH
+    if not p.exists():
+        return {}
+    try:
+        with p.open() as f:
+            data = json.load(f)
+        return (data or {}).get("components", {}) or {}
+    except Exception:
+        return {}
+
+
+def _compute_health_state(s: dict) -> tuple[str, str, list[str]]:
+    """Pill state machine — returns (level, headline, details).
+
+    Priority order (first match wins): down → degraded → ok. ``unknown`` is
+    only emitted when we couldn't load the input data at all.
+    """
+    details: list[str] = []
+    try:
+        chgs = s.get("chgs") or {}
+        incs = s.get("incs") or {}
+        cmdb = s.get("cmdb") or {}
+        if not (CHANGES.exists() or INCIDENTS.exists() or FREEZE.exists()):
+            return ("unknown", "Status unknown",
+                    ["Could not read ops state files."])
+    except Exception:
+        return ("unknown", "Status unknown",
+                ["Renderer error while loading inputs."])
+
+    open_incs = s.get("open_incs") or []
+    active_freezes = s.get("active_freezes") or []
+    open_chgs = s.get("open_chgs") or []
+    topo = _load_unifi_topology()
+
+    sev1 = [i for i in open_incs if i.get("severity") == "sev1"]
+    sev2 = [i for i in open_incs if i.get("severity") == "sev2"]
+    sev3 = [i for i in open_incs if i.get("severity") == "sev3"]
+
+    family_critical_ids = [
+        cid for cid, c in cmdb.items()
+        if (c or {}).get("sla_tier") == "family-critical"
+    ]
+    fc_down = [cid for cid in family_critical_ids
+               if (topo.get(cid) or {}).get("status") == "down"]
+    fc_warn = [cid for cid in family_critical_ids
+               if (topo.get(cid) or {}).get("status") == "warning"]
+
+    # Stuck-change detector: executed but not validated for >30 min.
+    now = s.get("now") or dt.datetime.now(dt.timezone.utc)
+    stuck = []
+    for c in open_chgs:
+        if c.get("status") == "executed":
+            last = _ts(c.get("last_ts"))
+            if (now - last).total_seconds() > 30 * 60:
+                stuck.append(c["id"])
+
+    # ── DOWN ─────────────────────────────────────────────────────────────
+    if sev1:
+        details.append(f"{len(sev1)} sev1 incident open: "
+                       + ", ".join(i["id"] for i in sev1[:3]))
+        return ("down", "Infrastructure DOWN", details)
+    if fc_down:
+        details.append(f"family-critical component down: "
+                       + ", ".join(fc_down[:3]))
+        return ("down", "Infrastructure DOWN", details)
+
+    # ── DEGRADED ─────────────────────────────────────────────────────────
+    if sev2 or sev3:
+        if sev2:
+            details.append(f"{len(sev2)} sev2 incident open: "
+                           + ", ".join(i["id"] for i in sev2[:3]))
+        if sev3:
+            details.append(f"{len(sev3)} sev3 incident open: "
+                           + ", ".join(i["id"] for i in sev3[:3]))
+        return ("degraded", "Slow / Degraded", details)
+    if active_freezes:
+        details.append("change-freeze active: "
+                       + ", ".join(f.get("name", "?") for f in active_freezes))
+        return ("degraded", "Slow / Degraded", details)
+    if fc_warn:
+        details.append("family-critical component warning: "
+                       + ", ".join(fc_warn[:3]))
+        return ("degraded", "Slow / Degraded", details)
+    if stuck:
+        details.append(f"{len(stuck)} executed change(s) not validated >30m: "
+                       + ", ".join(stuck[:3]))
+        return ("degraded", "Slow / Degraded", details)
+
+    # ── OK ───────────────────────────────────────────────────────────────
+    fc_count = len(family_critical_ids)
+    if fc_count:
+        details.append(f"{fc_count} family-critical components green "
+                       "(live-check pending phase 2b adapter)")
+    else:
+        details.append("no open incidents, no freezes, no stuck changes")
+    return ("ok", "Infrastructure OK", details)
+
+
+_PILL_HEADLINE = {
+    "ok": ("✔", "Infrastructure OK"),
+    "degraded": ("⚠", "Slow / Degraded"),
+    "down": ("✖", "Infrastructure DOWN"),
+    "unknown": ("?", "Status unknown"),
+}
+
+
+def _render_family_pill(s: dict) -> str:
+    level, headline, details = _compute_health_state(s)
+    glyph, _ = _PILL_HEADLINE.get(level, _PILL_HEADLINE["unknown"])
+    detail_html = " · ".join(_h(d) for d in details) if details else ""
+    foot = (
+        '<div class="pill-footnote">'
+        'Computed from open incidents, freeze windows, and stuck changes. '
+        'Live CMDB health (UniFi + kubectl) is wired in but inactive — '
+        'phase 2b adapters fill <code>/data/unifi-topology.json</code> '
+        'and turn the family-critical branches live.'
+        '</div>'
+    )
+    return (
+        f'<div class="pill-family {_h(level)}">'
+        f'<div class="dot" aria-hidden="true"></div>'
+        f'<div class="body">'
+        f'<div class="label">{_h(glyph)} {_h(headline)}</div>'
+        f'<div class="reason">{detail_html}</div>'
+        f'</div></div>'
+        f'{foot}'
+    )
+
+
+# ── topology page ──────────────────────────────────────────────────────
+
+_TIER_LABELS = {
+    0: "Internet",
+    1: "Edge",
+    2: "Cluster",
+    3: "Stateful",
+    4: "Services",
+    5: "Family services",
+}
+
+# Fallback tier inference for entries that don't carry tier: yet.
+# Apollo flags this in the rendered page so it's not silent.
+def _infer_tier(cid: str, comp: dict) -> int:
+    t = comp.get("tier")
+    if isinstance(t, int):
+        return t
+    if isinstance(t, str) and t.strip().lstrip("-").isdigit():
+        return int(t.strip())
+    typ = (comp.get("type") or "").lower()
+    owner = (comp.get("owner_agent") or "").lower()
+    if typ == "external-service" and "cloudflare" in cid:
+        return 0
+    if typ == "external-service":
+        return 0
+    if cid.startswith("net.") or typ in ("network-device", "network-config", "power-device"):
+        return 1
+    if typ == "k8s-cluster":
+        return 2
+    if cid.startswith("k8s.") and typ == "k8s-app":
+        # gateway/cni/storage/etc. are cluster substrate
+        if any(k in cid for k in (".cni", ".storage", ".gitops", ".secrets", ".gateway")):
+            return 2
+        return 4
+    if cid.startswith("db.") or cid.startswith("backup.") or cid.startswith("storage."):
+        return 3
+    if cid.startswith("obs.") or cid.startswith("auth."):
+        return 4
+    if cid.startswith("ha.") or cid.startswith("media."):
+        return 4
+    return 4
+
+
+def _node_status(cid: str, topo: dict) -> str:
+    v = (topo.get(cid) or {}).get("status")
+    if v in ("ok", "warning", "down", "unknown"):
+        return v
+    return "unknown"
+
+
+def _has_graphviz() -> bool:
+    """Return True if `dot` is on PATH."""
+    import shutil
+    return shutil.which("dot") is not None
+
+
+def _topology_tiers(s: dict) -> dict[int, list[tuple[str, dict]]]:
+    """Group CMDB entries by tier (0..5)."""
+    cmdb = s.get("cmdb") or {}
+    by_tier: dict[int, list[tuple[str, dict]]] = defaultdict(list)
+    for cid, comp in sorted(cmdb.items()):
+        t = _infer_tier(cid, comp or {})
+        # collapse anything >5 into 5
+        t = max(0, min(5, t))
+        by_tier[t].append((cid, comp or {}))
+    return by_tier
+
+
+def _render_topology_via_graphviz(s: dict) -> str:
+    """Pipe a DOT description through `dot -Tsvg` and return inline SVG."""
+    import subprocess
+    topo = _load_unifi_topology()
+    by_tier = _topology_tiers(s)
+    cmdb = s.get("cmdb") or {}
+
+    def safe(cid: str) -> str:
+        return "n_" + re.sub(r"[^a-zA-Z0-9]", "_", cid)
+
+    lines = [
+        'digraph topology {',
+        '  rankdir=TB; bgcolor="transparent"; pad=0.2; nodesep=0.25; ranksep=0.45;',
+        '  fontname="system-ui";',
+        '  node [shape=box, style="rounded,filled", fontname="system-ui",'
+        ' fontsize=11, color="#888", fillcolor="white"];',
+        '  edge [color="#888", arrowsize=0.6, penwidth=0.9];',
+    ]
+    # subgraphs (clusters) per tier — rank=same keeps them on one row.
+    for t in sorted(by_tier.keys()):
+        members = by_tier[t]
+        lines.append(f'  subgraph cluster_t{t} {{')
+        lines.append(f'    label="{t} — {_TIER_LABELS.get(t, str(t))}";'
+                     ' style="dashed"; color="#bbb"; fontsize=10; fontcolor="#888";')
+        lines.append('    rank=same;')
+        for cid, comp in members:
+            st = _node_status(cid, topo)
+            fill = {
+                "ok": "#e8f7eb", "warning": "#fff5cf",
+                "down": "#ffe5e0", "unknown": "white",
+            }.get(st, "white")
+            border = {
+                "ok": "#2a9d3f", "warning": "#c08a00",
+                "down": "#c0392b", "unknown": "#888",
+            }.get(st, "#888")
+            label = cid
+            tooltip = (comp.get("description") or "")[:120].replace('"', "'")
+            lines.append(
+                f'    {safe(cid)} [label="{label}", '
+                f'fillcolor="{fill}", color="{border}", '
+                f'tooltip="{tooltip}", URL="cmdb.html#{cid}", target="_top"];'
+            )
+        lines.append('  }')
+    # edges from depends_on
+    for cid, comp in cmdb.items():
+        for dep in (comp or {}).get("depends_on") or []:
+            if dep in cmdb:
+                lines.append(f'  {safe(cid)} -> {safe(dep)};')
+    lines.append('}')
+    dot_src = "\n".join(lines)
+    try:
+        out = subprocess.run(
+            ["dot", "-Tsvg"], input=dot_src, capture_output=True,
+            text=True, timeout=10, check=True,
+        ).stdout
+    except Exception as exc:
+        return (f'<p class="topo-note">graphviz failed: {_h(str(exc))}; '
+                'falling back to CSS grid.</p>'
+                + _render_topology_via_css_grid(s))
+    # strip the XML prolog so we can embed inline
+    out = re.sub(r'<\?xml[^?]*\?>', '', out)
+    out = re.sub(r'<!DOCTYPE[^>]*>', '', out)
+    # add our class so CSS can size it
+    out = re.sub(r'<svg ', '<svg class="topo-svg" ', out, count=1)
+    return out
+
+
+def _render_topology_via_css_grid(s: dict) -> str:
+    """Fallback when Graphviz isn't on PATH — 5 rows of grouped boxes."""
+    topo = _load_unifi_topology()
+    by_tier = _topology_tiers(s)
+    rows_html = []
+    for t in sorted(by_tier.keys()):
+        members = by_tier[t]
+        # group by `group` field within the tier
+        by_group: dict[str, list[tuple[str, dict]]] = defaultdict(list)
+        for cid, comp in members:
+            by_group[comp.get("group") or "—"].append((cid, comp))
+        groups_html = []
+        for grp in sorted(by_group.keys()):
+            nodes = []
+            for cid, comp in sorted(by_group[grp]):
+                st = _node_status(cid, topo)
+                fc = "fc" if comp.get("sla_tier") == "family-critical" else ""
+                cls = " ".join(filter(None, ["topo-node", st, fc]))
+                desc = (comp.get("description") or "")[:140]
+                nodes.append(
+                    f'<a class="{cls}" href="cmdb.html#{_h(cid)}" '
+                    f'title="{_h(desc)}">'
+                    f'<span class="s" aria-hidden="true"></span>'
+                    f'<span>{_h(cid)}</span></a>'
+                )
+            groups_html.append(
+                f'<div class="topo-group">'
+                f'<div class="topo-group-label">{_h(grp)}</div>'
+                f'<div class="topo-nodes">{"".join(nodes)}</div>'
+                f'</div>'
+            )
+        rows_html.append(
+            f'<div class="topo-row" data-tier="{t}">'
+            f'<h3>{t} — {_h(_TIER_LABELS.get(t, str(t)))} '
+            f'<span class="tag">{len(members)}</span></h3>'
+            f'<div class="topo-groups">{"".join(groups_html)}</div>'
+            f'</div>'
+        )
+        if t < max(by_tier.keys()):
+            rows_html.append('<div class="topo-arrow" aria-hidden="true">↓</div>')
+    return f'<section class="topo">{"".join(rows_html)}</section>'
+
+
+def _render_topology_page(s: dict) -> str:
+    have_dot = _has_graphviz()
+    topo = _load_unifi_topology()
+    if have_dot:
+        body_inner = _render_topology_via_graphviz(s)
+        path_note = "Rendered via Graphviz <code>dot</code>."
+    else:
+        body_inner = _render_topology_via_css_grid(s)
+        path_note = (
+            "Graphviz <code>dot</code> not on PATH — rendered as CSS-grid "
+            "fallback. Once Heph rebuilds the cluster-health image with "
+            "graphviz, this auto-switches to the hierarchical SVG path."
+        )
+    live_note = (
+        f'{len(topo)} live components from <code>/data/unifi-topology.json</code>'
+        if topo else
+        'No live data yet — <code>/data/unifi-topology.json</code> not present. '
+        'Awaiting Iris\'s UniFi adapter (phase 2b). All nodes show as <em>unknown</em>.'
+    )
+    body = (
+        '<section>'
+        '<h2>Service topology</h2>'
+        f'<p class="topo-note">{path_note} {live_note}</p>'
+        f'{body_inner}'
+        '<p class="topo-note">Tiers: 0 internet → 1 edge → 2 cluster → '
+        '3 stateful → 4 services. Entries without an explicit <code>tier:</code> '
+        'field are placed by fallback (type + id prefix); their tier is best-effort '
+        'until the phase 2b–e CMDB rollout completes.</p>'
+        '</section>'
+    )
+    return _page("Topology", "topology.html", body, s["now"])
 
 
 def _render_team(s: dict) -> str:
