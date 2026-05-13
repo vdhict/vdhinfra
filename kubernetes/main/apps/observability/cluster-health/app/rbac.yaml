@@ -80,6 +80,10 @@ rules:
   - apiGroups: [apiextensions.k8s.io]
     resources: [customresourcedefinitions]
     verbs: [get, list]
+  # Argus: RBAC audit
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [clusterrolebindings, rolebindings, clusterroles, roles]
+    verbs: [get, list, watch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -117,6 +121,35 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: cluster-health-ceph-exec
+subjects:
+  - kind: ServiceAccount
+    name: cluster-health
+    namespace: observability
+---
+# Argus reads /config/.storage/auth via kubectl exec on the HA pod.
+# Same pattern as the ceph-tools exec — scoped to a single namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cluster-health-ha-exec
+  namespace: home-automation
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list]
+  - apiGroups: [""]
+    resources: [pods/exec]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cluster-health-ha-exec
+  namespace: home-automation
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cluster-health-ha-exec
 subjects:
   - kind: ServiceAccount
     name: cluster-health
