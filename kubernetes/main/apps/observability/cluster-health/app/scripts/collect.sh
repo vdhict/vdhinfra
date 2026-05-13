@@ -45,9 +45,7 @@ run_collector z2m        python3 /scripts/collect_z2m.py
 run_collector zwave      python3 /scripts/collect_zwave.py
 run_collector esphome    python3 /scripts/collect_esphome.py
 run_collector offsite    python3 /scripts/collect_offsite.py
-# Disabled 2026-05-13 — UDM crashing under poller load (inc-2026-05-13-003).
-# Restore once UDM stability is understood.
-# run_collector network    python3 /scripts/collect_network.py
+run_collector network    python3 /scripts/collect_network.py
 
 # Merge into one document
 TMP="$TMP" OUT="$OUT" DATE="$DATE" python3 <<'PY'

@@ -5,10 +5,6 @@ kind: HelmRelease
 metadata:
   name: &app external-dns-unifi
 spec:
-  # Suspended 2026-05-13 — UDM crashing under poller load (inc-2026-05-13-003).
-  # Restore (set false or remove) only after UDM stability is restored AND we
-  # understand which polling pattern was the contributor.
-  suspend: true
   interval: 30m
   chart:
     spec:
