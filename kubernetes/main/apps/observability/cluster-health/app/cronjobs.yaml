@@ -36,7 +36,7 @@ spec:
             fsGroup: 1000
           containers:
             - name: collect
-              image: ghcr.io/vdhict/cluster-health:v0.3.0
+              image: ghcr.io/vdhict/cluster-health:sha-de00b79
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "-c", "/scripts/collect.sh"]
               env:
@@ -102,7 +102,7 @@ spec:
             fsGroup: 1000
           containers:
             - name: triage
-              image: ghcr.io/vdhict/cluster-health:v0.3.0
+              image: ghcr.io/vdhict/cluster-health:sha-de00b79
               imagePullPolicy: IfNotPresent
               command: ["python3", "/scripts/triage.py"]
               env:
@@ -163,7 +163,7 @@ spec:
             fsGroup: 1000
           containers:
             - name: report
-              image: ghcr.io/vdhict/cluster-health:v0.3.0
+              image: ghcr.io/vdhict/cluster-health:sha-de00b79
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "-c"]
               args:
@@ -254,7 +254,7 @@ spec:
             fsGroup: 1000
           containers:
             - name: notify
-              image: ghcr.io/vdhict/cluster-health:v0.3.0
+              image: ghcr.io/vdhict/cluster-health:sha-de00b79
               imagePullPolicy: IfNotPresent
               command: ["python3", "/scripts/notify.py"]
               env:
@@ -318,7 +318,7 @@ spec:
             fsGroup: 1000
           containers:
             - name: watchdog
-              image: ghcr.io/vdhict/cluster-health:v0.3.0
+              image: ghcr.io/vdhict/cluster-health:sha-de00b79
               imagePullPolicy: IfNotPresent
               command: ["python3", "/scripts/z2m_watchdog.py"]
               env:
@@ -385,7 +385,7 @@ spec:
             fsGroup: 1000
           containers:
             - name: render
-              image: ghcr.io/vdhict/cluster-health:v0.3.0
+              image: ghcr.io/vdhict/cluster-health:sha-de00b79
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "-c", "/scripts/ops_render.sh"]
               env:
@@ -459,7 +459,7 @@ spec:
             fsGroup: 1000
           containers:
             - name: digest
-              image: ghcr.io/vdhict/cluster-health:v0.3.0
+              image: ghcr.io/vdhict/cluster-health:sha-de00b79
               imagePullPolicy: IfNotPresent
               command: ["python3", "/scripts/ops_digest.py"]
               env:
@@ -542,7 +542,7 @@ spec:
             fsGroup: 1000
           containers:
             - name: argus
-              image: ghcr.io/vdhict/cluster-health:v0.3.0
+              image: ghcr.io/vdhict/cluster-health:sha-de00b79
               imagePullPolicy: IfNotPresent
               command: ["python3", "/scripts/ops_security_scan.py"]
               env:
@@ -595,3 +595,60 @@ spec:
                 items:
                   - key: github-app-key.pem
                     path: github-app-key.pem
+---
+# Iris's UniFi adapter — every 5 min, pulls a topology + health snapshot
+# from the UDM integration API into /data/unifi-topology.json, which the
+# ops-portal renderer joins against CMDB at render time.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: unifi-topology
+  namespace: observability
+spec:
+  schedule: "*/5 * * * *"
+  timeZone: Europe/Amsterdam
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 3600
+      template:
+        spec:
+          serviceAccountName: cluster-health
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+          containers:
+            - name: probe
+              image: ghcr.io/vdhict/cluster-health:sha-de00b79
+              imagePullPolicy: IfNotPresent
+              command: ["python3", "/scripts/unifi_topology.py"]
+              env:
+                - name: TZ
+                  value: Europe/Amsterdam
+                - name: UNIFI_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: unifi-api-key
+                      key: UNIFI_API_KEY
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                - name: scripts
+                  mountPath: /scripts
+              resources:
+                requests: { cpu: 10m, memory: 64Mi }
+                limits: { cpu: 200m, memory: 128Mi }
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: cluster-health-data
+            - name: scripts
+              configMap:
+                name: cluster-health-scripts
+                defaultMode: 0755

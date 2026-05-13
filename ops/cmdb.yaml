@@ -110,19 +110,93 @@ components:
     health_source: none:awaiting-iris-unifi-adapter
     physical_link_to: [net.switch.poesw01]
 
-  # ── Kubernetes cluster ───────────────────────────────────────────────
+  # ── Kubernetes cluster (tier 4) ─────────────────────────────────────
   k8s.cluster:
     type: k8s-cluster
     owner_agent: k8s-engineer
     description: Talos cluster, 3 CP + 3 worker, Flux-managed
     depends_on: [net.udm]
     sensitive: true
+    tier: 4
+    group: cluster-cp
+    sla_tier: family-critical
+    health_source: k8s://nodes/ready-count
+  k8s.node.cp01:
+    type: k8s-node
+    owner_agent: k8s-engineer
+    description: Control plane node 1 (vdhclu01master01, 172.16.2.84, Beelink EQ14 Pro N150)
+    depends_on: [k8s.cluster]
+    sensitive: true
+    tier: 4
+    group: cluster-cp
+    sla_tier: family-critical
+    health_source: k8s://node/vdhclu01master01
+    physical_link_to: [net.switch.poesw01]
+  k8s.node.cp02:
+    type: k8s-node
+    owner_agent: k8s-engineer
+    description: Control plane node 2 (vdhclu01master02, 172.16.2.85, Beelink EQ14 Pro N150)
+    depends_on: [k8s.cluster]
+    sensitive: true
+    tier: 4
+    group: cluster-cp
+    sla_tier: family-critical
+    health_source: k8s://node/vdhclu01master02
+    physical_link_to: [net.switch.poesw01]
+  k8s.node.cp03:
+    type: k8s-node
+    owner_agent: k8s-engineer
+    description: Control plane node 3 (vdhclu01master03, 172.16.2.86, Beelink EQ14 Pro N150)
+    depends_on: [k8s.cluster]
+    sensitive: true
+    tier: 4
+    group: cluster-cp
+    sla_tier: family-critical
+    health_source: k8s://node/vdhclu01master03
+    physical_link_to: [net.switch.poesw01]
+  k8s.node.worker01:
+    type: k8s-node
+    owner_agent: k8s-engineer
+    description: Worker node 1 (vdhclu01node01, 172.16.2.81, Intel NUC 11 i5-1135G7)
+    depends_on: [k8s.cluster]
+    sensitive: true
+    tier: 4
+    group: cluster-worker
+    sla_tier: family-critical
+    health_source: k8s://node/vdhclu01node01
+    physical_link_to: [net.switch.poesw01]
+  k8s.node.worker02:
+    type: k8s-node
+    owner_agent: k8s-engineer
+    description: Worker node 2 (vdhclu01node02, 172.16.2.82, Intel NUC 11 i5-1135G7)
+    depends_on: [k8s.cluster]
+    sensitive: true
+    tier: 4
+    group: cluster-worker
+    sla_tier: family-critical
+    health_source: k8s://node/vdhclu01node02
+    physical_link_to: [net.switch.poesw01]
+  k8s.node.worker03:
+    type: k8s-node
+    owner_agent: k8s-engineer
+    description: Worker node 3 (vdhclu01node03, 172.16.2.83, Intel NUC 11 i5-1135G7)
+    depends_on: [k8s.cluster]
+    sensitive: true
+    tier: 4
+    group: cluster-worker
+    sla_tier: family-critical
+    health_source: k8s://node/vdhclu01node03
+    physical_link_to: [net.switch.poesw01]
   k8s.cni.cilium:
     type: k8s-app
     owner_agent: k8s-engineer
     description: Cilium CNI + L2 announce for LoadBalancer VIPs
     depends_on: [k8s.cluster]
     sensitive: true
+    tier: 4
+    group: cni
+    sla_tier: family-critical
+    health_source: k8s://daemonset/kube-system/cilium
   k8s.gateway.envoy-external:
     type: k8s-app
     owner_agent: k8s-engineer
@@ -149,24 +223,40 @@ components:
     description: Rook-Ceph block + filesystem; backs every stateful service
     depends_on: [k8s.cluster]
     sensitive: true
+    tier: 4
+    group: block-storage
+    sla_tier: family-critical
+    health_source: k8s://hr/rook-ceph/rook-ceph-cluster
   k8s.gitops.flux:
     type: k8s-app
     owner_agent: k8s-engineer
     description: Flux v2 GitOps engine reconciling this repo
     depends_on: [k8s.cluster]
     sensitive: true
+    tier: 4
+    group: gitops
+    sla_tier: ops-only
+    health_source: k8s://deploy/flux-system/source-controller
   k8s.secrets.external-secrets:
     type: k8s-app
     owner_agent: k8s-engineer
     description: ExternalSecrets pulling from 1Password Connect
     depends_on: [k8s.cluster]
     sensitive: true
+    tier: 4
+    group: secrets-infra
+    sla_tier: family-critical
+    health_source: k8s://deploy/external-secrets/external-secrets
   k8s.secrets.sops:
     type: tooling
     owner_agent: k8s-engineer
     description: SOPS + age-encrypted secrets in the repo
     depends_on: []
     sensitive: true
+    tier: 4
+    group: secrets-infra
+    sla_tier: ops-only
+    health_source: none:tooling-not-runtime
 
   # ── Home Assistant + automations ─────────────────────────────────────
   ha.pod:

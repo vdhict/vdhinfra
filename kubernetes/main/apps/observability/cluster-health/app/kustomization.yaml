@@ -6,6 +6,7 @@ kind: Kustomization
 # namespaces with it, breaking the rook-ceph Role for ceph exec.
 resources:
   - ./externalsecret.yaml
+  - ./unifi-secret.yaml
   - ./rbac.yaml
   - ./pvc.yaml
   - ./cronjobs.yaml
