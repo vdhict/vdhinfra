@@ -24,6 +24,7 @@ Usage:
   ops cmdb owner <id>
   ops freeze status                                   # any active blocks?
   ops digest [--days N]                               # daily/weekly digest
+  ops dashboard [--html PATH]                         # render web dashboard
 
 Risk tiers: low | medium | high
 Events:
@@ -526,6 +527,167 @@ def cmd_digest(args):
             print(f"  {i['id']}  {sc}{(i['severity'] or '?'):<5}{C.RESET}  {i['status']:<12}  {(i['summary'] or '')[:80]}")
 
 
+def cmd_dashboard(args):
+    """Render a self-contained HTML dashboard.
+
+    Writes to PATH if given, otherwise stdout. Pure static HTML+CSS;
+    no JavaScript needed for the basic view.
+    """
+    chgs = fold_changes(read_events(CHANGES))
+    incs = fold_incidents(read_events(INCIDENTS))
+    cmdb = load_cmdb().get("components", {})
+    freezes = load_freeze().get("freezes") or []
+    locks = sorted([p.name for p in LOCK_DIR.iterdir() if p.is_file() and p.name != ".gitkeep"])
+    now = dt.datetime.now(dt.timezone.utc)
+    cutoff_7d = now - dt.timedelta(days=7)
+
+    open_chgs = [c for c in chgs.values() if c["status"] not in {"closed", "rejected", "rolled_back"}]
+    open_incs = [i for i in incs.values() if i["status"] != "closed"]
+    recent_chgs = [c for c in chgs.values() if _ts(c.get("last_ts")) >= cutoff_7d]
+    recent_incs = [i for i in incs.values() if _ts(i.get("last_ts")) >= cutoff_7d]
+    risk_counts = {r: sum(1 for c in recent_chgs if c.get("risk") == r) for r in ("low","medium","high")}
+
+    def row_chg(c):
+        risk = c.get("risk") or "?"
+        return (
+            f'<tr class="r-{risk}"><td>{c["id"]}</td><td class="risk">{risk}</td>'
+            f'<td>{c["status"]}</td><td>{_h(c.get("resource") or "?")}</td>'
+            f'<td>{_h(c.get("summary") or "")}</td><td class="ts">{(c.get("last_ts") or "")[:19].replace("T"," ")}</td></tr>'
+        )
+
+    def row_inc(i):
+        sev = i.get("severity") or "?"
+        return (
+            f'<tr class="s-{sev}"><td>{i["id"]}</td><td class="sev">{sev}</td>'
+            f'<td>{i["status"]}</td><td>{_h(i.get("summary") or "")}</td>'
+            f'<td class="ts">{(i.get("last_ts") or "")[:19].replace("T"," ")}</td></tr>'
+        )
+
+    cmdb_rows = "".join(
+        f'<tr><td>{cid}</td><td>{_h(c.get("type",""))}</td><td>{_h(c.get("owner_agent",""))}</td><td>{"yes" if c.get("sensitive") else ""}</td><td>{_h(c.get("description",""))}</td></tr>'
+        for cid, c in sorted(cmdb.items())
+    )
+
+    open_chg_rows = "".join(row_chg(c) for c in sorted(open_chgs, key=lambda x: x.get("last_ts") or "", reverse=True)) or '<tr><td colspan="6" class="empty">none</td></tr>'
+    open_inc_rows = "".join(row_inc(i) for i in sorted(open_incs, key=lambda x: x.get("last_ts") or "", reverse=True)) or '<tr><td colspan="5" class="empty">none</td></tr>'
+    recent_chg_rows = "".join(row_chg(c) for c in sorted(recent_chgs, key=lambda x: x.get("last_ts") or "", reverse=True)) or '<tr><td colspan="6" class="empty">none</td></tr>'
+    recent_inc_rows = "".join(row_inc(i) for i in sorted(recent_incs, key=lambda x: x.get("last_ts") or "", reverse=True)) or '<tr><td colspan="5" class="empty">none</td></tr>'
+
+    active_freezes = [f for f in freezes if _freeze_active(f)]
+    freeze_block = ""
+    if active_freezes:
+        items = "".join(f'<li><strong>{_h(f.get("name",""))}</strong> — ends {f.get("ends","?")}, blocks {f.get("blocks")}: {_h(f.get("reason",""))}</li>' for f in active_freezes)
+        freeze_block = f'<section class="freeze"><h2>⚠ Active freeze windows</h2><ul>{items}</ul></section>'
+
+    lock_block = ""
+    if locks:
+        rows = "".join(f'<tr><td>{_h(l)}</td><td>{_h((LOCK_DIR / l).read_text().strip())}</td></tr>' for l in locks)
+        lock_block = f'<section><h2>Active locks</h2><table><thead><tr><th>resource</th><th>holder</th></tr></thead><tbody>{rows}</tbody></table></section>'
+
+    html = f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="refresh" content="60">
+<title>vdhinfra ops</title>
+<style>
+  :root {{ color-scheme: light dark; }}
+  body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+         margin: 0; padding: 0 24px 48px; max-width: 1400px; }}
+  header {{ position: sticky; top:0; background: Canvas; padding: 16px 0; border-bottom: 1px solid #ccc4; }}
+  h1 {{ margin: 0; font-size: 1.4rem; }}
+  h2 {{ margin: 28px 0 8px; font-size: 1.05rem; border-bottom: 1px solid #ccc4; padding-bottom: 4px; }}
+  .meta {{ color: #888; font-size: .85rem; }}
+  .kpis {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 14px 0; }}
+  .kpi {{ padding: 12px 14px; border: 1px solid #ccc4; border-radius: 8px; }}
+  .kpi .v {{ font-size: 1.6rem; font-weight: 600; }}
+  .kpi .l {{ font-size: .8rem; color: #888; text-transform: uppercase; letter-spacing: .04em; }}
+  table {{ border-collapse: collapse; width: 100%; font-size: .88rem; }}
+  th, td {{ text-align: left; padding: 6px 10px; border-bottom: 1px solid #ccc4; }}
+  th {{ font-weight: 600; color: #888; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; }}
+  td.ts {{ font-variant-numeric: tabular-nums; color: #888; font-size: .8rem; white-space: nowrap; }}
+  td.risk, td.sev {{ font-weight: 600; text-transform: uppercase; font-size: .72rem; }}
+  tr.r-low td.risk {{ color: #2a9d3f; }}
+  tr.r-medium td.risk {{ color: #c08a00; }}
+  tr.r-high td.risk {{ color: #c0392b; }}
+  tr.s-sev3 td.sev {{ color: #c08a00; }}
+  tr.s-sev2 td.sev {{ color: #c0392b; }}
+  tr.s-sev1 td.sev {{ color: #c0392b; font-weight: 800; }}
+  td.empty {{ color: #888; text-align: center; padding: 14px; }}
+  .freeze {{ padding: 14px; background: #fff5cf; border: 1px solid #c08a00; border-radius: 8px; margin-top: 14px; }}
+  @media (prefers-color-scheme: dark) {{
+    .freeze {{ background: #3a2c0a; }}
+  }}
+  footer {{ color: #888; font-size: .78rem; margin-top: 36px; }}
+</style>
+</head>
+<body>
+<header>
+  <h1>vdhinfra ops portal</h1>
+  <div class="meta">Generated {now.isoformat(timespec="seconds")} · auto-refresh 60s · <a href="/">health</a></div>
+</header>
+
+{freeze_block}
+
+<section>
+  <div class="kpis">
+    <div class="kpi"><div class="v">{len(open_chgs)}</div><div class="l">open changes</div></div>
+    <div class="kpi"><div class="v">{len(open_incs)}</div><div class="l">open incidents</div></div>
+    <div class="kpi"><div class="v">{len(locks)}</div><div class="l">active locks</div></div>
+    <div class="kpi"><div class="v">{len(recent_chgs)}</div><div class="l">changes / 7d</div></div>
+    <div class="kpi"><div class="v">{risk_counts['low']}/{risk_counts['medium']}/{risk_counts['high']}</div><div class="l">low / med / high / 7d</div></div>
+    <div class="kpi"><div class="v">{len(cmdb)}</div><div class="l">cmdb components</div></div>
+  </div>
+</section>
+
+<section>
+  <h2>Open changes</h2>
+  <table><thead><tr><th>id</th><th>risk</th><th>status</th><th>resource</th><th>summary</th><th>updated</th></tr></thead>
+  <tbody>{open_chg_rows}</tbody></table>
+</section>
+
+<section>
+  <h2>Open incidents</h2>
+  <table><thead><tr><th>id</th><th>sev</th><th>status</th><th>summary</th><th>updated</th></tr></thead>
+  <tbody>{open_inc_rows}</tbody></table>
+</section>
+
+{lock_block}
+
+<section>
+  <h2>Recent changes (7 days)</h2>
+  <table><thead><tr><th>id</th><th>risk</th><th>status</th><th>resource</th><th>summary</th><th>updated</th></tr></thead>
+  <tbody>{recent_chg_rows}</tbody></table>
+</section>
+
+<section>
+  <h2>Recent incidents (7 days)</h2>
+  <table><thead><tr><th>id</th><th>sev</th><th>status</th><th>summary</th><th>updated</th></tr></thead>
+  <tbody>{recent_inc_rows}</tbody></table>
+</section>
+
+<section>
+  <h2>CMDB ({len(cmdb)} components)</h2>
+  <table><thead><tr><th>id</th><th>type</th><th>owner</th><th>sensitive</th><th>description</th></tr></thead>
+  <tbody>{cmdb_rows}</tbody></table>
+</section>
+
+<footer>vdhinfra ops portal · event-sourced from ops/ in the repo · for the underlying CLI: <code>just ops status</code></footer>
+</body></html>
+"""
+
+    if args.html:
+        Path(args.html).write_text(html)
+        print(f"wrote {args.html} ({len(html)} bytes)")
+    else:
+        sys.stdout.write(html)
+
+
+def _h(s: str) -> str:
+    """Tiny HTML escape."""
+    return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+
+
 def _ts(s: str | None) -> dt.datetime:
     if not s:
         return dt.datetime.fromtimestamp(0, dt.timezone.utc)
@@ -624,6 +786,10 @@ def main():
     dg = sub.add_parser("digest")
     dg.add_argument("--days", type=int, default=1)
     dg.set_defaults(fn=cmd_digest)
+
+    db = sub.add_parser("dashboard", help="render a self-contained HTML dashboard")
+    db.add_argument("--html", help="write HTML to this path; stdout if omitted")
+    db.set_defaults(fn=cmd_dashboard)
 
     args = p.parse_args()
     args.fn(args)
