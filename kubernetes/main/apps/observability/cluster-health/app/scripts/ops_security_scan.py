@@ -46,9 +46,16 @@ def load_accepted_risks(workdir: Path) -> list[dict]:
             data = yaml.safe_load(f) or {}
         return data.get("risks") or []
     except ImportError:
-        # Fall back: parse by hand. Schema is intentionally simple.
+        # Fall back: parse by hand. Schema is intentionally simple — but
+        # we MUST strip surrounding quotes from values, otherwise the
+        # regex includes literal `"` characters and never matches.
         risks: list[dict] = []
         cur: dict | None = None
+        def _unquote(s: str) -> str:
+            s = s.strip()
+            if len(s) >= 2 and ((s[0] == s[-1] == '"') or (s[0] == s[-1] == "'")):
+                return s[1:-1]
+            return s
         for raw in p.read_text().splitlines():
             line = raw.rstrip()
             if not line.strip() or line.lstrip().startswith("#"):
@@ -56,12 +63,12 @@ def load_accepted_risks(workdir: Path) -> list[dict]:
             if line.startswith("  - id:"):
                 if cur:
                     risks.append(cur)
-                cur = {"id": line.split("id:", 1)[1].strip()}
+                cur = {"id": _unquote(line.split("id:", 1)[1])}
                 continue
             if cur is None or not line.startswith("    "):
                 continue
             k, _, v = line.strip().partition(":")
-            cur[k.strip()] = v.strip()
+            cur[k.strip()] = _unquote(v)
         if cur:
             risks.append(cur)
         return risks

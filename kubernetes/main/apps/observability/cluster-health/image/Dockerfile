@@ -13,6 +13,7 @@ RUN apk add --no-cache \
       openssl \
       jq \
       mosquitto-clients \
+      py3-yaml \
       tzdata \
  && curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl" \
       -o /usr/local/bin/kubectl \
