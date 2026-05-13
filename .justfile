@@ -28,3 +28,7 @@ lint:
 validate:
     find kubernetes/main -name "*.yaml" -not -name "*.sops.yaml" -not -path "*/config/*" -not -path "*/patches/*" | \
       xargs kubeconform -strict -ignore-missing-schemas -summary
+
+[doc('Infrastructure operations CLI (changes, incidents, locks, CMDB)')]
+ops *args:
+    ./ops/ops {{ args }}
