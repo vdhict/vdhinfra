@@ -1065,6 +1065,47 @@ def _load_unifi_topology() -> dict:
         return {}
 
 
+# Alertmanager live join — phase 2c, fold Prometheus alerts into the pill.
+# Default URL works in-cluster; locally returns None (don't change pill state).
+_AM_URL = os.environ.get(
+    "ALERTMANAGER_URL",
+    "http://kube-prometheus-stack-alertmanager.observability.svc.cluster.local:9093",
+)
+
+
+def _load_alertmanager_alerts() -> list[dict] | None:
+    """Fetch active alerts from Alertmanager. Returns list or None if
+    unreachable (so the pill stays at its non-AM state instead of going
+    fake-green when AM is just unavailable)."""
+    import urllib.request, urllib.error
+    try:
+        req = urllib.request.Request(
+            f"{_AM_URL}/api/v2/alerts?active=true&silenced=false&inhibited=false",
+            headers={"Accept": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=3) as r:
+            data = json.loads(r.read().decode())
+        if not isinstance(data, list):
+            return None
+        return data
+    except (urllib.error.URLError, urllib.error.HTTPError, OSError, json.JSONDecodeError):
+        return None
+    except Exception:
+        return None
+
+
+def _alert_severity_counts(alerts: list[dict]) -> dict[str, int]:
+    """Group alerts by severity label. Buckets: critical, warning, info, other."""
+    buckets = {"critical": 0, "warning": 0, "info": 0, "other": 0}
+    for a in alerts or []:
+        sev = ((a.get("labels") or {}).get("severity") or "").lower()
+        if sev in buckets:
+            buckets[sev] += 1
+        else:
+            buckets["other"] += 1
+    return buckets
+
+
 def _compute_health_state(s: dict) -> tuple[str, str, list[str]]:
     """Pill state machine — returns (level, headline, details).
 
@@ -1087,6 +1128,8 @@ def _compute_health_state(s: dict) -> tuple[str, str, list[str]]:
     active_freezes = s.get("active_freezes") or []
     open_chgs = s.get("open_chgs") or []
     topo = _load_unifi_topology()
+    am_alerts = _load_alertmanager_alerts()
+    am_buckets = _alert_severity_counts(am_alerts) if am_alerts is not None else None
 
     sev1 = [i for i in open_incs if i.get("severity") == "sev1"]
     sev2 = [i for i in open_incs if i.get("severity") == "sev2"]
@@ -1119,6 +1162,9 @@ def _compute_health_state(s: dict) -> tuple[str, str, list[str]]:
         details.append(f"family-critical component down: "
                        + ", ".join(fc_down[:3]))
         return ("down", "Infrastructure DOWN", details)
+    if am_buckets and am_buckets["critical"] > 0:
+        details.append(f"{am_buckets['critical']} critical alert(s) firing in Alertmanager")
+        return ("down", "Infrastructure DOWN", details)
 
     # ── DEGRADED ─────────────────────────────────────────────────────────
     if sev2 or sev3:
@@ -1128,6 +1174,9 @@ def _compute_health_state(s: dict) -> tuple[str, str, list[str]]:
         if sev3:
             details.append(f"{len(sev3)} sev3 incident open: "
                            + ", ".join(i["id"] for i in sev3[:3]))
+        return ("degraded", "Slow / Degraded", details)
+    if am_buckets and am_buckets["warning"] > 0:
+        details.append(f"{am_buckets['warning']} warning alert(s) firing in Alertmanager")
         return ("degraded", "Slow / Degraded", details)
     if active_freezes:
         details.append("change-freeze active: "
@@ -1144,11 +1193,18 @@ def _compute_health_state(s: dict) -> tuple[str, str, list[str]]:
 
     # ── OK ───────────────────────────────────────────────────────────────
     fc_count = len(family_critical_ids)
+    bits = []
     if fc_count:
-        details.append(f"{fc_count} family-critical components green "
-                       "(live-check pending phase 2b adapter)")
+        bits.append(f"{fc_count} family-critical components green")
+    if am_buckets is not None:
+        info_n = am_buckets.get("info", 0) + am_buckets.get("other", 0)
+        if info_n:
+            bits.append(f"{info_n} info alert(s) — non-actionable")
+        else:
+            bits.append("0 alerts firing")
     else:
-        details.append("no open incidents, no freezes, no stuck changes")
+        bits.append("Alertmanager unreachable from renderer (no signal added)")
+    details.append("; ".join(bits) if bits else "no open incidents, no freezes, no stuck changes")
     return ("ok", "Infrastructure OK", details)
 
 
