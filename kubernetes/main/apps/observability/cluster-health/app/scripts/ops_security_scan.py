@@ -166,8 +166,22 @@ def check_exposed_services() -> list[dict]:
         data = json.loads(res.stdout)
     except Exception:
         return findings
-    # well-known LB IPs allowlist (envoy gateways, others)
-    expected_lb = {"172.16.2.243", "172.16.2.241", "172.16.2.246"}
+    # well-known LB IPs allowlist. Each line tagged with its purpose so a
+    # future engineer can verify why an entry exists. New LBs added without
+    # being added here will surface as low-severity findings — by design.
+    expected_lb = {
+        "172.16.2.243",  # envoy-external (cluster-wide ingress, Cloudflare tunnel target)
+        "172.16.2.241",  # envoy-internal (LAN-only ingress)
+        "172.16.2.246",  # synology NAS NFS
+        "172.16.2.235",  # observability/promtail-syslog (syslog ingest)
+        "172.16.2.236",  # media/plex (Plex direct LAN)
+        "172.16.2.237",  # home-automation/home-assistant (direct LAN, HA cli)
+        "172.16.2.238",  # home-automation/music-assistant
+        "172.16.2.239",  # database/postgres-lb (CNPG read/write split-port)
+        "172.16.2.244",  # home-automation/mosquitto (MQTT broker)
+        "172.16.2.245",  # storage/minio-lb (offsite backup target)
+        "172.16.2.247",  # home-automation/tesla-http-proxy
+    }
     for s in data.get("items", []):
         st = s.get("spec", {}).get("type", "")
         if st not in ("LoadBalancer", "NodePort"):
