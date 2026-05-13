@@ -115,6 +115,8 @@ spec:
       # LAN-only kiosk hostname. No Cloudflare DNS entry; no AAAA leakage.
       # Lets the kitchen tablet keep `local_only: True` on its user.
       kiosk:
+        annotations:
+          external-dns.alpha.kubernetes.io/controller: none
         parentRefs:
           - name: envoy-internal
             namespace: network
