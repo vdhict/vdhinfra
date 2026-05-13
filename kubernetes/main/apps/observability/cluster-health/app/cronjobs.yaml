@@ -484,6 +484,10 @@ spec:
                     name: cluster-health-secret
                     optional: true
               volumeMounts:
+                # lib.py (transitively imported via git_push.py) creates /data/raw
+                # at import time. Mount the same PVC even though we only read here.
+                - name: data
+                  mountPath: /data
                 - name: scripts
                   mountPath: /scripts
                 - name: secret
@@ -493,6 +497,9 @@ spec:
                 requests: { cpu: 10m, memory: 64Mi }
                 limits: { cpu: 200m, memory: 256Mi }
           volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: cluster-health-data
             - name: scripts
               configMap:
                 name: cluster-health-scripts
