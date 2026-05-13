@@ -750,20 +750,26 @@ def _load_risks() -> dict:
 
 def _page(title: str, current: str, body: str, gen_ts: dt.datetime,
           extra_meta: str = "") -> str:
+    # Local-portal tabs first (relative paths). Then external deep-links
+    # to Grafana for metrics dashboards + Loki searches — open in new tab.
     tabs = [
-        ("index.html", "Overview"),
-        ("topology.html", "Topology"),
-        ("changes.html", "Changes"),
-        ("incidents.html", "Incidents"),
-        ("cmdb.html", "CMDB"),
-        ("risks.html", "Risks"),
-        ("team.html", "Team"),
-        ("reports.html", "Health reports"),
+        ("index.html", "Overview", False),
+        ("topology.html", "Topology", False),
+        ("changes.html", "Changes", False),
+        ("incidents.html", "Incidents", False),
+        ("cmdb.html", "CMDB", False),
+        ("risks.html", "Risks", False),
+        ("team.html", "Team", False),
+        ("reports.html", "Health reports", False),
+        ("https://grafana.bluejungle.net/", "Grafana ↗", True),
+        ("https://grafana.bluejungle.net/explore?left=%7B%22datasource%22%3A%22Loki%22%7D", "Logs ↗", True),
     ]
-    nav = "".join(
-        f'<a href="{href}"{" class=\"cur\"" if href == current else ""}>{_h(label)}</a>'
-        for href, label in tabs
-    )
+    parts = []
+    for href, label, external in tabs:
+        cur_cls = ' class="cur"' if href == current else ''
+        target_attr = ' target="_blank" rel="noopener"' if external else ''
+        parts.append(f'<a href="{href}"{cur_cls}{target_attr}>{_h(label)}</a>')
+    nav = "".join(parts)
     return (
         '<!doctype html>\n'
         '<html lang="en"><head><meta charset="utf-8">'

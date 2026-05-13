@@ -296,15 +296,54 @@ components:
   obs.prometheus:
     type: k8s-app
     owner_agent: k8s-engineer
-    description: kube-prometheus-stack
+    description: kube-prometheus-stack — metrics ingest + Alertmanager + ServiceMonitors
     depends_on: [k8s.cluster]
     sensitive: false
+    tier: 5
+    group: observability
+    sla_tier: ops-only
+    health_source: k8s://statefulset/observability/prometheus-kube-prometheus-stack
   obs.grafana:
     type: k8s-app
     owner_agent: k8s-engineer
-    description: Grafana for cluster + Ceph + HA dashboards
+    description: Grafana — dashboards over Prometheus + Loki + Ceph
+    depends_on: [obs.prometheus, obs.loki]
+    sensitive: false
+    tier: 5
+    group: observability
+    sla_tier: ops-only
+    health_source: k8s://deploy/observability/grafana
+    external_id: https://grafana.bluejungle.net
+  obs.loki:
+    type: k8s-app
+    owner_agent: k8s-engineer
+    description: Loki — log aggregation. Receives syslog from the UDM on LB 172.16.2.235:1514/UDP via promtail-syslog.
+    depends_on: [k8s.cluster, k8s.storage.rook-ceph]
+    sensitive: false
+    tier: 5
+    group: observability
+    sla_tier: ops-only
+    health_source: k8s://statefulset/observability/loki
+  obs.promtail:
+    type: k8s-app
+    owner_agent: k8s-engineer
+    description: Promtail — log shipper. DaemonSet (per-node) + a `promtail-syslog` LoadBalancer Service at 172.16.2.235:1514/UDP that the UDM is configured to push syslog to.
+    depends_on: [obs.loki]
+    sensitive: false
+    tier: 5
+    group: observability
+    sla_tier: ops-only
+    health_source: k8s://daemonset/observability/promtail
+  obs.alertmanager:
+    type: k8s-app
+    owner_agent: k8s-engineer
+    description: Alertmanager — alert routing (rolled into kube-prometheus-stack)
     depends_on: [obs.prometheus]
     sensitive: false
+    tier: 5
+    group: observability
+    sla_tier: ops-only
+    health_source: k8s://statefulset/observability/alertmanager-kube-prometheus-stack
   obs.health_report:
     type: k8s-app
     owner_agent: k8s-engineer
