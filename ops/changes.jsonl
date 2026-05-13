@@ -54,3 +54,9 @@
 {"actor":"k8s-engineer","chg":"chg-2026-05-13-004","event":"executed","payload":{"commits":["e5451a1"],"external_actions":["flux reconcile","pod rollout"]},"ts":"2026-05-13T05:47:00Z"}
 {"actor":"k8s-engineer","chg":"chg-2026-05-13-004","event":"validated","payload":{"evidence":"4 tunnel conns AMS, external 200 in 77ms","status":"pass"},"ts":"2026-05-13T05:48:00Z"}
 {"actor":"infra-ops","chg":"chg-2026-05-13-004","event":"closed","payload":{"outcome":"success"},"ts":"2026-05-13T05:49:00Z"}
+{"actor":"infra-ops","chg":"chg-2026-05-13-005","event":"requested","payload":{"reason":"verify the CLI end-to-end","requested_by":"infra-ops","summary":"smoke test"},"resource":"ops.smoketest","risk":"low","ts":"2026-05-13T06:45:37Z"}
+{"actor":"infra-ops","chg":"chg-2026-05-13-005","event":"planned","payload":{"files":[],"rollback":"none","validation_plan":"just-list these changes"},"ts":"2026-05-13T06:45:38Z"}
+{"actor":"change-qa","chg":"chg-2026-05-13-005","event":"qa_passed","payload":{"checks":["trivial"]},"ts":"2026-05-13T06:45:38Z"}
+{"actor":"infra-ops","chg":"chg-2026-05-13-005","event":"executed","payload":{"external_actions":["noop"]},"ts":"2026-05-13T06:45:38Z"}
+{"actor":"infra-ops","chg":"chg-2026-05-13-005","event":"validated","payload":{"evidence":"CLI returned 0 on every step","status":"pass"},"ts":"2026-05-13T06:45:38Z"}
+{"actor":"infra-ops","chg":"chg-2026-05-13-005","event":"closed","payload":{"outcome":"success"},"ts":"2026-05-13T06:45:38Z"}
