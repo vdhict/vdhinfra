@@ -1,5 +1,5 @@
 #!/bin/sh
-# Clone the repo (shallow) and render the ops dashboard HTML into the
+# Clone the repo (shallow) and render the ops portal HTML into the
 # nginx-served path. Idempotent — runs every 10 minutes via CronJob.
 #
 # Inputs (env):
@@ -7,9 +7,14 @@
 #   GIT_BRANCH                — main
 #   GITHUB_APP_*              — used by gh_app_token.py
 #
-# Output:
-#   /data/web/ops.html        — the rendered dashboard
+# Output (portal v2 — chg-2026-05-13-018):
+#   /data/web/index.html, changes.html, incidents.html, cmdb.html,
+#   risks.html, team.html — the multi-page ops portal
 #   /data/web/ops-snapshot.json — machine-readable snapshot
+#
+# Historic note: pre-v2 wrote a single /data/web/ops.html; that file is
+# left in place by this script (not deleted) so old bookmarks still work
+# until the daily prune cycle cleans it up.
 set -eu
 
 WORK=/tmp/ops-render-$$
@@ -33,8 +38,8 @@ cd "$WORK"
 mkdir -p /data/web
 chmod +x ops/ops
 
-echo "[ops_render] rendering HTML" >&2
-python3 ops/ops dashboard --html /data/web/ops.html
+echo "[ops_render] rendering portal v2 → /data/web (directory mode)" >&2
+python3 ops/ops dashboard --html /data/web
 
 # Also write a JSON snapshot (just the state, for any future API consumer).
 # This is best-effort; failure here doesn't fail the job.
@@ -54,5 +59,5 @@ with open("/data/web/ops-snapshot.json", "w") as f:
     _j.dump(snapshot, f)
 PY
 
-bytes_html=$(wc -c < /data/web/ops.html)
-echo "[ops_render] OK — wrote /data/web/ops.html (${bytes_html} bytes)" >&2
+bytes_index=$(wc -c < /data/web/index.html 2>/dev/null || echo 0)
+echo "[ops_render] OK — wrote /data/web/index.html (${bytes_index} bytes) + siblings" >&2

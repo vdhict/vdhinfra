@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-"""Generate the daily report (markdown + HTML) and refresh the web index.
+"""Generate the daily report (markdown + HTML) and refresh the reports index.
 Reads raw + triage + trends, computes a headline status, and writes:
   /data/reports/YYYY-MM-DD.md
   /data/web/YYYY-MM-DD.html
-  /data/web/index.html
+  /data/web/reports.html      # daily-reports listing (was index.html)
 Old reports beyond 30 days are pruned.
+
+Note: /data/web/index.html is owned by the ops portal v2 renderer
+(`ops/ops dashboard --html /data/web`, chg-2026-05-13-018). This script
+must NOT write index.html or it would clobber the portal landing.
 """
 from __future__ import annotations
 
@@ -424,7 +428,7 @@ def render_html(date: str, color: str, headline: str, md: str, trends: dict) -> 
         charts.append(render_svg_chart(ceph_raw["series"], color="#ef6c00"))
     chart_block = "\n".join(charts)
 
-    nav = '<nav><a href="index.html">← All reports</a></nav>'
+    nav = '<nav><a href="reports.html">← All reports</a> · <a href="index.html">Ops portal</a></nav>'
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <title>Cluster Health — {date}</title>
@@ -455,6 +459,7 @@ def render_index(reports: list[dict]) -> str:
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Cluster Health</title>
 <style>{CSS}{badge_css}</style></head><body>
+<nav><a href="index.html">← Ops portal</a></nav>
 <h1>Cluster Health Reports</h1>
 <p>Daily reports for the homelab Kubernetes cluster. Most recent first.</p>
 <table><thead><tr><th>Date</th><th>Status</th></tr></thead><tbody>
@@ -519,7 +524,7 @@ def main() -> int:
         reports.append({"date": d, "headline": h, "color": c})
         if len(reports) >= 14:
             break
-    (WEB_DIR / "index.html").write_text(render_index(reports))
+    (WEB_DIR / "reports.html").write_text(render_index(reports))
 
     prune_old(30)
     log(f"report done for {date}: {color}/{headline}")
