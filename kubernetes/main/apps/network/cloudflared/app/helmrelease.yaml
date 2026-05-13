@@ -71,6 +71,21 @@ spec:
         runAsUser: 65534
         runAsGroup: 65534
         seccompProfile: { type: RuntimeDefault }
+      # Cloudflared trips over CoreDNS's compressed SRV response for
+      # `_v2-origintunneld._tcp.argotunnel.com` and exits, causing ~10
+      # restarts/day. Send DNS straight to 1.1.1.1 which returns
+      # uncompressed records.
+      dnsPolicy: None
+      dnsConfig:
+        nameservers:
+          - 1.1.1.1
+          - 1.0.0.1
+        searches:
+          - cluster.local
+          - svc.cluster.local
+        options:
+          - name: ndots
+            value: "5"
     service:
       app:
         controller: cloudflared
