@@ -123,6 +123,7 @@ spec:
             sectionName: https
         hostnames:
           - keuken.${SECRET_DOMAIN}
+          - kantoor.${SECRET_DOMAIN}
         rules:
           - backendRefs:
               - name: home-assistant
