@@ -6,9 +6,14 @@ metadata:
   name: &app vector
 spec:
   interval: 30m
-  chartRef:
-    kind: OCIRepository
-    name: vector
+  chart:
+    spec:
+      chart: vector
+      version: 0.52.0
+      sourceRef:
+        kind: HelmRepository
+        name: vector
+        namespace: flux-system
   install:
     remediation:
       retries: 3
