@@ -1505,38 +1505,90 @@ def _render_topology_via_graphviz(s: dict) -> str:
     def safe(cid: str) -> str:
         return "n_" + re.sub(r"[^a-zA-Z0-9]", "_", cid)
 
+    # Target: SVG no wider than ~1300pt (≈ 1730px in the browser after
+    # the 96/72 dpi pt→px scaling), height free to grow vertically — web
+    # pages scroll down naturally. `unflatten` (run below) is the key:
+    # it breaks wide ranks by injecting dummy structural nodes, turning
+    # a 4000pt-wide layout into ~1200pt wide × multi-row tall. We do
+    # NOT use `ratio=compress` — that squashes text. We constrain only
+    # the *width* via aspect, letting height go where it wants.
     lines = [
         'digraph topology {',
-        '  rankdir=TB; bgcolor="transparent"; pad=0.2;'
-        ' nodesep=0.20; ranksep=0.50; concentrate=true;',
+        '  rankdir=TB; bgcolor="transparent"; pad=0.3;'
+        ' nodesep=0.18; ranksep=0.45; concentrate=true; splines=spline;',
         '  fontname="system-ui";',
         '  node [shape=box, style="rounded,filled", fontname="system-ui",'
-        ' fontsize=11, color="#888", fillcolor="white"];',
-        '  edge [color="#888", arrowsize=0.6, penwidth=0.9];',
+        ' fontsize=11, height=0.32, margin="0.07,0.04",'
+        ' color="#888", fillcolor="white"];',
+        '  edge [color="#888", arrowsize=0.55, penwidth=0.8];',
     ]
+    # Hidden anchors per (tier, group) row, used to chain rows vertically
+    # via invisible edges so dot stacks groups instead of putting them
+    # all on one row inside the tier cluster.
+    row_anchors: list[tuple[int, str]] = []
     for t in sorted(by_tier.keys()):
         members = by_tier[t]
+        # Partition this tier by group, then within each group bucket
+        # nodes into chunks so no single row gets too wide.
+        by_group: dict[str, list] = {}
+        for cid, comp in members:
+            g = (comp or {}).get("group") or "—"
+            by_group.setdefault(g, []).append((cid, comp))
         lines.append(f'  subgraph cluster_t{t} {{')
         lines.append(f'    label="{t} — {_TIER_LABELS.get(t, str(t))}";'
-                     ' style="dashed"; color="#bbb"; fontsize=10; fontcolor="#888";')
-        for cid, comp in members:
-            st = _node_status(cid, topo)
-            fill = {
-                "ok": "#e8f7eb", "warning": "#fff5cf",
-                "down": "#ffe5e0", "unknown": "white",
-            }.get(st, "white")
-            border = {
-                "ok": "#2a9d3f", "warning": "#c08a00",
-                "down": "#c0392b", "unknown": "#888",
-            }.get(st, "#888")
-            label = cid
-            tooltip = (comp.get("description") or "")[:120].replace('"', "'")
-            lines.append(
-                f'    {safe(cid)} [label="{label}", '
-                f'fillcolor="{fill}", color="{border}", '
-                f'tooltip="{tooltip}", URL="cmdb.html#{cid}", target="_top"];'
-            )
+                     ' style="dashed"; color="#bbb"; fontsize=11;'
+                     ' fontcolor="#888"; labeljust=l;')
+        # Render each group as its own row of nodes
+        for gi, g_name in enumerate(sorted(by_group.keys())):
+            g_members = by_group[g_name]
+            # chunk wide groups into rows of at most ROW_MAX nodes.
+            # 5 keeps the widest row at ~1250pt → ≈1670px in the browser
+            # at 96dpi → fits Full-HD viewport without horizontal scroll.
+            ROW_MAX = 5
+            for chunk_i in range(0, len(g_members), ROW_MAX):
+                chunk = g_members[chunk_i:chunk_i + ROW_MAX]
+                anchor = f"_a_t{t}_g{gi}_c{chunk_i}"
+                # invisible anchor node — never drawn, just gives the
+                # row a node that we can chain row-to-row with invis
+                # edges (forces vertical stacking).
+                lines.append(
+                    f'    {anchor} [shape=point, width=0, height=0,'
+                    ' style=invis];'
+                )
+                row_anchors.append((t, anchor))
+                # rank=same forces this chunk onto one row
+                lines.append('    { rank=same;')
+                lines.append(f'      {anchor};')
+                for cid, comp in chunk:
+                    st = _node_status(cid, topo)
+                    fill = {
+                        "ok": "#e8f7eb", "warning": "#fff5cf",
+                        "down": "#ffe5e0", "unknown": "white",
+                    }.get(st, "white")
+                    border = {
+                        "ok": "#2a9d3f", "warning": "#c08a00",
+                        "down": "#c0392b", "unknown": "#888",
+                    }.get(st, "#888")
+                    label = cid
+                    tooltip = (comp.get("description") or "")[:120].replace('"', "'")
+                    lines.append(
+                        f'      {safe(cid)} [label="{label}", '
+                        f'fillcolor="{fill}", color="{border}", '
+                        f'tooltip="{tooltip}", URL="cmdb.html#{cid}", '
+                        'target="_top"];'
+                    )
+                lines.append('    }')
         lines.append('  }')
+    # Invisible chain between row anchors — forces dot to stack rows
+    # vertically. Without this, multiple rank=same blocks within the
+    # same cluster collapse onto the same rank again.
+    for i in range(len(row_anchors) - 1):
+        ta, a = row_anchors[i]
+        tb, b = row_anchors[i + 1]
+        # only chain anchors within the same tier (between-tier ordering
+        # is driven by the real depends_on edges, not these anchors)
+        if ta == tb:
+            lines.append(f'  {a} -> {b} [style=invis, weight=10];')
     # edges from depends_on
     for cid, comp in cmdb.items():
         for dep in (comp or {}).get("depends_on") or []:
@@ -1545,8 +1597,17 @@ def _render_topology_via_graphviz(s: dict) -> str:
     lines.append('}')
     dot_src = "\n".join(lines)
     try:
+        # `unflatten -l 4 -c 6` rebalances the layout: caps each rank at
+        # ~4 leaves and allows up to 6 chain-staggers. With 49 nodes in
+        # tier 4 the result is roughly a 4×13 grid instead of a 49×1
+        # strip — closer to a square aspect.
+        unflat = subprocess.run(
+            ["unflatten", "-f", "-l", "4", "-c", "6"],
+            input=dot_src, capture_output=True, text=True, timeout=10,
+        )
+        balanced = unflat.stdout if unflat.returncode == 0 else dot_src
         out = subprocess.run(
-            ["dot", "-Tsvg"], input=dot_src, capture_output=True,
+            ["dot", "-Tsvg"], input=balanced, capture_output=True,
             text=True, timeout=10, check=True,
         ).stdout
     except Exception as exc:
@@ -1606,30 +1667,28 @@ def _render_topology_via_css_grid(s: dict) -> str:
 
 
 def _render_topology_page(s: dict) -> str:
-    # Default to CSS-grid: at 66+ components dot produces a ~4000pt-wide
-    # SVG that the browser shrinks to illegibility. CSS-grid renders as
-    # responsive grouped boxes per tier, no edges (which are visual noise
-    # at this density anyway). Set OPS_TOPO=graphviz to opt back in.
+    # Default is the Graphviz `dot` + `unflatten` path with a Full-HD
+    # size constraint (see _render_topology_via_graphviz). When dot isn't
+    # on PATH, fall back to the CSS-grid renderer. Set OPS_TOPO=cssgrid
+    # to force the no-edges grid view regardless.
     import os
-    prefer_dot = os.environ.get("OPS_TOPO") == "graphviz"
     have_dot = _has_graphviz()
+    force_grid = os.environ.get("OPS_TOPO") == "cssgrid"
     topo = _load_unifi_topology()
-    if prefer_dot and have_dot:
+    if have_dot and not force_grid:
         body_inner = _render_topology_via_graphviz(s)
-        path_note = "Rendered via Graphviz <code>dot</code> (OPS_TOPO=graphviz)."
+        path_note = (
+            "Rendered via Graphviz <code>dot</code> with "
+            "<code>unflatten -l6 -c3</code> rebalancing and a Full-HD "
+            "size constraint. Set <code>OPS_TOPO=cssgrid</code> on the "
+            "CronJob to render the edgeless grid view instead."
+        )
     else:
         body_inner = _render_topology_via_css_grid(s)
-        if have_dot:
-            path_note = (
-                "Rendered as responsive CSS-grid (default at 60+ components). "
-                "Set <code>OPS_TOPO=graphviz</code> on the CronJob to render "
-                "the dependency-edge SVG instead."
-            )
-        else:
-            path_note = (
-                "Rendered as CSS-grid (Graphviz <code>dot</code> not "
-                "available)."
-            )
+        path_note = (
+            "Rendered as CSS-grid "
+            f"({'forced via OPS_TOPO' if force_grid else 'Graphviz not on PATH'})."
+        )
     live_note = (
         f'{len(topo)} live components from <code>/data/unifi-topology.json</code>'
         if topo else
