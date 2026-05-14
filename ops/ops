@@ -38,6 +38,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 import datetime as dt
@@ -1094,6 +1095,175 @@ def _load_alertmanager_alerts() -> list[dict] | None:
         return None
 
 
+# k8s health-source adapter (phase 2d). Pulls live status for every
+# CMDB entry whose health_source starts with k8s:// in a single batched
+# call per resource-kind. Cached for the duration of one render.
+#
+# URI schemes consumed:
+#   k8s://deploy/<ns>/<name>       → Deployment.status.availableReplicas
+#   k8s://daemonset/<ns>/<name>    → DaemonSet.status.numberReady == desired
+#   k8s://statefulset/<ns>/<name>  → StatefulSet.status.readyReplicas
+#   k8s://hr/<ns>/<name>           → Flux HelmRelease Ready condition
+#   k8s://node/<name>              → Node Ready condition
+#   k8s://nodes/ready-count        → all-nodes ready aggregate
+#
+# Return shape: {cmdb_id: {"status": "ok"|"warning"|"down"|"unknown",
+#                          "detail": "<one line>"}}
+
+_K8S_STATUS_CACHE: dict | None = None
+
+
+def _kubectl_json(args: list[str]) -> dict | None:
+    """Run kubectl, return parsed JSON or None on failure."""
+    try:
+        proc = subprocess.run(
+            ["kubectl", *args, "-o", "json"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if proc.returncode != 0:
+            return None
+        return json.loads(proc.stdout)
+    except (FileNotFoundError, subprocess.TimeoutExpired, json.JSONDecodeError):
+        return None
+
+
+def _load_k8s_status(cmdb: dict) -> dict:
+    """For each CMDB entry whose health_source begins k8s://, compute a
+    live status. Batches kubectl calls per resource kind. Skips silently
+    if kubectl isn't available (local renders without cluster access)."""
+    global _K8S_STATUS_CACHE
+    if _K8S_STATUS_CACHE is not None:
+        return _K8S_STATUS_CACHE
+
+    out: dict[str, dict] = {}
+    # parse cmdb → grouped lookups: kind → [(cmdb_id, ns, name)]
+    by_kind: dict[str, list[tuple[str, str, str]]] = defaultdict(list)
+    for cid, c in (cmdb or {}).items():
+        hs = (c or {}).get("health_source") or ""
+        if not hs.startswith("k8s://"):
+            continue
+        rest = hs[len("k8s://"):]
+        parts = rest.split("/")
+        if not parts:
+            continue
+        kind = parts[0]
+        if kind == "nodes" and len(parts) >= 2 and parts[1] == "ready-count":
+            by_kind["nodes-ready-count"].append((cid, "", ""))
+        elif kind == "node" and len(parts) >= 2:
+            by_kind["node"].append((cid, "", parts[1]))
+        elif kind in ("deploy", "daemonset", "statefulset", "hr") and len(parts) >= 3:
+            by_kind[kind].append((cid, parts[1], parts[2]))
+        else:
+            out[cid] = {"status": "unknown", "detail": f"unparseable: {hs}"}
+
+    # nodes (full list — used by both ready-count and individual node entries)
+    if by_kind["node"] or by_kind["nodes-ready-count"]:
+        nodes_data = _kubectl_json(["get", "nodes"])
+        node_status: dict[str, str] = {}
+        node_ready = 0
+        node_total = 0
+        if nodes_data:
+            for n in nodes_data.get("items", []):
+                nm = n["metadata"]["name"]
+                node_total += 1
+                ready = "Unknown"
+                for cond in (n.get("status", {}).get("conditions") or []):
+                    if cond.get("type") == "Ready":
+                        ready = cond.get("status", "Unknown")
+                        break
+                node_status[nm] = ready
+                if ready == "True":
+                    node_ready += 1
+        for cid, _, _ in by_kind["nodes-ready-count"]:
+            if not nodes_data:
+                out[cid] = {"status": "unknown", "detail": "kubectl unavailable"}
+            elif node_ready == node_total:
+                out[cid] = {"status": "ok", "detail": f"{node_ready}/{node_total} nodes Ready"}
+            elif node_ready >= node_total - 1:
+                out[cid] = {"status": "warning", "detail": f"{node_ready}/{node_total} nodes Ready"}
+            else:
+                out[cid] = {"status": "down", "detail": f"{node_ready}/{node_total} nodes Ready"}
+        for cid, _, name in by_kind["node"]:
+            r = node_status.get(name, "Missing")
+            if r == "True":
+                out[cid] = {"status": "ok", "detail": "Ready"}
+            elif r == "Missing":
+                out[cid] = {"status": "down", "detail": "node not in cluster"}
+            else:
+                out[cid] = {"status": "down", "detail": f"NotReady ({r})"}
+
+    # Deployments / DaemonSets / StatefulSets — query all in their namespace,
+    # then index by name. Cheaper than one kubectl per item.
+    kind_to_resource = {
+        "deploy": "deployments",
+        "daemonset": "daemonsets",
+        "statefulset": "statefulsets",
+    }
+    for kind, resource in kind_to_resource.items():
+        if not by_kind[kind]:
+            continue
+        namespaces = {ns for _, ns, _ in by_kind[kind]}
+        for ns in namespaces:
+            data = _kubectl_json(["get", resource, "-n", ns])
+            items = {i["metadata"]["name"]: i for i in (data.get("items", []) if data else [])}
+            for cid, c_ns, c_name in by_kind[kind]:
+                if c_ns != ns:
+                    continue
+                obj = items.get(c_name)
+                if obj is None:
+                    out[cid] = {"status": "down", "detail": f"{resource}/{c_name} not found in {ns}"}
+                    continue
+                spec_rep = obj.get("spec", {}).get("replicas", 1)
+                status = obj.get("status", {})
+                if resource == "deployments":
+                    ready = status.get("availableReplicas") or 0
+                    desired = spec_rep or 0
+                elif resource == "daemonsets":
+                    ready = status.get("numberReady") or 0
+                    desired = status.get("desiredNumberScheduled") or 0
+                else:  # statefulsets
+                    ready = status.get("readyReplicas") or 0
+                    desired = spec_rep or 0
+                if desired == 0:
+                    out[cid] = {"status": "warning", "detail": f"{resource}/{c_name}: replicas=0"}
+                elif ready == desired:
+                    out[cid] = {"status": "ok", "detail": f"{ready}/{desired} ready"}
+                elif ready == 0:
+                    out[cid] = {"status": "down", "detail": f"0/{desired} ready"}
+                else:
+                    out[cid] = {"status": "warning", "detail": f"{ready}/{desired} ready"}
+
+    # Flux HelmReleases — Ready condition.
+    if by_kind["hr"]:
+        namespaces = {ns for _, ns, _ in by_kind["hr"]}
+        for ns in namespaces:
+            data = _kubectl_json(["get", "helmreleases.helm.toolkit.fluxcd.io", "-n", ns])
+            items = {i["metadata"]["name"]: i for i in (data.get("items", []) if data else [])}
+            for cid, c_ns, c_name in by_kind["hr"]:
+                if c_ns != ns:
+                    continue
+                obj = items.get(c_name)
+                if obj is None:
+                    out[cid] = {"status": "down", "detail": f"hr/{c_name} not found in {ns}"}
+                    continue
+                ready = "Unknown"
+                msg = ""
+                for cond in (obj.get("status", {}).get("conditions") or []):
+                    if cond.get("type") == "Ready":
+                        ready = cond.get("status", "Unknown")
+                        msg = cond.get("reason", "")
+                        break
+                if ready == "True":
+                    out[cid] = {"status": "ok", "detail": f"HelmRelease Ready ({msg})"}
+                elif ready == "False":
+                    out[cid] = {"status": "down", "detail": f"HelmRelease not Ready: {msg}"}
+                else:
+                    out[cid] = {"status": "warning", "detail": f"HelmRelease state: {ready}"}
+
+    _K8S_STATUS_CACHE = out
+    return out
+
+
 def _alert_severity_counts(alerts: list[dict]) -> dict[str, int]:
     """Group alerts by severity label. Buckets: critical, warning, info, other."""
     buckets = {"critical": 0, "warning": 0, "info": 0, "other": 0}
@@ -1128,8 +1298,15 @@ def _compute_health_state(s: dict) -> tuple[str, str, list[str]]:
     active_freezes = s.get("active_freezes") or []
     open_chgs = s.get("open_chgs") or []
     topo = _load_unifi_topology()
+    k8s_status = _load_k8s_status(cmdb)
     am_alerts = _load_alertmanager_alerts()
     am_buckets = _alert_severity_counts(am_alerts) if am_alerts is not None else None
+
+    # Merge live status sources into one map. k8s status takes precedence
+    # over unifi when both exist (k8s is closer to what the cluster actually
+    # runs); UniFi only covers the network-tier components anyway.
+    live: dict[str, dict] = dict(topo or {})
+    live.update(k8s_status or {})
 
     sev1 = [i for i in open_incs if i.get("severity") == "sev1"]
     sev2 = [i for i in open_incs if i.get("severity") == "sev2"]
@@ -1140,9 +1317,9 @@ def _compute_health_state(s: dict) -> tuple[str, str, list[str]]:
         if (c or {}).get("sla_tier") == "family-critical"
     ]
     fc_down = [cid for cid in family_critical_ids
-               if (topo.get(cid) or {}).get("status") == "down"]
+               if (live.get(cid) or {}).get("status") == "down"]
     fc_warn = [cid for cid in family_critical_ids
-               if (topo.get(cid) or {}).get("status") == "warning"]
+               if (live.get(cid) or {}).get("status") == "warning"]
 
     # Stuck-change detector: executed but not validated for >30 min.
     now = s.get("now") or dt.datetime.now(dt.timezone.utc)
@@ -1282,11 +1459,20 @@ def _infer_tier(cid: str, comp: dict) -> int:
     return 4
 
 
-def _node_status(cid: str, topo: dict) -> str:
-    v = (topo.get(cid) or {}).get("status")
+def _node_status(cid: str, live: dict) -> str:
+    """Read live status for a CMDB id from the merged (unifi+k8s) state map."""
+    v = (live.get(cid) or {}).get("status")
     if v in ("ok", "warning", "down", "unknown"):
         return v
     return "unknown"
+
+
+def _merged_live(cmdb: dict) -> dict:
+    """Merge UniFi-topology and k8s-status live state into one map keyed by
+    CMDB id. k8s wins where both fire."""
+    merged: dict = dict(_load_unifi_topology() or {})
+    merged.update(_load_k8s_status(cmdb) or {})
+    return merged
 
 
 def _has_graphviz() -> bool:
@@ -1310,9 +1496,9 @@ def _topology_tiers(s: dict) -> dict[int, list[tuple[str, dict]]]:
 def _render_topology_via_graphviz(s: dict) -> str:
     """Pipe a DOT description through `dot -Tsvg` and return inline SVG."""
     import subprocess
-    topo = _load_unifi_topology()
-    by_tier = _topology_tiers(s)
     cmdb = s.get("cmdb") or {}
+    topo = _merged_live(cmdb)
+    by_tier = _topology_tiers(s)
 
     def safe(cid: str) -> str:
         return "n_" + re.sub(r"[^a-zA-Z0-9]", "_", cid)
@@ -1376,7 +1562,8 @@ def _render_topology_via_graphviz(s: dict) -> str:
 
 def _render_topology_via_css_grid(s: dict) -> str:
     """Fallback when Graphviz isn't on PATH — 5 rows of grouped boxes."""
-    topo = _load_unifi_topology()
+    cmdb = s.get("cmdb") or {}
+    topo = _merged_live(cmdb)
     by_tier = _topology_tiers(s)
     rows_html = []
     for t in sorted(by_tier.keys()):
