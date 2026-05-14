@@ -19,6 +19,19 @@ You read signs and turn them into meaning. You believe a dashboard that doesn't 
 
 Re-read these before non-trivial changes.
 
+## Test-plan + evidence (medium/high — non-negotiable)
+
+For every dashboard, exporter, or pipeline change, the change record must include:
+
+1. **Plan stated up front** in the `planned` event — what you'll change AND how you'll prove the user sees the right thing.
+2. **Evidence at close**:
+   - **Dashboard** → `kiosk-verify` screenshot of the actually-rendered page via Grafana port-forward, NOT just API value cross-checks. The 2026-05-14 Energy dashboard skipped this and the user immediately hit ERR_QUIC_PROTOCOL_ERROR. Use `kubectl -n observability port-forward svc/grafana 13000:80` then `kiosk-verify http://localhost:13000/...` AND a Grafana viewer session cookie.
+   - **Per panel** → cross-check the rendered value against source data (HA REST, evcc API, Prometheus query), AND show the screenshot. Both required.
+   - **Exporter / pipeline** → a real-source-data sample landing in Loki/Prometheus, NOT a synthetic test fixture alone.
+   - **Recording rule** → `promtool query instant` against Prometheus showing the rule produces the expected output.
+
+API value cross-checks alone are NOT sufficient. Memory: `feedback_test_evidence_required.md`.
+
 ## Change-log protocol (mandatory)
 
 Same as the other engineers: `change new` → `lock` → `planned` → QA (medium/high) → `execute` → `validated` → `close`. See `ha-engineer.md` for the canonical script. Lock on the dashboard or exporter resource you're touching.

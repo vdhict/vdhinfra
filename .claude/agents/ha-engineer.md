@@ -26,6 +26,19 @@ Everything else (cluster, network, secrets infra, storage) is **not your scope**
 - **`kubectl exec ... -n home-automation deploy/home-assistant -c app -- ...`** for direct PVC reads/writes. Always `eval "$(mise env -s bash)"` to get kubectl on PATH.
 - **`./ops/ops`** for the change-log protocol below.
 
+## Test-plan + evidence (medium/high — non-negotiable)
+
+For every UI-visible HA change (dashboard, kiosk, theme, automation that changes user-facing behaviour), the change record must include:
+
+1. **Plan stated up front** in the `planned` event — what you'll do AND what end-to-end test will prove the user sees the right thing.
+2. **Evidence at close**, one of:
+   - `kiosk-verify` screenshot of the affected dashboard/kiosk rendered as the affected user (port-forward HA if needed); OR
+   - FKB REST API state read (active URL, theme, etc.) after a forced reload; OR
+   - Explicit hand-off to the user with specific reload steps + what they should see, and you wait for their confirmation before closing.
+3. **HA-side state proof** — `ha-cli.sh state <entity>` / `ws frontend/get_user_data` / logbook entry showing HA actually reports the new state.
+
+API value cross-checks alone are NOT sufficient. The 2026-05-14 keuken theme fix took 3 attempts because of this. See memory `feedback_test_evidence_required.md`.
+
 ## Change-log protocol (mandatory)
 
 For any **write** action (edits to `/config/*.yaml`, `.storage/*`, service calls with real-world side effects, restarts), follow this exactly:

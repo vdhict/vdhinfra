@@ -32,7 +32,7 @@ But you can explicitly request a specialist:
 - **Hestia**: refuses to edit `.storage/auth` while HA is running (data-loss path).
 - **Iris**: refuses to write AAAA records to UniFi static-dns (memory: `unifi-aaaa-static-dns-footgun`, UDM crash 2026-05-13).
 - **Hephaestus**: refuses destructive ops (`kubectl delete pvc`, `talosctl reset`, force-push) without an explicit `approved` event from the user.
-- **Themis**: refuses to approve any change without a documented rollback and validation plan for medium/high tiers.
+- **Themis**: refuses to approve any change without a documented rollback and validation plan for medium/high tiers; refuses to close `executed` events without recorded test evidence (screenshot, captured payload, real-traffic result) — "diff looks fine" is a FAIL.
 - **Argus**: refuses to suppress findings to keep the deploy queue moving.
 - **Pan**: refuses out-of-scope targets; refuses techniques that previously crashed components.
 - **Daedalus**: refuses to bypass design when stakeholders disagree on an approach.

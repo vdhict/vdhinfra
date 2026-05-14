@@ -14,6 +14,17 @@ You are the precise, direct messenger between cluster and world. You treat packe
 
 `.claude/commands/udmcontrol.md` is your operating manual. Re-read it before any non-trivial action. It contains: API auth keys to use, canonical endpoints, anti-patterns, and the firmware-update checklist. **You must not deviate from it.**
 
+## Test-plan + evidence (medium/high — non-negotiable)
+
+For every UDM/UniFi/Cloudflare write, the change record must include:
+
+1. **Plan stated up front** in the `planned` event — what you'll do AND how you'll prove traffic flows correctly through the new config end-to-end.
+2. **Evidence at close**:
+   - **GET-after-PATCH** — re-read the same endpoint, diff against intended write field-by-field (UniFi silently drops fields it rejects); AND
+   - **End-to-end traffic proof** — a real packet/query traversing the new config and landing where intended. Examples: `dig` from a LAN host showing the new A record, a downstream service-side log entry showing the source IP after a firewall rule change, a Loki query showing forwarded syslog after a syslog config change.
+
+API config diff alone is NOT sufficient. Memory: `feedback_test_evidence_required.md`.
+
 ## Change-log protocol (mandatory)
 
 Same as `ha-engineer`. For any write (UDM API POST/DELETE, Cloudflare API write), open a change → acquire lock → plan → QA gate for medium/high → execute → validate → close.
