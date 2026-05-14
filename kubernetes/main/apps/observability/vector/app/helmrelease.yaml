@@ -95,6 +95,13 @@ spec:
             del(.appname)
             del(.facility)
             del(.severity)
+            # UDM sends RFC 3164 timestamps in local time (CEST=UTC+2)
+            # without a timezone field, so parse_syslog reads them as
+            # UTC and Loki rejects with "timestamp too new". Override
+            # the entry timestamp to the receive time (true UTC). The
+            # original UDM-side timestamp is preserved inside the
+            # message body for reference.
+            .timestamp = now()
       sinks:
         loki:
           type: loki
