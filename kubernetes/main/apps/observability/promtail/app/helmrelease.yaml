@@ -23,44 +23,8 @@ spec:
       retries: 3
   values:
     fullnameOverride: promtail
-    extraPorts:
-      syslog:
-        name: udp-syslog
-        containerPort: 1514
-        protocol: UDP
-        service:
-          port: 1514
-          type: LoadBalancer
-          externalTrafficPolicy: Local
-        annotations:
-          external-dns-unifi.bluejungle.net/hostname: syslog.${SECRET_DOMAIN}
-          lbipam.cilium.io/ips: 172.16.2.235
     config:
       clients:
         - url: http://loki-headless.observability.svc.cluster.local:3100/loki/api/v1/push
-      snippets:
-        extraScrapeConfigs: |
-          - job_name: syslog
-            syslog:
-              listen_address: 0.0.0.0:1514
-              listen_protocol: udp
-              idle_timeout: 60s
-              label_structured_data: true
-              labels:
-                job: syslog
-            relabel_configs:
-              - source_labels:
-                  - __syslog_message_hostname
-                target_label: hostname
-
-            # example label values: kernel, CRON, kubelet
-              - source_labels:
-                - __syslog_message_app_name
-                target_label: app
-
-            # example label values: debug, notice, informational, warning, error
-              - source_labels:
-                - __syslog_message_severity
-                target_label: level
     serviceMonitor:
       enabled: true
