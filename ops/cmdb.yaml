@@ -206,7 +206,7 @@ components:
     tier: 4
     group: gateway
     sla_tier: family-critical
-    health_source: k8s://deploy/network/envoy-envoy-external
+    health_source: k8s://deploy/network/envoy-network-envoy-external-27f017ad
   k8s.gateway.envoy-internal:
     type: k8s-app
     owner_agent: k8s-engineer
@@ -216,7 +216,7 @@ components:
     tier: 4
     group: gateway
     sla_tier: family-critical
-    health_source: k8s://deploy/network/envoy-envoy-internal
+    health_source: k8s://deploy/network/envoy-network-envoy-internal-1102ed95
   k8s.storage.rook-ceph:
     type: k8s-app
     owner_agent: k8s-engineer
@@ -240,13 +240,13 @@ components:
   k8s.secrets.external-secrets:
     type: k8s-app
     owner_agent: k8s-engineer
-    description: ExternalSecrets pulling from 1Password Connect
+    description: ExternalSecrets pulling from 1Password Connect (deployed in security ns)
     depends_on: [k8s.cluster]
     sensitive: true
     tier: 4
     group: secrets-infra
     sla_tier: family-critical
-    health_source: k8s://deploy/external-secrets/external-secrets
+    health_source: k8s://deploy/security/external-secrets
   k8s.secrets.sops:
     type: tooling
     owner_agent: k8s-engineer
