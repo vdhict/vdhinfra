@@ -685,8 +685,10 @@ footer{color:#888;font-size:.74rem;margin-top:36px;padding-top:14px;border-top:1
 .topo-node.unknown .s{background:#888}
 .topo-node.fc{font-weight:600}
 .topo-arrow{text-align:center;color:#888;font-size:1.1rem;line-height:1;margin:-2px 0}
-.topo-svg{width:100%;height:auto;max-width:100%;display:block;margin:12px 0}
+.topo-wrap{overflow-x:auto;margin:12px 0;border:1px solid #eee;border-radius:6px;padding:8px;background:#fafafa}
+.topo-svg{display:block;margin:0 auto;max-width:none}
 .topo-svg a{cursor:pointer}
+@media (prefers-color-scheme:dark){.topo-wrap{background:#1a1a1a;border-color:#333}}
 .topo-note{color:#888;font-size:.78rem;margin:8px 0}
 """
 
@@ -1505,19 +1507,18 @@ def _render_topology_via_graphviz(s: dict) -> str:
 
     lines = [
         'digraph topology {',
-        '  rankdir=TB; bgcolor="transparent"; pad=0.2; nodesep=0.25; ranksep=0.45;',
+        '  rankdir=TB; bgcolor="transparent"; pad=0.2;'
+        ' nodesep=0.20; ranksep=0.50; concentrate=true;',
         '  fontname="system-ui";',
         '  node [shape=box, style="rounded,filled", fontname="system-ui",'
         ' fontsize=11, color="#888", fillcolor="white"];',
         '  edge [color="#888", arrowsize=0.6, penwidth=0.9];',
     ]
-    # subgraphs (clusters) per tier — rank=same keeps them on one row.
     for t in sorted(by_tier.keys()):
         members = by_tier[t]
         lines.append(f'  subgraph cluster_t{t} {{')
         lines.append(f'    label="{t} — {_TIER_LABELS.get(t, str(t))}";'
                      ' style="dashed"; color="#bbb"; fontsize=10; fontcolor="#888";')
-        lines.append('    rank=same;')
         for cid, comp in members:
             st = _node_status(cid, topo)
             fill = {
@@ -1557,7 +1558,7 @@ def _render_topology_via_graphviz(s: dict) -> str:
     out = re.sub(r'<!DOCTYPE[^>]*>', '', out)
     # add our class so CSS can size it
     out = re.sub(r'<svg ', '<svg class="topo-svg" ', out, count=1)
-    return out
+    return f'<div class="topo-wrap">{out}</div>'
 
 
 def _render_topology_via_css_grid(s: dict) -> str:
@@ -1605,18 +1606,30 @@ def _render_topology_via_css_grid(s: dict) -> str:
 
 
 def _render_topology_page(s: dict) -> str:
+    # Default to CSS-grid: at 66+ components dot produces a ~4000pt-wide
+    # SVG that the browser shrinks to illegibility. CSS-grid renders as
+    # responsive grouped boxes per tier, no edges (which are visual noise
+    # at this density anyway). Set OPS_TOPO=graphviz to opt back in.
+    import os
+    prefer_dot = os.environ.get("OPS_TOPO") == "graphviz"
     have_dot = _has_graphviz()
     topo = _load_unifi_topology()
-    if have_dot:
+    if prefer_dot and have_dot:
         body_inner = _render_topology_via_graphviz(s)
-        path_note = "Rendered via Graphviz <code>dot</code>."
+        path_note = "Rendered via Graphviz <code>dot</code> (OPS_TOPO=graphviz)."
     else:
         body_inner = _render_topology_via_css_grid(s)
-        path_note = (
-            "Graphviz <code>dot</code> not on PATH — rendered as CSS-grid "
-            "fallback. Once Heph rebuilds the cluster-health image with "
-            "graphviz, this auto-switches to the hierarchical SVG path."
-        )
+        if have_dot:
+            path_note = (
+                "Rendered as responsive CSS-grid (default at 60+ components). "
+                "Set <code>OPS_TOPO=graphviz</code> on the CronJob to render "
+                "the dependency-edge SVG instead."
+            )
+        else:
+            path_note = (
+                "Rendered as CSS-grid (Graphviz <code>dot</code> not "
+                "available)."
+            )
     live_note = (
         f'{len(topo)} live components from <code>/data/unifi-topology.json</code>'
         if topo else
@@ -1676,9 +1689,14 @@ def _render_team(s: dict) -> str:
     return _page("Team", "team.html", body, s["now"])
 
 
-def _h(s: str) -> str:
-    """Tiny HTML escape."""
-    return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+def _h(s) -> str:
+    """Tiny HTML escape. Coerces non-string inputs (e.g. yaml-parsed
+    datetime.date) to str so callers don't need to remember to cast."""
+    if not s:
+        return ""
+    if not isinstance(s, str):
+        s = str(s)
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
 
 def _ts(s: str | None) -> dt.datetime:
