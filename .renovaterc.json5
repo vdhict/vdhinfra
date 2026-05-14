@@ -26,9 +26,19 @@
     managerFilePatterns: ["/(^|/)kubernetes/.+\\.ya?ml$/"],
   },
   kustomize: {
-    managerFilePatterns: ["/^kustomization\\.ya?ml$/"],
+    managerFilePatterns: ["/(^|/)kustomization\\.ya?ml$/"],
   },
   packageRules: [
+    {
+      description: "Force semver for OCI Helm chart packages that Renovate's docker datasource silently misses (cilium 1.19.2 → 1.19.4 was stuck here)",
+      matchDatasources: ["docker"],
+      matchPackageNames: [
+        "quay.io/cilium/charts/cilium",
+        "ghcr.io/spegel-org/helm-charts/spegel",
+        "ghcr.io/stakater/charts/reloader",
+      ],
+      versioning: "semver",
+    },
     {
       description: "Override Helmfile Dependency Name",
       matchDatasources: ["docker"],
@@ -110,6 +120,7 @@
         "kubernetes/main/apps/observability/thanos/**",
         "kubernetes/main/bootstrap/**",
         "kubernetes/main/components/**",
+        "kubernetes/main/apps/security/**",
       ],
       automerge: false,
     },
