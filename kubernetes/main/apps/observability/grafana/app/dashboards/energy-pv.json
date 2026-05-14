@@ -1,0 +1,588 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_INFINITY",
+      "label": "Infinity",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "yesoreyeram-infinity-datasource",
+      "pluginName": "Infinity"
+    }
+  ],
+  "__requires": [
+    {
+      "type": "datasource",
+      "id": "yesoreyeram-infinity-datasource",
+      "name": "Infinity",
+      "version": "3.0.0"
+    }
+  ],
+  "annotations": {
+    "list": []
+  },
+  "description": "Energy & PV — did the sun pay for today's house load?",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "Power Now",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+      "description": "Net grid power — positive = importing, negative = exporting",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": -100 },
+              { "color": "red", "value": 500 }
+            ]
+          },
+          "unit": "watt",
+          "min": -5000,
+          "max": 10000
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 1 },
+      "id": 2,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "title": "Grid — importing or exporting?",
+      "type": "gauge",
+      "targets": [
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://home-assistant.home-automation.svc.cluster.local:8123/api/states/sensor.p1_meter_power",
+          "url_options": { "method": "GET", "data": "" },
+          "parser": "defaultJson",
+          "columns": [],
+          "filters": [],
+          "root_selector": "",
+          "format": "as-is",
+          "json_query": "state | tonumber"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+      "description": "Growatt inverter output — 0 W at night, up to 4000 W peak",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null },
+              { "color": "yellow", "value": 100 },
+              { "color": "green", "value": 1000 }
+            ]
+          },
+          "unit": "watt"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "title": "PV — how much is the sun making?",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://home-assistant.home-automation.svc.cluster.local:8123/api/states/sensor.growatt_4000tl_growatt_4000tl_output_power",
+          "url_options": { "method": "GET", "data": "" },
+          "parser": "defaultJson",
+          "columns": [],
+          "filters": [],
+          "root_selector": "",
+          "format": "as-is",
+          "json_query": "state | tonumber"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+      "description": "Zonneplan dynamic tariff — red = peak price, amber = mid, green = cheap",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.18 },
+              { "color": "red", "value": 0.28 }
+            ]
+          },
+          "unit": "currencyEUR",
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 1 },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "title": "Tariff — cheap or peak right now?",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://home-assistant.home-automation.svc.cluster.local:8123/api/states/sensor.evcc_tariff_grid",
+          "url_options": { "method": "GET", "data": "" },
+          "parser": "defaultJson",
+          "columns": [],
+          "filters": [],
+          "root_selector": "",
+          "format": "as-is",
+          "json_query": "state | tonumber"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+      "description": "L1 / L2 / L3 power draw — unbalanced loads warn the installer",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineWidth": 1,
+            "scaleDistribution": { "type": "linear" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 80 }
+            ]
+          },
+          "unit": "watt"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 1 },
+      "id": 5,
+      "options": {
+        "barRadius": 0.1,
+        "barWidth": 0.6,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "orientation": "auto",
+        "showValue": "always",
+        "stacking": "none",
+        "tooltip": { "mode": "single", "sort": "none" },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "title": "3-Phase — is load balanced?",
+      "type": "barchart",
+      "targets": [
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://home-assistant.home-automation.svc.cluster.local:8123/api/states/sensor.p1_meter_power_phase_1",
+          "url_options": { "method": "GET", "data": "" },
+          "parser": "defaultJson",
+          "columns": [],
+          "filters": [],
+          "root_selector": "",
+          "format": "as-is",
+          "json_query": "state | tonumber",
+          "alias": "L1"
+        },
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+          "refId": "B",
+          "type": "json",
+          "source": "url",
+          "url": "http://home-assistant.home-automation.svc.cluster.local:8123/api/states/sensor.p1_meter_power_phase_2",
+          "url_options": { "method": "GET", "data": "" },
+          "parser": "defaultJson",
+          "columns": [],
+          "filters": [],
+          "root_selector": "",
+          "format": "as-is",
+          "json_query": "state | tonumber",
+          "alias": "L2"
+        },
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+          "refId": "C",
+          "type": "json",
+          "source": "url",
+          "url": "http://home-assistant.home-automation.svc.cluster.local:8123/api/states/sensor.p1_meter_power_phase_3",
+          "url_options": { "method": "GET", "data": "" },
+          "parser": "defaultJson",
+          "columns": [],
+          "filters": [],
+          "root_selector": "",
+          "format": "as-is",
+          "json_query": "state | tonumber",
+          "alias": "L3"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 },
+      "id": 6,
+      "title": "Today & Session",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+      "description": "kWh generated today by the Growatt 4000TL",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "green", "value": 15 }
+            ]
+          },
+          "unit": "kwh",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 10 },
+      "id": 7,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "title": "Solar Today — how much did the panels make?",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://home-assistant.home-automation.svc.cluster.local:8123/api/states/sensor.growatt_4000tl_growatt_4000tl_today_generated_energy",
+          "url_options": { "method": "GET", "data": "" },
+          "parser": "defaultJson",
+          "columns": [],
+          "filters": [],
+          "root_selector": "",
+          "format": "as-is",
+          "json_query": "state | tonumber"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+      "description": "Energy charged in last/current session and solar fraction",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null },
+              { "color": "green", "value": 10 }
+            ]
+          },
+          "unit": "kwh",
+          "decimals": 1
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Solar %" },
+            "properties": [
+              { "id": "unit", "value": "percent" },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "red", "value": null },
+                    { "color": "yellow", "value": 20 },
+                    { "color": "green", "value": 50 }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 10 },
+      "id": 8,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "/^(Charged kWh|Solar %)$/",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "title": "Last Charge — did the sun pay for it?",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://evcc.home-automation.svc.cluster.local:7070/api/state",
+          "url_options": { "method": "GET", "data": "" },
+          "parser": "backend",
+          "root_selector": "result",
+          "format": "table",
+          "columns": [
+            { "selector": "loadpoints[0].sessionEnergy", "text": "Charged kWh", "type": "number" },
+            { "selector": "loadpoints[0].sessionSolarPercentage", "text": "Solar %", "type": "number" }
+          ],
+          "filters": []
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+      "description": "30-day average cost per kWh and solar fraction across all charging sessions",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.18 },
+              { "color": "red", "value": 0.28 }
+            ]
+          },
+          "unit": "currencyEUR",
+          "decimals": 3
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Solar %" },
+            "properties": [
+              { "id": "unit", "value": "percent" },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "red", "value": null },
+                    { "color": "yellow", "value": 20 },
+                    { "color": "green", "value": 50 }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 10 },
+      "id": 9,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "/^(Avg Price|Solar %)$/",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "title": "30d Charging — what did electricity cost vs solar?",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://evcc.home-automation.svc.cluster.local:7070/api/state",
+          "url_options": { "method": "GET", "data": "" },
+          "parser": "backend",
+          "root_selector": "result",
+          "format": "table",
+          "columns": [
+            { "selector": "statistics.30d.avgPrice", "text": "Avg Price", "type": "number" },
+            { "selector": "statistics.30d.solarPercentage", "text": "Solar %", "type": "number" }
+          ],
+          "filters": []
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+      "description": "Total energy imported from and exported to the grid (all-time P1 meter totals)",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineWidth": 1,
+            "scaleDistribution": { "type": "linear" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 80 }
+            ]
+          },
+          "unit": "kwh"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 10 },
+      "id": 10,
+      "options": {
+        "barRadius": 0.1,
+        "barWidth": 0.6,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "orientation": "auto",
+        "showValue": "always",
+        "stacking": "none",
+        "tooltip": { "mode": "single", "sort": "none" },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "title": "Import / Export — the lifetime ledger",
+      "type": "barchart",
+      "targets": [
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://home-assistant.home-automation.svc.cluster.local:8123/api/states/sensor.p1_meter_energy_import",
+          "url_options": { "method": "GET", "data": "" },
+          "parser": "defaultJson",
+          "columns": [],
+          "filters": [],
+          "root_selector": "",
+          "format": "as-is",
+          "json_query": "state | tonumber",
+          "alias": "Import"
+        },
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+          "refId": "B",
+          "type": "json",
+          "source": "url",
+          "url": "http://home-assistant.home-automation.svc.cluster.local:8123/api/states/sensor.p1_meter_energy_export",
+          "url_options": { "method": "GET", "data": "" },
+          "parser": "defaultJson",
+          "columns": [],
+          "filters": [],
+          "root_selector": "",
+          "format": "as-is",
+          "json_query": "state | tonumber",
+          "alias": "Export"
+        }
+      ]
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "tags": ["energy", "pv", "evcc", "homewizard"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Energy & PV",
+  "uid": "energy-pv-v1",
+  "version": 1,
+  "weekStart": ""
+}
