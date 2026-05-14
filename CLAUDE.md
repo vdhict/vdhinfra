@@ -248,6 +248,26 @@ If the engineer cannot themselves observe the rendered outcome (e.g. they have n
 
 See `feedback_verify_before_report.md` in memory for the incidents that motivated this rule.
 
+### Test plan + evidence (medium/high changes — non-negotiable)
+
+Verify-before-report is necessary but not sufficient. For **every medium and high risk change**, the change record must include:
+
+1. **A pre-stated test plan**, recorded in the `planned` event before execution, with at least one **end-to-end** test of the user-visible outcome:
+   - **UI surface** → browser-rendered screenshot via `kiosk-verify` (with port-forward when needed). API value cross-checks are necessary but not sufficient.
+   - **Network path** → real-traffic capture at both ends. Hand-crafted probes are necessary but not sufficient.
+   - **Query / data pipeline** → live result from real-source data. Synthetic test fixtures are necessary but not sufficient.
+   - **Mobile / physical surface** → engineer hands a SPECIFIC test procedure to the user and **waits**. Does not close the change before user confirmation.
+
+2. **Recorded evidence the test passed** — attached or linked from the change record. Screenshot path, captured payload, query JSON, FKB API response, kiosk-verify output. Not a description; the artefact itself.
+
+3. **Themis reviews the evidence**, not just the diff. Themis refuses to QA-pass medium/high changes whose change record lacks either the plan or the evidence.
+
+**Low risk** changes (image-tag patch bumps, comment/doc edits, log-filter tweaks, dashboard re-arrangement with no query change) keep the lighter verify-before-report wording. The test-plan+evidence rule binds only to medium and high.
+
+**Honest "I couldn't test that" beats "I assume it works".** If a real end-to-end test was impossible (sandbox blocks LAN; no real data; physical screen required), say so in the change record and either hand verification to the user with specific steps OR treat the change as "untested in real path" and do not close.
+
+See `feedback_test_evidence_required.md` in memory for the incidents that motivated this stricter rule (Sibyl Energy dashboard QUIC, Heph+Sibyl Vector 4-issue cascade, Hestia 3-attempt keuken theme).
+
 ### Pre-existing skills
 
 The `/hacontrol` and `/udmcontrol` slash commands still exist for direct user use. The engineer sub-agents internally read those skill files as their operating manuals. If the user invokes a skill directly, defer to that skill's protocol — but still write to the change log via `./ops/ops` so the lifecycle is captured.
