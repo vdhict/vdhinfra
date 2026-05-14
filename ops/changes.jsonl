@@ -216,3 +216,10 @@
 {"actor":"k8s-engineer","chg":"chg-2026-05-14-009","event":"planned","payload":{},"ts":"2026-05-14T19:44:00Z"}
 {"actor":"k8s-engineer","chg":"chg-2026-05-14-008","event":"executed","payload":{},"ts":"2026-05-14T19:46:11Z"}
 {"actor":"k8s-engineer","chg":"chg-2026-05-14-009","event":"executed","payload":{},"ts":"2026-05-14T19:46:11Z"}
+{"actor":"k8s-engineer","chg":"chg-2026-05-14-008","event":"validated","payload":{},"ts":"2026-05-14T19:59:05Z"}
+{"actor":"k8s-engineer","chg":"chg-2026-05-14-008","event":"closed","payload":{},"ts":"2026-05-14T19:59:05Z"}
+{"actor":"k8s-engineer","chg":"chg-2026-05-14-009","event":"validated","payload":{},"ts":"2026-05-14T19:59:07Z"}
+{"actor":"k8s-engineer","chg":"chg-2026-05-14-009","event":"closed","payload":{},"ts":"2026-05-14T19:59:08Z"}
+{"actor":"infra-ops","chg":"chg-2026-05-14-007","event":"executed","payload":{"applied":["externalsecret grafana-infinity","configmap grafana-dashboard-energy-pv","configmap grafana-datasource-infinity"],"commits":["99184cd","2a6573b","6b15348"],"note":"Infinity plugin installed manually via grafana-cli; Flux will install via plugin list on next HelmRelease reconcile"},"ts":"2026-05-14T19:59:54Z"}
+{"actor":"infra-ops","chg":"chg-2026-05-14-007","event":"validated","payload":{"all_panels_have_data":true,"cross_checks":[{"grafana":1358,"ha":1358.0,"match":true,"panel":"Grid Power"},{"grafana":0.315,"ha":0.315,"match":true,"panel":"Tariff"},{"grafana":12,"ha":12.0,"match":true,"panel":"Solar Today"},{"grafana":34.7155,"ha":34.7155,"match":true,"panel":"Session Energy"}],"dashboard_uid":"energy-pv-v1","dashboard_url":"https://grafana.bluejungle.net/d/energy-pv-v1/energy-and-pv"},"ts":"2026-05-14T19:59:54Z"}
+{"actor":"infra-ops","chg":"chg-2026-05-14-007","event":"closed","payload":{},"ts":"2026-05-14T19:59:54Z"}
