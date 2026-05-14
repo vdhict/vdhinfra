@@ -48,6 +48,7 @@ spec:
       GF_SERVER_ROOT_URL: https://grafana.${SECRET_DOMAIN}
     envFromSecrets:
       - name: *secret
+      - name: grafana-infinity-secret
     grafana.ini:
       analytics:
         check_for_updates: false
@@ -132,6 +133,14 @@ spec:
             editable: true
             options:
               path: /var/lib/grafana/dashboards/unifi-folder
+          - name: energy
+            orgId: 1
+            folder: Energy
+            type: file
+            disableDeletion: false
+            editable: true
+            options:
+              path: /var/lib/grafana/dashboards/energy-folder
     datasources:
       datasources.yaml:
         apiVersion: 1
@@ -139,6 +148,7 @@ spec:
           - { name: Alertmanager, orgId: 1 }
           - { name: Loki, orgId: 1 }
           - { name: Prometheus, orgId: 1 }
+          - { name: Infinity, orgId: 1 }
         datasources:
           - name: Prometheus
             type: prometheus
@@ -163,6 +173,14 @@ spec:
             url: http://alertmanager-operated.observability.svc.cluster.local:9093
             jsonData:
               implementation: prometheus
+          - name: Infinity
+            type: yesoreyeram-infinity-datasource
+            uid: infinity
+            access: proxy
+            jsonData:
+              auth_method: bearerToken
+            secureJsonData:
+              bearerToken: ${GRAFANA_HA_BEARER_TOKEN}
     dashboards:
       default:
         cloudflared:
@@ -296,6 +314,7 @@ spec:
         searchNamespace: ALL
     plugins:
       # Plugins
+      - yesoreyeram-infinity-datasource
       - grafana-clock-panel
       - grafana-piechart-panel
       - grafana-worldmap-panel
