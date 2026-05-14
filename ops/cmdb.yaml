@@ -382,6 +382,215 @@ components:
     depends_on: [k8s.cluster]
     sensitive: true
 
+  # ── Ceph daemons (decomposed from k8s.storage.rook-ceph monolith) ─
+  # mon.a/b/c — live placement verified 2026-05-14: a→worker01, b→worker02, c→worker03
+  ceph.mon.a:
+    type: daemon
+    owner_agent: k8s-engineer
+    description: Ceph Monitor A — runs on vdhclu01node01 (172.16.2.81)
+    depends_on: [k8s.node.worker01, k8s.storage.rook-ceph]
+    sensitive: true
+    tier: 4
+    group: block-storage
+    sla_tier: family-critical
+    health_source: ceph://daemon/mon.a
+  ceph.mon.b:
+    type: daemon
+    owner_agent: k8s-engineer
+    description: Ceph Monitor B — runs on vdhclu01node02 (172.16.2.82)
+    depends_on: [k8s.node.worker02, k8s.storage.rook-ceph]
+    sensitive: true
+    tier: 4
+    group: block-storage
+    sla_tier: family-critical
+    health_source: ceph://daemon/mon.b
+  ceph.mon.c:
+    type: daemon
+    owner_agent: k8s-engineer
+    description: Ceph Monitor C — runs on vdhclu01node03 (172.16.2.83)
+    depends_on: [k8s.node.worker03, k8s.storage.rook-ceph]
+    sensitive: true
+    tier: 4
+    group: block-storage
+    sla_tier: family-critical
+    health_source: ceph://daemon/mon.c
+
+  # mgr.a/b/c — live placement verified 2026-05-14 (count: 3 per helmrelease)
+  ceph.mgr.a:
+    type: daemon
+    owner_agent: k8s-engineer
+    description: Ceph Manager A — runs on vdhclu01node01 (172.16.2.81)
+    depends_on: [k8s.node.worker01, k8s.storage.rook-ceph]
+    sensitive: true
+    tier: 4
+    group: block-storage
+    sla_tier: family-critical
+    health_source: ceph://daemon/mgr.a
+  ceph.mgr.b:
+    type: daemon
+    owner_agent: k8s-engineer
+    description: Ceph Manager B — runs on vdhclu01node02 (172.16.2.82)
+    depends_on: [k8s.node.worker02, k8s.storage.rook-ceph]
+    sensitive: true
+    tier: 4
+    group: block-storage
+    sla_tier: family-critical
+    health_source: ceph://daemon/mgr.b
+  ceph.mgr.c:
+    type: daemon
+    owner_agent: k8s-engineer
+    description: Ceph Manager C — runs on vdhclu01node03 (172.16.2.83)
+    depends_on: [k8s.node.worker03, k8s.storage.rook-ceph]
+    sensitive: true
+    tier: 4
+    group: block-storage
+    sla_tier: family-critical
+    health_source: ceph://daemon/mgr.c
+
+  # osd.0/1/2 — live placement verified 2026-05-14: 0→worker02, 1→worker01, 2→worker03
+  ceph.osd.0:
+    type: daemon
+    owner_agent: k8s-engineer
+    description: "Ceph OSD 0 — runs on vdhclu01node02 (172.16.2.82), device: PNY 1TB SATA SSD S/N PNF24235017670900277"
+    depends_on: [k8s.node.worker02, hw.ssd.osd0, k8s.storage.rook-ceph]
+    sensitive: true
+    tier: 4
+    group: block-storage
+    sla_tier: family-critical
+    health_source: ceph://daemon/osd.0
+  ceph.osd.1:
+    type: daemon
+    owner_agent: k8s-engineer
+    description: "Ceph OSD 1 — runs on vdhclu01node01 (172.16.2.81), device: PNY 1TB SATA SSD S/N PNF24235017670900877"
+    depends_on: [k8s.node.worker01, hw.ssd.osd1, k8s.storage.rook-ceph]
+    sensitive: true
+    tier: 4
+    group: block-storage
+    sla_tier: family-critical
+    health_source: ceph://daemon/osd.1
+  ceph.osd.2:
+    type: daemon
+    owner_agent: k8s-engineer
+    description: "Ceph OSD 2 — runs on vdhclu01node03 (172.16.2.83), device: PNY 1TB SATA SSD S/N PNF24235017670900879"
+    depends_on: [k8s.node.worker03, hw.ssd.osd2, k8s.storage.rook-ceph]
+    sensitive: true
+    tier: 4
+    group: block-storage
+    sla_tier: family-critical
+    health_source: ceph://daemon/osd.2
+
+  # mds — CephFilesystem ceph-filesystem: activeCount=1, activeStandby=true
+  # live placement 2026-05-14: ceph-filesystem-a (active)→worker03, ceph-filesystem-b (standby)→worker02
+  ceph.mds.ceph-filesystem-a:
+    type: daemon
+    owner_agent: k8s-engineer
+    description: Ceph MDS ceph-filesystem-a (active) — runs on vdhclu01node03 (172.16.2.83)
+    depends_on: [k8s.node.worker03, k8s.storage.rook-ceph]
+    sensitive: true
+    tier: 4
+    group: block-storage
+    sla_tier: family-critical
+    health_source: ceph://daemon/mds.ceph-filesystem-a
+  ceph.mds.ceph-filesystem-b:
+    type: daemon
+    owner_agent: k8s-engineer
+    description: Ceph MDS ceph-filesystem-b (standby) — runs on vdhclu01node02 (172.16.2.82)
+    depends_on: [k8s.node.worker02, k8s.storage.rook-ceph]
+    sensitive: true
+    tier: 4
+    group: block-storage
+    sla_tier: family-critical
+    health_source: ceph://daemon/mds.ceph-filesystem-b
+
+  # ── Physical OSD drives ───────────────────────────────────────────────
+  # Verified via `ceph device ls` from rook-ceph-tools, 2026-05-14
+  hw.ssd.osd0:
+    type: physical-disk
+    owner_agent: k8s-engineer
+    description: "PNY 1TB SATA SSD S/N PNF24235017670900277 — /dev/sda on vdhclu01node02; Ceph device id: PNY_1TB_SATA_SSD_PNF24235017670900277; wear 66%"
+    depends_on: []
+    sensitive: false
+    tier: 4
+    group: block-storage
+    sla_tier: family-critical
+    health_source: ceph://device/PNY_1TB_SATA_SSD_PNF24235017670900277
+    physical_link_to: [k8s.node.worker02]
+  hw.ssd.osd1:
+    type: physical-disk
+    owner_agent: k8s-engineer
+    description: "PNY 1TB SATA SSD S/N PNF24235017670900877 — /dev/sda on vdhclu01node01; Ceph device id: PNY_1TB_SATA_SSD_PNF24235017670900877; wear 68%"
+    depends_on: []
+    sensitive: false
+    tier: 4
+    group: block-storage
+    sla_tier: family-critical
+    health_source: ceph://device/PNY_1TB_SATA_SSD_PNF24235017670900877
+    physical_link_to: [k8s.node.worker01]
+  hw.ssd.osd2:
+    type: physical-disk
+    owner_agent: k8s-engineer
+    description: "PNY 1TB SATA SSD S/N PNF24235017670900879 — /dev/sda on vdhclu01node03; Ceph device id: PNY_1TB_SATA_SSD_PNF24235017670900879; wear 84%"
+    depends_on: []
+    sensitive: false
+    tier: 4
+    group: block-storage
+    sla_tier: family-critical
+    health_source: ceph://device/PNY_1TB_SATA_SSD_PNF24235017670900879
+    physical_link_to: [k8s.node.worker03]
+
+  # ── Services tier (HelmReleases not yet in CMDB) ──────────────────────
+  # All confirmed present via `kubectl get helmrelease -A`, 2026-05-14
+  svc.cert-manager:
+    type: helmrelease
+    owner_agent: k8s-engineer
+    description: cert-manager v1.20.2 — TLS issuance via Let's Encrypt DNS-01 (Cloudflare). Cloudflare token via SOPS-encrypted secret (not ExternalSecrets).
+    depends_on: [k8s.cluster, k8s.secrets.sops, net.dns.cloudflare]
+    sensitive: true
+    tier: 4
+    group: tls
+    sla_tier: family-critical
+    health_source: k8s://hr/cert-manager/cert-manager
+  svc.external-dns-unifi:
+    type: helmrelease
+    owner_agent: k8s-engineer
+    description: external-dns-unifi webhook — writes per-hostname A records to UDM Pro static-dns for *.bluejungle.net LAN resolution
+    depends_on: [k8s.cluster, net.udm, auth.onepassword_connect]
+    sensitive: true
+    tier: 4
+    group: lan-dns
+    sla_tier: family-critical
+    health_source: k8s://hr/network/external-dns-unifi
+  svc.cnpg-operator:
+    type: helmrelease
+    owner_agent: k8s-engineer
+    description: CloudNativePG operator (cloudnative-pg chart) — manages the HA Postgres cluster that backs home-assistant and other apps
+    depends_on: [k8s.cluster]
+    sensitive: true
+    tier: 4
+    group: database
+    sla_tier: family-critical
+    health_source: k8s://hr/database/cloudnative-pg
+  svc.rook-operator:
+    type: helmrelease
+    owner_agent: k8s-engineer
+    description: Rook-Ceph operator (rook-ceph chart v1.16.5) — manages all Ceph daemon lifecycle
+    depends_on: [k8s.cluster]
+    sensitive: true
+    tier: 4
+    group: block-storage
+    sla_tier: family-critical
+    health_source: k8s://hr/rook-ceph/rook-ceph-operator
+  svc.rook-ceph-cluster:
+    type: helmrelease
+    owner_agent: k8s-engineer
+    description: Rook-Ceph cluster HelmRelease (rook-ceph-cluster chart v1.16.5) — declares the CephCluster, block pools, CephFilesystem, and StorageClasses
+    depends_on: [k8s.cluster, svc.rook-operator]
+    sensitive: true
+    tier: 4
+    group: block-storage
+    sla_tier: family-critical
+    health_source: k8s://hr/rook-ceph/rook-ceph-cluster
+
   # ── Observability ────────────────────────────────────────────────────
   obs.prometheus:
     type: k8s-app
