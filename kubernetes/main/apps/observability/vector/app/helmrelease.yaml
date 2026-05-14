@@ -60,19 +60,32 @@ spec:
       api:
         enabled: false
       sources:
+        # Raw UDP source instead of `type: syslog` — Vector's syslog
+        # source enforces strict parsing and silently drops the UDM's
+        # RFC 3164 format (same rejection mode Promtail had). We do the
+        # parsing in a remap below using VRL's `parse_syslog`, which is
+        # lenient about both RFC 3164 and 5424.
         udm_syslog:
-          type: syslog
+          type: socket
           address: 0.0.0.0:1514
           mode: udp
+          decoding:
+            codec: bytes
       transforms:
         udm_normalize:
           type: remap
           inputs:
             - udm_syslog
           source: |-
+            raw = string!(.message)
+            parsed, err = parse_syslog(raw)
+            if err == null {
+              . = parsed
+            }
             .job = "syslog"
-            .app = string(.appname) ?? "unknown"
-            .level = string(.severity) ?? "info"
+            .app, _ = string(.appname || "unknown")
+            .level, _ = string(.severity || "info")
+            .hostname, _ = string(.hostname || "unknown")
             del(.appname)
             del(.facility)
             del(.severity)
