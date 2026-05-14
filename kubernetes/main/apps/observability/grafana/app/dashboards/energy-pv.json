@@ -211,20 +211,18 @@
       "gridPos": { "h": 8, "w": 6, "x": 18, "y": 1 },
       "id": 5,
       "options": {
-        "barRadius": 0.1,
-        "barWidth": 0.6,
-        "fullHighlight": false,
-        "groupWidth": 0.7,
-        "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true },
-        "orientation": "auto",
-        "showValue": "always",
-        "stacking": "none",
-        "tooltip": { "mode": "single", "sort": "none" },
-        "xTickLabelRotation": 0,
-        "xTickLabelSpacing": 0
+        "displayMode": "gradient",
+        "minVizHeight": 16,
+        "minVizWidth": 8,
+        "namePlacement": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showUnfilled": true,
+        "sizing": "auto",
+        "valueMode": "color"
       },
       "title": "3-Phase — is load balanced?",
-      "type": "barchart",
+      "type": "bargauge",
       "targets": [
         {
           "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
@@ -519,20 +517,18 @@
       "gridPos": { "h": 8, "w": 6, "x": 18, "y": 10 },
       "id": 10,
       "options": {
-        "barRadius": 0.1,
-        "barWidth": 0.6,
-        "fullHighlight": false,
-        "groupWidth": 0.7,
-        "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true },
-        "orientation": "auto",
-        "showValue": "always",
-        "stacking": "none",
-        "tooltip": { "mode": "single", "sort": "none" },
-        "xTickLabelRotation": 0,
-        "xTickLabelSpacing": 0
+        "displayMode": "gradient",
+        "minVizHeight": 16,
+        "minVizWidth": 8,
+        "namePlacement": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showUnfilled": true,
+        "sizing": "auto",
+        "valueMode": "color"
       },
       "title": "Import / Export — the lifetime ledger",
-      "type": "barchart",
+      "type": "bargauge",
       "targets": [
         {
           "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
