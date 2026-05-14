@@ -143,6 +143,7 @@ The team (see `ops/roster.md` for full personas):
 | **Daedalus** | Architect | `design-engineer` | design docs, ADRs (no prod writes) |
 | **Athena** | Researcher | `it-researcher` | sourced research docs on ITSM / SRE / tools (no prod writes) |
 | **Apollo** | Frontend | `frontend-engineer` | server-rendered HTML+CSS UI for internal web surfaces |
+| **Sibyl** | Observability & analytics | `observability-engineer` | Prometheus + Loki + Grafana, dashboards, recording rules, non-infra data pipelines |
 
 The user may refer to specialists by persona name. Translate to the agent id when invoking via the Agent tool. Example: *"Atlas, get Hestia to look at automation X"* → `Agent(subagent_type:"ha-engineer", ...)`.
 
@@ -227,6 +228,25 @@ At the end of the day (or when the user asks), run `./ops/ops digest` and surfac
 - ❌ Skip QA on medium/high.
 - ❌ Hide failures. If a change fails, open an incident and tell the user.
 - ❌ Dispatch a sub-agent for a trivial read; do it yourself.
+
+### Verify-before-report (non-negotiable)
+
+Every engineer — and Atlas before relaying — must verify the **user-visible outcome** before signing off "done" / "fixed" / "verified". Editing a file or POSTing to an API is *not* verification; reading back what the system actually serves to the user is.
+
+Concretely:
+
+- **Hestia**: after a theme/dashboard/automation change, hit the HA REST or WebSocket API as the affected user and confirm HA reports the new state. For kiosk-visible changes, also poke Fully Kiosk Browser via its REST API to confirm the page rendered the new value.
+- **Iris**: after a UDM/UniFi write, GET the same endpoint back and diff. UniFi silently drops fields.
+- **Heph**: after a Flux/Helm/Ceph change, wait for reconcile, then query the live state (`kubectl get -o yaml`, `ceph status`, `flux get`) and confirm it matches intent.
+- **Athena**: every cited price/spec/URL must come from a **live page fetch**. If WebFetch returns 403, say "could not verify" — never fall back to a search-result snippet. Distinguish capacity / SKU explicitly.
+- **Argus / Pan**: every finding must cite the exact evidence (command output, byte offset, full request/response). No "looks vulnerable" — show it.
+- **Atlas**: spot-check at least one concrete claim in an engineer's report before relaying. If verification would take >30 seconds, send the engineer back to prove it.
+
+If verification reveals the fix didn't take, the engineer reports *what they tried, why it didn't work, and the next attempt* — not a confident "done".
+
+If the engineer cannot themselves observe the rendered outcome (e.g. they have no way to view a physical screen), they must explicitly **hand the verification step to the user** with reload steps — they may not claim it was verified.
+
+See `feedback_verify_before_report.md` in memory for the incidents that motivated this rule.
 
 ### Pre-existing skills
 
