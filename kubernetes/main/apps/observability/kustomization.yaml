@@ -12,6 +12,7 @@ resources:
   - ./loki/install.yaml
   - ./thanos/install.yaml
   - ./promtail/install.yaml
+  - ./vector/install.yaml
   - ./network-ups-tools/install.yaml
   - ./nut-exporter/install.yaml
   - ./speedtest-exporter/install.yaml
