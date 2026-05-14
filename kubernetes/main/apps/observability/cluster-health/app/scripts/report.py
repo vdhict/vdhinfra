@@ -85,6 +85,16 @@ def classify(raw: dict, trends: dict, triage: dict) -> tuple[str, str, list[dict
         issues.append({"sev": sev, "area": "ceph", "msg": f"Ceph {ceph.get('health')}: " + ", ".join(ceph.get("health_checks", []))})
     if ceph.get("raw_used_pct", 0) > 80:
         issues.append({"sev": "warn", "area": "ceph", "msg": f"Ceph raw usage {ceph.get('raw_used_pct')}%"})
+    # OSD SSD wear
+    for d in (ceph.get("ssd_devices") or []):
+        wear = d.get("wear_pct")
+        if wear is not None:
+            if wear >= 90:
+                issues.append({"sev": "crit", "area": "ceph-ssd",
+                                "msg": f"{d.get('osd')} ({d.get('host')}) wear {wear}% — order replacement NOW"})
+            elif wear >= 80:
+                issues.append({"sev": "warn", "area": "ceph-ssd",
+                                "msg": f"{d.get('osd')} ({d.get('host')}) wear {wear}%"})
 
     # Postgres
     pg = sections.get("postgres", {})
@@ -202,6 +212,23 @@ def render_markdown(date: str, raw: dict, triage: dict, trends: dict, color: str
     lines.append(f"| Ceph Raw Usage | {ceph.get('raw_used_pct', '?')}% |")
     lines.append(f"| Ceph OSDs Up/In/Total | {ceph.get('osd_up', '?')}/{ceph.get('osd_in', '?')}/{ceph.get('osd_total', '?')} |")
     lines.append(f"| CNPG Clusters Ready | {pg.get('ready', '?')}/{pg.get('total', '?')} |")
+    # SSD wear sub-table (one row per OSD device)
+    ssd_devices = ceph.get("ssd_devices") or []
+    if ssd_devices:
+        lines.append("")
+        lines.append("### OSD SSD wear")
+        lines.append("")
+        lines.append("| OSD | Host | Wear | Realloc sectors | SSD life left (attr 231) |")
+        lines.append("|---|---|---|---|---|")
+        for d in ssd_devices:
+            wear = f"{d['wear_pct']}%" if d.get("wear_pct") is not None else "?"
+            realloc = d.get("reallocated_sectors")
+            realloc_str = str(realloc) if realloc is not None else "?"
+            life = d.get("ssd_life_left_val")
+            life_str = f"{life}%" if life is not None else "?"
+            lines.append(f"| {d.get('osd', '?')} | {d.get('host', '?')} | {wear} | {realloc_str} | {life_str} |")
+        lines.append("")
+
     lines.append(f"| HA API | {'reachable' if ha.get('api_reachable') else 'UNREACHABLE'} |")
     lines.append(f"| HA Entities | {ha.get('entity_count', '?')} |")
     if offsite.get("configured"):

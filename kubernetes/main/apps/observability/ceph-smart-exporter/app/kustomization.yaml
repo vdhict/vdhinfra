@@ -1,0 +1,18 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./deployment.yaml
+  - ./podmonitor.yaml
+  - ./prometheusrule.yaml
+configMapGenerator:
+  - name: ceph-smart-exporter-scripts
+    namespace: observability
+    options:
+      annotations:
+        kustomize.toolkit.fluxcd.io/substitute: disabled
+    files:
+      - scripts/exporter.py
+generatorOptions:
+  disableNameSuffixHash: true

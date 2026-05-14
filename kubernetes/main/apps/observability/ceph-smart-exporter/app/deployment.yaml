@@ -1,0 +1,139 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/apps/deployment_v1.json
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ceph-smart-exporter
+  namespace: observability
+automountServiceAccountToken: true
+---
+# ClusterRole: read pods in rook-ceph (for exec)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ceph-smart-exporter-exec
+  namespace: rook-ceph
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list]
+  - apiGroups: [""]
+    resources: [pods/exec]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ceph-smart-exporter-exec
+  namespace: rook-ceph
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ceph-smart-exporter-exec
+subjects:
+  - kind: ServiceAccount
+    name: ceph-smart-exporter
+    namespace: observability
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ceph-smart-exporter
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: ceph-smart-exporter
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ceph-smart-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ceph-smart-exporter
+    spec:
+      serviceAccountName: ceph-smart-exporter
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: exporter
+          # Reuses the cluster-health image: python3 + kubectl bundled.
+          image: ghcr.io/vdhict/cluster-health:v0.3.0
+          imagePullPolicy: IfNotPresent
+          command: ["python3", "/scripts/exporter.py"]
+          env:
+            - name: CEPH_NAMESPACE
+              value: rook-ceph
+            - name: CEPH_TOOLS_LABEL
+              value: app=rook-ceph-tools
+            - name: POLL_INTERVAL
+              value: "120"
+            - name: LISTEN_PORT
+              value: "9101"
+          ports:
+            - name: metrics
+              containerPort: 9101
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 48Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: scripts
+          configMap:
+            name: ceph-smart-exporter-scripts
+            defaultMode: 0555
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ceph-smart-exporter
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: ceph-smart-exporter
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: ceph-smart-exporter
+  ports:
+    - name: metrics
+      port: 9101
+      targetPort: metrics
+      protocol: TCP
