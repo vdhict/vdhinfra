@@ -22,7 +22,7 @@ spec:
             increase(ceph_device_smart_reallocated_sector_ct_raw[24h]) > 5
           for: 0m
           labels:
-            severity: warning
+            severity: critical
             component: ceph-osd
           annotations:
             summary: "OSD {{ $labels.osd }} reallocated sector spike ({{ $labels.host }})"
