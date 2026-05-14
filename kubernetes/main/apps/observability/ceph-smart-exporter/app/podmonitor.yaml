@@ -1,0 +1,18 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/podmonitor_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: ceph-smart-exporter
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ceph-smart-exporter
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 2m
+      scrapeTimeout: 30s

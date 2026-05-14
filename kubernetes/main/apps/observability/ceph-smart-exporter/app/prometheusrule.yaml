@@ -1,0 +1,82 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/prometheusrule_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ceph-ssd-wear
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: ceph-ssd-wear
+      interval: 5m
+      rules:
+
+        # ── Reallocated sector spike ────────────────────────────────────────
+        # Fires when the 24-hour increase in reallocated sectors exceeds 5.
+        # Uses increase() over 24h; data points are every 2m so enough history
+        # accumulates within the first scrape day.
+        - alert: CephOsdReallocationSpike
+          expr: |
+            increase(ceph_device_smart_reallocated_sector_ct_raw[24h]) > 5
+          for: 0m
+          labels:
+            severity: warning
+            component: ceph-osd
+          annotations:
+            summary: "OSD {{ $labels.osd }} reallocated sector spike ({{ $labels.host }})"
+            description: |
+              Device {{ $labels.device_id }} on {{ $labels.host }} ({{ $labels.osd }})
+              gained more than 5 reallocated sectors in the last 24 hours
+              (delta={{ $value | printf "%.0f" }}).
+              Current totals: osd.0=180 osd.1=36 osd.2=228 — rising reallocs on PNY
+              SSDs typically precede read errors. Plan Samsung 870 EVO 1TB replacement.
+
+        # ── Wear level critical threshold ───────────────────────────────────
+        # Fires when the Ceph mgr device wear_level (0.0-1.0) exceeds 0.90.
+        # Already at 0.84 for osd.2; this gives ~2-4 weeks lead time.
+        - alert: CephOsdSsdWearCritical
+          expr: |
+            ceph_device_wear_level > 0.90
+          for: 5m
+          labels:
+            severity: critical
+            component: ceph-osd
+          annotations:
+            summary: "OSD {{ $labels.osd }} SSD wear >90% ({{ $labels.host }})"
+            description: |
+              Device {{ $labels.device_id }} on {{ $labels.host }} ({{ $labels.osd }})
+              has wear_level={{ $value | printf "%.2f" }} (>90%).
+              Order Samsung 870 EVO 1TB replacement immediately.
+              Replace before wear_level reaches 1.0 or reallocated sectors cause EIO.
+
+        # ── Wear level warning threshold ────────────────────────────────────
+        - alert: CephOsdSsdWearWarning
+          expr: |
+            ceph_device_wear_level > 0.80
+          for: 5m
+          labels:
+            severity: warning
+            component: ceph-osd
+          annotations:
+            summary: "OSD {{ $labels.osd }} SSD wear >80% ({{ $labels.host }})"
+            description: |
+              Device {{ $labels.device_id }} on {{ $labels.host }} ({{ $labels.osd }})
+              has wear_level={{ $value | printf "%.2f" }} (>80%).
+              Monitor closely. osd.2 (vdhclu01node03) is already at 0.84.
+
+        # ── Exporter health ─────────────────────────────────────────────────
+        - alert: CephSmartExporterDown
+          expr: |
+            ceph_device_exporter_up == 0
+          for: 10m
+          labels:
+            severity: warning
+            component: ceph-osd
+          annotations:
+            summary: "ceph-smart-exporter cannot reach ceph-tools"
+            description: |
+              The ceph-smart-exporter pod has not been able to poll
+              `ceph device ls` for 10+ minutes. SSD wear alerts are blind.
+              Check: kubectl -n observability logs deploy/ceph-smart-exporter
