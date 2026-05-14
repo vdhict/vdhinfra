@@ -5,6 +5,7 @@ kind: Kustomization
 resources:
   - ./externalsecret.yaml
   - ./externalsecret-infinity.yaml
+  - ./configmap-infinity-datasource.yaml
   - ./dashboards/configmap-energy-pv.yaml
   - ./helmrelease.yaml
   - ./httproute.yaml

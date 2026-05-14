@@ -214,3 +214,5 @@
 {"actor":"k8s-engineer","chg":"chg-2026-05-14-009","event":"requested","payload":{"reason":"","requested_by":"k8s-engineer","summary":"Deploy Vector Stateless-Aggregator for UDM RFC 3164 syslog → Loki, LB IP 172.16.2.235:1514/UDP"},"resource":"obs.vector","risk":"medium","ts":"2026-05-14T19:43:46Z"}
 {"actor":"k8s-engineer","chg":"chg-2026-05-14-008","event":"planned","payload":{},"ts":"2026-05-14T19:44:00Z"}
 {"actor":"k8s-engineer","chg":"chg-2026-05-14-009","event":"planned","payload":{},"ts":"2026-05-14T19:44:00Z"}
+{"actor":"k8s-engineer","chg":"chg-2026-05-14-008","event":"executed","payload":{},"ts":"2026-05-14T19:46:11Z"}
+{"actor":"k8s-engineer","chg":"chg-2026-05-14-009","event":"executed","payload":{},"ts":"2026-05-14T19:46:11Z"}
