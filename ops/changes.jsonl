@@ -194,3 +194,6 @@
 {"actor":"change-qa","chg":"chg-2026-05-14-003","event":"qa_passed","payload":{},"ts":"2026-05-14T09:55:29Z"}
 {"actor":"k8s-engineer","chg":"chg-2026-05-14-003","event":"executed","payload":{},"ts":"2026-05-14T09:55:29Z"}
 {"actor":"k8s-engineer","chg":"chg-2026-05-14-003","event":"closed","payload":{},"ts":"2026-05-14T09:55:29Z"}
+{"actor":"k8s-engineer","chg":"chg-2026-05-14-005","event":"requested","payload":{"reason":"stale BPF backend fix - bump 1.19.2 to 1.19.4","requested_by":"k8s-engineer","summary":""},"resource":"k8s.cni.cilium","risk":"medium","ts":"2026-05-14T18:55:49Z"}
+{"actor":"k8s-engineer","chg":"chg-2026-05-14-005","event":"planned","payload":{"note":"bump OCIRepository tag 1.19.2 -> 1.19.4; also bump bootstrap helmfile.d/01-apps.yaml version 1.19.2 -> 1.19.4"},"ts":"2026-05-14T18:56:05Z"}
+{"actor":"change-qa","chg":"chg-2026-05-14-005","event":"qa_passed","payload":{"note":"lint and validate pre-existing failures identical before/after change; both changed files pass yamllint; kubeconform 61 valid, 0 invalid, 6 pre-existing non-k8s config errors"},"ts":"2026-05-14T18:56:59Z"}
