@@ -189,3 +189,8 @@
 {"actor":"k8s-engineer","chg":"chg-2026-05-14-003","event":"planned","payload":{},"ts":"2026-05-14T09:48:51Z"}
 {"actor":"k8s-engineer","chg":"chg-2026-05-14-004","event":"requested","payload":{"reason":"","requested_by":"k8s-engineer","summary":"CMDB Phase 2e: Ceph daemon decomposition, physical OSD drives, missing HelmRelease CMDB entries"},"resource":"ops/cmdb.yaml","risk":"medium","ts":"2026-05-14T09:48:58Z"}
 {"actor":"k8s-engineer","chg":"chg-2026-05-14-004","event":"planned","payload":{},"ts":"2026-05-14T09:49:09Z"}
+{"actor":"k8s-engineer","chg":"chg-2026-05-14-004","event":"qa_passed","payload":{},"ts":"2026-05-14T09:55:06Z"}
+{"actor":"k8s-engineer","chg":"chg-2026-05-14-004","event":"closed","payload":{},"ts":"2026-05-14T09:55:09Z"}
+{"actor":"change-qa","chg":"chg-2026-05-14-003","event":"qa_passed","payload":{},"ts":"2026-05-14T09:55:29Z"}
+{"actor":"k8s-engineer","chg":"chg-2026-05-14-003","event":"executed","payload":{},"ts":"2026-05-14T09:55:29Z"}
+{"actor":"k8s-engineer","chg":"chg-2026-05-14-003","event":"closed","payload":{},"ts":"2026-05-14T09:55:29Z"}
