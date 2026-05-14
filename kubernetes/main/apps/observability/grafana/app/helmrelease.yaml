@@ -148,7 +148,6 @@ spec:
           - { name: Alertmanager, orgId: 1 }
           - { name: Loki, orgId: 1 }
           - { name: Prometheus, orgId: 1 }
-          - { name: Infinity, orgId: 1 }
         datasources:
           - name: Prometheus
             type: prometheus
@@ -173,14 +172,6 @@ spec:
             url: http://alertmanager-operated.observability.svc.cluster.local:9093
             jsonData:
               implementation: prometheus
-          - name: Infinity
-            type: yesoreyeram-infinity-datasource
-            uid: infinity
-            access: proxy
-            jsonData:
-              auth_method: bearerToken
-            secureJsonData:
-              bearerToken: ${GRAFANA_HA_BEARER_TOKEN}
     dashboards:
       default:
         cloudflared:
