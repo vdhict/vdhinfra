@@ -1,0 +1,1101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A house that runs itself (almost) — Long deck</title>
+<link rel="stylesheet" href="../../vendor/reset.css">
+<link rel="stylesheet" href="../../vendor/reveal.css">
+<link rel="stylesheet" href="../theme.css">
+<style>
+  .reveal { background: var(--slide-bg); }
+  .reveal .slide-number { font-size: 0.5em; color: var(--fg-muted); }
+</style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- ============================================================
+     SLIDE 1 — TITLE
+     ============================================================ -->
+<section data-background-color="var(--slide-bg)">
+<div class="slide-title">
+  <span class="accent-bar" style="margin:0 auto 1em;"></span>
+  <h1>A house that runs itself<br><span style="color:var(--fg-muted)">(almost)</span></h1>
+  <p class="subtitle" style="margin-top:1em">How one household turned home infrastructure into a properly managed system</p>
+  <div class="svg-container" style="max-width:340px;margin-top:2em">
+    <!-- House icon SVG -->
+    <svg viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <polygon points="10,55 60,10 110,55" stroke="var(--accent)" stroke-width="3" fill="none"/>
+      <rect x="22" y="55" width="76" height="40" stroke="currentColor" stroke-width="2" fill="none"/>
+      <rect x="48" y="70" width="24" height="25" stroke="currentColor" stroke-width="2" fill="none"/>
+      <circle cx="88" cy="75" r="14" fill="none" stroke="var(--accent-warm)" stroke-width="2"/>
+      <text x="88" y="80" fill="var(--accent-warm)" font-size="14" text-anchor="middle" font-family="system-ui">✦</text>
+    </svg>
+  </div>
+</div>
+<aside class="notes">
+Most people manage their home Wi-Fi by rebooting the router and hoping for the best. I do something a little different. Let me show you what that looks like — and why it matters.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 2 — THE SCALE OF A MODERN HOME
+     ============================================================ -->
+<section>
+<div class="slide-body">
+  <h2>Your house is already a data centre</h2>
+  <p class="headline">A typical connected household runs 60+ pieces of software simultaneously</p>
+  <div class="two-col-3-2">
+    <ul>
+      <li>Lights that run firmware. Heating that connects to the cloud. A router with a 50-page settings menu.</li>
+      <li>Add a smart doorbell, an EV charger, a solar inverter, a media server, and a security camera: you are now operating a small IT estate.</li>
+      <li>Most of this runs with no oversight, no backup, no change history.</li>
+    </ul>
+    <div class="svg-container">
+      <!-- House with dots infographic (F) -->
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 280" role="img" aria-label="House with smart device locations marked">
+        <style>
+          .hw text { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif; fill: currentColor; font-size: 10px; text-anchor: middle; }
+          .hw .wall { fill: none; stroke: currentColor; stroke-width: 2; }
+          .hw .dot  { fill: var(--accent,#3b82f6); }
+          .hw .dotw { fill: #f59e0b; }
+          .hw .dotg { fill: #22c55e; }
+          .hw .dotr { fill: #ef4444; }
+        </style>
+        <g class="hw">
+          <polygon points="60,140 180,40 300,140" class="wall"/>
+          <rect x="75" y="140" width="210" height="120" class="wall"/>
+          <rect x="155" y="200" width="50" height="60" class="wall"/>
+          <rect x="95" y="158" width="40" height="35" class="wall"/>
+          <rect x="230" y="158" width="40" height="35" class="wall"/>
+          <rect x="75" y="240" width="70" height="20" class="wall"/>
+          <circle cx="225" cy="168" r="7" class="dot"/>
+          <text x="270" y="162">Kitchen</text>
+          <text x="270" y="174">tablet</text>
+          <circle cx="155" cy="200" r="6" class="dotw"/>
+          <text x="138" y="193">Doorbell</text>
+          <circle cx="110" cy="165" r="6" class="dotg"/>
+          <text x="95" y="155">Thermostat</text>
+          <circle cx="110" cy="248" r="6" class="dotw"/>
+          <text x="110" y="270">EV charger</text>
+          <circle cx="180" cy="100" r="7" class="dot"/>
+          <text x="215" y="98">Home rack</text>
+          <text x="215" y="110">(cluster)</text>
+          <circle cx="240" cy="75" r="7" class="dotw"/>
+          <text x="272" y="72">Solar</text>
+          <text x="272" y="84">inverter</text>
+          <circle cx="95" cy="248" r="5" class="dotg"/>
+          <circle cx="80" cy="248" r="5" class="dotg"/>
+          <circle cx="65" cy="248" r="5" class="dotg"/>
+          <text x="75" y="268">Soil sensors</text>
+          <circle cx="300" cy="165" r="5" class="dotr"/>
+          <text x="320" y="161">Motion</text>
+          <text x="320" y="173">sensor</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</div>
+<aside class="notes">
+I counted the number of distinct software components coordinating in our house. We have 66 in the current inventory. Most households don't think of it that way — but the complexity is there whether you name it or not. And unnamed complexity has a way of biting you at the worst moment.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 3 — WHAT IT LOOKS LIKE WITHOUT DISCIPLINE
+     ============================================================ -->
+<section>
+<div class="slide-body">
+  <h2>What it looks like without discipline</h2>
+  <p class="headline">"Works on my machine" — until it doesn't</p>
+  <div class="split-visual">
+    <div class="split-bad">
+      <span class="split-icon">⚠</span>
+      <strong>Unmanaged</strong>
+      <ul style="text-align:left;margin-top:0.5em">
+        <li>Manual changes nobody documented</li>
+        <li>No backups — one drive failure = five years of automations gone</li>
+        <li>No change review — wrong setting at 2 a.m.</li>
+      </ul>
+    </div>
+    <div class="split-good">
+      <span class="split-icon">✓</span>
+      <strong>Managed</strong>
+      <ul style="text-align:left;margin-top:0.5em">
+        <li>Every change logged with name + reason</li>
+        <li>Hourly backups, offsite mirror</li>
+        <li>Review gate before every medium/high-risk change</li>
+      </ul>
+    </div>
+  </div>
+</div>
+<aside class="notes">
+This is not about what went wrong. It's about what would go wrong if we didn't treat this seriously. The honest answer is: the same things that go wrong in poorly-run IT departments. Untracked changes. No rollback. No one who knows why a decision was made.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 4 — THE PRINCIPLE
+     ============================================================ -->
+<section>
+<div class="typo-slide">
+  <h2 style="color:var(--fg-muted);font-size:0.8em;margin-bottom:1em">One principle</h2>
+  <p style="font-size:1.1em;font-weight:700;margin-bottom:1.2em">Treat home infrastructure like a small production system</p>
+  <ul class="bullet-list">
+    <li>Every change is intentional.</li>
+    <li>Every change is recorded.</li>
+    <li>Every change is reversible.</li>
+    <li>A team of specialists makes sure it stays that way.</li>
+  </ul>
+</div>
+<aside class="notes">
+That's it. That's the whole philosophy. It sounds obvious when you say it out loud. The interesting part is what it takes to actually do it.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 5 — THE TEAM OVERVIEW
+     ============================================================ -->
+<section>
+<div class="slide-body">
+  <h2>The team</h2>
+  <p class="headline">Eleven specialists. One mandate each. All named after Greek deities.</p>
+  <div class="card-grid" style="grid-template-columns:repeat(4,1fr);font-size:0.58em">
+    <div class="deity-card"><div class="deity-icon">🧭</div><div class="deity-name">Atlas</div><div class="deity-role">OPS Manager</div><div class="deity-rule">Routes to the right specialist</div></div>
+    <div class="deity-card"><div class="deity-icon">🔥</div><div class="deity-name">Hestia</div><div class="deity-role">HA engineer</div><div class="deity-rule">Home automation brain</div></div>
+    <div class="deity-card"><div class="deity-icon">🌈</div><div class="deity-name">Iris</div><div class="deity-role">Network engineer</div><div class="deity-rule">Router + DNS + Cloudflare</div></div>
+    <div class="deity-card"><div class="deity-icon">🔨</div><div class="deity-name">Hephaestus</div><div class="deity-role">Cluster engineer</div><div class="deity-rule">Kubernetes + storage</div></div>
+    <div class="deity-card"><div class="deity-icon">⚖</div><div class="deity-name">Themis</div><div class="deity-role">QA gate</div><div class="deity-rule">Says no until ready</div></div>
+    <div class="deity-card"><div class="deity-icon">👁</div><div class="deity-name">Argus</div><div class="deity-role">Security analyst</div><div class="deity-rule">Reviews every change</div></div>
+    <div class="deity-card"><div class="deity-icon">🐐</div><div class="deity-name">Pan</div><div class="deity-role">Pentester</div><div class="deity-rule">Probes weaknesses</div></div>
+    <div class="deity-card"><div class="deity-icon">🏛</div><div class="deity-name">Daedalus</div><div class="deity-role">Architect</div><div class="deity-rule">Design docs + ADRs</div></div>
+    <div class="deity-card"><div class="deity-icon">🦉</div><div class="deity-name">Athena</div><div class="deity-role">Researcher</div><div class="deity-rule">Sources before recommending</div></div>
+    <div class="deity-card"><div class="deity-icon">☀</div><div class="deity-name">Apollo</div><div class="deity-role">Frontend</div><div class="deity-rule">Builds what you see</div></div>
+    <div class="deity-card"><div class="deity-icon">🪄</div><div class="deity-name">Hermes</div><div class="deity-role">Communications</div><div class="deity-rule">Translates everything</div></div>
+  </div>
+  <p class="caption" style="margin-top:0.5em">No one executes without a plan. No plan runs without a review.</p>
+</div>
+<aside class="notes">
+This is the team. They're all specialist AI systems running inside the same conversation environment I do. But they have distinct roles, distinct authorities, and distinct things they're not allowed to do. Hephaestus will not delete a storage volume without your explicit sign-off. Themis will not approve a change she hasn't checked. The rules are written down.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 6 — THE ENGINEERS
+     ============================================================ -->
+<section>
+<div class="slide-body">
+  <h2>The engineers</h2>
+  <p class="headline">Each one owns a domain and refuses to touch anyone else's without asking</p>
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:1em;font-size:0.6em">
+    <div class="deity-card">
+      <div class="deity-icon">🔥</div>
+      <div class="deity-name">Hestia — HA engineer</div>
+      <div class="deity-role">Home Assistant: automations, dashboards, kiosks, integrations. Warm and careful.</div>
+      <div class="deity-rule">Rule: never edit the authentication store while the system is running.</div>
+    </div>
+    <div class="deity-card">
+      <div class="deity-icon">🌈</div>
+      <div class="deity-name">Iris — Network engineer</div>
+      <div class="deity-role">The UDM Pro router, UniFi switches, Cloudflare DNS. Precise.</div>
+      <div class="deity-rule">Rule: never write IPv6 addresses to the router's static DNS table.</div>
+    </div>
+    <div class="deity-card">
+      <div class="deity-icon">🔨</div>
+      <div class="deity-name">Hephaestus — Cluster engineer</div>
+      <div class="deity-role">The computing infrastructure, storage, certificates, and the automated reconciliation loop.</div>
+      <div class="deity-rule">Rule: no destructive operations without an explicit approval from Sander.</div>
+    </div>
+    <div class="deity-card">
+      <div class="deity-icon">📊</div>
+      <div class="deity-name">Sibyl — Observability engineer</div>
+      <div class="deity-role">Dashboards, metrics, alerting. Every panel answers one clear question.</div>
+      <div class="deity-rule">Rule: never add a panel that can't answer one clear question in plain English.</div>
+    </div>
+  </div>
+</div>
+<aside class="notes">
+Notice the rules. They're not "do your best". They're specific, verifiable commitments. Iris won't write AAAA records to the router's DNS table — not because she doesn't know how, but because we found out that doing so crashed the router. The rule encodes the lesson.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 7 — THE GUARDIANS
+     ============================================================ -->
+<section>
+<div class="slide-body">
+  <h2>The people who say no</h2>
+  <p class="headline">A change doesn't run until someone whose job is checking it says it's ready</p>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1em;font-size:0.6em">
+    <div class="deity-card">
+      <div class="deity-icon">⚖</div>
+      <div class="deity-name">Themis — QA gate</div>
+      <div class="deity-role">Runs automated lint checks, schema validation, freeze checks, rollback verification.</div>
+      <div class="deity-rule">Rule: never approves on "looks fine" — requires documented evidence.</div>
+    </div>
+    <div class="deity-card">
+      <div class="deity-icon">👁</div>
+      <div class="deity-name">Argus — Security analyst</div>
+      <div class="deity-role">Every medium and high-risk change gets a security review.</div>
+      <div class="deity-rule">Rule: never suppress a finding to keep the deploy queue moving.</div>
+    </div>
+    <div class="deity-card">
+      <div class="deity-icon">🐐</div>
+      <div class="deity-name">Pan — Pentester</div>
+      <div class="deity-role">Probes the system for weaknesses. Strictly scoped — only pre-approved targets.</div>
+      <div class="deity-rule">Rule: never uses a technique that previously crashed a component.</div>
+    </div>
+  </div>
+</div>
+<aside class="notes">
+These three exist specifically to catch what the engineers miss. Themis's automated checks catch structural mistakes — the wrong schema, a missing rollback plan, a change filed during a freeze window. Argus catches security implications. Pan actively tries to break in, with permission, so we find the gaps before someone else does.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 8 — THE BUILDERS
+     ============================================================ -->
+<section>
+<div class="slide-body">
+  <h2>The design and communications layer</h2>
+  <p class="headline">Four specialists who work upstream of implementation</p>
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:1em;font-size:0.6em">
+    <div class="deity-card">
+      <div class="deity-icon">🏛</div>
+      <div class="deity-name">Daedalus — Architect</div>
+      <div class="deity-role">Writes design documents and decision records, never touches production.</div>
+      <div class="deity-rule">Rule: no bypassing design when stakeholders disagree.</div>
+    </div>
+    <div class="deity-card">
+      <div class="deity-icon">🦉</div>
+      <div class="deity-name">Athena — Researcher</div>
+      <div class="deity-role">Sourced research on tools, patterns, industry practice. Two pages maximum.</div>
+      <div class="deity-rule">Rule: no recommendations without searching first.</div>
+    </div>
+    <div class="deity-card">
+      <div class="deity-icon">☀</div>
+      <div class="deity-name">Apollo — Frontend</div>
+      <div class="deity-role">Builds the web interfaces the household actually uses.</div>
+      <div class="deity-rule">Rule: no runtime CDN dependencies, no tracking, no framework adopted without justification.</div>
+    </div>
+    <div class="deity-card">
+      <div class="deity-icon">🪄</div>
+      <div class="deity-name">Hermes — Communications</div>
+      <div class="deity-role">Translates the team's work into language anyone can follow.</div>
+      <div class="deity-rule">Rule: no jargon without a plain-language definition on first use.</div>
+    </div>
+  </div>
+</div>
+<aside class="notes">
+The reason I can stand here and explain this to you in plain language is that this is literally my job. Hermes: the messenger between worlds. Every technical decision this team makes goes through a translation layer before it reaches anyone outside the team.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 9 — THE HARDWARE
+     ============================================================ -->
+<section>
+<div class="slide-body">
+  <h2>The hardware</h2>
+  <p class="headline">Six small computers in the home rack — three that coordinate, three that do the work</p>
+  <div class="two-col-3-2">
+    <ul>
+      <li><strong>3 control-plane nodes</strong>: Beelink EQ14 Pro mini PCs (Intel N150, 16 GB RAM, 500 GB NVMe). The brain trust.</li>
+      <li><strong>3 worker nodes</strong>: Intel NUC 11s (i5, NVMe for the OS, 1 TB SATA SSD dedicated to storage). The muscle.</li>
+      <li><strong>Synology NAS</strong>: dedicated network-attached storage for large media.</li>
+      <li>Everything is wired. Wi-Fi is for phones and tablets, not infrastructure.</li>
+      <li>Total footprint: 6 nodes + router (UDM Pro Max) + NAS.</li>
+    </ul>
+    <div class="svg-container">
+      <!-- Hardware diagram (G) -->
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 210" role="img" aria-label="Hardware diagram: 3 control plane nodes, 3 worker nodes, switch, UDM Pro Max, NAS">
+        <style>
+          .hd text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;fill:currentColor;font-size:9px;text-anchor:middle}
+          .hd .box{fill:none;stroke-width:1.5}
+          .hd .cp{stroke:var(--accent,#3b82f6)}
+          .hd .wk{stroke:#22c55e}
+          .hd .net{stroke:#f59e0b}
+          .hd .nas{stroke:#8b5cf6}
+          .hd .wire{stroke:currentColor;stroke-width:1;opacity:0.35}
+        </style>
+        <g class="hd">
+          <!-- Switch -->
+          <rect x="110" y="88" width="80" height="22" rx="3" class="box net"/>
+          <text x="150" y="103" font-weight="600" style="fill:#f59e0b">Network switch</text>
+          <!-- UDM -->
+          <rect x="110" y="55" width="80" height="22" rx="3" class="box net"/>
+          <text x="150" y="70" font-weight="600" style="fill:#f59e0b">UDM Pro Max</text>
+          <line x1="150" y1="77" x2="150" y2="88" class="wire"/>
+          <!-- CP nodes -->
+          <text x="45" y="20" font-size="8" opacity="0.5">Control Plane</text>
+          <rect x="5" y="25" width="80" height="20" rx="3" class="box cp"/>
+          <text x="45" y="38" style="fill:var(--accent,#3b82f6)" font-weight="600">CP1 Beelink</text>
+          <rect x="5" y="53" width="80" height="20" rx="3" class="box cp"/>
+          <text x="45" y="66" style="fill:var(--accent,#3b82f6)" font-weight="600">CP2 Beelink</text>
+          <rect x="5" y="81" width="80" height="20" rx="3" class="box cp"/>
+          <text x="45" y="94" style="fill:var(--accent,#3b82f6)" font-weight="600">CP3 Beelink</text>
+          <line x1="86" y1="35" x2="110" y2="99" class="wire"/>
+          <line x1="86" y1="63" x2="110" y2="99" class="wire"/>
+          <line x1="86" y1="91" x2="110" y2="99" class="wire"/>
+          <!-- Worker nodes -->
+          <text x="245" y="20" font-size="8" opacity="0.5">Workers</text>
+          <rect x="208" y="25" width="82" height="20" rx="3" class="box wk"/>
+          <text x="249" y="38" style="fill:#22c55e" font-weight="600">W1 NUC 11</text>
+          <rect x="208" y="53" width="82" height="20" rx="3" class="box wk"/>
+          <text x="249" y="66" style="fill:#22c55e" font-weight="600">W2 NUC 11</text>
+          <rect x="208" y="81" width="82" height="20" rx="3" class="box wk"/>
+          <text x="249" y="94" style="fill:#22c55e" font-weight="600">W3 NUC 11</text>
+          <line x1="208" y1="35" x2="190" y2="99" class="wire"/>
+          <line x1="208" y1="63" x2="190" y2="99" class="wire"/>
+          <line x1="208" y1="91" x2="190" y2="99" class="wire"/>
+          <!-- NAS -->
+          <rect x="110" y="135" width="80" height="22" rx="3" class="box nas"/>
+          <text x="150" y="150" font-weight="600" style="fill:#8b5cf6">Synology NAS</text>
+          <line x1="150" y1="135" x2="150" y2="110" class="wire"/>
+        </g>
+      </svg>
+    </div>
+  </div>
+</div>
+<aside class="notes">
+The hardware is deliberately modest. Six small boxes you could fit in a carry-on bag. The point is not the hardware — it's how we've organised what runs on it.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 10 — THE OPERATING SYSTEM
+     ============================================================ -->
+<section>
+<div class="slide-body">
+  <h2>Talos: no keyboard, no password, no problem</h2>
+  <p class="headline">The nodes run an operating system that cannot be configured manually</p>
+  <div class="two-col">
+    <ul>
+      <li>Talos Linux: immutable, API-driven. No SSH login. No keyboard terminal. Configuration is applied by sending a config file over the network.</li>
+      <li>Every OS configuration is code. It lives in Git. It can be reviewed, versioned, and reproduced.</li>
+      <li>An attacker who gets inside the network can't log in to a node and type commands. There's nothing to type on.</li>
+    </ul>
+    <div class="svg-container">
+      <svg viewBox="0 0 200 160" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Padlocked server with API arrow">
+        <!-- Laptop -->
+        <rect x="10" y="100" width="60" height="40" rx="4" stroke="currentColor" stroke-width="2"/>
+        <rect x="5" y="140" width="70" height="6" rx="2" stroke="currentColor" stroke-width="1.5"/>
+        <text x="40" y="125" fill="currentColor" font-size="10" text-anchor="middle" font-family="system-ui">config.yaml</text>
+        <!-- Arrow -->
+        <path d="M 72 120 L 118 80" stroke="var(--accent,#3b82f6)" stroke-width="2" marker-end="url(#tap)"/>
+        <text x="95" y="95" fill="var(--accent,#3b82f6)" font-size="9" text-anchor="middle" font-family="system-ui">API only</text>
+        <defs>
+          <marker id="tap" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L6,3 z" fill="var(--accent,#3b82f6)"/>
+          </marker>
+        </defs>
+        <!-- Server -->
+        <rect x="120" y="50" width="70" height="80" rx="4" stroke="currentColor" stroke-width="2"/>
+        <text x="155" y="95" fill="currentColor" font-size="10" text-anchor="middle" font-family="system-ui">NODE</text>
+        <!-- Padlock -->
+        <rect x="145" y="55" width="20" height="16" rx="3" fill="var(--accent-warm,#f59e0b)" opacity="0.9"/>
+        <path d="M 149 55 Q 149 47 155 47 Q 161 47 161 55" stroke="var(--accent-warm,#f59e0b)" stroke-width="2.5" fill="none"/>
+        <!-- No keyboard symbol -->
+        <line x1="122" y1="138" x2="188" y2="138" stroke="#ef4444" stroke-width="2"/>
+        <text x="155" y="152" fill="#ef4444" font-size="9" text-anchor="middle" font-family="system-ui">no keyboard</text>
+      </svg>
+    </div>
+  </div>
+</div>
+<aside class="notes">
+Most computers have a way in: a login screen, an SSH port, a console. Talos doesn't. If you want to change the OS configuration, you write a config file and apply it remotely via a verified API. That's the only way in. It's not convenient — but convenience is what attackers rely on.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 11 — THE APPLICATIONS
+     ============================================================ -->
+<section>
+<div class="slide-body">
+  <h2>What runs on it</h2>
+  <p class="headline">Home automation, media, databases, and the system that keeps all of it working</p>
+  <div class="app-grid">
+    <div class="app-category">
+      <h4>🏠 Home Automation</h4>
+      <ul>
+        <li><strong>Home Assistant</strong> — 200+ devices</li>
+        <li>Zigbee2MQTT (short-range wireless bridge)</li>
+        <li>Z-Wave JS (Z-Wave bridge)</li>
+        <li>Node-RED (complex automation flows)</li>
+        <li>ESPHome (custom sensor firmware)</li>
+      </ul>
+    </div>
+    <div class="app-category">
+      <h4>⚡ Energy</h4>
+      <ul>
+        <li><strong>evcc</strong> — EV charge controller</li>
+        <li>Tesla Fleet API integration</li>
+        <li>Zonneplan live tariff feed</li>
+        <li>Solar inverter monitoring</li>
+      </ul>
+    </div>
+    <div class="app-category">
+      <h4>🎬 Media</h4>
+      <ul>
+        <li>Plex (video streaming)</li>
+        <li>Radarr (movie tracking)</li>
+        <li>Calibre (ebooks)</li>
+      </ul>
+    </div>
+    <div class="app-category">
+      <h4>⚙ Infrastructure</h4>
+      <ul>
+        <li>Database cluster (PostgreSQL)</li>
+        <li>Certificate manager (auto-renewing HTTPS)</li>
+        <li>Secret vault (1Password integration)</li>
+        <li>Metrics + log systems</li>
+      </ul>
+    </div>
+  </div>
+  <p class="caption" style="margin-top:0.5em">66 named components · 14 namespaces</p>
+</div>
+<aside class="notes">
+If you're wondering why this needs a team: the EV charger integrates with the solar inverter, which talks to Home Assistant, which sends data to evcc, which calls the Tesla Fleet API, which talks to the car. If any one link in that chain breaks, the car charges at the wrong time and the electricity bill goes up. Coordination isn't optional.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 12 — GITOPS: THE SHARED NOTEBOOK
+     ============================================================ -->
+<section>
+<div class="slide-body">
+  <h2>The shared notebook</h2>
+  <p class="headline">All configuration is code, stored in Git, applied automatically</p>
+  <div class="two-col">
+    <ul>
+      <li><strong>Git</strong>: a version-control system — a document with infinite undo history where every change is signed with a name, a date, and a reason.</li>
+      <li>Everything about this cluster — every app, every network rule, every configuration value — is a file in this repository.</li>
+      <li><strong>Flux</strong> reads that repository every hour and makes the live system match it.</li>
+      <li>If a computer dies: restore the OS, point Flux at the repository, wait 20 minutes.</li>
+    </ul>
+    <div class="svg-container">
+      <!-- GitOps three-step flow (A) -->
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" role="img" aria-label="GitOps flow: code repository to Flux to cluster">
+        <defs>
+          <marker id="gah" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L7,3 z" fill="var(--accent,#3b82f6)"/>
+          </marker>
+        </defs>
+        <style>
+          .gf text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;font-size:10px;fill:currentColor;text-anchor:middle}
+          .gf .box{fill:none;stroke:currentColor;stroke-width:1.5}
+          .gf .arr{stroke:var(--accent,#3b82f6);stroke-width:2;fill:none;marker-end:url(#gah)}
+          .gf .ret{stroke:var(--accent,#3b82f6);stroke-width:1.5;fill:none;marker-end:url(#gah);stroke-dasharray:4,3;opacity:0.7}
+        </style>
+        <g class="gf">
+          <rect x="5" y="35" width="80" height="50" rx="6" class="box"/>
+          <text x="45" y="56" font-weight="600">Git</text>
+          <text x="45" y="71" opacity="0.65">repository</text>
+          <text x="45" y="82" opacity="0.65">∞ undo</text>
+          <line x1="87" y1="60" x2="108" y2="60" class="arr"/>
+          <rect x="110" y="35" width="80" height="50" rx="6" class="box"/>
+          <text x="150" y="56" font-weight="600">Flux</text>
+          <text x="150" y="71" opacity="0.65">reads every</text>
+          <text x="150" y="82" opacity="0.65">hour</text>
+          <line x1="192" y1="60" x2="213" y2="60" class="arr"/>
+          <rect x="215" y="35" width="80" height="50" rx="6" class="box"/>
+          <text x="255" y="56" font-weight="600">Cluster</text>
+          <text x="255" y="71" opacity="0.65">always</text>
+          <text x="255" y="82" opacity="0.65">matches</text>
+          <path d="M 255 87 Q 255 130 150 130 Q 45 130 45 87" class="ret"/>
+          <text x="150" y="148" opacity="0.6" font-size="9" font-style="italic">Manual change? Overwritten on next sync.</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</div>
+<aside class="notes">
+This is the idea that everything else is built on. The notebook — Git — is the source of truth. Not the servers. Not what's running right now. If there's a disagreement between what the notebook says and what the servers are doing, the notebook wins. Flux enforces this every hour without being asked.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 13 — ONE CHANGE, FROM REQUEST TO EVIDENCE
+     ============================================================ -->
+<section>
+<div class="slide-body">
+  <h2>How a change happens</h2>
+  <p class="headline">Request. Plan. Check. Execute. Record evidence. Close.</p>
+  <div class="svg-container" style="max-height:120px;margin:0.8em 0">
+    <!-- Six-step lifecycle (B) -->
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 80" role="img" aria-label="Change lifecycle flow">
+      <defs>
+        <marker id="bha" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L6,3 z" fill="var(--accent,#3b82f6)"/>
+        </marker>
+      </defs>
+      <style>
+        .lf text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;fill:currentColor;text-anchor:middle}
+        .lf .box{fill:none;stroke:currentColor;stroke-width:1.5}
+        .lf .step3{fill:color-mix(in srgb,var(--accent,#3b82f6) 12%,transparent);stroke:var(--accent,#3b82f6);stroke-width:1.5}
+        .lf .arr{stroke:var(--accent,#3b82f6);stroke-width:2;fill:none;marker-end:url(#bha)}
+      </style>
+      <g class="lf">
+        <rect x="5" y="8" width="100" height="44" rx="5" class="box"/><text x="55" y="27" font-size="9" opacity="0.6">STEP 1</text><text x="55" y="43" font-size="12" font-weight="700">Request</text>
+        <line x1="107" y1="30" x2="118" y2="30" class="arr"/>
+        <rect x="120" y="8" width="100" height="44" rx="5" class="box"/><text x="170" y="27" font-size="9" opacity="0.6">STEP 2</text><text x="170" y="43" font-size="12" font-weight="700">Plan</text>
+        <line x1="222" y1="30" x2="233" y2="30" class="arr"/>
+        <rect x="235" y="8" width="100" height="44" rx="5" class="step3"/><text x="285" y="27" font-size="9" opacity="0.6">STEP 3</text><text x="285" y="43" font-size="12" font-weight="700">QA Check</text>
+        <line x1="337" y1="30" x2="348" y2="30" class="arr"/>
+        <rect x="350" y="8" width="100" height="44" rx="5" class="box"/><text x="400" y="27" font-size="9" opacity="0.6">STEP 4</text><text x="400" y="43" font-size="12" font-weight="700">Execute</text>
+        <line x1="452" y1="30" x2="463" y2="30" class="arr"/>
+        <rect x="465" y="8" width="100" height="44" rx="5" class="step3"/><text x="515" y="27" font-size="9" opacity="0.6">STEP 5</text><text x="515" y="43" font-size="12" font-weight="700">Evidence</text>
+        <line x1="567" y1="30" x2="578" y2="30" class="arr"/>
+        <rect x="580" y="8" width="92" height="44" rx="5" class="box"/><text x="626" y="27" font-size="9" opacity="0.6">STEP 6</text><text x="626" y="43" font-size="12" font-weight="700">Close</text>
+      </g>
+    </svg>
+  </div>
+  <ul style="font-size:0.62em">
+    <li>Every deliberate change follows the same lifecycle, regardless of size.</li>
+    <li>Change record: what is being changed, on which resource, by whom, at what risk level, with what rollback plan.</li>
+    <li>After execution, evidence is recorded — a screenshot, a log entry, a test result. Not "looks fine". Real evidence.</li>
+    <li>The history is permanent. Every closed change is part of the audit trail.</li>
+  </ul>
+</div>
+<aside class="notes">
+This is where the principle becomes concrete. I'm going to show you what an actual change record looks like. The change that added Alertmanager notifications to the home automation system — that change is logged. The change that wired the energy dashboard to the electricity meter — logged. The change that upgraded the cluster's networking stack — logged. Every single one.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 14 — THE RISK DIAL
+     ============================================================ -->
+<section>
+<div class="slide-body">
+  <h2>The risk dial</h2>
+  <p class="headline">How much review a change gets depends on how much could go wrong</p>
+  <div class="two-col">
+    <div class="svg-container" style="max-height:240px">
+      <!-- Risk dial (C) -->
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 200" role="img" aria-label="Risk dial: low, medium, high">
+        <style>
+          .rd text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;fill:currentColor}
+        </style>
+        <g class="rd">
+          <path d="M 50,145 A 100,100 0 0,1 107,59" fill="none" stroke="#22c55e" stroke-width="18" stroke-linecap="butt"/>
+          <path d="M 107,59 A 100,100 0 0,1 193,59" fill="none" stroke="#f59e0b" stroke-width="18" stroke-linecap="butt"/>
+          <path d="M 193,59 A 100,100 0 0,1 250,145" fill="none" stroke="#ef4444" stroke-width="18" stroke-linecap="butt"/>
+          <path d="M 50,145 A 100,100 0 0,1 250,145" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.2"/>
+          <!-- Needle pointing medium -->
+          <line x1="150" y1="145" x2="150" y2="60" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="150" cy="145" r="7" fill="currentColor"/>
+          <!-- Labels -->
+          <text x="58" y="140" font-size="11" font-weight="700" fill="#22c55e">LOW</text>
+          <text x="138" y="78" font-size="11" font-weight="700" fill="#f59e0b">MED</text>
+          <text x="218" y="140" font-size="11" font-weight="700" fill="#ef4444">HIGH</text>
+        </g>
+      </svg>
+    </div>
+    <div>
+      <table class="risk-table">
+        <thead><tr><th>Level</th><th>Examples</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-low">LOW</span></td><td style="font-size:0.85em">Image bump, comment edit, dashboard tweak</td></tr>
+          <tr><td><span class="badge badge-med">MEDIUM</span></td><td style="font-size:0.85em">New automation, network route, new integration</td></tr>
+          <tr><td><span class="badge badge-high">HIGH</span></td><td style="font-size:0.85em">Auth, firewall, storage config, OS settings</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:0.6em;margin-top:0.8em;color:var(--fg-muted)">This is not bureaucracy. It's proportional oversight.</p>
+    </div>
+  </div>
+</div>
+<aside class="notes">
+The mistake people make is treating every change the same — either everything is a big deal, or nothing is. The risk dial is how we calibrate. A typo fix in a comment doesn't need the same review as changing who can access the front door camera. This is just common sense, written into the process.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 15 — WHO APPROVES WHAT
+     ============================================================ -->
+<section>
+<div class="slide-body">
+  <h2>Who decides</h2>
+  <p class="headline">Three levels: the engineer, Themis, or Sander</p>
+  <table class="approval-table">
+    <thead>
+      <tr><th>Risk</th><th>Who approves</th><th>What triggers it</th><th>What a fail means</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="badge badge-low">LOW</span></td>
+        <td style="font-size:0.9em">The engineer</td>
+        <td style="font-size:0.9em">Automatic — change is logged</td>
+        <td style="font-size:0.9em">N/A — no gate</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-med">MEDIUM</span></td>
+        <td style="font-size:0.9em">Themis (automated checks)</td>
+        <td style="font-size:0.9em">Schema, rollback plan, freeze window, security flags</td>
+        <td style="font-size:0.9em">Change returns to engineer</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-high">HIGH</span></td>
+        <td style="font-size:0.9em">Sander (explicit approval) + Themis</td>
+        <td style="font-size:0.9em">Auth, firewall, storage, OS, sensitive resources</td>
+        <td style="font-size:0.9em">Blocked until approved</td>
+      </tr>
+    </tbody>
+  </table>
+  <p style="font-size:0.6em;margin-top:0.8em;color:var(--fg-muted)">Safety decisions (ADR-0003 etc.) are permanent Architecture Decision Records. Even the team can't override them without another ADR.</p>
+</div>
+<aside class="notes">
+One thing I want to be clear about: the human in this loop isn't ceremonial. High-risk changes touch things that can take the house offline, or worse. Sander reads the summary, asks questions if he has them, and gives an explicit yes. The agents wait. We don't auto-execute critical changes to avoid bothering someone.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 16 — THE NO-SMART-PLUGS RULE
+     ============================================================ -->
+<section>
+<div class="slide-body">
+  <h2>The lesson that became a rule</h2>
+  <p class="headline">Family-critical infrastructure never runs through a smart plug</p>
+  <div class="split-visual">
+    <div class="split-bad">
+      <span class="split-icon">🔌</span>
+      <strong>Smart plug on the router</strong>
+      <p style="margin-top:0.5em;font-size:0.9em">Firmware-controlled relay, six hours of investigation, whole-house outage.</p>
+    </div>
+    <div class="split-good">
+      <span class="split-icon">🔋</span>
+      <strong>Dumb UPS on the router</strong>
+      <p style="margin-top:0.5em;font-size:0.9em">Pure battery backup. No Wi-Fi, no app, no firmware. The rule is four words: unplug it from there.</p>
+    </div>
+  </div>
+  <p style="font-size:0.6em;margin-top:0.8em;color:var(--fg-muted)">ADR-0003: this rule is written down. Future hardware additions are checked against it. Argus scans for violations.</p>
+</div>
+<aside class="notes">
+This one's my favourite. Six hours of investigation. Multiple software fixes deployed. Multiple hypotheses chased. The answer? A relay clicking 20 times a second, inside a consumer smart plug, faster than the energy monitoring could see. The fix was unplugging a cable. The lesson is now an Architecture Decision Record. The rule is: if it's family-critical, it does not go through a smart plug. Period.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 17 — ENERGY INTELLIGENCE
+     ============================================================ -->
+<section>
+<div class="slide-body">
+  <h2>The car charges when it's cheapest (or free)</h2>
+  <p class="headline">Solar surplus and live grid tariffs combine to decide when the EV charges</p>
+  <div class="two-col">
+    <ul>
+      <li>The house has a solar inverter. On a sunny afternoon, it produces more electricity than the house uses.</li>
+      <li>The EV charger (Tesla Wall Connector Gen 3) reads that surplus via <strong>evcc</strong> — a specialist charge controller running in the cluster.</li>
+      <li>evcc also reads the live Zonneplan electricity price. It knows the cheapest hour of the day.</li>
+      <li>Cloudy winter day: car charges at 3 a.m. when prices are lowest. Sunny summer afternoon: charges for free from the roof.</li>
+      <li>None of this requires manual action.</li>
+    </ul>
+    <div class="svg-container">
+      <!-- Three-source charge diagram (H) -->
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 170" role="img" aria-label="Charge diagram: solar and grid price feed into evcc which controls car charging">
+        <defs>
+          <marker id="hha" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L6,3 z" fill="var(--accent,#3b82f6)"/>
+          </marker>
+        </defs>
+        <style>
+          .cd text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;font-size:9px;fill:currentColor;text-anchor:middle}
+          .cd .box{fill:none;stroke-width:1.5;rx:6}
+          .cd .arr{stroke:var(--accent,#3b82f6);stroke-width:2;fill:none;marker-end:url(#hha)}
+        </style>
+        <g class="cd">
+          <rect x="5" y="15" width="80" height="35" rx="6" style="fill:none;stroke:#f59e0b;stroke-width:1.5"/>
+          <text x="45" y="30" font-weight="700" style="fill:#f59e0b">☀ Solar</text>
+          <text x="45" y="44" opacity="0.7">surplus output</text>
+          <rect x="5" y="65" width="80" height="35" rx="6" style="fill:none;stroke:#6366f1;stroke-width:1.5"/>
+          <text x="45" y="80" font-weight="700" style="fill:#6366f1">⚡ Grid price</text>
+          <text x="45" y="94" opacity="0.7">live tariff</text>
+          <line x1="87" y1="32" x2="115" y2="70" class="arr"/>
+          <line x1="87" y1="82" x2="115" y2="78" class="arr"/>
+          <rect x="117" y="58" width="70" height="38" rx="6" style="fill:none;stroke:var(--accent,#3b82f6);stroke-width:1.5"/>
+          <text x="152" y="75" font-weight="700" style="fill:var(--accent,#3b82f6)">evcc</text>
+          <text x="152" y="89" opacity="0.7">controller</text>
+          <line x1="189" y1="77" x2="210" y2="77" class="arr"/>
+          <rect x="212" y="58" width="42" height="38" rx="6" style="fill:none;stroke:#22c55e;stroke-width:1.5"/>
+          <text x="233" y="75" font-weight="700" style="fill:#22c55e">🔋</text>
+          <text x="233" y="89" opacity="0.7">Tesla</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</div>
+<aside class="notes">
+This is the most satisfying automation in the house. The car charges itself at the optimal time, automatically, every day. On good solar days it costs nothing. On expensive days it waits. The car doesn't know or care — it just wakes up full.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 18 — THE GARDEN
+     ============================================================ -->
+<section>
+<div class="slide-body">
+  <h2>The garden waters itself — when it needs to</h2>
+  <p class="headline">Three soil sensors and a rain forecast decide whether the irrigation runs</p>
+  <div class="two-col">
+    <ul>
+      <li>Three capacitive soil moisture probes in the backyard — one at the front, one in the middle, one near the tree.</li>
+      <li>Every morning at 06:00, an automation takes the median of their readings.</li>
+      <li>If moisture is above 30% → skip. If rain is forecast in the next 12 hours → skip. Otherwise, open the valve for 10 minutes.</li>
+      <li>The threshold and duration are adjustable via sliders in the dashboard. No YAML editing.</li>
+    </ul>
+    <div class="svg-container">
+      <svg viewBox="0 0 200 180" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Garden irrigation diagram with 3 soil probes and rain forecast">
+        <style>
+          .gd text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;fill:currentColor;font-size:9px;text-anchor:middle}
+        </style>
+        <g class="gd">
+          <!-- Ground -->
+          <rect x="5" y="100" width="190" height="5" fill="currentColor" opacity="0.15" rx="2"/>
+          <!-- 3 soil probes -->
+          <rect x="30" y="100" width="8" height="40" rx="2" stroke="#22c55e" stroke-width="2" fill="none"/>
+          <circle cx="34" cy="95" r="8" stroke="#22c55e" stroke-width="2" fill="none"/>
+          <text x="34" y="99" font-size="8" fill="#22c55e">S1</text>
+          <rect x="92" y="100" width="8" height="40" rx="2" stroke="#22c55e" stroke-width="2" fill="none"/>
+          <circle cx="96" cy="95" r="8" stroke="#22c55e" stroke-width="2" fill="none"/>
+          <text x="96" y="99" font-size="8" fill="#22c55e">S2</text>
+          <rect x="154" y="100" width="8" height="40" rx="2" stroke="#22c55e" stroke-width="2" fill="none"/>
+          <circle cx="158" cy="95" r="8" stroke="#22c55e" stroke-width="2" fill="none"/>
+          <text x="158" y="99" font-size="8" fill="#22c55e">S3</text>
+          <!-- Lines to decision box -->
+          <line x1="34" y1="87" x2="96" y2="60" stroke="currentColor" stroke-width="1" opacity="0.4"/>
+          <line x1="96" y1="87" x2="96" y2="60" stroke="currentColor" stroke-width="1" opacity="0.4"/>
+          <line x1="158" y1="87" x2="96" y2="60" stroke="currentColor" stroke-width="1" opacity="0.4"/>
+          <!-- Rain forecast -->
+          <ellipse cx="165" cy="30" rx="25" ry="18" stroke="#6366f1" stroke-width="1.5" fill="none"/>
+          <text x="165" y="34" font-size="9" fill="#6366f1">Rain?</text>
+          <line x1="155" y1="48" x2="112" y2="60" stroke="currentColor" stroke-width="1" opacity="0.4"/>
+          <!-- Decision box -->
+          <rect x="66" y="42" width="60" height="26" rx="4" stroke="var(--accent,#3b82f6)" stroke-width="1.5" fill="none"/>
+          <text x="96" y="58" font-size="9" font-weight="700" style="fill:var(--accent,#3b82f6)">Decision</text>
+          <!-- Valve -->
+          <line x1="96" y1="68" x2="96" y2="82" stroke="currentColor" stroke-width="1.5" opacity="0.6"/>
+          <text x="96" y="90" font-size="8" opacity="0.7">↓ valve</text>
+          <text x="100" y="170" font-size="8" opacity="0.5">median · rain guard · threshold</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</div>
+<aside class="notes">
+Three sensors handle a single unreliable probe gracefully — if one gives a weird reading, the median of three is still sensible. The rain-forecast guard means we don't water on Tuesday morning if the forecast says heavy rain at noon. Common sense, automated.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 19 — ROOM-BY-ROOM AWARENESS
+     ============================================================ -->
+<section>
+<div class="slide-body">
+  <h2>The house adjusts to where people actually are</h2>
+  <p class="headline">Presence detection, occupancy-linked heating, motion-linked lights</p>
+  <div class="two-col">
+    <ul>
+      <li>Motion sensors in every room. Presence sensors (Bluetooth, Wi-Fi device tracking) for who's home.</li>
+      <li>Heating responds to occupancy: a room nobody is in doesn't heat to full temperature.</li>
+      <li>Lights turn on when someone enters, off after a configurable timeout when they leave.</li>
+      <li>Evening lighting scene shifts colour temperature after sunset — warmer, lower, without anyone touching a switch.</li>
+      <li>All of this runs without cloud dependencies.</li>
+    </ul>
+    <div class="svg-container">
+      <svg viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Floor plan with motion sensors, thermostats and lights">
+        <style>
+          .fp text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;fill:currentColor;font-size:8px;text-anchor:middle}
+          .fp .wall{stroke:currentColor;stroke-width:2;fill:none}
+        </style>
+        <g class="fp">
+          <!-- Rooms -->
+          <rect x="10" y="10" width="90" height="90" class="wall"/>
+          <rect x="100" y="10" width="90" height="90" class="wall"/>
+          <rect x="10" y="100" width="90" height="90" class="wall"/>
+          <rect x="100" y="100" width="90" height="90" class="wall"/>
+          <!-- Room labels -->
+          <text x="55" y="25" opacity="0.5">Living room</text>
+          <text x="145" y="25" opacity="0.5">Kitchen</text>
+          <text x="55" y="115" opacity="0.5">Bedroom</text>
+          <text x="145" y="115" opacity="0.5">Office</text>
+          <!-- Motion sensors (red dots) -->
+          <circle cx="55" cy="50" r="5" fill="#ef4444" opacity="0.8"/>
+          <circle cx="145" cy="50" r="5" fill="#ef4444" opacity="0.8"/>
+          <circle cx="55" cy="155" r="5" fill="#ef4444" opacity="0.8"/>
+          <circle cx="145" cy="155" r="5" fill="#ef4444" opacity="0.8"/>
+          <!-- Thermostats (green) -->
+          <circle cx="30" cy="30" r="5" fill="#22c55e" opacity="0.8"/>
+          <circle cx="120" cy="30" r="5" fill="#22c55e" opacity="0.8"/>
+          <!-- Light bulbs (yellow) -->
+          <circle cx="80" cy="70" r="5" fill="#f59e0b" opacity="0.8"/>
+          <circle cx="170" cy="70" r="5" fill="#f59e0b" opacity="0.8"/>
+          <circle cx="80" cy="175" r="5" fill="#f59e0b" opacity="0.8"/>
+          <circle cx="170" cy="175" r="5" fill="#f59e0b" opacity="0.8"/>
+          <!-- Legend -->
+          <circle cx="15" cy="195" r="4" fill="#ef4444" opacity="0.8"/>
+          <text x="35" y="198">motion</text>
+          <circle cx="75" cy="195" r="4" fill="#22c55e" opacity="0.8"/>
+          <text x="95" y="198">thermostat</text>
+          <circle cx="145" cy="195" r="4" fill="#f59e0b" opacity="0.8"/>
+          <text x="162" y="198">light</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</div>
+<aside class="notes">
+The point isn't automation for automation's sake. The point is that I'm not thinking about whether I left the office light on. The house handles it. My attention is elsewhere.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 20 — THE FAMILY DASHBOARD
+     Note: Kantoor ThinkSmartView sentence OMITTED per spec.
+     ============================================================ -->
+<section>
+<div class="slide-body">
+  <h2>One glance</h2>
+  <p class="headline">The kitchen tablet shows the state of the house in plain language</p>
+  <div class="two-col">
+    <ul>
+      <li>A Pixel Tablet mounted in the kitchen, running in kiosk mode (no home button, no notifications, just the dashboard).</li>
+      <li>One screen: who's home, what's the indoor temperature, what's the heating doing, is the car charging, what's the energy reading.</li>
+      <li>Updated in real time. No refresh button. No login.</li>
+    </ul>
+    <div>
+      <!-- Kitchen dashboard screenshot placeholder -->
+      <figure style="margin:0;text-align:center">
+        <img src="../images/screenshot-kitchen-1080x2400.png"
+             alt="Kitchen dashboard on Pixel Tablet in kiosk mode"
+             style="max-height:260px;width:auto;border-radius:8px;border:1px solid var(--border,#334155);display:block;margin:0 auto"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <div style="display:none;background:var(--bg-alt,#1e293b);border:1px dashed var(--fg-muted,#64748b);border-radius:8px;padding:2em;color:var(--fg-muted,#64748b);font-size:0.6em;font-style:italic">
+          [Kitchen dashboard screenshot — 1080×2400 portrait<br>captured from live system]
+        </div>
+        <figcaption style="font-size:0.5em;color:var(--fg-muted);margin-top:0.5em">Kitchen tablet · kiosk mode · 1080×2400</figcaption>
+      </figure>
+    </div>
+  </div>
+</div>
+<aside class="notes">
+This is the single most-used interface in the house. It replaced five apps on a phone and a mental load of "wait, did I check the heating?" It's one picture that answers the question before you've asked it.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 21 — THE DAILY HEALTH REPORT
+     ============================================================ -->
+<section>
+<div class="slide-body">
+  <h2>Every morning: a clean report</h2>
+  <p class="headline">At 06:00, the system checks itself. At 08:00, the summary lands on Sander's phone.</p>
+  <div class="two-col">
+    <ul>
+      <li>Nine automated collectors run at 02:00: node health, storage health, backup status, certificate expiry, pod restarts, Ceph storage usage, energy sensors.</li>
+      <li>A triage step at 03:00 applies four auto-fix rules: clean up failed pods, unstick stalled deployments, restart genuinely crashed services.</li>
+      <li>At 06:00 the report is generated and published to health.bluejungle.net.</li>
+      <li>At 08:00 a push notification lands on the phone with a link.</li>
+      <li>The report catches slow-burn problems — a drive filling up, a certificate due in 10 days — before they become urgent.</li>
+    </ul>
+    <div>
+      <figure style="margin:0;text-align:center">
+        <img src="../images/screenshot-health-1920x1080.png"
+             alt="Daily health report at health.bluejungle.net"
+             style="max-height:220px;width:auto;border-radius:8px;border:1px solid var(--border,#334155);display:block;margin:0 auto"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <div style="display:none;background:var(--bg-alt,#1e293b);border:1px dashed var(--fg-muted,#64748b);border-radius:8px;padding:2em;color:var(--fg-muted,#64748b);font-size:0.6em;font-style:italic">
+          [health.bluejungle.net screenshot — 1920×1080]
+        </div>
+        <figcaption style="font-size:0.5em;color:var(--fg-muted);margin-top:0.5em">health.bluejungle.net · daily report · 1920×1080</figcaption>
+      </figure>
+    </div>
+  </div>
+</div>
+<aside class="notes">
+The hardest thing in infrastructure is not the fires. It's the slow smoulder nobody notices until it's a fire. The health report is the smoke alarm. Nine data collectors, one report, one notification. If you wake up and the notification is green, you can have your coffee without checking anything.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 22 — NETWORK UPGRADE ROADMAP
+     ============================================================ -->
+<section>
+<div class="slide-body">
+  <h2>What comes next: proper network segmentation</h2>
+  <p class="headline">Moving from "everything on one network" to servers, clients, and IoT on separate lanes</p>
+  <div class="two-col">
+    <ul>
+      <li>Currently: servers, laptops, phones, smart plugs share one physical network. Segmented logically, but one misconfiguration would let a smart plug talk to the cluster.</li>
+      <li>Next: cluster nodes move to their own VLAN (a virtual network — separate lane on the same cables).</li>
+      <li>BGP (Border Gateway Protocol — the protocol the internet itself uses) is already configured in a branch; not yet deployed to production.</li>
+      <li>After this: IoT devices on their own segment, unable to initiate connections to the server segment.</li>
+    </ul>
+    <div class="svg-container">
+      <!-- Network segmentation diagram (D) -->
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 200" role="img" aria-label="Three VLANs: server, client, IoT with firewall">
+        <defs>
+          <marker id="ndh" markerWidth="6" markerHeight="6" refX="4" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L6,3 z" fill="currentColor" opacity="0.4"/>
+          </marker>
+        </defs>
+        <style>
+          .nd text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;font-size:9px;fill:currentColor;text-anchor:middle}
+          .nd .box{fill:none;stroke-width:1.5}
+        </style>
+        <g class="nd">
+          <!-- Internet -->
+          <ellipse cx="150" cy="18" rx="45" ry="14" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4" stroke-dasharray="4,3"/>
+          <text x="150" y="22" opacity="0.5">Internet</text>
+          <!-- Firewall -->
+          <rect x="120" y="42" width="60" height="22" rx="4" fill="none" stroke="#ef4444" stroke-width="2"/>
+          <text x="150" y="57" style="fill:#ef4444" font-weight="700">Firewall</text>
+          <line x1="150" y1="32" x2="150" y2="42" stroke="currentColor" stroke-width="1" opacity="0.4" marker-end="url(#ndh)"/>
+          <!-- Three lanes -->
+          <rect x="5" y="82" width="80" height="80" rx="6" fill="none" stroke="var(--accent,#3b82f6)" stroke-width="1.5"/>
+          <text x="45" y="97" style="fill:var(--accent,#3b82f6)" font-weight="700">SERVER</text>
+          <text x="45" y="111" opacity="0.65">3× CP node</text>
+          <text x="45" y="124" opacity="0.65">3× Worker</text>
+          <text x="45" y="137" opacity="0.65">NAS · UDM</text>
+          <rect x="109" y="82" width="80" height="80" rx="6" fill="none" stroke="#22c55e" stroke-width="1.5"/>
+          <text x="149" y="97" style="fill:#22c55e" font-weight="700">CLIENT</text>
+          <text x="149" y="111" opacity="0.65">Laptops</text>
+          <text x="149" y="124" opacity="0.65">Phones</text>
+          <rect x="213" y="82" width="82" height="80" rx="6" fill="none" stroke="#f59e0b" stroke-width="1.5"/>
+          <text x="254" y="97" style="fill:#f59e0b" font-weight="700">IOT</text>
+          <text x="254" y="111" opacity="0.65">Sensors</text>
+          <text x="254" y="124" opacity="0.65">Cameras</text>
+          <text x="254" y="137" opacity="0.65">Smart plugs</text>
+          <!-- Lines from firewall to lanes -->
+          <line x1="138" y1="64" x2="45" y2="82" stroke="currentColor" stroke-width="1" opacity="0.35" marker-end="url(#ndh)"/>
+          <line x1="150" y1="64" x2="149" y2="82" stroke="currentColor" stroke-width="1" opacity="0.35" marker-end="url(#ndh)"/>
+          <line x1="162" y1="64" x2="254" y2="82" stroke="currentColor" stroke-width="1" opacity="0.35" marker-end="url(#ndh)"/>
+          <!-- BGP label -->
+          <text x="100" y="78" font-size="8" style="fill:var(--accent,#3b82f6)">BGP routing</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</div>
+<aside class="notes">
+BGP is the routing protocol the internet uses. We're not reinventing anything here — we're applying the same principles that ISPs use to route traffic between networks. The reason it matters at home is the same reason it matters everywhere: if an IoT device gets compromised, it should not be able to reach your servers.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 23 — THE OPS PORTAL
+     ============================================================ -->
+<section>
+<div class="slide-body">
+  <h2>What comes next: one live picture of everything</h2>
+  <p class="headline">A topology map where every component has a health indicator in plain colour</p>
+  <div class="two-col">
+    <ul>
+      <li>A web portal showing the full topology — internet, router, switch, cluster nodes, storage, applications — as a visual map.</li>
+      <li>Each component: <span style="color:#22c55e;font-weight:600">green</span> (healthy), <span style="color:#f59e0b;font-weight:600">yellow</span> (warning), <span style="color:#ef4444;font-weight:600">red</span> (problem).</li>
+      <li>Data pulled from the live cluster, the router, and the metrics system.</li>
+      <li>Two audiences: the household ("everything is fine") and Sander (the full operational view).</li>
+      <li>The cluster-health report at health.bluejungle.net is the current prototype.</li>
+    </ul>
+    <div>
+      <figure style="margin:0;text-align:center">
+        <img src="../images/screenshot-topology-1920x1080.png"
+             alt="Ops portal topology view"
+             style="max-height:220px;width:auto;border-radius:8px;border:1px solid var(--border,#334155);display:block;margin:0 auto"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <div style="display:none;background:var(--bg-alt,#1e293b);border:1px dashed var(--fg-muted,#64748b);border-radius:8px;padding:2em;color:var(--fg-muted,#64748b);font-size:0.6em;font-style:italic">
+          [health.bluejungle.net/topology.html screenshot — 1920×1080]
+        </div>
+      </figure>
+    </div>
+  </div>
+</div>
+<aside class="notes">
+The long-term goal is to make the infrastructure invisible unless something is wrong, and obvious when something is. The ops portal is the instrument panel. Green across the board: don't think about it. One red: you know exactly where to look.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 24 — IPv6
+     ============================================================ -->
+<section>
+<div class="slide-body">
+  <h2>What comes next: full dual-stack IPv6</h2>
+  <p class="headline">Dutch internet infrastructure is IPv6-native. The cluster will be too.</p>
+  <div class="two-col">
+    <ul>
+      <li>KPN provides a /48 IPv6 prefix — 65,000+ possible subnets, enough for every device to have its own globally routable address.</li>
+      <li>IPv6 dual-stack is designed into the roadmap but currently blocked by a known bug in the cluster's network layer related to local address announcements.</li>
+      <li>Once the bug is resolved upstream, the cluster will be rebuilt with dual-stack enabled from the start — it must be configured at creation time, not added later.</li>
+      <li>Until then: IPv4 only, but the architecture is ready to extend.</li>
+    </ul>
+    <div class="svg-container">
+      <svg viewBox="0 0 220 150" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="IPv4 today vs dual-stack future">
+        <style>
+          .ip text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;fill:currentColor;font-size:10px;text-anchor:middle}
+        </style>
+        <g class="ip">
+          <rect x="10" y="30" width="90" height="50" rx="6" stroke="currentColor" stroke-width="1.5" fill="none"/>
+          <text x="55" y="52" font-weight="700">Today</text>
+          <text x="55" y="68" opacity="0.65">IPv4 only</text>
+          <text x="55" y="80" opacity="0.5" font-size="8">e.g. 172.16.2.1</text>
+          <path d="M 102 55 L 118 55" stroke="var(--fg-muted,#64748b)" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#ipa)"/>
+          <defs>
+            <marker id="ipa" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L6,3 z" fill="var(--fg-muted,#64748b)"/>
+            </marker>
+          </defs>
+          <rect x="120" y="10" width="90" height="90" rx="6" stroke="var(--accent,#3b82f6)" stroke-width="2" fill="none"/>
+          <text x="165" y="35" font-weight="700" style="fill:var(--accent,#3b82f6)">Future</text>
+          <text x="165" y="52" opacity="0.8">Dual-stack</text>
+          <text x="165" y="68" opacity="0.8">IPv4 + IPv6</text>
+          <text x="165" y="84" opacity="0.5" font-size="8">/48 prefix · 65k+ subnets</text>
+          <text x="60" y="110" font-size="8" opacity="0.5" style="font-style:italic">blocked upstream</text>
+          <text x="165" y="115" font-size="8" opacity="0.5" style="fill:#22c55e">— when upstream fix ships</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</div>
+<aside class="notes">
+This one is waiting on someone else to fix a bug. That's fine. The design is ready. The moment the upstream fix ships and Cilium supports IPv6 Layer 2 properly, we rebuild the networking layer and enable it. The patience here is deliberate — we don't force a half-working solution. We wait for the right foundation.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 25 — THE ONE THING
+     ============================================================ -->
+<section data-background-color="var(--slide-bg)">
+<div class="typo-slide">
+  <span class="accent-bar" style="margin:0 auto 0.8em;"></span>
+  <p class="big-quote">"Every change is deliberate, recorded, reversible — and reviewed by someone whose only job is to say no when it isn't ready."</p>
+</div>
+<aside class="notes">
+That's the whole argument in one sentence. Not "we have the most sophisticated setup" — we don't, not by any professional standard. Not "nothing ever goes wrong" — things go wrong. But when they go wrong, we know what changed, we know who made the change, we know how to reverse it, and someone checked it before it ran. That's the promise. That's what makes this different from a router you reboot and hope for the best.
+</aside>
+</section>
+
+</div><!-- .slides -->
+</div><!-- .reveal -->
+
+<script src="../../vendor/reveal.js"></script>
+<script>
+Reveal.initialize({
+  hash: true,
+  slideNumber: 'c/t',
+  transition: 'slide',
+  transitionSpeed: 'fast',
+  controls: true,
+  controlsLayout: 'bottom-right',
+  progress: true,
+  center: false,
+  margin: 0.08,
+  width: 1280,
+  height: 720,
+  minScale: 0.2,
+  maxScale: 2.0,
+  plugins: []
+});
+</script>
+</body>
+</html>

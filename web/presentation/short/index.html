@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A house that runs itself (almost) — Short deck</title>
+<link rel="stylesheet" href="../../vendor/reset.css">
+<link rel="stylesheet" href="../../vendor/reveal.css">
+<link rel="stylesheet" href="../theme.css">
+<style>
+  /* Phone-first — readable at 375px */
+  .reveal { background: var(--slide-bg); }
+  .reveal .slides { text-align: left; }
+  .reveal h2 { font-size: 1.4em; line-height: 1.2; }
+  .reveal .headline { font-size: 0.85em; }
+  .reveal ul li { font-size: 0.72em; margin-bottom: 0.5em; }
+  @media (max-width: 600px) {
+    .reveal h2 { font-size: 1.1em; }
+    .reveal .headline { font-size: 0.75em; }
+    .reveal ul li { font-size: 0.65em; }
+    .two-col-short { grid-template-columns: 1fr !important; }
+    .svg-small { max-height: 160px !important; }
+  }
+  .two-col-short {
+    display: grid;
+    grid-template-columns: 3fr 2fr;
+    gap: 1.5em;
+    align-items: center;
+  }
+</style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- ============================================================
+     SLIDE 1 — THE SETUP
+     ============================================================ -->
+<section data-background-color="var(--slide-bg)">
+<div class="slide-body">
+  <h2>Our house has 66 pieces of software running at the same time</h2>
+  <p class="headline">Here's how we stop them from tripping over each other</p>
+  <div class="two-col-short">
+    <ul>
+      <li>Smart lights, heating, solar, EV charger, media, security — each has its own software stack.</li>
+      <li>Most homes run this with no oversight. We run it like a production system.</li>
+    </ul>
+    <div class="svg-container svg-small" style="max-height:200px">
+      <!-- House with dots (F) -->
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 280" role="img" aria-label="House with smart device locations">
+        <style>
+          .hs text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;fill:currentColor;font-size:10px;text-anchor:middle}
+          .hs .wall{fill:none;stroke:currentColor;stroke-width:2}
+          .hs .dot{fill:var(--accent,#3b82f6)}
+          .hs .dotw{fill:#f59e0b}
+          .hs .dotg{fill:#22c55e}
+          .hs .dotr{fill:#ef4444}
+        </style>
+        <g class="hs">
+          <polygon points="60,140 180,40 300,140" class="wall"/>
+          <rect x="75" y="140" width="210" height="120" class="wall"/>
+          <rect x="155" y="200" width="50" height="60" class="wall"/>
+          <rect x="95" y="158" width="40" height="35" class="wall"/>
+          <rect x="230" y="158" width="40" height="35" class="wall"/>
+          <circle cx="225" cy="168" r="8" class="dot"/>
+          <circle cx="155" cy="200" r="7" class="dotw"/>
+          <circle cx="110" cy="165" r="7" class="dotg"/>
+          <circle cx="110" cy="248" r="7" class="dotw"/>
+          <circle cx="180" cy="100" r="8" class="dot"/>
+          <circle cx="240" cy="75" r="8" class="dotw"/>
+          <circle cx="95" cy="248" r="6" class="dotg"/>
+          <circle cx="80" cy="248" r="6" class="dotg"/>
+          <circle cx="65" cy="248" r="6" class="dotg"/>
+          <circle cx="300" cy="165" r="6" class="dotr"/>
+        </g>
+      </svg>
+    </div>
+  </div>
+</div>
+<aside class="notes">
+Our house has 66 active software components — lights, heating, the car charger, the media server, the backup system. It sounds like a lot, but every home with smart devices is getting there. The difference is how you manage it. Let me show you quickly.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 2 — THE TEAM
+     ============================================================ -->
+<section>
+<div class="slide-body">
+  <h2>Eleven specialists. One principle.</h2>
+  <p class="headline">Nobody executes a change without a plan and a check.</p>
+  <div class="two-col-short">
+    <ul>
+      <li>Atlas orchestrates. Hestia owns home automation. Iris runs the network. Hephaestus runs the cluster.</li>
+      <li>Themis: the QA gate. Her job is to say no until the plan is right.</li>
+      <li>None of them write to production without a change record.</li>
+    </ul>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.4em;font-size:0.42em">
+      <div class="deity-card" style="padding:0.5em;text-align:center"><div class="deity-icon" style="font-size:1.4em">🧭</div><div class="deity-name" style="font-size:1em">Atlas</div></div>
+      <div class="deity-card" style="padding:0.5em;text-align:center"><div class="deity-icon" style="font-size:1.4em">🔥</div><div class="deity-name" style="font-size:1em">Hestia</div></div>
+      <div class="deity-card" style="padding:0.5em;text-align:center"><div class="deity-icon" style="font-size:1.4em">🌈</div><div class="deity-name" style="font-size:1em">Iris</div></div>
+      <div class="deity-card" style="padding:0.5em;text-align:center"><div class="deity-icon" style="font-size:1.4em">🔨</div><div class="deity-name" style="font-size:1em">Heph</div></div>
+      <div class="deity-card" style="padding:0.5em;text-align:center"><div class="deity-icon" style="font-size:1.4em">⚖</div><div class="deity-name" style="font-size:1em">Themis</div></div>
+      <div class="deity-card" style="padding:0.5em;text-align:center"><div class="deity-icon" style="font-size:1.4em">👁</div><div class="deity-name" style="font-size:1em">Argus</div></div>
+      <div class="deity-card" style="padding:0.5em;text-align:center"><div class="deity-icon" style="font-size:1.4em">🐐</div><div class="deity-name" style="font-size:1em">Pan</div></div>
+      <div class="deity-card" style="padding:0.5em;text-align:center"><div class="deity-icon" style="font-size:1.4em">🏛</div><div class="deity-name" style="font-size:1em">Daedalus</div></div>
+      <div class="deity-card" style="padding:0.5em;text-align:center"><div class="deity-icon" style="font-size:1.4em">🦉</div><div class="deity-name" style="font-size:1em">Athena</div></div>
+      <div class="deity-card" style="padding:0.5em;text-align:center"><div class="deity-icon" style="font-size:1.4em">☀</div><div class="deity-name" style="font-size:1em">Apollo</div></div>
+      <div class="deity-card" style="padding:0.5em;text-align:center"><div class="deity-icon" style="font-size:1.4em">🪄</div><div class="deity-name" style="font-size:1em">Hermes</div></div>
+    </div>
+  </div>
+</div>
+<aside class="notes">
+There's a team of eleven AI specialists managing this. Each one has a domain, a set of authorities, and things they're not allowed to do. The change review process is the same one a software company would use. The difference is that the team is available 24 hours a day and never has a bad day.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 3 — THE STACK IN ONE SENTENCE
+     ============================================================ -->
+<section>
+<div class="slide-body">
+  <h2>Six computers. One brain. Sixty apps. One notebook.</h2>
+  <p class="headline">If a machine dies tonight, we're back up from the same code.</p>
+  <div class="two-col-short">
+    <ul>
+      <li>Six mini PCs in the rack — three coordinators, three workers.</li>
+      <li>Home Assistant: the house automation brain. Connected to 200+ devices.</li>
+      <li>All configuration is code in a shared repository. A robot keeps the live system matching the code.</li>
+      <li>Restore scenario: new machine, point robot at notebook, wait 20 minutes.</li>
+    </ul>
+    <div class="svg-container svg-small" style="max-height:200px">
+      <!-- GitOps three-step (A) -->
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" role="img" aria-label="GitOps flow">
+        <defs>
+          <marker id="gash" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L7,3 z" fill="var(--accent,#3b82f6)"/>
+          </marker>
+        </defs>
+        <style>
+          .gs text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;font-size:10px;fill:currentColor;text-anchor:middle}
+          .gs .box{fill:none;stroke:currentColor;stroke-width:1.5}
+          .gs .arr{stroke:var(--accent,#3b82f6);stroke-width:2;fill:none;marker-end:url(#gash)}
+          .gs .ret{stroke:var(--accent,#3b82f6);stroke-width:1.5;fill:none;marker-end:url(#gash);stroke-dasharray:4,3;opacity:0.7}
+        </style>
+        <g class="gs">
+          <rect x="5" y="35" width="80" height="50" rx="6" class="box"/>
+          <text x="45" y="56" font-weight="600">Git</text>
+          <text x="45" y="71" opacity="0.65">notebook</text>
+          <line x1="87" y1="60" x2="108" y2="60" class="arr"/>
+          <rect x="110" y="35" width="80" height="50" rx="6" class="box"/>
+          <text x="150" y="56" font-weight="600">Flux</text>
+          <text x="150" y="71" opacity="0.65">robot</text>
+          <line x1="192" y1="60" x2="213" y2="60" class="arr"/>
+          <rect x="215" y="35" width="80" height="50" rx="6" class="box"/>
+          <text x="255" y="56" font-weight="600">Cluster</text>
+          <text x="255" y="71" opacity="0.65">matches</text>
+          <path d="M 255 87 Q 255 130 150 130 Q 45 130 45 87" class="ret"/>
+        </g>
+      </svg>
+    </div>
+  </div>
+</div>
+<aside class="notes">
+Every setting, every app, every routing rule is a file in a shared code repository. A piece of software reads that repository and applies it to the cluster. If a node fails and has to be replaced, you restore the OS, point the robot at the code, and wait twenty minutes. That's it.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 4 — ONE EXAMPLE: THE CAR CHARGER
+     ============================================================ -->
+<section>
+<div class="slide-body">
+  <h2>The car charges when it's cheapest — or free from the roof</h2>
+  <p class="headline">Solar surplus + live grid price → automatic charge timing</p>
+  <div class="two-col-short">
+    <ul>
+      <li>Solar inverter feeds output into evcc (the charge controller).</li>
+      <li>Live Zonneplan electricity price feeds in too.</li>
+      <li>evcc decides: charge now (solar surplus), charge tonight (cheap hour), or wait.</li>
+      <li>No manual action. No app to open.</li>
+    </ul>
+    <div class="svg-container svg-small" style="max-height:200px">
+      <!-- Charge diagram (H) -->
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 170" role="img" aria-label="Charge diagram">
+        <defs>
+          <marker id="hhas" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L6,3 z" fill="var(--accent,#3b82f6)"/>
+          </marker>
+        </defs>
+        <style>
+          .cs text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;font-size:9px;fill:currentColor;text-anchor:middle}
+          .cs .arr{stroke:var(--accent,#3b82f6);stroke-width:2;fill:none;marker-end:url(#hhas)}
+        </style>
+        <g class="cs">
+          <rect x="5" y="15" width="80" height="35" rx="6" style="fill:none;stroke:#f59e0b;stroke-width:1.5"/>
+          <text x="45" y="30" font-weight="700" style="fill:#f59e0b">☀ Solar</text>
+          <text x="45" y="44" opacity="0.7">surplus</text>
+          <rect x="5" y="65" width="80" height="35" rx="6" style="fill:none;stroke:#6366f1;stroke-width:1.5"/>
+          <text x="45" y="80" font-weight="700" style="fill:#6366f1">⚡ Grid</text>
+          <text x="45" y="94" opacity="0.7">live price</text>
+          <line x1="87" y1="32" x2="115" y2="70" class="arr"/>
+          <line x1="87" y1="82" x2="115" y2="78" class="arr"/>
+          <rect x="117" y="58" width="70" height="38" rx="6" style="fill:none;stroke:var(--accent,#3b82f6);stroke-width:1.5"/>
+          <text x="152" y="75" font-weight="700" style="fill:var(--accent,#3b82f6)">evcc</text>
+          <text x="152" y="89" opacity="0.7">controller</text>
+          <line x1="189" y1="77" x2="210" y2="77" class="arr"/>
+          <rect x="212" y="58" width="42" height="38" rx="6" style="fill:none;stroke:#22c55e;stroke-width:1.5"/>
+          <text x="233" y="75" font-weight="700" style="fill:#22c55e">🔋</text>
+          <text x="233" y="89" opacity="0.7">Tesla</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</div>
+<aside class="notes">
+The most satisfying one: the car charges itself at the cheapest moment of the day, or for free from the solar panels. On a sunny afternoon it charges for nothing. On an overcast winter day it waits for 3 a.m. when prices drop. The system decides. Nobody opens an app.
+</aside>
+</section>
+
+<!-- ============================================================
+     SLIDE 5 — THE ONE THING
+     ============================================================ -->
+<section data-background-color="var(--slide-bg)">
+<div class="typo-slide">
+  <span class="accent-bar" style="margin:0 auto 0.8em;"></span>
+  <h2 style="color:var(--fg-muted);font-size:0.75em;margin-bottom:0.6em;text-align:center">Every change is deliberate, recorded, and reversible.</h2>
+  <p class="big-quote">"And reviewed by someone whose only job is to say no when it isn't ready."</p>
+</div>
+<aside class="notes">
+That's the whole thing. When something goes wrong — and it does, sometimes — we know exactly what changed, when, and why. And we know how to reverse it. Most home setups just reboot and hope. We don't have to.
+</aside>
+</section>
+
+</div><!-- .slides -->
+</div><!-- .reveal -->
+
+<script src="../../vendor/reveal.js"></script>
+<script>
+Reveal.initialize({
+  hash: true,
+  slideNumber: 'c/t',
+  transition: 'slide',
+  transitionSpeed: 'fast',
+  controls: true,
+  controlsLayout: 'bottom-right',
+  progress: true,
+  center: false,
+  margin: 0.08,
+  width: 1280,
+  height: 720,
+  minScale: 0.1,
+  maxScale: 2.0,
+  plugins: []
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,431 @@
+/* Homelab presentation theme — shared between long and short decks
+   Uses CSS custom properties so light/dark mode works automatically.
+   Font: system stack only. No web fonts. */
+
+:root {
+  --accent: #3b82f6;
+  --accent-warm: #f59e0b;
+  --accent-green: #22c55e;
+  --accent-red: #ef4444;
+  --accent-purple: #8b5cf6;
+
+  color-scheme: light dark;
+}
+
+/* Light mode */
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #ffffff;
+    --bg-alt: #f8fafc;
+    --fg: #0f172a;
+    --fg-muted: #64748b;
+    --border: #e2e8f0;
+    --slide-bg: #ffffff;
+    --code-bg: #f1f5f9;
+  }
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f172a;
+    --bg-alt: #1e293b;
+    --fg: #e2e8f0;
+    --fg-muted: #94a3b8;
+    --border: #334155;
+    --slide-bg: #0f172a;
+    --code-bg: #1e293b;
+  }
+}
+
+/* Reveal.js overrides */
+.reveal {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-size: 32px;
+  color: var(--fg);
+  background: var(--slide-bg);
+}
+
+.reveal .slides {
+  text-align: left;
+}
+
+.reveal h1, .reveal h2, .reveal h3 {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  color: var(--fg);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  text-transform: none;
+}
+
+.reveal h1 { font-size: 1.8em; }
+.reveal h2 { font-size: 1.3em; }
+.reveal h3 { font-size: 1.1em; }
+
+.reveal p, .reveal li {
+  font-size: 0.75em;
+  line-height: 1.6;
+  color: var(--fg);
+}
+
+.reveal ul, .reveal ol {
+  margin-left: 1.2em;
+}
+
+.reveal li {
+  margin-bottom: 0.4em;
+}
+
+.reveal .headline {
+  font-size: 1em;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 0.8em;
+  line-height: 1.3;
+}
+
+/* Slide layouts */
+.slide-title {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.slide-title h1 {
+  font-size: 2em;
+  margin-bottom: 0.3em;
+}
+
+.slide-title .subtitle {
+  font-size: 0.7em;
+  color: var(--fg-muted);
+  max-width: 600px;
+  text-align: center;
+}
+
+.slide-body {
+  padding: 0 0.5em;
+}
+
+/* Two-column layout */
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2em;
+  align-items: start;
+}
+
+.two-col-3-2 {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 2em;
+  align-items: center;
+}
+
+/* SVG containers */
+.svg-container {
+  width: 100%;
+  max-height: 280px;
+  overflow: hidden;
+}
+
+.svg-container svg {
+  width: 100%;
+  height: auto;
+  max-height: 280px;
+}
+
+/* Cards */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.8em;
+}
+
+.deity-card {
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.8em;
+  font-size: 0.6em;
+}
+
+.deity-card .deity-name {
+  font-weight: 700;
+  font-size: 1.2em;
+  color: var(--accent);
+  margin-bottom: 0.2em;
+}
+
+.deity-card .deity-role {
+  font-size: 0.9em;
+  color: var(--fg-muted);
+  margin-bottom: 0.3em;
+}
+
+.deity-card .deity-rule {
+  font-size: 0.85em;
+  font-style: italic;
+  border-top: 1px solid var(--border);
+  padding-top: 0.3em;
+  margin-top: 0.3em;
+  color: var(--fg-muted);
+}
+
+.deity-icon {
+  font-size: 1.6em;
+  margin-bottom: 0.2em;
+}
+
+/* Risk table */
+.risk-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.65em;
+}
+
+.risk-table th, .risk-table td {
+  padding: 0.5em 0.8em;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.risk-table th {
+  color: var(--fg-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.85em;
+  letter-spacing: 0.05em;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.15em 0.5em;
+  border-radius: 999px;
+  font-size: 0.85em;
+  font-weight: 600;
+}
+
+.badge-low  { background: #dcfce7; color: #166534; }
+.badge-med  { background: #fef9c3; color: #854d0e; }
+.badge-high { background: #fee2e2; color: #991b1b; }
+
+@media (prefers-color-scheme: dark) {
+  .badge-low  { background: #14532d; color: #86efac; }
+  .badge-med  { background: #451a03; color: #fcd34d; }
+  .badge-high { background: #450a0a; color: #fca5a5; }
+}
+
+/* Code block */
+.code-block {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.8em 1em;
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  font-size: 0.65em;
+  line-height: 1.6;
+  color: var(--fg);
+  white-space: pre;
+  overflow: auto;
+}
+
+/* Typography slide */
+.typo-slide {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  text-align: center;
+}
+
+.typo-slide .big-quote {
+  font-size: 1.15em;
+  font-weight: 700;
+  line-height: 1.4;
+  max-width: 800px;
+  color: var(--fg);
+}
+
+.typo-slide .bullet-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  text-align: center;
+}
+
+.typo-slide .bullet-list li {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin-bottom: 0.5em;
+  color: var(--fg);
+}
+
+.typo-slide .bullet-list li::before {
+  content: "→ ";
+  color: var(--accent);
+}
+
+/* Accent bar above headline */
+.accent-bar {
+  display: block;
+  width: 40px;
+  height: 4px;
+  background: var(--accent);
+  border-radius: 2px;
+  margin-bottom: 0.6em;
+}
+
+/* Muted caption */
+.caption {
+  font-size: 0.55em;
+  color: var(--fg-muted);
+  font-style: italic;
+}
+
+/* App category grid */
+.app-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1em;
+}
+
+.app-category {
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6em 0.8em;
+  font-size: 0.6em;
+}
+
+.app-category h4 {
+  font-size: 1em;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 0 0 0.3em;
+}
+
+.app-category ul {
+  margin: 0;
+  padding-left: 1em;
+}
+
+.app-category li {
+  margin-bottom: 0.1em;
+  font-size: 0.95em;
+}
+
+/* ADR split visual */
+.split-visual {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5em;
+  align-items: center;
+}
+
+.split-bad, .split-good {
+  text-align: center;
+  padding: 1em;
+  border-radius: 8px;
+  font-size: 0.65em;
+}
+
+.split-bad {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 2px solid #ef4444;
+}
+
+.split-good {
+  background: #dcfce7;
+  color: #166534;
+  border: 2px solid #22c55e;
+}
+
+@media (prefers-color-scheme: dark) {
+  .split-bad  { background: #450a0a; color: #fca5a5; }
+  .split-good { background: #14532d; color: #86efac; }
+}
+
+.split-icon {
+  font-size: 2.5em;
+  display: block;
+  margin-bottom: 0.3em;
+}
+
+/* Roadmap cards */
+.roadmap-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1em;
+}
+
+.roadmap-card {
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.8em;
+  font-size: 0.6em;
+}
+
+.roadmap-card h4 {
+  font-weight: 700;
+  color: var(--fg);
+  margin: 0 0 0.4em;
+  font-size: 1.1em;
+}
+
+.roadmap-card p {
+  margin: 0 0 0.4em;
+  font-size: 0.9em;
+  color: var(--fg-muted);
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.1em 0.5em;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-weight: 600;
+}
+
+.status-inprogress { background: var(--bg-alt); border: 1px solid var(--accent); color: var(--accent); }
+.status-planned    { background: var(--bg-alt); border: 1px solid var(--fg-muted); color: var(--fg-muted); }
+
+/* Number highlight */
+.number-highlight {
+  font-size: 1.4em;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Approval table */
+.approval-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.6em;
+}
+
+.approval-table th {
+  padding: 0.4em 0.8em;
+  text-align: left;
+  border-bottom: 2px solid var(--border);
+  color: var(--fg-muted);
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.approval-table td {
+  padding: 0.6em 0.8em;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.approval-table tr:last-child td { border-bottom: none; }

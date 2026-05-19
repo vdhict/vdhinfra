@@ -649,3 +649,20 @@ components:
     description: cluster-health-report (https://health.bluejungle.net) — to be extended into the ops portal
     depends_on: [k8s.cluster]
     sensitive: false
+  comms.presentation:
+    type: static-web
+    owner_agent: frontend-engineer
+    description: Team presentation artefact set — long deck (25 slides), short deck (5 slides), interactive scrolly tour. Served from web/ directory. Deployed to tour.bluejungle.net after DNS+HTTPRoute work by Iris+Heph.
+    depends_on: [obs.health_report]
+    sensitive: false
+    sla_tier: non-critical
+    group: communications
+  tools.tour:
+    type: k8s-app
+    owner_agent: k8s-engineer
+    description: "Static nginx pod serving web/ via git-clone initContainer — tour.bluejungle.net (LAN-only, envoy-internal gateway)"
+    depends_on: [comms.presentation, k8s.cluster]
+    sensitive: false
+    sla_tier: nice-to-have
+    group: tools
+    health_source: k8s://deployment/tools/tour
