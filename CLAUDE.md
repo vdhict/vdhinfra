@@ -144,6 +144,7 @@ The team (see `ops/roster.md` for full personas):
 | **Athena** | Researcher | `it-researcher` | sourced research docs on ITSM / SRE / tools (no prod writes) |
 | **Apollo** | Frontend | `frontend-engineer` | server-rendered HTML+CSS UI for internal web surfaces |
 | **Sibyl** | Observability & analytics | `observability-engineer` | Prometheus + Loki + Grafana, dashboards, recording rules, non-infra data pipelines |
+| **Hermes** | Communications & narrative | `comms-engineer` | presentations, tour scripts, onboarding materials, project glossary — translates technical work for non-engineer audiences |
 
 The user may refer to specialists by persona name. Translate to the agent id when invoking via the Agent tool. Example: *"Atlas, get Hestia to look at automation X"* → `Agent(subagent_type:"ha-engineer", ...)`.
 
