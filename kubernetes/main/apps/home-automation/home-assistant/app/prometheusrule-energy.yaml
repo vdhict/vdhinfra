@@ -1,0 +1,56 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/prometheusrule_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: energy-pv-recording-rules
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: energy-pv-recording
+      interval: 1m
+      rules:
+
+        # Net grid draw: positive = importing from grid, negative = exporting to grid.
+        # Source: P1 meter (Watts). Retains all HA labels.
+        - record: house_net_grid_power_w
+          expr: |
+            hass_sensor_power_w{entity="sensor.p1_meter_power"}
+
+        # PV AC output power (after inverter losses).
+        # Source: Growatt 4000TL output_power. Retains all HA labels.
+        - record: pv_output_power_w
+          expr: |
+            hass_sensor_power_w{entity="sensor.growatt_4000tl_growatt_4000tl_output_power"}
+
+        # House consumption = PV output + grid import.
+        # Uses raw hass metric references with on(job,namespace) to merge series
+        # that have different entity/friendly_name labels.
+        - record: house_consumption_power_w
+          expr: |
+            hass_sensor_power_w{entity="sensor.growatt_4000tl_growatt_4000tl_output_power"}
+            + on(job,namespace) group_left()
+            clamp_min(hass_sensor_power_w{entity="sensor.p1_meter_power"}, 0)
+
+        # PV self-consumption ratio (instant, as percent 0-100).
+        # = (PV_output - grid_export) / PV_output × 100
+        # grid_export = max(−P1, 0)   [P1 negative when exporting]
+        - record: pv_self_consumption_ratio_pct
+          expr: |
+            clamp_min(
+              (
+                hass_sensor_power_w{entity="sensor.growatt_4000tl_growatt_4000tl_output_power"}
+                - on(job,namespace) group_left()
+                  clamp_min(-hass_sensor_power_w{entity="sensor.p1_meter_power"}, 0)
+              )
+              / on(job,namespace) group_left()
+              clamp_min(hass_sensor_power_w{entity="sensor.growatt_4000tl_growatt_4000tl_output_power"}, 1),
+              0
+            ) * 100
+
+        # EV charge power normalised to W (evcc reports in kW).
+        - record: ev_charge_power_w
+          expr: |
+            hass_sensor_power_kw{entity="sensor.evcc_garage_charge_power"} * 1000

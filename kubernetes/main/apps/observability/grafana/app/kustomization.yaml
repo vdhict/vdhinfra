@@ -20,3 +20,12 @@ configMapGenerator:
         grafana_dashboard: "1"
       annotations:
         grafana_folder: Energy
+  - name: grafana-dashboard-energy-pv-v2
+    namespace: observability
+    files:
+      - energy-pv-v2.json=./dashboards/energy-pv-v2.json
+    options:
+      labels:
+        grafana_dashboard: "1"
+      annotations:
+        grafana_folder: Energy

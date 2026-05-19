@@ -1,0 +1,27 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/servicemonitor_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: home-assistant
+  namespace: home-automation
+  labels:
+    app.kubernetes.io/name: home-assistant
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: home-assistant
+      app.kubernetes.io/service: home-assistant
+  namespaceSelector:
+    matchNames:
+      - home-automation
+  endpoints:
+    - port: http
+      path: /api/prometheus
+      interval: 60s
+      scrapeTimeout: 30s
+      authorization:
+        type: Bearer
+        credentials:
+          name: home-assistant-prometheus-token
+          key: token
