@@ -28,6 +28,10 @@ age.key
 # Private directory
 .private/
 
+# kiosk-verify: screenshots and local LLAT config
+hack/kiosk-verify/*.png
+llats.yaml
+
 # OS files
 .DS_Store
 Thumbs.db

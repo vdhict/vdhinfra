@@ -4,8 +4,9 @@ monitoring:
   enabled: false
   createPrometheusRules: false
 cephClusterSpec:
+  # Match production: Ceph Squid v19.2.1
   cephVersion:
-    image: quay.io/ceph/ceph:v19.2.3
+    image: quay.io/ceph/ceph:v19.2.1
   crashCollector:
     disable: true
   dashboard:
@@ -37,6 +38,12 @@ cephClusterSpec:
         memory: 1Gi
       limits:
         memory: 2Gi
+    mds:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
   storage:
     useAllNodes: false
     useAllDevices: false
@@ -69,7 +76,44 @@ cephBlockPools:
         csi.storage.k8s.io/fstype: ext4
 cephBlockPoolsVolumeSnapshotClass:
   enabled: false
-cephFileSystems: []
+# CephFS — matches production, exercises MDS upgrade path in the rehearsal
+cephFileSystems:
+  - name: ceph-filesystem
+    spec:
+      metadataPool:
+        replicated:
+          size: 2
+          requireSafeReplicaSize: false
+      dataPools:
+        - failureDomain: osd
+          replicated:
+            size: 2
+            requireSafeReplicaSize: false
+          name: data0
+      metadataServer:
+        activeCount: 1
+        activeStandby: true
+        resources:
+          requests:
+            cpu: 50m
+            memory: 256Mi
+          limits:
+            memory: 512Mi
+    storageClass:
+      enabled: true
+      isDefault: false
+      name: rook-ceph-filesystem
+      pool: data0
+      reclaimPolicy: Delete
+      allowVolumeExpansion: true
+      parameters:
+        csi.storage.k8s.io/provisioner-secret-name: rook-csi-cephfs-provisioner
+        csi.storage.k8s.io/provisioner-secret-namespace: rook-ceph
+        csi.storage.k8s.io/controller-expand-secret-name: rook-csi-cephfs-provisioner
+        csi.storage.k8s.io/controller-expand-secret-namespace: rook-ceph
+        csi.storage.k8s.io/node-stage-secret-name: rook-csi-cephfs-node
+        csi.storage.k8s.io/node-stage-secret-namespace: rook-ceph
+        csi.storage.k8s.io/fstype: ext4
 cephFileSystemVolumeSnapshotClass:
   enabled: false
 cephObjectStores: []

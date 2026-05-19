@@ -6,6 +6,17 @@ resources:
   - ./externalsecret.yaml
   - ./externalsecret-infinity.yaml
   - ./configmap-infinity-datasource.yaml
-  - ./dashboards/configmap-energy-pv.yaml
   - ./helmrelease.yaml
   - ./httproute.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+configMapGenerator:
+  - name: grafana-dashboard-energy-pv
+    namespace: observability
+    files:
+      - energy-pv.json=./dashboards/energy-pv.json
+    options:
+      labels:
+        grafana_dashboard: "1"
+      annotations:
+        grafana_folder: Energy
