@@ -1,0 +1,44 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/configmap-v1.json
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tour-nginx-config
+data:
+  default.conf: |
+    server {
+      listen 80;
+      server_name _;
+
+      root /usr/share/nginx/html;
+      charset utf-8;
+
+      # Root redirect → /tour/
+      location = / {
+        return 302 /tour/;
+      }
+
+      # Convenience aliases
+      location = /long {
+        return 301 /presentation/long/;
+      }
+      location = /long/ {
+        return 301 /presentation/long/;
+      }
+      location = /short {
+        return 301 /presentation/short/;
+      }
+      location = /short/ {
+        return 301 /presentation/short/;
+      }
+
+      # Static files — try exact match then directory index
+      location / {
+        try_files $uri $uri/ =404;
+        autoindex off;
+      }
+
+      # No access logs for health probes
+      access_log /dev/stdout;
+      error_log  /dev/stderr;
+    }

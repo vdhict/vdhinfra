@@ -1,0 +1,1182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A house that runs itself (almost)</title>
+<style>
+/* =======================================================
+   SCROLLY TOUR — single HTML file, no framework, no CDN
+   Hermes wrote the content; Apollo built the shell.
+   ======================================================= */
+
+:root {
+  --accent: #3b82f6;
+  --accent-warm: #f59e0b;
+  --accent-green: #22c55e;
+  --accent-red: #ef4444;
+  --accent-purple: #8b5cf6;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #ffffff;
+    --bg-alt: #f8fafc;
+    --fg: #0f172a;
+    --fg-muted: #64748b;
+    --border: #e2e8f0;
+    --code-bg: #f1f5f9;
+    --card-bg: #f8fafc;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f172a;
+    --bg-alt: #1e293b;
+    --fg: #e2e8f0;
+    --fg-muted: #94a3b8;
+    --border: #334155;
+    --code-bg: #1e293b;
+    --card-bg: #1e293b;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  height: 100%;
+  scroll-snap-type: y mandatory;
+  overflow-y: scroll;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  height: 100%;
+}
+
+/* =================
+   SCROLL INDICATOR
+   ================= */
+.scroll-indicator {
+  position: fixed;
+  right: 1.2rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  list-style: none;
+}
+
+.scroll-indicator a {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--fg-muted);
+  opacity: 0.35;
+  transition: opacity 0.2s, background 0.2s, transform 0.2s;
+  text-decoration: none;
+}
+
+.scroll-indicator a.active,
+.scroll-indicator a:hover {
+  opacity: 1;
+  background: var(--accent);
+  transform: scale(1.3);
+}
+
+@media (max-width: 640px) {
+  .scroll-indicator { display: none; }
+}
+
+/* =================
+   PANELS
+   ================= */
+.panel {
+  height: 100vh;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 3rem 4rem;
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+}
+
+@media (max-width: 768px) {
+  .panel {
+    padding: 2rem 1.5rem;
+    height: auto;
+    min-height: 100vh;
+  }
+}
+
+/* Two-col layout for large screens */
+.panel-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3rem;
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .panel-2col {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+}
+
+.panel-content {
+  max-width: 580px;
+}
+
+.panel-visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* =================
+   TYPOGRAPHY
+   ================= */
+.stop-number {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 0.5rem;
+}
+
+.section-heading {
+  font-size: clamp(1.4rem, 3.5vw, 2.2rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--fg);
+  margin-bottom: 1rem;
+}
+
+.section-heading .line {
+  display: block;
+  color: var(--fg-muted);
+  font-weight: 400;
+}
+
+.body-text {
+  font-size: clamp(0.9rem, 1.6vw, 1.05rem);
+  line-height: 1.75;
+  color: var(--fg);
+}
+
+.body-text p { margin-bottom: 1em; }
+.body-text p:last-child { margin-bottom: 0; }
+.body-text strong { font-weight: 600; color: var(--fg); }
+
+/* Accent bar */
+.accent-bar {
+  display: block;
+  width: 36px;
+  height: 4px;
+  background: var(--accent);
+  border-radius: 2px;
+  margin-bottom: 1rem;
+}
+
+/* =================
+   STOP 1 — Hardware / living room
+   ================= */
+#stop-1 {}
+
+.hardware-svg-fallback {
+  max-width: 380px;
+  width: 100%;
+}
+
+/* =================
+   STOP 2 — Notebook / GitOps
+   ================= */
+#stop-2 {}
+
+.compare-toggle {
+  margin-top: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  max-width: 520px;
+}
+
+.compare-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+
+.compare-tab {
+  flex: 1;
+  padding: 0.6rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--bg-alt);
+  border: none;
+  cursor: pointer;
+  color: var(--fg-muted);
+  transition: background 0.15s, color 0.15s;
+  font-family: inherit;
+}
+
+.compare-tab.active,
+.compare-tab:hover {
+  background: var(--bg);
+  color: var(--accent);
+}
+
+.compare-body {
+  padding: 1.2rem 1.4rem;
+  min-height: 120px;
+  background: var(--bg);
+}
+
+.compare-pane {
+  display: none;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+.compare-pane.active { display: block; }
+
+.code-view {
+  font-family: "SF Mono", "Fira Code", Consolas, monospace;
+  background: var(--code-bg);
+  border-radius: 6px;
+  padding: 0.8rem 1rem;
+  color: var(--fg);
+  white-space: pre;
+  font-size: 0.78rem;
+}
+
+.plain-view {
+  color: var(--fg);
+  line-height: 1.7;
+}
+
+/* =================
+   STOP 3 — Team of eleven — deity card flip
+   ================= */
+#stop-3 .panel-content {
+  max-width: 100%;
+}
+
+#stop-3 .body-text {
+  max-width: 520px;
+  margin-bottom: 2rem;
+}
+
+.deity-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.7rem;
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .deity-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 600px) {
+  .deity-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* 3D card flip */
+.card-flip-outer {
+  perspective: 800px;
+  height: 115px;
+}
+
+.card-flip-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.45s cubic-bezier(.4,0,.2,1);
+  cursor: pointer;
+}
+
+.card-flip-outer:hover .card-flip-inner,
+.card-flip-outer.flipped .card-flip-inner {
+  transform: rotateY(180deg);
+}
+
+.card-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  padding: 0.7rem 0.6rem;
+  background: var(--card-bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.card-face-back {
+  transform: rotateY(180deg);
+  background: var(--bg-alt);
+  border-color: var(--accent);
+}
+
+.deity-icon { font-size: 1.5rem; margin-bottom: 0.3rem; }
+
+.deity-name {
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--accent);
+  margin-bottom: 0.1rem;
+}
+
+.deity-role {
+  font-size: 0.65rem;
+  color: var(--fg-muted);
+}
+
+.deity-rule-text {
+  font-size: 0.65rem;
+  color: var(--fg);
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.card-hint {
+  font-size: 0.6rem;
+  color: var(--fg-muted);
+  margin-top: 0.3rem;
+}
+
+/* =================
+   STOP 4 — Change lifecycle
+   ================= */
+#stop-4 {}
+
+.lifecycle-flow {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin: 1.5rem 0;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.lifecycle-step {
+  flex: 1;
+  min-width: 80px;
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6rem 0.4rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  position: relative;
+}
+
+.lifecycle-step:hover,
+.lifecycle-step.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+}
+
+.lifecycle-step .step-num {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.lifecycle-step .step-name {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--fg);
+}
+
+.lifecycle-tooltip {
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.8rem 1rem;
+  font-size: 0.8rem;
+  color: var(--fg);
+  min-height: 3.5rem;
+  margin-top: 0.5rem;
+  display: none;
+}
+
+.lifecycle-tooltip.visible { display: block; }
+
+.risk-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  margin-top: 1.5rem;
+}
+
+.risk-table th {
+  text-align: left;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.risk-table td {
+  padding: 0.5rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.risk-table tr:last-child td { border-bottom: none; }
+
+.badge {
+  display: inline-block;
+  padding: 0.15em 0.6em;
+  border-radius: 999px;
+  font-size: 0.72em;
+  font-weight: 700;
+}
+
+.badge-low  { background: #dcfce7; color: #166534; }
+.badge-med  { background: #fef9c3; color: #854d0e; }
+.badge-high { background: #fee2e2; color: #991b1b; }
+
+@media (prefers-color-scheme: dark) {
+  .badge-low  { background: #14532d; color: #86efac; }
+  .badge-med  { background: #451a03; color: #fcd34d; }
+  .badge-high { background: #450a0a; color: #fca5a5; }
+}
+
+/* =================
+   STOP 5 — What this enables
+   ================= */
+#stop-5 {}
+
+.enables-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .enables-grid { grid-template-columns: 1fr; }
+}
+
+.enables-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+}
+
+.enables-card .card-icon {
+  font-size: 1.5rem;
+  margin-bottom: 0.4rem;
+  display: block;
+}
+
+.enables-card h4 {
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+  color: var(--fg);
+}
+
+.enables-card p {
+  font-size: 0.75rem;
+  color: var(--fg-muted);
+  line-height: 1.55;
+}
+
+/* Screenshot gallery */
+.screenshot-gallery {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.8rem;
+  margin-top: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .screenshot-gallery { grid-template-columns: 1fr; }
+}
+
+.screenshot-thumb {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  background: var(--bg-alt);
+  min-height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.screenshot-thumb img {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  display: block;
+  transition: opacity 0.2s;
+}
+
+.screenshot-thumb img[src=""] { display: none; }
+
+.screenshot-placeholder {
+  font-size: 0.65rem;
+  color: var(--fg-muted);
+  text-align: center;
+  padding: 1rem;
+  font-style: italic;
+}
+
+/* =================
+   STOP 6 — What comes next
+   ================= */
+#stop-6 {}
+
+.roadmap-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .roadmap-cards { grid-template-columns: 1fr; }
+}
+
+.roadmap-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.1rem 1.2rem;
+}
+
+.roadmap-card h4 {
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin-bottom: 0.6rem;
+  color: var(--fg);
+}
+
+.roadmap-card p {
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: var(--fg-muted);
+  margin-bottom: 0.8rem;
+}
+
+.status-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.2em 0.6em;
+  border-radius: 4px;
+  border: 1px solid;
+}
+
+.status-inprogress { color: var(--accent); border-color: var(--accent); }
+.status-planned    { color: var(--fg-muted); border-color: var(--fg-muted); }
+
+/* =================
+   FOOTER / ATTRIBUTION
+   ================= */
+footer.attribution {
+  scroll-snap-align: start;
+  min-height: auto;
+  padding: 3rem 4rem 4rem;
+  border-top: 1px solid var(--border);
+  background: var(--bg-alt);
+}
+
+footer.attribution p {
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+  line-height: 1.7;
+  max-width: 640px;
+}
+
+@media (max-width: 768px) {
+  footer.attribution { padding: 2rem 1.5rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- Scroll position dots -->
+<nav class="scroll-indicator" aria-label="Scroll navigation">
+  <a href="#stop-1" class="active" title="The living room you don't see"></a>
+  <a href="#stop-2" title="One notebook. One truth."></a>
+  <a href="#stop-3" title="The team of eleven"></a>
+  <a href="#stop-4" title="A change in the life of the house"></a>
+  <a href="#stop-5" title="What this enables"></a>
+  <a href="#stop-6" title="What comes next"></a>
+</nav>
+
+<!-- ============================================================
+     STOP 1 — The living room you don't see
+     ============================================================ -->
+<section class="panel" id="stop-1">
+  <div class="panel-2col">
+    <div class="panel-content">
+      <span class="stop-number">Stop 1 of 6</span>
+      <span class="accent-bar"></span>
+      <h1 class="section-heading">The living room<span class="line"> you don't see</span></h1>
+      <div class="body-text">
+        <p>Behind the light switch is a small data centre. If you've been in this house, you've touched its output: the lights that matched the time of day, the heating that was already at the right temperature when you arrived, the kitchen screen showing who was home. None of that happened by accident.</p>
+        <p>Underneath all of it runs a cluster of six computers, twenty-odd smart devices, and over sixty software applications coordinating around the clock. This is a tour of how that works — and why it's run more like a software company than a home.</p>
+      </div>
+    </div>
+    <div class="panel-visual">
+      <!-- Hardware stand-in SVG (G) — fallback when no photo available -->
+      <svg class="hardware-svg-fallback" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240" role="img" aria-label="Six small server icons arranged as three control-plane nodes and three workers, connected to a switch">
+        <style>
+          .hv text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;font-size:11px;fill:currentColor;text-anchor:middle}
+          .hv .box{fill:none;stroke-width:2}
+          .hv .cp{stroke:var(--accent,#3b82f6)}
+          .hv .wk{stroke:var(--accent-green,#22c55e)}
+          .hv .sw{stroke:var(--accent-warm,#f59e0b)}
+          .hv .nas{stroke:var(--accent-purple,#8b5cf6)}
+          .hv .wire{stroke:currentColor;stroke-width:1.5;opacity:0.3}
+        </style>
+        <g class="hv">
+          <text x="160" y="16" font-size="10" opacity="0.45" font-weight="700" letter-spacing="0.08em">HOME RACK</text>
+          <!-- Switch -->
+          <rect x="100" y="98" width="120" height="26" rx="4" class="box sw"/>
+          <text x="160" y="116" style="fill:var(--accent-warm,#f59e0b)" font-weight="700" font-size="10">Network switch</text>
+          <!-- UDM -->
+          <rect x="100" y="62" width="120" height="26" rx="4" class="box sw"/>
+          <text x="160" y="80" style="fill:var(--accent-warm,#f59e0b)" font-weight="700" font-size="10">UDM Pro Max</text>
+          <line x1="160" y1="88" x2="160" y2="98" class="wire"/>
+          <!-- CP nodes -->
+          <text x="52" y="32" font-size="9" opacity="0.45">Control Plane</text>
+          <rect x="10" y="38" width="82" height="22" rx="4" class="box cp"/>
+          <text x="51" y="53" style="fill:var(--accent,#3b82f6)" font-weight="700" font-size="10">CP 1</text>
+          <rect x="10" y="68" width="82" height="22" rx="4" class="box cp"/>
+          <text x="51" y="83" style="fill:var(--accent,#3b82f6)" font-weight="700" font-size="10">CP 2</text>
+          <rect x="10" y="98" width="82" height="22" rx="4" class="box cp"/>
+          <text x="51" y="113" style="fill:var(--accent,#3b82f6)" font-weight="700" font-size="10">CP 3</text>
+          <line x1="93" y1="49" x2="100" y2="111" class="wire"/>
+          <line x1="93" y1="79" x2="100" y2="111" class="wire"/>
+          <line x1="93" y1="109" x2="100" y2="111" class="wire"/>
+          <!-- Workers -->
+          <text x="265" y="32" font-size="9" opacity="0.45">Workers</text>
+          <rect x="228" y="38" width="82" height="22" rx="4" class="box wk"/>
+          <text x="269" y="53" style="fill:var(--accent-green,#22c55e)" font-weight="700" font-size="10">W 1</text>
+          <rect x="228" y="68" width="82" height="22" rx="4" class="box wk"/>
+          <text x="269" y="83" style="fill:var(--accent-green,#22c55e)" font-weight="700" font-size="10">W 2</text>
+          <rect x="228" y="98" width="82" height="22" rx="4" class="box wk"/>
+          <text x="269" y="113" style="fill:var(--accent-green,#22c55e)" font-weight="700" font-size="10">W 3</text>
+          <line x1="228" y1="49" x2="220" y2="111" class="wire"/>
+          <line x1="228" y1="79" x2="220" y2="111" class="wire"/>
+          <line x1="228" y1="109" x2="220" y2="111" class="wire"/>
+          <!-- NAS -->
+          <rect x="100" y="145" width="120" height="26" rx="4" class="box nas"/>
+          <text x="160" y="163" style="fill:var(--accent-purple,#8b5cf6)" font-weight="700" font-size="10">Synology NAS</text>
+          <line x1="160" y1="145" x2="160" y2="124" class="wire"/>
+          <!-- Labels underneath -->
+          <text x="51" y="132" font-size="9" opacity="0.45">Beelink EQ14 Pro</text>
+          <text x="51" y="143" font-size="9" opacity="0.45">N150 · 16 GB RAM</text>
+          <text x="269" y="132" font-size="9" opacity="0.45">Intel NUC 11</text>
+          <text x="269" y="143" font-size="9" opacity="0.45">i5 · NVMe + SSD</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     STOP 2 — One notebook. One truth.
+     ============================================================ -->
+<section class="panel" id="stop-2">
+  <div class="panel-2col">
+    <div class="panel-content">
+      <span class="stop-number">Stop 2 of 6</span>
+      <span class="accent-bar"></span>
+      <h2 class="section-heading">One notebook.<span class="line"> One truth.</span></h2>
+      <div class="body-text">
+        <p>Nothing in this system is configured manually — at least, not in a way that isn't written down. Every setting, every application, every routing rule is a file in a version-controlled repository: think of it as a document with infinite undo history, where every change is signed with a name, a date, and a reason.</p>
+        <p>A piece of software called Flux (think: a patient robot) reads that repository every hour and compares it to what the cluster is actually running. If they disagree — because someone made a manual tweak, or a machine restarted in an unexpected state — Flux corrects the discrepancy. The notebook always wins.</p>
+        <p>The consequence of this sounds dry but is genuinely remarkable: if all six computers in the cluster failed tonight and had to be replaced with new hardware, the complete system could be restored from the repository in about twenty minutes. No custom documentation. No "the person who set this up" phone call. Just the notebook.</p>
+      </div>
+      <!-- Compare toggle -->
+      <div class="compare-toggle" aria-label="Code vs plain-English toggle">
+        <div class="compare-tabs" role="tablist">
+          <button class="compare-tab active" role="tab" aria-selected="true" onclick="showPane('code')">What it looks like in code</button>
+          <button class="compare-tab" role="tab" aria-selected="false" onclick="showPane('plain')">What that means</button>
+        </div>
+        <div class="compare-body">
+          <div class="compare-pane active code-view" id="pane-code" role="tabpanel">app: home-assistant
+image: ghcr.io/home-operations/home-assistant:2026.5.1
+port: 8123
+storage: 20Gi
+backup: hourly</div>
+          <div class="compare-pane plain-view" id="pane-plain" role="tabpanel">
+            <p>Run Home Assistant version 2026.5.1. Listen on port 8123. Give it 20&nbsp;gigabytes of storage. Back it up every hour.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="panel-visual">
+      <!-- GitOps three-step SVG (A) -->
+      <svg style="max-width:360px;width:100%" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 170" role="img" aria-label="GitOps flow: code repository to Flux to cluster, with return arrow">
+        <defs>
+          <marker id="gah2" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L7,3 z" fill="var(--accent,#3b82f6)"/>
+          </marker>
+        </defs>
+        <style>
+          .gt2 text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;font-size:10.5px;fill:currentColor;text-anchor:middle}
+          .gt2 .box{fill:none;stroke:currentColor;stroke-width:1.5}
+          .gt2 .arr{stroke:var(--accent,#3b82f6);stroke-width:2;fill:none;marker-end:url(#gah2)}
+          .gt2 .ret{stroke:var(--accent,#3b82f6);stroke-width:1.5;fill:none;marker-end:url(#gah2);stroke-dasharray:4,3;opacity:0.65}
+        </style>
+        <g class="gt2">
+          <rect x="5" y="32" width="82" height="56" rx="8" class="box"/>
+          <text x="46" y="55" font-weight="700">Git</text>
+          <text x="46" y="71" opacity="0.6">repository</text>
+          <text x="46" y="84" opacity="0.55" font-size="9">∞ undo history</text>
+          <line x1="89" y1="60" x2="108" y2="60" class="arr"/>
+          <rect x="110" y="32" width="82" height="56" rx="8" class="box"/>
+          <text x="151" y="55" font-weight="700">Flux</text>
+          <text x="151" y="71" opacity="0.6">reads every</text>
+          <text x="151" y="84" opacity="0.55" font-size="9">hour</text>
+          <line x1="194" y1="60" x2="213" y2="60" class="arr"/>
+          <rect x="215" y="32" width="82" height="56" rx="8" class="box"/>
+          <text x="256" y="55" font-weight="700">Cluster</text>
+          <text x="256" y="71" opacity="0.6">always</text>
+          <text x="256" y="84" opacity="0.55" font-size="9">matches</text>
+          <path d="M 256 90 Q 256 132 151 132 Q 46 132 46 90" class="ret"/>
+          <text x="151" y="150" opacity="0.55" font-size="9" font-style="italic">Manual change? Overwritten on next sync.</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     STOP 3 — The team of eleven
+     ============================================================ -->
+<section class="panel" id="stop-3">
+  <span class="stop-number" style="margin-bottom:0.4rem">Stop 3 of 6</span>
+  <span class="accent-bar"></span>
+  <h2 class="section-heading" style="margin-bottom:0.6rem">The team<span class="line"> of eleven</span></h2>
+  <div class="body-text" style="max-width:680px;margin-bottom:1.4rem">
+    <p>The system is managed by eleven specialist AI agents — each one named after a Greek deity, each one with a defined domain and a list of things they're not allowed to do regardless of instructions.</p>
+    <p>Atlas coordinates everything. You talk to Atlas; Atlas routes to the right specialist. No change leaves one engineer's desk without at least one other reviewing it.</p>
+  </div>
+  <p style="font-size:0.72rem;color:var(--fg-muted);margin-bottom:0.8rem">Hover or tap a card to reveal the one rule they never break.</p>
+  <div class="deity-grid">
+
+    <div class="card-flip-outer" onclick="this.classList.toggle('flipped')">
+      <div class="card-flip-inner">
+        <div class="card-face">
+          <div class="deity-icon">🧭</div>
+          <div class="deity-name">Atlas</div>
+          <div class="deity-role">OPS Manager</div>
+          <div class="card-hint">tap to flip</div>
+        </div>
+        <div class="card-face card-face-back">
+          <div class="deity-rule-text">Never acts without consulting the right specialist</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-flip-outer" onclick="this.classList.toggle('flipped')">
+      <div class="card-flip-inner">
+        <div class="card-face">
+          <div class="deity-icon">🔥</div>
+          <div class="deity-name">Hestia</div>
+          <div class="deity-role">HA engineer</div>
+        </div>
+        <div class="card-face card-face-back">
+          <div class="deity-rule-text">Never edits the authentication store while HA is running</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-flip-outer" onclick="this.classList.toggle('flipped')">
+      <div class="card-flip-inner">
+        <div class="card-face">
+          <div class="deity-icon">🌈</div>
+          <div class="deity-name">Iris</div>
+          <div class="deity-role">Network engineer</div>
+        </div>
+        <div class="card-face card-face-back">
+          <div class="deity-rule-text">Never writes IPv6 addresses to the router's static DNS table</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-flip-outer" onclick="this.classList.toggle('flipped')">
+      <div class="card-flip-inner">
+        <div class="card-face">
+          <div class="deity-icon">🔨</div>
+          <div class="deity-name">Hephaestus</div>
+          <div class="deity-role">Cluster engineer</div>
+        </div>
+        <div class="card-face card-face-back">
+          <div class="deity-rule-text">No destructive operations without explicit user approval</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-flip-outer" onclick="this.classList.toggle('flipped')">
+      <div class="card-flip-inner">
+        <div class="card-face">
+          <div class="deity-icon">⚖</div>
+          <div class="deity-name">Themis</div>
+          <div class="deity-role">QA gate</div>
+        </div>
+        <div class="card-face card-face-back">
+          <div class="deity-rule-text">Never approves on "looks fine" — requires documented evidence</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-flip-outer" onclick="this.classList.toggle('flipped')">
+      <div class="card-flip-inner">
+        <div class="card-face">
+          <div class="deity-icon">👁</div>
+          <div class="deity-name">Argus</div>
+          <div class="deity-role">Security analyst</div>
+        </div>
+        <div class="card-face card-face-back">
+          <div class="deity-rule-text">Never suppresses a finding to keep the deploy queue moving</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-flip-outer" onclick="this.classList.toggle('flipped')">
+      <div class="card-flip-inner">
+        <div class="card-face">
+          <div class="deity-icon">🐐</div>
+          <div class="deity-name">Pan</div>
+          <div class="deity-role">Pentester</div>
+        </div>
+        <div class="card-face card-face-back">
+          <div class="deity-rule-text">Never tests out-of-scope targets; never repeats a technique that crashed a component</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-flip-outer" onclick="this.classList.toggle('flipped')">
+      <div class="card-flip-inner">
+        <div class="card-face">
+          <div class="deity-icon">🏛</div>
+          <div class="deity-name">Daedalus</div>
+          <div class="deity-role">Architect</div>
+        </div>
+        <div class="card-face card-face-back">
+          <div class="deity-rule-text">Never bypasses design when stakeholders disagree</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-flip-outer" onclick="this.classList.toggle('flipped')">
+      <div class="card-flip-inner">
+        <div class="card-face">
+          <div class="deity-icon">🦉</div>
+          <div class="deity-name">Athena</div>
+          <div class="deity-role">Researcher</div>
+        </div>
+        <div class="card-face card-face-back">
+          <div class="deity-rule-text">Never recommends without searching first</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-flip-outer" onclick="this.classList.toggle('flipped')">
+      <div class="card-flip-inner">
+        <div class="card-face">
+          <div class="deity-icon">☀</div>
+          <div class="deity-name">Apollo</div>
+          <div class="deity-role">Frontend</div>
+        </div>
+        <div class="card-face card-face-back">
+          <div class="deity-rule-text">No runtime CDN dependencies; every stack choice must be justified</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-flip-outer" onclick="this.classList.toggle('flipped')">
+      <div class="card-flip-inner">
+        <div class="card-face">
+          <div class="deity-icon">🪄</div>
+          <div class="deity-name">Hermes</div>
+          <div class="deity-role">Communications</div>
+        </div>
+        <div class="card-face card-face-back">
+          <div class="deity-rule-text">No jargon without a plain-language definition on first use</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- deity-grid -->
+</section>
+
+<!-- ============================================================
+     STOP 4 — A change in the life of the house
+     ============================================================ -->
+<section class="panel" id="stop-4">
+  <div class="panel-2col">
+    <div class="panel-content">
+      <span class="stop-number">Stop 4 of 6</span>
+      <span class="accent-bar"></span>
+      <h2 class="section-heading">A change in the<span class="line"> life of the house</span></h2>
+      <div class="body-text">
+        <p>Want to add a new automation? Connect a new device? Change a network routing rule? The process is always the same, regardless of size.</p>
+        <p>It starts as a change record. The engineer writes down: what is being changed, on which component, why, what the risk level is, and — critically — what the rollback plan is if it goes wrong. That record is logged before a single line of configuration is touched.</p>
+        <p>After execution: evidence. A screenshot, a log excerpt, a test result that shows the change had the intended effect. Not "looks fine". The record closes only when evidence is attached. Every closed change is permanent.</p>
+      </div>
+    </div>
+    <div class="panel-content">
+      <!-- Six-step flow -->
+      <div class="lifecycle-flow" role="list" aria-label="Six-step change lifecycle">
+        <div class="lifecycle-step" role="listitem" onclick="showStep(this, 'A change record is opened: what, who, why, what risk level, what rollback plan.')" aria-label="Step 1: Request">
+          <span class="step-num">Step 1</span>
+          <span class="step-name">Request</span>
+        </div>
+        <div class="lifecycle-step" role="listitem" onclick="showStep(this, 'The engineer drafts a plan: scope, risk classification, rollback steps documented.')" aria-label="Step 2: Plan">
+          <span class="step-num">Step 2</span>
+          <span class="step-name">Plan</span>
+        </div>
+        <div class="lifecycle-step" role="listitem" onclick="showStep(this, 'Themis runs automated checks: schema validation, rollback plan present, no freeze window conflict, security flags cleared.')" aria-label="Step 3: QA Check">
+          <span class="step-num">Step 3</span>
+          <span class="step-name">QA Check</span>
+        </div>
+        <div class="lifecycle-step" role="listitem" onclick="showStep(this, 'The engineer applies the change. High-risk changes require Sander\'s explicit written approval first.')" aria-label="Step 4: Execute">
+          <span class="step-num">Step 4</span>
+          <span class="step-name">Execute</span>
+        </div>
+        <div class="lifecycle-step" role="listitem" onclick="showStep(this, 'Evidence is attached: a screenshot, a log excerpt, a test result. Not \"looks fine\".')" aria-label="Step 5: Evidence">
+          <span class="step-num">Step 5</span>
+          <span class="step-name">Evidence</span>
+        </div>
+        <div class="lifecycle-step" role="listitem" onclick="showStep(this, 'The change record closes. The history is permanent and immutable.')" aria-label="Step 6: Close">
+          <span class="step-num">Step 6</span>
+          <span class="step-name">Close</span>
+        </div>
+      </div>
+      <div class="lifecycle-tooltip" id="step-tooltip" role="status" aria-live="polite">Click a step to learn what happens there.</div>
+
+      <!-- Risk table -->
+      <table class="risk-table" aria-label="Risk levels and who reviews them">
+        <thead>
+          <tr><th>Risk</th><th>Who reviews</th><th>Example changes</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-low">Low</span></td>
+            <td>Nobody — just logged</td>
+            <td>Image update, comment edit, label change</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-med">Medium</span></td>
+            <td>Themis (automated)</td>
+            <td>New automation, new network route, new integration</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-high">High</span></td>
+            <td>Sander + Themis</td>
+            <td>Auth, firewall, storage config, OS changes</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     STOP 5 — What this enables
+     ============================================================ -->
+<section class="panel" id="stop-5">
+  <span class="stop-number">Stop 5 of 6</span>
+  <span class="accent-bar"></span>
+  <h2 class="section-heading" style="margin-bottom:0.5rem">What this<span class="line"> enables</span></h2>
+  <p class="body-text" style="max-width:600px;margin-bottom:0">The infrastructure isn't the point. The point is what it makes possible.</p>
+
+  <div class="enables-grid">
+    <div class="enables-card">
+      <span class="card-icon">⚡</span>
+      <h4>The car charger</h4>
+      <p>A solar inverter reports its output. A live electricity price feed says what the grid costs right now. A charge controller called evcc combines both and decides when to charge the Tesla. No app to open. No decision to make.</p>
+    </div>
+    <div class="enables-card">
+      <span class="card-icon">🌱</span>
+      <h4>The garden</h4>
+      <p>Three soil moisture probes measure the ground at 06:00. The automation takes the middle reading of the three, checks the weather forecast for the next 12 hours, and opens the irrigation valve if the soil is dry and no rain is coming.</p>
+    </div>
+    <div class="enables-card">
+      <span class="card-icon">🏠</span>
+      <h4>The house</h4>
+      <p>Presence detection tells Home Assistant where people are. Heating follows occupancy — an empty room doesn't heat to full temperature. Lights turn on when someone enters, off when they leave.</p>
+    </div>
+    <div class="enables-card">
+      <span class="card-icon">📱</span>
+      <h4>The dashboard</h4>
+      <p>A Pixel Tablet in the kitchen shows: who's home, what the heating is doing, whether the car is charging, what the energy reading is right now. One screen. Always visible. No login.</p>
+    </div>
+    <div class="enables-card">
+      <span class="card-icon">📋</span>
+      <h4>The morning report</h4>
+      <p>Every morning at 06:00, the cluster checks itself — six nodes, storage, backup status, certificate expiry, app health. A report lands on a web page. At 08:00 a notification arrives. Green: no action needed.</p>
+    </div>
+    <div class="enables-card" style="display:flex;flex-direction:column;justify-content:space-between">
+      <div>
+        <span class="card-icon" style="font-size:1rem;margin-bottom:0.2rem">📸</span>
+        <h4>Live screenshots</h4>
+        <p>The evcc charging screen, the kitchen dashboard, and the daily health report below.</p>
+      </div>
+      <div class="screenshot-gallery" style="grid-template-columns:1fr;margin-top:0.7rem">
+        <div class="screenshot-thumb">
+          <img src="images/screenshot-evcc-1920x1080.png" alt="evcc EV charge status" loading="lazy" onerror="this.parentElement.querySelector('.screenshot-placeholder').style.display='block';this.style.display='none'">
+          <div class="screenshot-placeholder" style="display:none">evcc charge status<br>evcc.bluejungle.net</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Full screenshot gallery below the cards -->
+  <div class="screenshot-gallery" style="margin-top:1rem">
+    <div class="screenshot-thumb">
+      <img src="images/screenshot-kitchen-1080x2400.png" alt="Kitchen dashboard on Pixel Tablet" loading="lazy" onerror="this.parentElement.querySelector('.screenshot-placeholder').style.display='block';this.style.display='none'">
+      <div class="screenshot-placeholder" style="display:none">Kitchen dashboard<br>hass.bluejungle.net<br>Pixel Tablet · portrait</div>
+    </div>
+    <div class="screenshot-thumb">
+      <img src="images/screenshot-health-1920x1080.png" alt="Cluster health report" loading="lazy" onerror="this.parentElement.querySelector('.screenshot-placeholder').style.display='block';this.style.display='none'">
+      <div class="screenshot-placeholder" style="display:none">Daily health report<br>health.bluejungle.net</div>
+    </div>
+    <div class="screenshot-thumb">
+      <img src="../images/screenshot-evcc-1920x1080.png" alt="evcc charging screen" loading="lazy" onerror="this.parentElement.querySelector('.screenshot-placeholder').style.display='block';this.style.display='none'">
+      <div class="screenshot-placeholder" style="display:none">evcc charging screen<br>evcc.bluejungle.net</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     STOP 6 — What comes next
+     ============================================================ -->
+<section class="panel" id="stop-6">
+  <span class="stop-number">Stop 6 of 6</span>
+  <span class="accent-bar"></span>
+  <h2 class="section-heading">What comes<span class="line"> next</span></h2>
+  <div class="body-text" style="max-width:620px;margin-bottom:0.4rem">
+    <p>The roadmap is already written. Three active projects define where this is going.</p>
+  </div>
+
+  <div class="roadmap-cards">
+    <div class="roadmap-card">
+      <h4>Network segmentation</h4>
+      <p>Currently, servers, phones, and smart devices share the same physical network — they're separated logically, but a misconfigured firewall rule could let a cheap smart plug reach the server cluster. The next change moves the cluster to its own dedicated network, with proper routing between segments using the same protocol the internet uses (BGP — Border Gateway Protocol). The configuration is already in a code branch; it hasn't been deployed to production yet because this kind of change waits for a quiet weekend and an explicit approval.</p>
+      <span class="status-badge status-inprogress">In progress / Branch ready</span>
+    </div>
+    <div class="roadmap-card">
+      <h4>The live topology portal</h4>
+      <p>A web page that shows every component in the system as a visual map — internet connection, router, switches, cluster nodes, storage, applications — each with a real-time health indicator in plain colour: green, yellow, red. The cluster-health report page already exists; the topology map is its next chapter. Designed for two audiences: the household (one line: "everything's fine") and the operator (the full picture).</p>
+      <span class="status-badge status-inprogress">In progress / Building</span>
+    </div>
+    <div class="roadmap-card">
+      <h4>IPv6</h4>
+      <p>Dutch internet infrastructure is natively IPv6. KPN provides a /48 prefix — enough addresses for every device in the house to have its own globally routable IPv6 address. The cluster is designed to support this, but it's waiting for an upstream bug fix in the networking layer before it can be safely enabled. When it's ready, it will be built in from the start. Three things. All of them already specified. All of them moving forward in order.</p>
+      <span class="status-badge status-planned">Planned / Waiting on upstream fix</span>
+    </div>
+  </div>
+
+  <!-- Screenshot: health portal -->
+  <div style="margin-top:1.5rem;max-width:600px">
+    <div class="screenshot-thumb" style="height:auto;min-height:60px">
+      <img src="images/screenshot-topology-1920x1080.png"
+           alt="Ops portal topology view at health.bluejungle.net"
+           style="height:160px;object-fit:cover;width:100%"
+           loading="lazy"
+           onerror="this.parentElement.querySelector('.screenshot-placeholder').style.display='block';this.style.display='none'">
+      <div class="screenshot-placeholder" style="display:none">health.bluejungle.net/topology.html<br>or main health report · 1920×1080</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     FOOTER / ATTRIBUTION
+     ============================================================ -->
+<footer class="attribution">
+  <p>This tour was written by Hermes, the communications specialist on the team whose job is translating technical work into language anyone can follow. Everything described here is running right now, in a home rack, reconciled from a Git repository, reviewed by a team that doesn't take shortcuts.</p>
+</footer>
+
+<script>
+// -------------------------------------------------------
+// Compare toggle (Stop 2)
+// -------------------------------------------------------
+function showPane(which) {
+  document.getElementById('pane-code').classList.toggle('active', which === 'code');
+  document.getElementById('pane-plain').classList.toggle('active', which === 'plain');
+  document.querySelectorAll('.compare-tab').forEach(function(t, i) {
+    t.classList.toggle('active', (i === 0 && which === 'code') || (i === 1 && which === 'plain'));
+    t.setAttribute('aria-selected', String((i === 0 && which === 'code') || (i === 1 && which === 'plain')));
+  });
+}
+
+// -------------------------------------------------------
+// Lifecycle step tooltips (Stop 4)
+// -------------------------------------------------------
+var STEP_TOOLTIPS = {
+  'Step 1 Request': 'A change record is opened: what is being changed, on which component, by whom, what the risk level is, and what the rollback plan is if it goes wrong.',
+  'Step 2 Plan': 'The engineer drafts the plan — scope, risk classification, and rollback steps are all documented before a single configuration line is touched.',
+  'Step 3 QA Check': 'Themis runs automated checks: schema validation, rollback plan present, no freeze-window conflict, security flags cleared by Argus. Pass = proceed. Fail = back to engineer.',
+  'Step 4 Execute': 'The engineer applies the change. For high-risk changes, Sander must first type an explicit approval — the agents wait. Nothing auto-executes on critical infrastructure.',
+  'Step 5 Evidence': 'Evidence is attached to the record: a screenshot, a log excerpt, a test result that demonstrates the change had the intended effect. "Looks fine" is not evidence.',
+  'Step 6 Close': 'The change record closes. The history is permanent and immutable. If something breaks two months from now, the answer is in the log.'
+};
+
+function showStep(el, msg) {
+  document.querySelectorAll('.lifecycle-step').forEach(function(s) { s.classList.remove('active'); });
+  el.classList.add('active');
+  var t = document.getElementById('step-tooltip');
+  var key = el.querySelector('.step-num').textContent + ' ' + el.querySelector('.step-name').textContent;
+  t.textContent = STEP_TOOLTIPS[key] || msg;
+  t.classList.add('visible');
+}
+
+// -------------------------------------------------------
+// Scroll indicator active dot
+// -------------------------------------------------------
+(function() {
+  var panels = document.querySelectorAll('.panel[id]');
+  var dots   = document.querySelectorAll('.scroll-indicator a');
+  var io = new IntersectionObserver(function(entries) {
+    entries.forEach(function(e) {
+      if (e.isIntersecting && e.intersectionRatio > 0.5) {
+        var idx = Array.from(panels).indexOf(e.target);
+        dots.forEach(function(d, i) { d.classList.toggle('active', i === idx); });
+      }
+    });
+  }, { threshold: 0.5 });
+  panels.forEach(function(p) { io.observe(p); });
+})();
+</script>
+</body>
+</html>
