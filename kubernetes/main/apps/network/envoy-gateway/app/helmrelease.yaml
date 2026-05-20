@@ -12,6 +12,10 @@ spec:
   values:
     config:
       envoyGateway:
+        extensionApis:
+          # Required to allow EnvoyPatchPolicy resources to be applied.
+          # Used for Alt-Svc: clear injection (ERR_QUIC_PROTOCOL_ERROR fix).
+          enableEnvoyPatchPolicy: true
         provider:
           type: Kubernetes
           kubernetes:

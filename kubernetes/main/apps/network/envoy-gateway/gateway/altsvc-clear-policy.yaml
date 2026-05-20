@@ -1,0 +1,76 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/v1.3.0/api/v1alpha1/zz_generated.deepcopy.go
+# Inject "Alt-Svc: clear" on every HTTP response from both gateways.
+#
+# Root cause: Cloudflare's edge proxies all *.bluejungle.net hostnames
+# (proxied=true in CF DNS), including LAN-only routes that point to
+# internal.bluejungle.net. CF's edge always adds "alt-svc: h3=":443""
+# in its responses. Chrome's Alt-Svc cache is session-persistent, so
+# browsers that ever received that header will attempt QUIC over UDP/443,
+# which has no listener on envoy-internal or envoy-external, causing
+# ERR_QUIC_PROTOCOL_ERROR.
+#
+# Fix: both gateways respond with "Alt-Svc: clear", which instructs any
+# compliant HTTP/1.1 or HTTP/2 client to evict the cached QUIC/H3 hint.
+# After one successful page load the browser stops retrying QUIC.
+#
+# Implementation: EnvoyPatchPolicy with a JSONPatch on the
+# type.googleapis.com/envoy.config.route.v3.RouteConfiguration resource.
+# The patch adds response_headers_to_add at the RouteConfiguration
+# (top-level) scope so it applies to every virtual-host and route within
+# the config without touching individual HTTPRoute resources.
+#
+# Route config names confirmed from envoy admin config_dump 2026-05-20:
+#   envoy-internal : "network/envoy-internal/https"
+#   envoy-external : "network/envoy-external/https"
+# (HTTP listeners only do 301 redirect and don't need the header.)
+#
+# Remove this policy once:
+#   - All CF proxied=true internal records are flipped to proxied=false, OR
+#   - envoy-gateway is upgraded to >=1.7 and ClientTrafficPolicy gains a
+#     native response-header-injection field.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyPatchPolicy
+metadata:
+  name: altsvc-clear-internal
+  namespace: network
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: envoy-internal
+  type: JSONPatch
+  jsonPatches:
+    - type: type.googleapis.com/envoy.config.route.v3.RouteConfiguration
+      name: network/envoy-internal/https
+      operation:
+        op: add
+        path: /response_headers_to_add
+        value:
+          - header:
+              key: Alt-Svc
+              value: "clear"
+            keep_empty_value: false
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyPatchPolicy
+metadata:
+  name: altsvc-clear-external
+  namespace: network
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: envoy-external
+  type: JSONPatch
+  jsonPatches:
+    - type: type.googleapis.com/envoy.config.route.v3.RouteConfiguration
+      name: network/envoy-external/https
+      operation:
+        op: add
+        path: /response_headers_to_add
+        value:
+          - header:
+              key: Alt-Svc
+              value: "clear"
+            keep_empty_value: false
