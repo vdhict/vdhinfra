@@ -550,6 +550,26 @@ components:
     group: tls
     sla_tier: family-critical
     health_source: k8s://hr/cert-manager/cert-manager
+  svc.external-dns-cf-internal:
+    type: helmrelease
+    owner_agent: k8s-engineer
+    description: external-dns-cloudflare-internal — writes proxied=false Cloudflare DNS records for HTTPRoutes on envoy-internal gateway; txt-owner-id=default
+    depends_on: [k8s.cluster, net.dns.cloudflare]
+    sensitive: true
+    tier: 4
+    group: wan-dns
+    sla_tier: family-critical
+    health_source: k8s://hr/network/external-dns-cloudflare-internal
+  svc.external-dns-cf-external:
+    type: helmrelease
+    owner_agent: k8s-engineer
+    description: external-dns-cloudflare-external — writes proxied=true Cloudflare DNS records for HTTPRoutes on envoy-external gateway; txt-owner-id=home-external
+    depends_on: [k8s.cluster, net.dns.cloudflare]
+    sensitive: true
+    tier: 4
+    group: wan-dns
+    sla_tier: family-critical
+    health_source: k8s://hr/network/external-dns-cloudflare-external
   svc.external-dns-unifi:
     type: helmrelease
     owner_agent: k8s-engineer
