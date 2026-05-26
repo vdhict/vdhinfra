@@ -20,3 +20,4 @@ resources:
   - ./cluster-health/install.yaml
   - ./unifi-exporter/install.yaml
   - ./ceph-smart-exporter/install.yaml
+  - ./airmax-backup/install.yaml

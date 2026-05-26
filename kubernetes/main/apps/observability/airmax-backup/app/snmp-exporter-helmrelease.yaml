@@ -1,0 +1,177 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/helm.toolkit.fluxcd.io/helmrelease_v2.json
+# snmp_exporter for airMAX NanoStation AC devices.
+#
+# Module note: the upstream prometheus/snmp_exporter ships a compiled snmp.yml
+# that does not include ubiquiti_airmax in the pre-built binary. We supply the
+# module inline via chart `config:`. The OID set covers UBNT-MIB airMAX objects
+# (signal, noise, CCQ, TX/RX rate, frequency, distance) plus IF-MIB counters.
+# Community string is 'vdhictro' (configured by Iris on the devices).
+#
+# Bootstrap: snmp targets will show up=0 until Iris enables SNMP v2c on both
+# NanoStations (172.16.3.43 achtertuin, 172.16.3.74 schuur).
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app snmp-exporter
+  namespace: observability
+spec:
+  interval: 30m
+  maxHistory: 2
+  chart:
+    spec:
+      chart: prometheus-snmp-exporter
+      version: 9.14.0
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    fullnameOverride: *app
+    image:
+      repository: quay.io/prometheus/snmp-exporter
+      tag: v0.30.1@sha256:e5fd5e8b43ace6c088fe9bf0b37b7fff0e04380bee352be7ec41b853a4dd5859
+      pullPolicy: IfNotPresent
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      fsGroup: 1000
+    containerSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      readOnlyRootFilesystem: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
+    # Inline snmp.yml config. OIDs sourced from:
+    #   https://github.com/prometheus/snmp_exporter/blob/main/generator/generator.yml
+    # We walk the full UBNT-AirMAX MIB subtree so new firmware versions that
+    # add OIDs are picked up automatically; explicit metric definitions below
+    # ensure key metrics have correct types and labels even without auto-walk.
+    config: |-
+      auths:
+        vdhictro_v2c:
+          community: vdhictro
+          version: 2
+      modules:
+        ubiquiti_airmax:
+          walk:
+            - 1.3.6.1.4.1.41112.1.4
+            - 1.3.6.1.2.1.2.2
+            - 1.3.6.1.2.1.31.1.1
+          auth: vdhictro_v2c
+          metrics:
+            - name: ubntStaCount
+              oid: 1.3.6.1.4.1.41112.1.4.1.2
+              type: gauge
+              help: Number of associated stations
+            - name: ubntRadioSignal
+              oid: 1.3.6.1.4.1.41112.1.4.5.1.5
+              type: gauge
+              help: Signal strength in dBm
+              indexes:
+                - labelname: radioIndex
+                  type: Integer
+            - name: ubntRadioNoise
+              oid: 1.3.6.1.4.1.41112.1.4.5.1.4
+              type: gauge
+              help: Noise floor in dBm
+              indexes:
+                - labelname: radioIndex
+                  type: Integer
+            - name: ubntRadioCcq
+              oid: 1.3.6.1.4.1.41112.1.4.5.1.6
+              type: gauge
+              help: Client Connection Quality (0-100)
+              indexes:
+                - labelname: radioIndex
+                  type: Integer
+            - name: ubntRadioTxRate
+              oid: 1.3.6.1.4.1.41112.1.4.5.1.2
+              type: gauge
+              help: TX rate in kbps
+              indexes:
+                - labelname: radioIndex
+                  type: Integer
+            - name: ubntRadioRxRate
+              oid: 1.3.6.1.4.1.41112.1.4.5.1.3
+              type: gauge
+              help: RX rate in kbps
+              indexes:
+                - labelname: radioIndex
+                  type: Integer
+            - name: ubntRadioFrequency
+              oid: 1.3.6.1.4.1.41112.1.4.5.1.7
+              type: gauge
+              help: Operating frequency in MHz
+              indexes:
+                - labelname: radioIndex
+                  type: Integer
+            - name: ubntRadioDistance
+              oid: 1.3.6.1.4.1.41112.1.4.5.1.11
+              type: gauge
+              help: Link distance in metres
+              indexes:
+                - labelname: radioIndex
+                  type: Integer
+            - name: ifInOctets
+              oid: 1.3.6.1.2.1.2.2.1.10
+              type: counter
+              help: Total bytes received on interface
+              indexes:
+                - labelname: ifIndex
+                  type: Integer
+              lookups:
+                - labels: [ifIndex]
+                  labelname: ifDescr
+                  oid: 1.3.6.1.2.1.2.2.1.2
+                  type: DisplayString
+            - name: ifOutOctets
+              oid: 1.3.6.1.2.1.2.2.1.16
+              type: counter
+              help: Total bytes sent on interface
+              indexes:
+                - labelname: ifIndex
+                  type: Integer
+              lookups:
+                - labels: [ifIndex]
+                  labelname: ifDescr
+                  oid: 1.3.6.1.2.1.2.2.1.2
+                  type: DisplayString
+    serviceMonitor:
+      enabled: true
+      namespace: observability
+      interval: 60s
+      scrapeTimeout: 30s
+      module:
+        - ubiquiti_airmax
+      auth:
+        - vdhictro_v2c
+      honorLabels: true
+      # One ServiceMonitor per params entry (chart template iterates params).
+      # Per-entry additionalMetricsRelabels stamps a device label on all samples.
+      params:
+        - name: achtertuin
+          target: 172.16.3.43
+          additionalMetricsRelabels:
+            device: achtertuin
+            device_role: airmax-ap
+        - name: schuur
+          target: 172.16.3.74
+          additionalMetricsRelabels:
+            device: schuur
+            device_role: airmax-ap
