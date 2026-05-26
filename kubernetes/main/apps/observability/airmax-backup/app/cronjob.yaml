@@ -47,19 +47,19 @@ spec:
                   SSH_KEY_DST="/tmp/airmax_id_ed25519"
                   KNOWN_HOSTS="/tmp/airmax_known_hosts"
 
-                  echo "=== airmax-backup-scp: ${TODAY} ==="
+                  echo "=== airmax-backup-scp: $${TODAY} ==="
 
                   # SSH key must be mode 600 — mount is read-only so copy to tmpfs.
                   # 'awk 1' guarantees a trailing newline; OpenSSH rejects keys
                   # without it, and 1Password's text fields strip trailing \n.
-                  awk 1 "${SSH_KEY_SRC}" > "${SSH_KEY_DST}"
-                  chmod 600 "${SSH_KEY_DST}"
+                  awk 1 "$${SSH_KEY_SRC}" > "$${SSH_KEY_DST}"
+                  chmod 600 "$${SSH_KEY_DST}"
 
                   # Mint GitHub App installation token (reusing cluster-health logic).
                   # Requires: GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID,
                   #           github-app-key.pem mounted at /secrets/github-app-key.pem
                   GH_TOKEN=$(python3 /scripts/gh_app_token.py)
-                  if [ -z "${GH_TOKEN}" ]; then
+                  if [ -z "$${GH_TOKEN}" ]; then
                     echo "ERROR: failed to mint GitHub App token" >&2
                     exit 1
                   fi
@@ -67,37 +67,37 @@ spec:
                   # Clone (shallow) the airmax-backups branch, or create it if absent.
                   git config --global user.email "airmax-backup@bluejungle.net"
                   git config --global user.name "airmax-backup-bot"
-                  git config --global credential.helper "!f() { echo username=x-access-token; echo password=${GH_TOKEN}; }; f"
+                  git config --global credential.helper "!f() { echo username=x-access-token; echo password=$${GH_TOKEN}; }; f"
 
-                  REMOTE_URL="https://x-access-token:${GH_TOKEN}@github.com/vdhict/vdhinfra.git"
+                  REMOTE_URL="https://x-access-token:$${GH_TOKEN}@github.com/vdhict/vdhinfra.git"
 
-                  if git clone --depth=1 --branch "${BRANCH}" "${REMOTE_URL}" "${WORK_DIR}" 2>/dev/null; then
-                    echo "Cloned existing branch ${BRANCH}"
+                  if git clone --depth=1 --branch "$${BRANCH}" "$${REMOTE_URL}" "$${WORK_DIR}" 2>/dev/null; then
+                    echo "Cloned existing branch $${BRANCH}"
                   else
-                    echo "Branch ${BRANCH} not found — creating orphan branch"
-                    mkdir -p "${WORK_DIR}"
-                    cd "${WORK_DIR}"
+                    echo "Branch $${BRANCH} not found — creating orphan branch"
+                    mkdir -p "$${WORK_DIR}"
+                    cd "$${WORK_DIR}"
                     git init
-                    git remote add origin "${REMOTE_URL}"
-                    git checkout --orphan "${BRANCH}"
+                    git remote add origin "$${REMOTE_URL}"
+                    git checkout --orphan "$${BRANCH}"
                   fi
 
-                  mkdir -p "${WORK_DIR}/configs/airmax"
-                  cd "${WORK_DIR}"
+                  mkdir -p "$${WORK_DIR}/configs/airmax"
+                  cd "$${WORK_DIR}"
 
                   # Clear StrictHostKeyChecking on first contact; subsequent runs
                   # reuse the learned known_hosts from the previous job run.
                   # Note: accept-new is safe here because we target fixed IPs in a
                   # private /23 VLAN managed by us. We don't need TOFU for public IPs.
-                  SCP_OPTS="-i ${SSH_KEY_DST} -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${KNOWN_HOSTS} -o BatchMode=yes -o ConnectTimeout=15"
+                  SCP_OPTS="-i $${SSH_KEY_DST} -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=$${KNOWN_HOSTS} -o BatchMode=yes -o ConnectTimeout=15"
 
                   backup_device() {
                     local HOST="$1"
                     local NAME="$2"
-                    echo "--- Backing up ${NAME} (${HOST}) ---"
-                    scp -O ${SCP_OPTS} "ubnt@${HOST}:/tmp/system.cfg" \
-                        "${WORK_DIR}/configs/airmax/${NAME}.cfg"
-                    echo "OK: ${NAME}.cfg ($(wc -c < "${WORK_DIR}/configs/airmax/${NAME}.cfg") bytes)"
+                    echo "--- Backing up $${NAME} ($${HOST}) ---"
+                    scp -O $${SCP_OPTS} "ubnt@$${HOST}:/tmp/system.cfg" \
+                        "$${WORK_DIR}/configs/airmax/$${NAME}.cfg"
+                    echo "OK: $${NAME}.cfg ($(wc -c < "$${WORK_DIR}/configs/airmax/$${NAME}.cfg") bytes)"
                   }
 
                   backup_device "172.16.2.71" "vdhptp01"
@@ -108,9 +108,9 @@ spec:
                   if git diff --cached --quiet; then
                     echo "No changes in device configs — skipping commit"
                   else
-                    git commit -m "chore(airmax): backup vdhptp01+vdhptp02 ${TODAY}"
-                    git push origin "${BRANCH}"
-                    echo "Pushed backup commit for ${TODAY}"
+                    git commit -m "chore(airmax): backup vdhptp01+vdhptp02 $${TODAY}"
+                    git push origin "$${BRANCH}"
+                    echo "Pushed backup commit for $${TODAY}"
                   fi
 
                   echo "=== airmax-backup-scp complete ==="
