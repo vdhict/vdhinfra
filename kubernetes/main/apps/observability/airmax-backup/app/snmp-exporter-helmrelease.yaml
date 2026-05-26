@@ -57,11 +57,12 @@ spec:
       limits:
         cpu: 100m
         memory: 64Mi
-    # Inline snmp.yml config. OIDs sourced from:
+    # Inline snmp.yml config using the v0.30 auth-split format.
+    # See: https://github.com/prometheus/snmp_exporter/blob/main/auth-split-migration.md
+    # In v0.30+, 'auth' is NOT a field inside module definitions.
+    # Auth is selected at scrape time via the ?auth= query param (set by ServiceMonitor).
+    # OIDs sourced from:
     #   https://github.com/prometheus/snmp_exporter/blob/main/generator/generator.yml
-    # We walk the full UBNT-AirMAX MIB subtree so new firmware versions that
-    # add OIDs are picked up automatically; explicit metric definitions below
-    # ensure key metrics have correct types and labels even without auto-walk.
     config: |-
       auths:
         vdhictro_v2c:
@@ -73,7 +74,6 @@ spec:
             - 1.3.6.1.4.1.41112.1.4
             - 1.3.6.1.2.1.2.2
             - 1.3.6.1.2.1.31.1.1
-          auth: vdhictro_v2c
           metrics:
             - name: ubntStaCount
               oid: 1.3.6.1.4.1.41112.1.4.1.2
