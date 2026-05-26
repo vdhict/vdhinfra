@@ -87,7 +87,7 @@
           },
           "unit": "s",
           "mappings": [],
-          "displayName": "${__field.labels.hostname}"
+          "displayName": "$${__field.labels.hostname}"
         },
         "overrides": []
       },
@@ -154,7 +154,7 @@
           },
           "unit": "Mbps",
           "mappings": [],
-          "displayName": "${__field.labels.hostname}"
+          "displayName": "$${__field.labels.hostname}"
         },
         "overrides": []
       },
@@ -213,7 +213,7 @@
             }
           },
           "unit": "short",
-          "displayName": "${__field.labels.hostname} / ${__field.labels.radio}"
+          "displayName": "$${__field.labels.hostname} / $${__field.labels.radio}"
         },
         "overrides": []
       },
@@ -370,7 +370,7 @@
             "showPoints": "never"
           },
           "unit": "short",
-          "displayName": "${__field.labels.hostname}"
+          "displayName": "$${__field.labels.hostname}"
         },
         "overrides": [
           {
@@ -598,7 +598,7 @@
             }
           },
           "unit": "short",
-          "displayName": "${__field.labels.hostname}"
+          "displayName": "$${__field.labels.hostname}"
         },
         "overrides": [
           {
@@ -692,7 +692,7 @@
             "lineWidth": 1
           },
           "unit": "short",
-          "displayName": "${__field.labels.hostname}"
+          "displayName": "$${__field.labels.hostname}"
         },
         "overrides": []
       },
@@ -757,7 +757,7 @@
             "showPoints": "never"
           },
           "unit": "Bps",
-          "displayName": "${__field.name}"
+          "displayName": "$${__field.name}"
         },
         "overrides": [
           {
