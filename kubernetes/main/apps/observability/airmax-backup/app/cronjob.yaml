@@ -1,12 +1,4 @@
 ---
-# Bootstrap note: this CronJob is deployed with suspend: true.
-# Unsuspend it ONLY after BOTH conditions are met:
-#   1. Atlas has pushed 'airmax-backup-ssh-key' to 1Password → ExternalSecret Ready
-#   2. Iris has confirmed ed25519 public key installed on both NanoStations
-#
-# To unsuspend after those conditions are met:
-#   kubectl patch cronjob airmax-backup-scp -n observability -p '{"spec":{"suspend":false}}'
-#
 # Git-push pattern: option (a) — direct push to dedicated branch 'airmax-backups'
 # in vdhinfra via GitHub App (same app id/install as cluster-health).
 # Rationale: uses existing GitHub App credentials (no new secret needed), full
@@ -24,7 +16,7 @@ spec:
   # Nightly at 03:00 — same maintenance window as health-triage.
   # Chosen to avoid overlap with health-collect (02:00) and health-report (06:00).
   concurrencyPolicy: Forbid
-  suspend: true
+  suspend: false
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 5
   jobTemplate:
@@ -106,15 +98,15 @@ spec:
                     echo "OK: ${NAME}.cfg ($(wc -c < "${WORK_DIR}/configs/airmax/${NAME}.cfg") bytes)"
                   }
 
-                  backup_device "172.16.3.43" "achtertuin"
-                  backup_device "172.16.3.74" "schuur"
+                  backup_device "172.16.2.71" "vdhptp01"
+                  backup_device "172.16.2.72" "vdhptp02"
 
                   # Commit and push if there are any changes.
                   git add configs/airmax/
                   if git diff --cached --quiet; then
                     echo "No changes in device configs — skipping commit"
                   else
-                    git commit -m "chore(airmax): backup ${TODAY}"
+                    git commit -m "chore(airmax): backup vdhptp01+vdhptp02 ${TODAY}"
                     git push origin "${BRANCH}"
                     echo "Pushed backup commit for ${TODAY}"
                   fi

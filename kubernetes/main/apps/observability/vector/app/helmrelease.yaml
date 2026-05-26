@@ -86,8 +86,8 @@ spec:
         # airMAX NanoStation AC syslog receiver.
         # NanoStations send RFC 3164 on standard UDP/514.
         # Device-to-name mapping by source IP:
-        #   172.16.3.43 → achtertuin
-        #   172.16.3.74 → schuur
+        #   172.16.2.71 → vdhptp01
+        #   172.16.2.72 → vdhptp02
         airmax_syslog:
           type: socket
           address: 0.0.0.0:514
@@ -118,10 +118,10 @@ spec:
             # traffic from *external* sources gets SNAT'd) so the real device IPs are
             # preserved here.
             src_ip, _ = string(.source_ip || "unknown")
-            .device = if src_ip == "172.16.3.43" {
-              "achtertuin"
-            } else if src_ip == "172.16.3.74" {
-              "schuur"
+            .device = if src_ip == "172.16.2.71" {
+              "vdhptp01"
+            } else if src_ip == "172.16.2.72" {
+              "vdhptp02"
             } else {
               "airmax-unknown"
             }

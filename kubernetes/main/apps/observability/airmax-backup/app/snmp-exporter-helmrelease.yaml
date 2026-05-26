@@ -8,8 +8,8 @@
 # (signal, noise, CCQ, TX/RX rate, frequency, distance) plus IF-MIB counters.
 # Community string is 'vdhictro' (configured by Iris on the devices).
 #
-# Bootstrap: snmp targets will show up=0 until Iris enables SNMP v2c on both
-# NanoStations (172.16.3.43 achtertuin, 172.16.3.74 schuur).
+# Devices: vdhptp01 at 172.16.2.71, vdhptp02 at 172.16.2.72 (airOS WA.v8.7.22).
+# tinysnmpd on WA.v8.7.22 only supports SNMPv1; module auth uses version: 1.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -65,9 +65,9 @@ spec:
     #   https://github.com/prometheus/snmp_exporter/blob/main/generator/generator.yml
     config: |-
       auths:
-        vdhictro_v2c:
+        vdhictro_v1:
           community: vdhictro
-          version: 2
+          version: 1
       modules:
         ubiquiti_airmax:
           walk:
@@ -160,18 +160,18 @@ spec:
       module:
         - ubiquiti_airmax
       auth:
-        - vdhictro_v2c
+        - vdhictro_v1
       honorLabels: true
       # One ServiceMonitor per params entry (chart template iterates params).
       # Per-entry additionalMetricsRelabels stamps a device label on all samples.
       params:
-        - name: achtertuin
-          target: 172.16.3.43
+        - name: vdhptp01
+          target: 172.16.2.71
           additionalMetricsRelabels:
-            device: achtertuin
+            device: vdhptp01
             device_role: airmax-ap
-        - name: schuur
-          target: 172.16.3.74
+        - name: vdhptp02
+          target: 172.16.2.72
           additionalMetricsRelabels:
-            device: schuur
+            device: vdhptp02
             device_role: airmax-ap
