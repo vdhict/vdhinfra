@@ -77,6 +77,8 @@ spec:
         org_id: 1
       auth.basic:
         enabled: true
+      auth.ldap:
+        enabled: false
       auth.anonymous:
         enabled: false
       news:
