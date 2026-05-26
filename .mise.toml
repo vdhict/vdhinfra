@@ -7,11 +7,11 @@ SOPS_AGE_KEY_FILE = "{{config_root}}/age.key"
 [tools]
 # Cluster management
 "aqua:budimanjojo/talhelper" = "3.1.10"
-"aqua:siderolabs/talos" = "1.13.2"
+"aqua:siderolabs/talos" = "1.13.3"
 "aqua:kubernetes/kubernetes/kubectl" = "1.36.1"
 "aqua:fluxcd/flux2" = "2.8.8"
 "aqua:helm/helm" = "4.2.0"
-"aqua:helmfile/helmfile" = "1.5.1"
+"aqua:helmfile/helmfile" = "1.5.2"
 "aqua:kubernetes-sigs/kustomize" = "5.7.1"
 
 # Networking
@@ -35,7 +35,7 @@ cilium-hubble = "1.19.3"
 "pipx:flux-local" = "latest"
 
 # Cloudflare
-"aqua:cloudflare/cloudflared" = "2026.5.0"
+"aqua:cloudflare/cloudflared" = "2026.5.1"
 
 # Python tooling (for flux-local)
 "aqua:astral-sh/uv" = "latest"
