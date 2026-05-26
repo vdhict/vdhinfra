@@ -38,3 +38,12 @@ configMapGenerator:
         grafana_dashboard: "1"
       annotations:
         grafana_folder: Unifi
+  - name: grafana-dashboard-garden-bridge
+    namespace: observability
+    files:
+      - garden-bridge.json=./dashboards/garden-bridge.json
+    options:
+      labels:
+        grafana_dashboard: "1"
+      annotations:
+        grafana_folder: Network
