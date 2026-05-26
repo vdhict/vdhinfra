@@ -1,0 +1,103 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/prometheusrule_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: unifi-ap-health
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: unifi-ap-health
+      interval: 1m
+      rules:
+
+        # ── AP01 8.6.10 regression suspect ──────────────────────────────────
+        # Fires when the unifi-exporter itself goes dark for more than 10 min.
+        # This is the most reliable signal from the current minimal exporter:
+        # if the UDM stops responding, the exporter marks itself down.
+        # A separate Loki-based alert for AP01 syslog silence is the primary
+        # per-AP signal; Prometheus alerting on Loki streams requires the
+        # Loki ruler, which is not yet configured. The Grafana dashboard
+        # panel "AP Syslog Heartbeat" is the visual for that gap.
+        - alert: UnifiExporterDown
+          expr: unifi_exporter_up == 0
+          for: 10m
+          labels:
+            severity: warning
+            component: unifi-exporter
+          annotations:
+            summary: "UniFi exporter cannot reach UDM (no WAN/AP data)"
+            description: |
+              The unifi-exporter has been unable to poll /stat/health on the
+              UDM Pro for 10+ minutes. WAN throughput and gateway uptime data
+              is stale. AP syslog streams in Loki may still be active.
+              Check: kubectl -n observability logs deploy/unifi-exporter
+
+        # ── UDM gateway unexpected reboot ────────────────────────────────────
+        # Fires when the UDM gateway uptime drops below 5 minutes, which means
+        # it rebooted within the last scrape cycle. Expected after a planned
+        # firmware upgrade. Unexpected at 3 AM = problem.
+        # Source: unifi_gateway_uptime_seconds from /stat/health (60s poll).
+        - alert: UdmGatewayUnexpectedReboot
+          expr: unifi_gateway_uptime_seconds < 300
+          for: 0m
+          labels:
+            severity: warning
+            component: unifi-gateway
+          annotations:
+            summary: "UDM gateway rebooted (uptime < 5 min)"
+            description: |
+              The UDM Pro gateway uptime is {{ $value | humanizeDuration }}.
+              This typically means a firmware upgrade, power cycle, or crash.
+              Cross-check the Grafana "UniFi AP Health" dashboard: if AP01
+              syslog activity also dropped around this time, the AP reboots
+              were caused by the UDM reboot (expected). If AP01 was silent
+              BEFORE the UDM reboot, the AP01 crash caused the UDM to detect
+              a hung device and reboot itself (regression suspect).
+
+        # ── AP01 8.6.10 regression: crash payload spike ──────────────────────
+        # This alert uses the Prometheus recording of Loki-derived metrics.
+        # Loki alerting (ruler) is not configured; this rule uses the
+        # unifi-exporter_up as a proxy until Loki ruler is enabled.
+        #
+        # CURRENT LIMITATION: There is no Prometheus metric for AP01 crash
+        # payloads. The "crash.save_crash_payload" log line exists in Loki at
+        # {hostname="AP01-Trapkast"} but Loki ruler alerting is not configured.
+        #
+        # NEXT STEP: Enable Loki ruler (loki.rulerConfig) and add a LogQL
+        # alerting rule:
+        #   expr: |
+        #     sum(count_over_time({hostname="AP01-Trapkast"}
+        #       |= "crash.save_crash_payload" [1h])) > 0
+        #   for: 0m
+        #   labels: {severity: critical}
+        #
+        # Placeholder: alert if WAN exporter has been up but gateway uptime
+        # resets more than once per hour (detects rapid-reboot cycle).
+        - alert: AP01RegressionSuspect
+          expr: |
+            (
+              unifi_gateway_uptime_seconds < 3600
+              and
+              unifi_exporter_up == 1
+            )
+          for: 5m
+          labels:
+            severity: critical
+            component: unifi-ap01
+          annotations:
+            summary: "AP01 8.6.10 regression suspect — UDM uptime < 1h while exporter is up"
+            description: |
+              The UDM gateway has been up for less than 1 hour (current:
+              {{ $value | humanizeDuration }}) while the exporter is healthy.
+              This pattern matches the 8.6.10 symptom: AP01 (U7 Pro XGS)
+              causes the UDM to cycle within a few hours of the AP connecting.
+              Check the Grafana "UniFi AP Health" dashboard:
+              - AP01 syslog activity panel for silence windows
+              - AP01 error log rate for hostapd crash signatures
+              - Reboot & crash events panel for crash.save_crash_payload lines
+              If AP01 shows crash payloads before the UDM uptime reset, open
+              an incident and roll back AP01 to the previous firmware via
+              SSH: ssh admin@AP01-Trapkast upgrade <previous-url>
