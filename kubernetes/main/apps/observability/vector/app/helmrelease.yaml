@@ -60,6 +60,12 @@ spec:
           port: 1514
           targetPort: 1514
           protocol: UDP
+        # airMAX NanoStation AC devices send syslog to standard UDP/514.
+        # Same LB IP (172.16.2.235) — Iris configures devices to target that IP.
+        - name: udp-syslog-airmax
+          port: 514
+          targetPort: 514
+          protocol: UDP
 
     customConfig:
       data_dir: /vector-data-dir
@@ -77,7 +83,51 @@ spec:
           mode: udp
           decoding:
             codec: bytes
+        # airMAX NanoStation AC syslog receiver.
+        # NanoStations send RFC 3164 on standard UDP/514.
+        # Device-to-name mapping by source IP:
+        #   172.16.3.43 → achtertuin
+        #   172.16.3.74 → schuur
+        airmax_syslog:
+          type: socket
+          address: 0.0.0.0:514
+          mode: udp
+          decoding:
+            codec: bytes
       transforms:
+        airmax_normalize:
+          type: remap
+          inputs:
+            - airmax_syslog
+          source: |-
+            raw = string!(.message)
+            parsed, err = parse_syslog(raw)
+            if err == null {
+              . = parsed
+            }
+            .job = "airmax-syslog"
+            .app, _ = string(.appname || "unknown")
+            .level, _ = string(.severity || "info")
+            .hostname, _ = string(.hostname || "unknown")
+            del(.appname)
+            del(.facility)
+            del(.severity)
+            # Map source IP to a human-readable device name. The socket source
+            # populates .source_ip from the UDP sender address. Cilium L2 does NOT
+            # SNAT UDP/514 packets from LAN devices to the node IP (only LoadBalancer
+            # traffic from *external* sources gets SNAT'd) so the real device IPs are
+            # preserved here.
+            src_ip, _ = string(.source_ip || "unknown")
+            .device = if src_ip == "172.16.3.43" {
+              "achtertuin"
+            } else if src_ip == "172.16.3.74" {
+              "schuur"
+            } else {
+              "airmax-unknown"
+            }
+            # Override timestamp to receive time — airOS sends RFC 3164 with
+            # local-time timestamps, same issue as UDM (CEST=UTC+2 without TZ).
+            .timestamp = now()
         udm_normalize:
           type: remap
           inputs:
@@ -95,6 +145,9 @@ spec:
             del(.appname)
             del(.facility)
             del(.severity)
+            # Empty device label so the loki sink schema stays consistent
+            # with airmax_normalize (which sets a non-empty device label).
+            .device = ""
             # UDM sends RFC 3164 timestamps in local time (CEST=UTC+2)
             # without a timezone field, so parse_syslog reads them as
             # UTC and Loki rejects with "timestamp too new". Override
@@ -107,6 +160,7 @@ spec:
           type: loki
           inputs:
             - udm_normalize
+            - airmax_normalize
           endpoint: http://loki-headless.observability.svc.cluster.local:3100
           encoding:
             codec: json
@@ -115,5 +169,8 @@ spec:
             hostname: '{{ print "{{ hostname }}" }}'
             app: '{{ print "{{ app }}" }}'
             level: '{{ print "{{ level }}" }}'
+            # device label populated by airmax_normalize; empty string for UDM logs
+            # (field absent → Vector renders it as empty, Loki accepts that)
+            device: '{{ print "{{ device }}" }}'
           remove_label_fields: true
           out_of_order_action: accept

@@ -1,0 +1,28 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app airmax-backup
+  namespace: flux-system
+spec:
+  targetNamespace: observability
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  dependsOn:
+    - name: kube-prometheus-stack
+    - name: external-secrets-stores
+    - name: loki
+  path: ./kubernetes/main/apps/observability/airmax-backup/app
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  # wait: false — ExternalSecret stays NotReady until Atlas pushes
+  # airmax-backup-ssh-key to 1Password Cluster vault. The CronJob and
+  # snmp_exporter are independent and can run (or pend) without the secret.
+  wait: false
+  interval: 30m
+  timeout: 5m

@@ -1,0 +1,194 @@
+---
+# Bootstrap note: this CronJob is deployed with suspend: true.
+# Unsuspend it ONLY after BOTH conditions are met:
+#   1. Atlas has pushed 'airmax-backup-ssh-key' to 1Password → ExternalSecret Ready
+#   2. Iris has confirmed ed25519 public key installed on both NanoStations
+#
+# To unsuspend after those conditions are met:
+#   kubectl patch cronjob airmax-backup-scp -n observability -p '{"spec":{"suspend":false}}'
+#
+# Git-push pattern: option (a) — direct push to dedicated branch 'airmax-backups'
+# in vdhinfra via GitHub App (same app id/install as cluster-health).
+# Rationale: uses existing GitHub App credentials (no new secret needed), full
+# git history of device config changes, recovery is trivial
+# (git checkout airmax-backups -- configs/airmax/), no PVC required.
+# Daily commit noise is acceptable on a dedicated branch.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: airmax-backup-scp
+  namespace: observability
+spec:
+  schedule: "0 3 * * *"
+  timeZone: Europe/Amsterdam
+  # Nightly at 03:00 — same maintenance window as health-triage.
+  # Chosen to avoid overlap with health-collect (02:00) and health-report (06:00).
+  concurrencyPolicy: Forbid
+  suspend: true
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 604800
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+          containers:
+            - name: backup
+              image: ghcr.io/vdhict/cluster-health:sha-de00b79
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  set -euo pipefail
+                  TODAY=$(date +%Y-%m-%d)
+                  REPO_URL="https://github.com/vdhict/vdhinfra.git"
+                  BRANCH="airmax-backups"
+                  WORK_DIR="/tmp/airmax-git"
+                  SSH_KEY_SRC="/etc/ssh-airmax/id_ed25519"
+                  SSH_KEY_DST="/tmp/airmax_id_ed25519"
+                  KNOWN_HOSTS="/tmp/airmax_known_hosts"
+
+                  echo "=== airmax-backup-scp: ${TODAY} ==="
+
+                  # SSH key must be mode 600 — mount is read-only so copy to tmpfs.
+                  cp "${SSH_KEY_SRC}" "${SSH_KEY_DST}"
+                  chmod 600 "${SSH_KEY_DST}"
+
+                  # Mint GitHub App installation token (reusing cluster-health logic).
+                  # Requires: GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID,
+                  #           github-app-key.pem mounted at /secrets/github-app-key.pem
+                  GH_TOKEN=$(python3 /scripts/gh_app_token.py)
+                  if [ -z "${GH_TOKEN}" ]; then
+                    echo "ERROR: failed to mint GitHub App token" >&2
+                    exit 1
+                  fi
+
+                  # Clone (shallow) the airmax-backups branch, or create it if absent.
+                  git config --global user.email "airmax-backup@bluejungle.net"
+                  git config --global user.name "airmax-backup-bot"
+                  git config --global credential.helper "!f() { echo username=x-access-token; echo password=${GH_TOKEN}; }; f"
+
+                  REMOTE_URL="https://x-access-token:${GH_TOKEN}@github.com/vdhict/vdhinfra.git"
+
+                  if git clone --depth=1 --branch "${BRANCH}" "${REMOTE_URL}" "${WORK_DIR}" 2>/dev/null; then
+                    echo "Cloned existing branch ${BRANCH}"
+                  else
+                    echo "Branch ${BRANCH} not found — creating orphan branch"
+                    mkdir -p "${WORK_DIR}"
+                    cd "${WORK_DIR}"
+                    git init
+                    git remote add origin "${REMOTE_URL}"
+                    git checkout --orphan "${BRANCH}"
+                  fi
+
+                  mkdir -p "${WORK_DIR}/configs/airmax"
+                  cd "${WORK_DIR}"
+
+                  # Clear StrictHostKeyChecking on first contact; subsequent runs
+                  # reuse the learned known_hosts from the previous job run.
+                  # Note: accept-new is safe here because we target fixed IPs in a
+                  # private /23 VLAN managed by us. We don't need TOFU for public IPs.
+                  SCP_OPTS="-i ${SSH_KEY_DST} -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${KNOWN_HOSTS} -o BatchMode=yes -o ConnectTimeout=15"
+
+                  backup_device() {
+                    local HOST="$1"
+                    local NAME="$2"
+                    echo "--- Backing up ${NAME} (${HOST}) ---"
+                    scp -O ${SCP_OPTS} "ubnt@${HOST}:/tmp/system.cfg" \
+                        "${WORK_DIR}/configs/airmax/${NAME}.cfg"
+                    echo "OK: ${NAME}.cfg ($(wc -c < "${WORK_DIR}/configs/airmax/${NAME}.cfg") bytes)"
+                  }
+
+                  backup_device "172.16.3.43" "achtertuin"
+                  backup_device "172.16.3.74" "schuur"
+
+                  # Commit and push if there are any changes.
+                  git add configs/airmax/
+                  if git diff --cached --quiet; then
+                    echo "No changes in device configs — skipping commit"
+                  else
+                    git commit -m "chore(airmax): backup ${TODAY}"
+                    git push origin "${BRANCH}"
+                    echo "Pushed backup commit for ${TODAY}"
+                  fi
+
+                  echo "=== airmax-backup-scp complete ==="
+              env:
+                - name: TZ
+                  value: Europe/Amsterdam
+                - name: GIT_REMOTE
+                  value: https://github.com/vdhict/vdhinfra.git
+                - name: GIT_BRANCH
+                  value: airmax-backups
+                - name: GIT_AUTHOR_NAME
+                  value: airmax-backup-bot
+                - name: GIT_AUTHOR_EMAIL
+                  value: airmax-backup@bluejungle.net
+                - name: GITHUB_APP_ID
+                  value: "3302753"
+                - name: GITHUB_APP_INSTALLATION_ID
+                  value: "122063656"
+                # Redirect git's global config to tmpfs — needed because
+                # readOnlyRootFilesystem: true prevents writing to ~/.gitconfig.
+                - name: GIT_CONFIG_GLOBAL
+                  value: /tmp/gitconfig
+                # HOME to tmpfs so SSH and other tools don't attempt writes
+                # to /home/health (read-only under our security context).
+                - name: HOME
+                  value: /tmp
+                # lib.py creates subdirectories under DATA_DIR at import time.
+                # Redirect to /tmp so it doesn't try to mkdir on the read-only fs.
+                - name: DATA_DIR
+                  value: /tmp/health-data
+              volumeMounts:
+                - name: ssh-key
+                  mountPath: /etc/ssh-airmax
+                  readOnly: true
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+                - name: secret
+                  mountPath: /secrets
+                  readOnly: true
+                - name: tmpfs
+                  mountPath: /tmp
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+          volumes:
+            - name: ssh-key
+              secret:
+                secretName: airmax-backup-secret
+                defaultMode: 0400
+            - name: scripts
+              configMap:
+                name: cluster-health-scripts
+                defaultMode: 0555
+            - name: secret
+              secret:
+                secretName: cluster-health-secret
+                defaultMode: 0400
+                optional: true
+                items:
+                  - key: github-app-key.pem
+                    path: github-app-key.pem
+            - name: tmpfs
+              emptyDir:
+                medium: Memory
+                sizeLimit: 64Mi
