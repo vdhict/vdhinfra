@@ -123,6 +123,30 @@ components:
     physical_link_to: [net.udm]
     external_id: "277f773e-276d-3167-bd59-348bb106ac82"
 
+  net.bridge.achtertuin:
+    type: network-device
+    owner_agent: udm-engineer
+    description: "NanoStation AC — Achtertuin end of wireless bridge. MAC d0:21:f9:93:0f:f6, IP 172.16.3.43. airOS 8.7.13."
+    depends_on: [net.udm]
+    sensitive: false
+    tier: 2
+    group: core-network
+    sla_tier: nice-to-have
+    health_source: none:snmp-pending
+    physical_link_to: [net.bridge.schuur]
+
+  net.bridge.schuur:
+    type: network-device
+    owner_agent: udm-engineer
+    description: "NanoStation AC — Schuur end of wireless bridge. MAC 1c:6a:1b:80:6d:87, IP 172.16.3.74. airOS 8.7.13."
+    depends_on: [net.udm]
+    sensitive: false
+    tier: 2
+    group: core-network
+    sla_tier: nice-to-have
+    health_source: none:snmp-pending
+    physical_link_to: [net.bridge.achtertuin]
+
   net.ap.slaapkamer:
     type: network-device
     owner_agent: udm-engineer
