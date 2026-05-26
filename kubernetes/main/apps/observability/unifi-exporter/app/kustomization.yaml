@@ -5,6 +5,7 @@ kind: Kustomization
 resources:
   - ./deployment.yaml
   - ./podmonitor.yaml
+  - ./prometheusrule.yaml
 configMapGenerator:
   - name: unifi-exporter-scripts
     namespace: observability

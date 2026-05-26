@@ -1,0 +1,648 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    },
+    {
+      "name": "DS_LOKI",
+      "label": "Loki",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "loki",
+      "pluginName": "Loki"
+    }
+  ],
+  "__requires": [
+    {
+      "type": "datasource",
+      "id": "prometheus",
+      "name": "Prometheus",
+      "version": "1.0.0"
+    },
+    {
+      "type": "datasource",
+      "id": "loki",
+      "name": "Loki",
+      "version": "1.0.0"
+    }
+  ],
+  "annotations": {
+    "list": []
+  },
+  "description": "UniFi AP health — 8.6.10 symptom watch. Story: is AP01-Trapkast (U7 Pro XGS, 8.6.10) misbehaving? Panels track syslog activity (proxy for connectivity), error-level log rate per AP, client connection events on AP01, crash/reboot signals via Loki, and WAN context. Data sources: Loki syslog streams (hostname label) + Prometheus unifi-exporter. Gaps documented below each panel that lacks a data source.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 10,
+      "title": "AP Connectivity (Syslog Heartbeat)",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "${DS_LOKI}"
+      },
+      "description": "Answers: which APs are alive right now? A bar/line showing log lines per AP per 5 min. An AP that goes silent = no syslog = likely offline or rebooting. AP01-Trapkast on 8.6.10 highlighted. Note: syslog silence >10 min is more reliable than the 5-min window — use this as a trend signal, not a strict up/down indicator.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "showPoints": "never"
+          },
+          "unit": "short",
+          "displayName": "${__field.labels.hostname}"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "AP01"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 3
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 16,
+        "x": 0,
+        "y": 1
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull"],
+          "displayMode": "table",
+          "placement": "right"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
+          },
+          "expr": "sum by (hostname) (count_over_time({hostname=\"AP01-Trapkast\"}[$__interval]))",
+          "legendFormat": "AP01-Trapkast (8.6.10)",
+          "refId": "AP01"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
+          },
+          "expr": "sum by (hostname) (count_over_time({hostname=~\"AP02-Stube|AP03-Slaapkamer|AP04-Zolder|AP06-Keuken\"}[$__interval]))",
+          "legendFormat": "{{hostname}}",
+          "refId": "OtherAPs"
+        }
+      ],
+      "title": "AP Syslog Activity (log lines / interval)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "${DS_LOKI}"
+      },
+      "description": "Current syslog line count per AP in the last 5 minutes. Green = active. Red/orange = silent (possible reboot or network loss). AP01 (8.6.10) threshold: warn if 0 lines for >5 min during daytime.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "green",
+                "value": 3
+              }
+            ]
+          },
+          "unit": "short",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
+          },
+          "expr": "sum by (hostname) (count_over_time({hostname=~\"AP01-Trapkast|AP02-Stube|AP03-Slaapkamer|AP04-Zolder|AP06-Keuken\"}[5m]))",
+          "legendFormat": "{{hostname}}",
+          "refId": "A"
+        }
+      ],
+      "title": "AP Syslog Heartbeat (last 5 min)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
+      "id": 11,
+      "title": "8.6.10 Symptom Signals — AP01 Focus",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "${DS_LOKI}"
+      },
+      "description": "Answers: are clients being rejected or dropping off AP01? Rate of AP-STA-CONNECTED events from hostapd on AP01-Trapkast per 5 min. The 8.6.10 symptom: clients stop associating after a few hours. A sustained drop to zero while the AP is still sending syslog = regression suspect.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "red"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "showPoints": "auto"
+          },
+          "unit": "short",
+          "displayName": "Client connects / 5m"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "lastNotNull"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
+          },
+          "expr": "sum(count_over_time({hostname=\"AP01-Trapkast\"} |= \"AP-STA-CONNECTED\" [$__interval]))",
+          "legendFormat": "AP01 client connects",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
+          },
+          "expr": "sum(count_over_time({hostname=\"AP01-Trapkast\"} |= \"AP-STA-DISCONNECTED\" [$__interval]))",
+          "legendFormat": "AP01 client disconnects",
+          "refId": "B"
+        }
+      ],
+      "title": "AP01 Client Connect / Disconnect Events (8.6.10 symptom)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "${DS_LOKI}"
+      },
+      "description": "Answers: is AP01 crashing? Count of error-level syslog messages per AP per interval. A spike in AP01 errors = kernel panic, hostapd crash, or driver fault. 8.6.10 reported: hostapd crashes on 6 GHz and traffic drops on 10G port. Other APs shown for baseline comparison.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "unit": "short",
+          "displayName": "${__field.labels.hostname}"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "AP01err"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "dark-red",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 3
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "calcs": ["sum", "max"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
+          },
+          "expr": "sum(count_over_time({hostname=\"AP01-Trapkast\", level=\"err\"} [$__interval]))",
+          "legendFormat": "AP01-Trapkast (8.6.10)",
+          "refId": "AP01err"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
+          },
+          "expr": "sum by (hostname) (count_over_time({hostname=~\"AP02-Stube|AP03-Slaapkamer|AP04-Zolder|AP06-Keuken\", level=\"err\"} [$__interval]))",
+          "legendFormat": "{{hostname}}",
+          "refId": "OtherErr"
+        }
+      ],
+      "title": "AP Error-Level Log Rate (crash / driver fault signals)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 12,
+      "title": "Reboot & Crash Events",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "${DS_LOKI}"
+      },
+      "description": "Answers: has any AP rebooted recently? Uses 'halt WUL state due to USW/UDM reboot' and crash payload messages as reboot proxies. A bar appearing = AP had an uplink reset or self-reboot event. AP01 bar in this time window without a planned change = regression suspect.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "lineWidth": 1
+          },
+          "unit": "short",
+          "displayName": "${__field.labels.hostname}"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 17
+      },
+      "id": 5,
+      "options": {
+        "fillOpacity": 80,
+        "gradientMode": "none",
+        "legend": {
+          "calcs": ["sum"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
+          },
+          "expr": "sum by (hostname) (count_over_time({hostname=~\"AP01-Trapkast|AP02-Stube|AP03-Slaapkamer|AP04-Zolder|AP06-Keuken\"} |= \"halt WUL state\" [$__interval]))",
+          "legendFormat": "{{hostname}} reboot proxy",
+          "refId": "Reboot"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
+          },
+          "expr": "sum by (hostname) (count_over_time({hostname=~\"AP01-Trapkast|AP02-Stube|AP03-Slaapkamer|AP04-Zolder|AP06-Keuken\"} |= \"crash.save_crash_payload\" [$__interval]))",
+          "legendFormat": "{{hostname}} crash payload",
+          "refId": "Crash"
+        }
+      ],
+      "title": "AP Reboot & Crash Events (uplink-monitor + crash payload signals)",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Answers: is the internet up and the UDM healthy? WAN rx/tx throughput and UDM gateway uptime from the minimal unifi-exporter (polls /stat/health every 60s). A gateway uptime reset = UDM reboot. Context for AP anomalies: if the UDM rebooted, AP disconnects are expected.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "gradientMode": "none",
+            "showPoints": "never"
+          },
+          "unit": "Bps",
+          "displayName": "${__field.name}"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "WAN RX"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "WAN TX"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 17
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "mean"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "unifi_wan_rx_bytes_per_second",
+          "legendFormat": "WAN RX",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "unifi_wan_tx_bytes_per_second",
+          "legendFormat": "WAN TX",
+          "refId": "B"
+        }
+      ],
+      "title": "WAN Throughput (UDM /stat/health, 60s poll)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "id": 13,
+      "title": "AP Firmware Inventory",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "${DS_LOKI}"
+      },
+      "description": "Firmware version per AP derived from Loki app label (format: <mac>,<model>-<version>). This is the version at the time syslog was last received — it reflects the running firmware. AP01 on 8.6.10+18869 is highlighted. Data gap: no numeric firmware-version metric in Prometheus; the version string is in the Loki stream app label. Exporter extension needed for queryable version gauge.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "displayMode": "auto",
+            "inspect": false
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      },
+      "id": 7,
+      "options": {
+        "footer": {
+          "enablePagination": false,
+          "fields": "",
+          "reducer": ["sum"],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Hostname"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
+          },
+          "expr": "sum by (hostname, app) (count_over_time({hostname=~\"AP01-Trapkast|AP02-Stube|AP03-Slaapkamer|AP04-Zolder|AP06-Keuken\"}[24h]))",
+          "legendFormat": "{{hostname}} | {{app}}",
+          "refId": "A"
+        }
+      ],
+      "title": "AP Firmware via Loki App Label (last 24h seen versions)",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "keepLabels": ["hostname", "app"]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true
+            },
+            "renameByName": {
+              "hostname": "AP Hostname",
+              "app": "MAC + Model + Firmware"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    }
+  ],
+  "refresh": "5m",
+  "schemaVersion": 39,
+  "tags": ["unifi", "ap", "wifi", "8.6.10"],
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "UniFi AP Health (8.6.10 Watch)",
+  "uid": "unifi-ap-health",
+  "version": 1
+}

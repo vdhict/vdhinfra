@@ -110,6 +110,32 @@ components:
     health_source: none:awaiting-iris-unifi-adapter
     physical_link_to: [net.switch.poesw01]
 
+  net.ap.trapkast:
+    type: network-device
+    owner_agent: udm-engineer
+    description: "AP01 - Trapkast — U7 Pro XGS, MAC 84:78:48:c8:65:43, integration id 277f773e-276d-3167-bd59-348bb106ac82, IP 172.16.3.173. 10 Gbps SFP+ uplink to UDM Pro Max. Head of Trapkast physical leg."
+    depends_on: [net.udm]
+    sensitive: false
+    tier: 2
+    group: core-network
+    sla_tier: family-critical
+    health_source: unifi://device/277f773e-276d-3167-bd59-348bb106ac82
+    physical_link_to: [net.udm]
+    external_id: "277f773e-276d-3167-bd59-348bb106ac82"
+
+  net.ap.slaapkamer:
+    type: network-device
+    owner_agent: udm-engineer
+    description: "AP03 - Slaapkamer — UAP-AC-Pro, MAC 80:2a:a8:d3:07:b4, UniFi legacy device _id 5e9aff1a4edb2e02cf5295a0, integration id 4f76f094-838b-3e77-b86b-6ccf44f4618e, IP 172.16.2.30"
+    depends_on: [net.switch.poesw01]
+    sensitive: false
+    tier: 2
+    group: core-network
+    sla_tier: family-critical
+    health_source: unifi://device/4f76f094-838b-3e77-b86b-6ccf44f4618e
+    physical_link_to: [net.switch.poesw01]
+    external_id: "5e9aff1a4edb2e02cf5295a0"
+
   # ── Kubernetes cluster (tier 4) ─────────────────────────────────────
   k8s.cluster:
     type: k8s-cluster

@@ -29,3 +29,12 @@ configMapGenerator:
         grafana_dashboard: "1"
       annotations:
         grafana_folder: Energy
+  - name: grafana-dashboard-unifi-ap-health
+    namespace: observability
+    files:
+      - unifi-ap-health.json=./dashboards/unifi-ap-health.json
+    options:
+      labels:
+        grafana_dashboard: "1"
+      annotations:
+        grafana_folder: Unifi
