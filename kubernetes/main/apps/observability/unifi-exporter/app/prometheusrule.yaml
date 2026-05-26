@@ -44,30 +44,31 @@ spec:
               the UDM reboot, the AP01 crash may have caused the UDM cycle.
 
         # ── AP01 8.6.10 regression suspect ──────────────────────────────────
+        # Fixed chg-2026-05-26-008: was gateway-wide unifi_gateway_uptime_seconds,
+        # now targets AP01 specifically via unifi_ap_uptime_seconds.
+        # for:5m prevents a brief Flux reconcile blip from firing the alert.
         - alert: AP01RegressionSuspect
           expr: |
-            (
-              unifi_gateway_uptime_seconds < 3600
-              and
-              unifi_exporter_up == 1
-            )
+            unifi_ap_uptime_seconds{hostname="AP01 - Trapkast"} < 3600
           for: 5m
           labels:
             severity: critical
             component: unifi-ap01
           annotations:
-            summary: "AP01 8.6.10 regression suspect — UDM uptime < 1h while exporter is up"
+            summary: "AP01 8.6.10 regression suspect — AP01-Trapkast uptime < 1h"
             description: |
-              The UDM gateway has been up for less than 1 hour (current:
-              {{ $value | humanizeDuration }}) while the exporter is healthy.
-              Check the Grafana "UniFi AP Health" dashboard for AP01 crash
-              signatures. If crash payloads appear, roll back AP01 firmware.
+              AP01 - Trapkast (U7 Pro XGS, firmware 8.6.10) has been up for
+              less than 1 hour (current: {{ $value | humanizeDuration }}).
+              This is the primary signal for the 8.6.10 crash regression.
+              Check the Grafana "UniFi AP Health" dashboard for crash payload
+              signals in syslog. If confirmed, roll back AP01 firmware.
 
     - name: unifi-ap-health
       interval: 1m
       rules:
 
         # ── AP offline (uptime went to 0 or disappeared) ─────────────────────
+        # Canonical alert owned by this PrometheusRule (chg-2026-05-26-005).
         # Fires when an AP that was previously reporting stops exporting uptime.
         # Uses absent() to catch label disappearance as well as uptime==0.
         - alert: UnifiApOffline
@@ -88,6 +89,7 @@ spec:
               not stuck in a crash/reboot loop.
 
         # ── AP01 8.6.10 uplink speed regression ─────────────────────────────
+        # Canonical alert owned by this PrometheusRule (chg-2026-05-26-005).
         # AP01 is a U7 Pro XGS — its uplink is a 10G port. On 8.6.10 there
         # are reports of it negotiating at lower speeds. Fire if the uplink
         # drops below 1000 Mbps (i.e. not at least 1G) while the AP is online.
@@ -108,6 +110,7 @@ spec:
               Check physical cabling and switch port negotiation.
 
         # ── AP client count spike (possible association storm) ───────────────
+        # Canonical alert owned by this PrometheusRule (chg-2026-05-26-005).
         # Fires when any single AP radio sees > 60 clients (well above normal
         # household load). Indicates a misconfiguration or broadcast storm.
         - alert: UnifiApClientCountHigh
@@ -123,3 +126,33 @@ spec:
               {{ $value }} associated clients, which is unusually high for a
               home network. Possible causes: rogue device broadcasting,
               misconfigured SSID allowing open association, or a test scenario.
+
+        # ── AP client collapse (8.6.10 gradual-falloff pattern) ──────────────
+        # Added chg-2026-05-26-008. Catches the 8.6.10 "clients gradually fall
+        # off" symptom that UnifiApClientCountHigh (a ceiling alert) misses.
+        # Fires when any AP's per-radio client count drops by > 50% in 5 min.
+        # Tuned conservatively: requires >=4 clients as baseline to avoid
+        # false positives when a single device hops APs in a low-client
+        # environment. for:3m filters out single-sample blips.
+        - alert: UnifiApClientCollapse
+          expr: |
+            (
+              unifi_ap_clients
+              - unifi_ap_clients offset 5m
+            )
+            / (unifi_ap_clients offset 5m + 1) < -0.5
+            and
+            unifi_ap_clients offset 5m >= 4
+          for: 3m
+          labels:
+            severity: warning
+            component: unifi-ap
+          annotations:
+            summary: "AP {{ $labels.hostname }} {{ $labels.radio }} clients dropped >50% in 5 min"
+            description: |
+              AP {{ $labels.hostname }} radio {{ $labels.radio }} lost more
+              than half its clients in the past 5 minutes. Current count:
+              {{ $value | printf "%.0f" }}. This matches the 8.6.10
+              gradual-falloff pattern. Check the "UniFi AP Health" dashboard
+              for concurrent syslog error spikes. If AP01, consider firmware
+              rollback.

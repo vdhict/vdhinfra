@@ -34,7 +34,7 @@
   "annotations": {
     "list": []
   },
-  "description": "UniFi AP health — 8.6.10 symptom watch. Story: is AP01-Trapkast (U7 Pro XGS, 8.6.10) misbehaving? Panels track syslog activity (proxy for connectivity), error-level log rate per AP, client connection events on AP01, crash/reboot signals via Loki, and WAN context. Data sources: Loki syslog streams (hostname label) + Prometheus unifi-exporter. Gaps documented below each panel that lacks a data source.",
+  "description": "UniFi AP health — 8.6.10 symptom watch. Story: is AP01-Trapkast (U7 Pro XGS, 8.6.10) misbehaving? Top section: per-AP Prometheus health (uptime, uplink speed, client counts, firmware). Middle: syslog activity (proxy for connectivity), error-level log rate, client connection events on AP01. Bottom: crash/reboot signals, WAN context. Data sources: Prometheus unifi-exporter (per-AP metrics) + Loki syslog streams.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -48,6 +48,305 @@
         "w": 24,
         "x": 0,
         "y": 0
+      },
+      "id": 20,
+      "title": "AP Health — Prometheus Metrics",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Answers: has any AP rebooted recently? Seconds since each AP last booted, from unifi_ap_uptime_seconds. Red threshold: < 86400s (24h) — the 8.6.10 crash/reboot regression signal. AP01 (U7 Pro XGS on 8.6.10) with a fresh uptime while others are days old = AP01 rebooted without a planned change.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 3600
+              },
+              {
+                "color": "yellow",
+                "value": 21600
+              },
+              {
+                "color": "green",
+                "value": 86400
+              }
+            ]
+          },
+          "unit": "s",
+          "mappings": [],
+          "displayName": "${__field.labels.hostname}"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 0,
+        "y": 1
+      },
+      "id": 21,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "unifi_ap_uptime_seconds",
+          "legendFormat": "{{hostname}}",
+          "refId": "A"
+        }
+      ],
+      "title": "AP Uptime (unifi_ap_uptime_seconds)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Answers: is AP01's 10G uplink healthy? Speed in Mbps reported by the unifi-exporter (unifi_ap_uplink_speed_mbps). AP01 (U7 Pro XGS) should show 10000 Mbps on its SFP+ port. Red if < 1000 Mbps — below 1 Gbps means either a cable/port issue or the 8.6.10 speed-negotiation regression. Other APs at 1000 Mbps is normal (1G copper uplinks).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 100
+              },
+              {
+                "color": "green",
+                "value": 1000
+              }
+            ]
+          },
+          "unit": "Mbps",
+          "mappings": [],
+          "displayName": "${__field.labels.hostname}"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 12,
+        "y": 1
+      },
+      "id": 22,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "unifi_ap_uplink_speed_mbps",
+          "legendFormat": "{{hostname}}",
+          "refId": "A"
+        }
+      ],
+      "title": "AP Uplink Speed (unifi_ap_uplink_speed_mbps)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Answers: are clients falling off any AP over time? The 8.6.10 regression shows as a gradual slope downward on AP01 while other APs stay flat. Stacked area by radio band (2g, 5g, 6g) per AP, from unifi_ap_clients{radio}. A sudden vertical drop on AP01 while syslog is still active = clients disassociating without AP reboot (the subtle regression pattern).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "unit": "short",
+          "displayName": "${__field.labels.hostname} / ${__field.labels.radio}"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 23,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "mean"],
+          "displayMode": "table",
+          "placement": "right"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "unifi_ap_clients",
+          "legendFormat": "{{hostname}} / {{radio}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Clients per AP per Radio (unifi_ap_clients — 8.6.10 client-collapse signal)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Answers: what firmware is each AP running right now? Uses the info-metric unifi_ap_firmware_info (always=1, version label carries the string). Pulled from Prometheus — canonical and queryable, no Loki label-parsing required. AP01 on 8.6.10+18869 is the regression subject.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "displayMode": "auto",
+            "inspect": false
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "id": 24,
+      "options": {
+        "footer": {
+          "enablePagination": false,
+          "fields": "",
+          "reducer": ["sum"],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "Hostname"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "unifi_ap_firmware_info",
+          "legendFormat": "{{hostname}}",
+          "refId": "A",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "title": "AP Firmware Version (unifi_ap_firmware_info)",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true,
+              "__name__": true,
+              "job": true,
+              "instance": true
+            },
+            "renameByName": {
+              "hostname": "AP Hostname",
+              "mac": "MAC Address",
+              "version": "Firmware Version"
+            },
+            "indexByName": {
+              "hostname": 0,
+              "mac": 1,
+              "version": 2
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 19
       },
       "id": 10,
       "title": "AP Connectivity (Syslog Heartbeat)",
@@ -99,7 +398,7 @@
         "h": 7,
         "w": 16,
         "x": 0,
-        "y": 1
+        "y": 20
       },
       "id": 1,
       "options": {
@@ -173,7 +472,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 1
+        "y": 20
       },
       "id": 2,
       "options": {
@@ -208,7 +507,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 8
+        "y": 27
       },
       "id": 11,
       "title": "8.6.10 Symptom Signals — AP01 Focus",
@@ -241,7 +540,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 9
+        "y": 28
       },
       "id": 3,
       "options": {
@@ -327,7 +626,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 9
+        "y": 28
       },
       "id": 4,
       "options": {
@@ -370,7 +669,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 16
+        "y": 35
       },
       "id": 12,
       "title": "Reboot & Crash Events",
@@ -401,7 +700,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 17
+        "y": 36
       },
       "id": 5,
       "options": {
@@ -497,7 +796,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 17
+        "y": 36
       },
       "id": 6,
       "options": {
@@ -533,104 +832,6 @@
       ],
       "title": "WAN Throughput (UDM /stat/health, 60s poll)",
       "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 24
-      },
-      "id": 13,
-      "title": "AP Firmware Inventory",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "loki",
-        "uid": "${DS_LOKI}"
-      },
-      "description": "Firmware version per AP derived from Loki app label (format: <mac>,<model>-<version>). This is the version at the time syslog was last received — it reflects the running firmware. AP01 on 8.6.10+18869 is highlighted. Data gap: no numeric firmware-version metric in Prometheus; the version string is in the Loki stream app label. Exporter extension needed for queryable version gauge.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "custom": {
-            "displayMode": "auto",
-            "inspect": false
-          },
-          "mappings": [],
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 24,
-        "x": 0,
-        "y": 25
-      },
-      "id": 7,
-      "options": {
-        "footer": {
-          "enablePagination": false,
-          "fields": "",
-          "reducer": ["sum"],
-          "show": false
-        },
-        "showHeader": true,
-        "sortBy": [
-          {
-            "desc": true,
-            "displayName": "Hostname"
-          }
-        ]
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "${DS_LOKI}"
-          },
-          "expr": "sum by (hostname, app) (count_over_time({hostname=~\"AP01-Trapkast|AP02-Stube|AP03-Slaapkamer|AP04-Zolder|AP06-Keuken\"}[24h]))",
-          "legendFormat": "{{hostname}} | {{app}}",
-          "refId": "A"
-        }
-      ],
-      "title": "AP Firmware via Loki App Label (last 24h seen versions)",
-      "transformations": [
-        {
-          "id": "labelsToFields",
-          "options": {
-            "keepLabels": ["hostname", "app"]
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "Value": true
-            },
-            "renameByName": {
-              "hostname": "AP Hostname",
-              "app": "MAC + Model + Firmware"
-            }
-          }
-        }
-      ],
-      "type": "table"
     }
   ],
   "refresh": "5m",
@@ -644,5 +845,5 @@
   "timezone": "browser",
   "title": "UniFi AP Health (8.6.10 Watch)",
   "uid": "unifi-ap-health",
-  "version": 1
+  "version": 2
 }
