@@ -50,7 +50,9 @@ spec:
                   echo "=== airmax-backup-scp: ${TODAY} ==="
 
                   # SSH key must be mode 600 — mount is read-only so copy to tmpfs.
-                  cp "${SSH_KEY_SRC}" "${SSH_KEY_DST}"
+                  # 'awk 1' guarantees a trailing newline; OpenSSH rejects keys
+                  # without it, and 1Password's text fields strip trailing \n.
+                  awk 1 "${SSH_KEY_SRC}" > "${SSH_KEY_DST}"
                   chmod 600 "${SSH_KEY_DST}"
 
                   # Mint GitHub App installation token (reusing cluster-health logic).
