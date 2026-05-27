@@ -35,7 +35,7 @@ cilium-hubble = "1.19.3"
 "pipx:flux-local" = "latest"
 
 # Cloudflare
-"aqua:cloudflare/cloudflared" = "2026.5.1"
+"aqua:cloudflare/cloudflared" = "2026.5.2"
 
 # Python tooling (for flux-local)
 "aqua:astral-sh/uv" = "latest"
