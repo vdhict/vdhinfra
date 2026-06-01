@@ -17,4 +17,4 @@ spec:
   path: ./kubernetes/main/apps/observability/ceph-smart-exporter/app
   sourceRef:
     kind: GitRepository
-    name: home-kubernetes
+    name: flux-system
