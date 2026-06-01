@@ -123,29 +123,29 @@ components:
     physical_link_to: [net.udm]
     external_id: "277f773e-276d-3167-bd59-348bb106ac82"
 
-  net.bridge.achtertuin:
+  net.bridge.vdhptp01:
     type: network-device
     owner_agent: udm-engineer
-    description: "NanoStation AC — Achtertuin end of wireless bridge. MAC d0:21:f9:93:0f:f6, IP 172.16.3.43. airOS 8.7.13."
+    description: "vdhptp01 — NanoStation 5AC, Achtertuin end of wireless PtP bridge. MAC fc:ec:da:c4:cd:27, IP 172.16.2.71. airOS WA.v8.7.22. Supersedes CMDB id net.bridge.achtertuin (old IPs 172.16.3.43 / MAC d0:21:f9:93:0f:f6 were cameras, not this device)."
     depends_on: [net.udm]
     sensitive: false
     tier: 2
     group: core-network
     sla_tier: nice-to-have
-    health_source: none:snmp-pending
-    physical_link_to: [net.bridge.schuur]
+    health_source: snmp://172.16.2.71
+    physical_link_to: [net.bridge.vdhptp02]
 
-  net.bridge.schuur:
+  net.bridge.vdhptp02:
     type: network-device
     owner_agent: udm-engineer
-    description: "NanoStation AC — Schuur end of wireless bridge. MAC 1c:6a:1b:80:6d:87, IP 172.16.3.74. airOS 8.7.13."
+    description: "vdhptp02 — NanoStation 5AC, Schuur end of wireless PtP bridge. MAC fc:ec:da:c4:cd:6d, IP 172.16.2.72. airOS WA.v8.7.22. Supersedes CMDB id net.bridge.schuur (old IPs 172.16.3.74 / MAC 1c:6a:1b:80:6d:87 were cameras, not this device)."
     depends_on: [net.udm]
     sensitive: false
     tier: 2
     group: core-network
     sla_tier: nice-to-have
-    health_source: none:snmp-pending
-    physical_link_to: [net.bridge.achtertuin]
+    health_source: snmp://172.16.2.72
+    physical_link_to: [net.bridge.vdhptp01]
 
   net.ap.slaapkamer:
     type: network-device
@@ -640,6 +640,16 @@ components:
     group: database
     sla_tier: family-critical
     health_source: k8s://hr/database/cloudnative-pg
+  svc.dragonfly:
+    type: k8s-app
+    owner_agent: k8s-engineer
+    description: Dragonfly (Redis-compatible) HA cluster used as the session/cache backend for Authelia. Managed by the dragonfly-operator (bjw-s app-template); operator elects a master and labels one pod role=master to populate the dragonfly Service endpoints.
+    depends_on: [k8s.cluster]
+    sensitive: true
+    tier: 4
+    group: database
+    sla_tier: family-critical
+    health_source: k8s://statefulset/database/dragonfly
   svc.rook-operator:
     type: helmrelease
     owner_agent: k8s-engineer
