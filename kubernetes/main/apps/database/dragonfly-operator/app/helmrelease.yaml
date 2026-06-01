@@ -67,6 +67,13 @@ spec:
               readOnlyRootFilesystem: true
               capabilities: { drop: ["ALL"] }
     defaultPodOptions:
+      # control-plane=controller-manager is required by the NetworkPolicy that
+      # the dragonfly-operator emits on the Dragonfly CR (allows :9999 admin
+      # port only from pods with this kubebuilder label). Without it, the
+      # operator cannot probe dataset-load status and never elects a master,
+      # leaving the dragonfly Service with zero endpoints. See chg-2026-06-01-001.
+      labels:
+        control-plane: controller-manager
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534
