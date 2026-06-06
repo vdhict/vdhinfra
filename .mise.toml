@@ -28,7 +28,7 @@ cilium-hubble = "1.19.3"
 "aqua:charmbracelet/gum" = "0.17.0"
 "aqua:cli/cli" = "2.93.0"
 "aqua:jqlang/jq" = "1.8.1"
-"aqua:mikefarah/yq" = "4.53.2"
+"aqua:mikefarah/yq" = "4.53.3"
 
 # Validation & linting
 "aqua:yannh/kubeconform" = "0.7.0"
