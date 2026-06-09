@@ -11,7 +11,7 @@ SOPS_AGE_KEY_FILE = "{{config_root}}/age.key"
 "aqua:kubernetes/kubernetes/kubectl" = "1.36.1"
 "aqua:fluxcd/flux2" = "2.8.8"
 "aqua:helm/helm" = "4.2.0"
-"aqua:helmfile/helmfile" = "1.5.2"
+"aqua:helmfile/helmfile" = "1.5.3"
 "aqua:kubernetes-sigs/kustomize" = "5.7.1"
 
 # Networking
