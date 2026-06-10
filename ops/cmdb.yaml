@@ -160,6 +160,30 @@ components:
     physical_link_to: [net.switch.poesw01]
     external_id: "5e9aff1a4edb2e02cf5295a0"
 
+  net.ap.keuken:
+    type: network-device
+    owner_agent: udm-engineer
+    description: "AP06 - Keuken — FlexHD (UAP-FlexHD), MAC 68:d7:9a:4d:ac:52, UniFi legacy device _id 6a04b7546b1132fd4aca3bf6, integration id 6b36d12d-0d25-3617-9db3-02ad0844f05f, IP on IOT/CLIENT. 2.4GHz radio (ra0) + 5GHz (rai0). Serves ~15 household-appliance 2.4GHz clients (HomeWizard sockets, Shelly 1PMs, Siemens dishwasher+coffee, Roborock, Sonos Amp)."
+    depends_on: [net.udm]
+    sensitive: false
+    tier: 2
+    group: core-network
+    sla_tier: family-critical
+    health_source: unifi://device/6b36d12d-0d25-3617-9db3-02ad0844f05f
+    physical_link_to: [net.udm]
+    external_id: "6a04b7546b1132fd4aca3bf6"
+
+  net.wifi.24ghz-minrate:
+    type: wifi-config
+    owner_agent: udm-engineer
+    description: "2.4GHz minimum data-rate floor on the 2.4-bearing SSIDs (VDHFEMFLEX 5e9afcc34edb2e02cf5244e1, Guest 622470dfdd6f9706a4694388, VDHIOT 654a052797f26402c0cb173c, VDHTESLA 69e1d0e67dde3acde578a4e2). Modeled in UniFi Network 10.4.57 via wlanconf fields minrate_ng_enabled / minrate_ng_data_rate_kbps / minrate_ng_advertising_rates. VDHMEDIA (6870b0cb574be41495ef8c05) is 5/6GHz only and out of scope. Write path: PUT /proxy/network/api/s/default/rest/wlanconf/<id> with integration X-API-KEY."
+    depends_on: [net.udm]
+    sensitive: false
+    tier: 2
+    group: core-network
+    sla_tier: family-critical
+    health_source: unifi://wlanconf/minrate_ng
+
   # ── Kubernetes cluster (tier 4) ─────────────────────────────────────
   k8s.cluster:
     type: k8s-cluster
