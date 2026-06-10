@@ -86,6 +86,23 @@
       ignoreTests: true,
     },
     {
+      // The restore-test DR fixture (hack/restore-test/docker-compose.yaml) version-pins some of
+      // the same images as the production home-automation apps (e.g. home-assistant). Renovate
+      // bundles the fixture edit into the SAME branch/PR as the prod edit, so without an automerge
+      // rule covering this path the fixture occurrence resolves automerge:false and gates the whole
+      // PR ("Automerge: Disabled by config"). This rule mirrors the home-automation automerge policy
+      // for the non-prod fixture. Major bumps are intentionally excluded, so postgres 16->18 and
+      // mosquitto 2->3 in the fixture still require manual review.
+      description: "Auto-merge restore-test DR fixture images (mirrors home-automation; non-prod)",
+      matchDatasources: ["docker"],
+      matchFileNames: ["hack/restore-test/**"],
+      automerge: true,
+      automergeType: "branch",
+      matchUpdateTypes: ["minor", "patch", "digest"],
+      minimumReleaseAge: "1 day",
+      ignoreTests: true,
+    },
+    {
       description: "Auto-merge mise dev tool minor/patch/digest updates",
       matchManagers: ["mise"],
       automerge: true,
