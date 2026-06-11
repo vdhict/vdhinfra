@@ -1,3 +1,15 @@
+# ⚠️ SUPERSEDED — DO NOT USE
+
+> **This runbook is retired (2026-06-11). Use [`ceph-osd-disk-replacement.md`](ceph-osd-disk-replacement.md) instead.**
+>
+> This version contains two factual errors that make it unsafe to follow:
+> 1. It claims `cleanupPolicy.sanitizeDisks: method: quick` "is set" — **it is NOT** in the live CephCluster spec, so Rook will **not** auto-zap a dirty disk. A previously-used drive needs a manual wipe.
+> 2. It names the **Samsung 870 EVO** as the replacement drive — the actual drive ordered is the **WD Red SA500 1 TB**.
+>
+> The replacement runbook supersedes this with the corrected device-discovery behaviour and procedure. Kept only for history.
+
+---
+
 # Runbook: Rook-Ceph OSD SATA SSD Replacement
 
 > **Cluster**: vdhinfra main · **Rook**: v1.16.5 · **Ceph**: v19.2.1 (squid)  
