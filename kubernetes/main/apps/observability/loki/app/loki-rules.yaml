@@ -1,0 +1,63 @@
+---
+# Loki ruler LogQL alerting rules, mounted at /etc/loki/rules/fake.
+# Tenant is "fake" because Loki runs with auth_enabled=false (single tenant).
+# Added chg-2026-06-13-006 (Sibyl). Fires into the existing
+# kube-prometheus-stack Alertmanager via loki.rulerConfig.alertmanager_url.
+#
+# NOTE: The exact UniFi Alarm Manager JSON shape is not yet known (GUI step
+# pending). These rules are intentionally PERMISSIVE — they match
+# offline-indicating keywords in the raw webhook body. Once the first real
+# alarm reveals the schema, tighten the matcher to a precise json() field
+# (e.g. |= alarm type == "EVT_GW_DeviceLost" or similar).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-rules
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: loki
+data:
+  unifi-events.yaml: |
+    groups:
+      - name: unifi-alarm
+        rules:
+          # ── Device offline ──────────────────────────────────────────────
+          # Matches any UniFi Alarm Manager event whose body mentions an
+          # offline/lost/disconnected device. Case-insensitive regex over the
+          # raw JSON body. for:0s so the first offline event fires promptly;
+          # Alarm Manager itself does the de-dup ("ignore repeated actions").
+          - alert: UnifiDeviceOffline
+            expr: |
+              sum(count_over_time({source="unifi-alarm"} |~ `(?i)(offline|disconnect|device.?lost|unreachable|EVT_.*Lost|EVT_.*Disconnected)` [5m])) > 0
+            for: 0s
+            labels:
+              severity: warning
+              component: unifi-network
+              source: unifi-alarm
+            annotations:
+              summary: "UniFi reported a device offline/disconnected event"
+              description: |
+                The UDM Alarm Manager pushed a webhook event matching an
+                offline/disconnect pattern in the last 5 minutes. Open the
+                Grafana "UniFi Network Events" dashboard (Unifi folder) and
+                read the event log to see which device. Query:
+                {source="unifi-alarm"} |~ "(?i)offline"
+
+          # ── Event storm ────────────────────────────────────────────────
+          # Catches a flapping device / association storm: an unusually high
+          # rate of UniFi events. Threshold conservative for a home network.
+          - alert: UnifiEventStorm
+            expr: |
+              sum(count_over_time({source="unifi-alarm"} [5m])) > 50
+            for: 5m
+            labels:
+              severity: warning
+              component: unifi-network
+              source: unifi-alarm
+            annotations:
+              summary: "High rate of UniFi Alarm Manager events ({{ $value }} in 5m)"
+              description: |
+                More than 50 UniFi network events arrived in 5 minutes. This
+                usually means a device is flapping or there is an association
+                storm. Check the "UniFi Network Events" dashboard event-rate
+                panel and the event log.
