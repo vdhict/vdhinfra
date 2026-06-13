@@ -32,6 +32,10 @@ age.key
 hack/kiosk-verify/*.png
 llats.yaml
 
+# Claude agent runtime: worktrees + local HA entity-state catalog cache
+.claude/worktrees/
+.claude/ha-entities.json
+
 # OS files
 .DS_Store
 Thumbs.db
