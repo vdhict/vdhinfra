@@ -1,0 +1,26 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/gateway.networking.k8s.io.httproute_v1.json
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: unifi-events
+  namespace: observability
+spec:
+  # LAN-only. The UDM Pro (172.16.2.1) POSTs UniFi Alarm Manager webhooks to
+  # https://unifi-events.bluejungle.net/unifi-alarm. TLS (LE *.bluejungle.net
+  # wildcard) is terminated at envoy-internal; plain HTTP is forwarded to the
+  # Vector http_server source on port 8686.
+  hostnames:
+    - "unifi-events.${SECRET_DOMAIN}"
+  parentRefs:
+    - name: envoy-internal
+      namespace: network
+      sectionName: https
+  rules:
+    - backendRefs:
+        - name: vector
+          port: 8686
+      matches:
+        - path:
+            type: PathPrefix
+            value: /unifi-alarm

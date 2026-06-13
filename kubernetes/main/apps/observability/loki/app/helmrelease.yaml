@@ -50,12 +50,37 @@ spec:
               period: 24h
       limits_config:
         retention_period: 14d
+      # ── Ruler (LogQL alerting) ──────────────────────────────────────────
+      # Enabled chg-2026-06-13-006 (Sibyl) to alert on UniFi Alarm Manager
+      # webhook events landing in Loki (source=unifi-alarm). Rules live in a
+      # ConfigMap mounted at /etc/loki/rules/fake (tenant "fake" because
+      # auth_enabled=false → single fake tenant). The ruler evaluates LogQL
+      # alert expressions and pushes firing alerts to the existing
+      # kube-prometheus-stack Alertmanager.
+      rulerConfig:
+        storage:
+          type: local
+          local:
+            directory: /etc/loki/rules
+        rule_path: /var/loki/ruler-wal
+        alertmanager_url: http://kube-prometheus-stack-alertmanager.observability.svc.cluster.local:9093
+        enable_alertmanager_v2: true
+        enable_api: true
     singleBinary:
       replicas: 1
       persistence:
         enabled: true
         storageClass: rook-ceph-block
         size: 50Gi
+      # Mount the LogQL alerting rules ConfigMap (see loki-rules.yaml) into the
+      # ruler's local rule directory under the "fake" tenant subdir.
+      extraVolumes:
+        - name: loki-rules
+          configMap:
+            name: loki-rules
+      extraVolumeMounts:
+        - name: loki-rules
+          mountPath: /etc/loki/rules/fake
     gateway:
       replicas: 0
     backend:

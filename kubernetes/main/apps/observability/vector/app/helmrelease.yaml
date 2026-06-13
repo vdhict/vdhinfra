@@ -66,6 +66,14 @@ spec:
           port: 514
           targetPort: 514
           protocol: UDP
+        # UniFi Alarm Manager webhook receiver (HTTP). The UDM POSTs alarm
+        # JSON here. Exposed to the LAN via the envoy-internal HTTPRoute
+        # unifi-events.bluejungle.net (TLS terminated at the gateway); the
+        # gateway forwards plain HTTP to this port via the `vector` ClusterIP.
+        - name: http-unifi-alarm
+          port: 8686
+          targetPort: 8686
+          protocol: TCP
 
     customConfig:
       data_dir: /vector-data-dir
@@ -94,6 +102,24 @@ spec:
           mode: udp
           decoding:
             codec: bytes
+        # UniFi Alarm Manager webhook receiver. The exact Alarm Manager JSON
+        # shape is not fully known to us, so the source is intentionally
+        # permissive: it accepts any HTTP body (codec: bytes — we do NOT let
+        # Vector hard-parse JSON and drop unknown shapes). The first real
+        # alarm reveals the schema; we refine labels/parsing afterward.
+        # Path is /unifi-alarm; method POST (GET also accepted for a probe).
+        unifi_alarm:
+          type: http_server
+          address: 0.0.0.0:8686
+          path: /unifi-alarm
+          # Vector's http_server `method` is a single string. Alarm Manager
+          # webhooks POST; we accept POST (GET probes will 405, which is fine —
+          # use a POST with an empty body to health-check).
+          method: POST
+          decoding:
+            codec: bytes
+          # Capture the original sender IP so we can confirm it's the UDM.
+          host_key: source_ip
       transforms:
         airmax_normalize:
           type: remap
@@ -155,12 +181,49 @@ spec:
             # original UDM-side timestamp is preserved inside the
             # message body for reference.
             .timestamp = now()
+        unifi_alarm_normalize:
+          type: remap
+          inputs:
+            - unifi_alarm
+          source: |-
+            # Preserve the raw webhook body verbatim as the Loki log line.
+            # `.message` holds the bytes the http_server source received.
+            raw = string!(.message)
+            .message = raw
+            # Best-effort parse to lift a couple of low-cardinality fields into
+            # labels WITHOUT failing if the shape is unexpected. The full JSON
+            # always remains in .message so nothing is lost and the schema can
+            # be refined later. We deliberately do NOT promote per-device names,
+            # MACs, or client ids to labels (cardinality landmine) — those stay
+            # in the message body and are queried with LogQL json filters.
+            parsed, err = parse_json(raw)
+            sev = "info"
+            if err == null {
+              obj = object(parsed) ?? {}
+              # Common alarm severity field names, bounded to a small set.
+              s = string(obj.severity) ?? (string(obj.level) ?? (string(obj.alarm_severity) ?? "info"))
+              # s is guaranteed a string here, so downcase is infallible.
+              sev = downcase(s)
+            }
+            # Fixed, low-cardinality labels.
+            .job = "unifi-alarm"
+            .source = "unifi-alarm"
+            .level = sev
+            # device label kept for loki-sink schema parity with the syslog
+            # paths; left empty (device identity lives in the message body).
+            .device = ""
+            .hostname = "udm-pro"
+            # Use receive time — Alarm Manager webhook timestamp format is not
+            # yet known; receive time is always valid UTC and avoids Loki
+            # "timestamp too new/old" rejections (same pattern as syslog).
+            .timestamp = now()
       sinks:
         loki:
           type: loki
           inputs:
             - udm_normalize
             - airmax_normalize
+            - unifi_alarm_normalize
           endpoint: http://loki-headless.observability.svc.cluster.local:3100
           encoding:
             codec: json
@@ -172,5 +235,9 @@ spec:
             # device label populated by airmax_normalize; empty string for UDM logs
             # (field absent → Vector renders it as empty, Loki accepts that)
             device: '{{ print "{{ device }}" }}'
+            # source label: empty for syslog paths, "unifi-alarm" for webhook
+            # events. Lets a single LogQL selector {source="unifi-alarm"} pull
+            # the alarm history without scanning all syslog streams.
+            source: '{{ print "{{ source }}" }}'
           remove_label_fields: true
           out_of_order_action: accept

@@ -1,0 +1,100 @@
+---
+# UniFi Network Events dashboard. Provisioned via the Grafana dashboard
+# sidecar (label grafana_dashboard); placed in the "Unifi" folder via the
+# grafana_folder annotation. Story this screen tells:
+#   "What network events has the UDM reported via Alarm Manager, how busy is
+#    the event stream, and is anything offline right now?"
+# Every panel sources from Loki {source="unifi-alarm"} (written by Vector's
+# unifi_alarm_normalize transform). No mock data.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: unifi-events-dashboard
+  namespace: observability
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: Unifi
+data:
+  unifi-events.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "graphTooltip": 0,
+      "schemaVersion": 39,
+      "tags": ["unifi", "events", "loki"],
+      "title": "UniFi Network Events",
+      "uid": "unifi-events",
+      "time": { "from": "now-24h", "to": "now" },
+      "templating": { "list": [] },
+      "panels": [
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "Events (last 24h)",
+          "description": "Total UniFi Alarm Manager webhook events received. Answers: has the UDM reported anything?",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+          "options": { "reduceOptions": { "calcs": ["sum"] }, "colorMode": "value", "graphMode": "none" },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "sum(count_over_time({source=\"unifi-alarm\"} [$__range]))",
+              "queryType": "instant",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "Events (last 1h)",
+          "description": "Recent activity. A spike here usually means a device flapping.",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+          "options": { "reduceOptions": { "calcs": ["sum"] }, "colorMode": "value", "graphMode": "none" },
+          "fieldConfig": { "defaults": { "thresholds": { "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 20 } ] } } },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "sum(count_over_time({source=\"unifi-alarm\"} [1h]))",
+              "queryType": "instant",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "type": "timeseries",
+          "title": "Event rate by severity",
+          "description": "Events/min split by the severity label Vector lifted from the alarm body. Answers: is this a steady trickle or an event storm?",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "fieldConfig": { "defaults": { "custom": { "drawStyle": "bars", "stacking": { "mode": "normal" }, "fillOpacity": 60 } } },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "sum by (level) (count_over_time({source=\"unifi-alarm\"} [$__auto]))",
+              "legendFormat": "{{level}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "type": "logs",
+          "title": "UniFi event log",
+          "description": "The raw Alarm Manager webhook bodies, newest first. This is the queryable event history that replaced the removed stat/event poll on Network 10.x.",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "gridPos": { "h": 14, "w": 24, "x": 0, "y": 8 },
+          "options": { "showTime": true, "wrapLogMessage": true, "sortOrder": "Descending", "enableLogDetails": true },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "{source=\"unifi-alarm\"}",
+              "refId": "A"
+            }
+          ]
+        }
+      ]
+    }
