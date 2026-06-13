@@ -18,10 +18,22 @@ You are operating a **production** UniFi UDM Pro Max. Treat it as the network's 
 - **Hardware/OS**: UDM Pro Max (UDMPROMAX), UniFi OS firmware
 - **Dual WAN**: Ziggo (77.250.45.126) + KPN (86.80.222.126). KPN provides native IPv6 to clients.
 - **API auth — pick the right key for the endpoint:**
-  - **Local integration API key** (newer, REST-style): `~/Code/homelab-migration/config/unifi-api-key`. Header `X-API-KEY`. Used by Site/Device/Client integration endpoints under `/proxy/network/integration/v1/...`.
+  - **Local integration API key** (newer, REST-style): `~/Code/homelab-migration/config/unifi-api-key`. Header `X-API-KEY`. Authenticates the Network Integration API **and** — confirmed on our UniFi-OS UDM — the legacy private API directly (no cookie/CSRF needed; see Three-API model below).
   - **external-dns-unifi key**: `kubectl get secret -n network external-dns-unifi-secret -o jsonpath='{.data.api-key}' | base64 -d`. Used for the static-dns endpoint under `/proxy/network/v2/api/site/default/static-dns/`.
   - Both are X-API-KEY style; they often have different permission scopes — try the static-dns key first for DNS work.
-- **Site ID** (integration API path param): `88f7af54-98f8-306a-a1c7-c9349722b1f6`
+- **Site ID** (integration API path param): `88f7af54-98f8-306a-a1c7-c9349722b1f6`. **The integration API uses this UUID; the legacy private API uses the literal `default`. Don't cross them.**
+
+## Three-API model (read this before saying "read-only")
+
+There is no single "UniFi API". Three surfaces, three capability levels:
+
+| Surface | Base | Auth | Capability |
+|---|---|---|---|
+| **Site Manager** (cloud) | `https://api.ui.com` | UI cloud key | **Read-only.** Inventory/telemetry across sites. Don't reach for it for writes — that's the "UniFi is read-only" myth. |
+| **Network Integration API** | `/proxy/network/integration/v1/...` | our `X-API-KEY` | **Read + write.** Device/client **actions** (reboot/adopt/locate/PoE cycle), CRUD on networks/WiFi/firewall-zones/DNS-policies. Documented, schema-stable. Prefer this where it covers the task. |
+| **Legacy private API** | `/proxy/network/api/s/default/...` | our `X-API-KEY` **directly** | **Full UI surface** — everything the web UI does (per-device `rest/device`, BGP, some firewall ops). **CONFIRMED: our integration X-API-KEY authenticates against it with NO cookie/CSRF login on our UniFi-OS UDM.** The `/api/auth/login` cookie dance is no longer required for these writes. |
+
+Decision rule: reach for the **Integration API** first (cleaner, documented). Drop to the **legacy private API** only for what Integration can't reach (per-AP radio table, BGP). Site Manager is reads only.
 
 ## Canonical endpoints
 
@@ -32,9 +44,16 @@ You are operating a **production** UniFi UDM Pro Max. Treat it as the network's 
 | Delete a static DNS record | DELETE | `/proxy/network/v2/api/site/default/static-dns/<_id>` |
 | List devices | GET | `/proxy/network/integration/v1/sites/<site_id>/devices` |
 | List clients | GET | `/proxy/network/integration/v1/sites/<site_id>/clients` |
-| Login (legacy cookie API) | POST | `/api/auth/login` body `{"username":"...","password":"..."}` — only when integration API can't do it |
+| Device action (reboot/adopt/locate) | POST | `/proxy/network/integration/v1/sites/<site_id>/devices/<id>/actions` body `{"action":"RESTART"\|"ADOPT"\|"LOCATE"}` |
+| PoE port cycle | POST | `/proxy/network/integration/v1/sites/<site_id>/devices/<id>/interfaces/ports/<idx>/actions` body `{"action":"POWER_CYCLE"}` |
+| **Read** device state (radio_table, stats) | GET | `/proxy/network/api/s/default/stat/device` — use this for GET-after-write diffs |
+| **Write** per-AP radio (channel/tx_power/min_rssi/min_rate) | PUT | `/proxy/network/api/s/default/rest/device/<_id>` (integration key, no cookie) — see radio_table rule below |
 
-Most BGP/routing endpoints are still legacy cookie-API only.
+**Per-AP radio writes (CONFIRMED).** `PUT .../rest/device/<_id>` with the integration `X-API-KEY` writes channel / tx_power / min_rssi / min_rate. You must send the **entire `radio_table` array**, mutating only the target field — partial bodies get dropped. Proven: chg-2026-06-13-001 (`min_rssi -78`) and chg-2026-06-13-004 (channel 60→36→60). This **retires the old "channel writes need a legacy `/api/auth/login` cookie" guidance** — it's false on our UDM; the integration key authenticates `rest/device` directly.
+
+**Read-back footgun.** `GET .../rest/device/<_id>` **404s — it is write-only.** Read device state back via `GET .../stat/device` for every GET-after-write diff. Silent-drop watch: `min-rate` only persisted once `minrate_setting_preference=manual` was also set in the same PUT; `min_rssi` and `channel` persisted without an extra preference flag. Always diff field-by-field against intent.
+
+BGP/routing remain on the legacy private API (same key, `rest/...` / `set/setting/...`).
 
 ## Read-only patterns (prefer these)
 
@@ -55,7 +74,9 @@ curl -sk -o /dev/null -w 'http=%{http_code} t=%{time_total}\n' --max-time 5 http
 
 - ❌ POST/PUT an `AAAA` record to `static-dns/` (see top of file).
 - ❌ Loop many POSTs in tight succession. UniFi Network apply cycles can stall; rate-limit yourself to one write every 1–2 s.
-- ❌ Use the legacy cookie API where the integration API works — cookie sessions accumulate and a stale CSRF token wastes a debugging hour.
+- ❌ Open a `/api/auth/login` cookie session for writes our integration key already authenticates (per-AP radio, most legacy `rest/...`). Cookie sessions + stale CSRF tokens waste a debugging hour; use the X-API-KEY against the legacy private API directly (see Three-API model).
+- ❌ `GET .../rest/device/<_id>` to read device state — it 404s. Read via `stat/device`.
+- ❌ Send a partial `radio_table` on a `rest/device` PUT — dropped fields. Send the full array.
 - ❌ Hardcode the UDM IP elsewhere. Always reference `172.16.2.1` so this file owns the truth.
 - ❌ Take action via the UDM during peak household usage (movies, calls) without warning the user. A crash of the network module = TV buffering, calls dropping.
 
@@ -70,6 +91,16 @@ When the UDM firmware or the UniFi Network application is updated (visible signa
 5. If you discover the new behavior breaks an existing helmrelease/external-dns config, surface that to the user before continuing — don't silently work around it.
 
 You can't proactively monitor UniFi releases from this skill, but **any session that touches the UDM API for the first time after a noticed version bump must do steps 1–4 before write operations**.
+
+### Network 10.x — what changed (CONFIRMED)
+
+- **`stat/event` and `stat/alarm` are gone (404).** Polling for network events no longer works. For events/alarms use the **Alarm Manager → custom webhook** (push) instead — configure an alarm that POSTs to a downstream collector rather than polling the controller. (Background on the poller breakage: `reference_unifi_v10_poller_breakage` memory.)
+- **Integration API now rate-limits.** Expect `429` with `Retry-After`; pace writes (one every 1–2 s already in our anti-patterns) and back off on `Retry-After` rather than retry-spamming.
+
+### Further reference
+
+- Full API map, key-vs-surface matrix, and the auth-confirmation evidence: `docs/research/unifi-api-access-2026-06.md`.
+- Quick path lookup: `reference_unifi_api_paths` memory.
 
 ## Sensitive operations
 
