@@ -66,6 +66,7 @@ ENGINEERS = {
     "infra-ops", "udm-engineer", "ha-engineer", "k8s-engineer",
     "change-qa", "security-engineer", "pentest-engineer",
     "design-engineer", "it-researcher", "frontend-engineer",
+    "observability-engineer", "comms-engineer",
     "user",
 }
 
