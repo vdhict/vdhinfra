@@ -739,6 +739,17 @@ components:
     sla_tier: ops-only
     health_source: k8s://deploy/observability/grafana
     external_id: https://grafana.bluejungle.net
+  grafana/observability:
+    type: k8s-config
+    owner_agent: observability-engineer
+    description: Grafana config + admin auth (ExternalSecret grafana-secret, dashboards, datasources). Sibyl owns dashboard/auth content; Heph owns the underlying Grafana app deploy (obs.grafana).
+    depends_on: [obs.grafana]
+    sensitive: true
+    tier: 5
+    group: observability
+    sla_tier: ops-only
+    health_source: k8s://secret/observability/grafana-secret
+    external_id: https://grafana.bluejungle.net
   obs.loki:
     type: k8s-app
     owner_agent: k8s-engineer
