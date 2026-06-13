@@ -21,6 +21,15 @@
 components:
 
   # ── Network (UDM/UniFi) ──────────────────────────────────────────────
+  net.wifi.min-rssi:
+    type: wifi-config
+    owner_agent: udm-engineer
+    description: Per-AP per-radio min-RSSI (client roam-eviction) settings on UniFi APs. Surveyed policy keeps it OFF by default; enabled only on multi-homed APs' 5GHz to push sticky clients off weak associations while protecting single-homed 2.4 IoT + edge/sole-coverage APs (Keuken/Stube/Meterkast).
+    depends_on: [net.udm]
+    sensitive: false
+    tier: 2
+    group: core-network
+    sla_tier: family-important
   net.udm:
     type: network-device
     owner_agent: udm-engineer
