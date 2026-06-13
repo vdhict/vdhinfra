@@ -182,6 +182,19 @@ components:
     physical_link_to: [net.udm]
     external_id: "6a04b7546b1132fd4aca3bf6"
 
+  net.ap.meterkast:
+    type: network-device
+    owner_agent: udm-engineer
+    description: "AP05 - Meterkast — U7LR, MAC 78:8a:20:8c:56:e5, UniFi legacy device _id 6a04b7b76b1132fd4aca3d49, IP in CLIENT VLAN. Radios: ng (wifi0) 2.4GHz ch11 ht20 ~2 clients (twc, P115); na (wifi1) 5GHz. 5GHz moved off DFS ch60 -> non-DFS UNII-1 ch36 ht40 on 2026-06-13 (chg-2026-06-13-007, NL/ETSI no-DFS indoor). Write path: PUT /proxy/network/api/s/default/rest/device/<_id> full radio_table, integration X-API-KEY."
+    depends_on: [net.udm]
+    sensitive: false
+    tier: 2
+    group: core-network
+    sla_tier: family-critical
+    health_source: unifi://device/6a04b7b76b1132fd4aca3d49
+    physical_link_to: [net.udm]
+    external_id: "6a04b7b76b1132fd4aca3d49"
+
   net.wifi.24ghz-minrate:
     type: wifi-config
     owner_agent: udm-engineer
@@ -756,6 +769,21 @@ components:
     group: observability
     sla_tier: ops-only
     health_source: k8s://statefulset/observability/alertmanager-kube-prometheus-stack
+  obs.vector:
+    type: k8s-app
+    owner_agent: observability-engineer
+    description: >-
+      Vector (Stateless-Aggregator, 2 replicas) — log/event receiver feeding Loki.
+      Sources: UDM RFC3164 syslog (UDP 1514), airMAX NanoStation syslog (UDP 514),
+      and UniFi Alarm Manager webhooks (HTTP /unifi-alarm -> Loki source=unifi-alarm).
+      LB IP 172.16.2.235. HTTP webhook exposed via envoy-internal HTTPRoute
+      unifi-events.bluejungle.net.
+    depends_on: [obs.loki]
+    sensitive: false
+    tier: 5
+    group: observability
+    sla_tier: ops-only
+    health_source: k8s://deployment/observability/vector
   obs.health_report:
     type: k8s-app
     owner_agent: k8s-engineer
