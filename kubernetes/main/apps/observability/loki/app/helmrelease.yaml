@@ -66,6 +66,20 @@ spec:
         alertmanager_url: http://kube-prometheus-stack-alertmanager.observability.svc.cluster.local:9093
         enable_alertmanager_v2: true
         enable_api: true
+    # ── Rules sidecar ───────────────────────────────────────────────────
+    # The chart's default loki-sc-rules sidecar (kiwigrid k8s-sidecar) watches
+    # ConfigMaps AND Secrets labelled loki_rule and copies them into the ruler
+    # dir at runtime. We do NOT use dynamic discovery — the UniFi alert rules
+    # are mounted directly via singleBinary.extraVolumes (loki-rules ConfigMap
+    # → /etc/loki/rules/fake). With RESOURCE=both the sidecar tries to LIST
+    # secrets, which the loki ServiceAccount has no RBAC for, so it
+    # CrashLoopBackOffs on a 403 and keeps the pod NotReady (1/2). Disabling
+    # the redundant sidecar clears the crash without widening RBAC; the ruler
+    # is unaffected because it reads rules from the mounted ConfigMap.
+    # Fixed chg-2026-06-15-001 (Sibyl).
+    sidecar:
+      rules:
+        enabled: false
     singleBinary:
       replicas: 1
       persistence:
