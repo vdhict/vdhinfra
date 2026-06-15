@@ -5,11 +5,6 @@ kind: HelmRelease
 metadata:
   name: nut-exporter
 spec:
-  # DEFERRAL (chg-2026-06-15-004), NOT a fix. Depends on network-ups-tools, which is
-  # suspended because the PowerWalker UPS USB is unplugged post rack move. Suspended to
-  # stop the dependency-not-ready Failed state. RESUME together with network-ups-tools
-  # AFTER the operator recables the UPS USB.
-  suspend: true
   interval: 30m
   chart:
     spec:
