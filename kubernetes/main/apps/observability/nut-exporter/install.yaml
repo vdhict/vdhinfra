@@ -10,6 +10,10 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  # DEFERRAL (chg-2026-06-15-004), NOT a fix. Depends on network-ups-tools (suspended,
+  # UPS USB unplugged post rack move). RESUME together with network-ups-tools after the
+  # operator recables the UPS USB.
+  suspend: true
   dependsOn:
     - name: network-ups-tools
   path: ./kubernetes/main/apps/observability/nut-exporter/app
