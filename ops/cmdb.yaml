@@ -718,6 +718,16 @@ components:
     health_source: k8s://hr/rook-ceph/rook-ceph-cluster
 
   # ── Observability ────────────────────────────────────────────────────
+  net.ups:
+    type: power-device
+    owner_agent: k8s-engineer
+    description: APC Back-UPS BR 900GI (USB 051d:0002, serial 3B1106X28166) USB-connected to vdhclu01node03 (same node as the Aeotec Z-Wave dongle). Monitored by NUT (network-ups-tools, usbhid-ups driver, MODE=netserver) pinned to node03 via NodeFeatureRule feature.node.kubernetes.io/ups=true; nut-exporter scrapes upsd for Prometheus. Replaced the retired PowerWalker VI 2200 from the 2026-06 rack move (chg-2026-06-15-005). NOTE the APC firmware (FW 879.L3) re-enumerates on the USB bus occasionally; usbhid-ups 2.7.4 stays bound to the old devnum -> "Data stale". Recovery = restart the network-ups-tools pod to re-grab the current devnum.
+    depends_on: [k8s.cluster, obs.prometheus]
+    sensitive: false
+    tier: 5
+    group: power
+    sla_tier: ops-only
+    health_source: k8s://deploy/observability/network-ups-tools
   obs.prometheus:
     type: k8s-app
     owner_agent: k8s-engineer
