@@ -10,11 +10,6 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
-  # DEFERRAL (chg-2026-06-15-004), NOT a fix. PowerWalker UPS USB unplugged post rack
-  # move => pod unschedulable. With wait: true, a suspended-but-Failed HR keeps this
-  # Kustomization red, so suspend the Kustomization too. RESUME (remove this line +
-  # the HR suspend) AFTER the operator recables the UPS USB.
-  suspend: true
   path: ./kubernetes/main/apps/observability/network-ups-tools/app
   prune: true
   sourceRef:

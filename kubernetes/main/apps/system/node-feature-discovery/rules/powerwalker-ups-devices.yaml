@@ -5,7 +5,11 @@ metadata:
   name: powerwalker-ups-devices
 spec:
   rules:
-    - name: powerwalker.ups
+    # APC Back-UPS BR 900GI (vendor 051d American Power Conversion, product 0002 HID UPS),
+    # USB-connected to vdhclu01node03 (chg-2026-06-15-005, replaces the PowerWalker VI 2200
+    # which was retired in the 2026-06 rack move). Labels the host node ups=true so the
+    # network-ups-tools pod (nodeSelector ups=true) schedules onto the node owning the dongle.
+    - name: apc.ups
       labels:
         feature.node.kubernetes.io/ups: "true"
       matchFeatures:
@@ -13,4 +17,7 @@ spec:
           matchExpressions:
             vendor:
               op: In
-              value: ["06da"]
+              value: ["051d"]
+            device:
+              op: In
+              value: ["0002"]

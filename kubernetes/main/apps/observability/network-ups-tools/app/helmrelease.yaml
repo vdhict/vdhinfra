@@ -5,13 +5,6 @@ kind: HelmRelease
 metadata:
   name: network-ups-tools
 spec:
-  # DEFERRAL (chg-2026-06-15-004), NOT a fix. PowerWalker VI 2200 UPS USB (vendor 06da)
-  # was unplugged during the 2026-06 rack move and is connected to no node, so the
-  # NodeFeatureRule powerwalker-ups-devices never sets feature.node.kubernetes.io/ups=true
-  # and this pod stays Pending. Suspended to stop the false-critical Failed-red.
-  # RESUME (remove this line) only AFTER the operator recables the UPS USB to a worker
-  # node and `kubectl get nodes -L feature.node.kubernetes.io/ups` shows true.
-  suspend: true
   interval: 30m
   chart:
     spec:
@@ -83,4 +76,4 @@ spec:
             [kubernetes]
             driver = usbhid-ups
             port = auto
-            desc = "PowerWalker UPS VI 2200 SHL IEC"
+            desc = "APC Back-UPS 900"
