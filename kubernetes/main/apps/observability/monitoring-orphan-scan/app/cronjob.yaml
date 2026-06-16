@@ -37,9 +37,16 @@ spec:
                   value: Europe/Amsterdam
                 - name: SCAN_NAMESPACE
                   value: observability
+                # readOnlyRootFilesystem is on, so point temp at the writable emptyDir.
+                - name: TMPDIR
+                  value: /tmp
               volumeMounts:
                 - name: scripts
                   mountPath: /scripts
+                # Writable scratch for the script's mktemp (manifest decode) —
+                # required because readOnlyRootFilesystem: true.
+                - name: tmp
+                  mountPath: /tmp
               resources:
                 requests:
                   cpu: 10m
@@ -56,3 +63,6 @@ spec:
               configMap:
                 name: monitoring-orphan-scan-scripts
                 defaultMode: 0755
+            - name: tmp
+              emptyDir:
+                sizeLimit: 64Mi
