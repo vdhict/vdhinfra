@@ -21,3 +21,4 @@ resources:
   - ./unifi-exporter/install.yaml
   - ./ceph-smart-exporter/install.yaml
   - ./airmax-backup/install.yaml
+  - ./monitoring-orphan-scan/install.yaml
