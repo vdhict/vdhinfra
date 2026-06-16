@@ -1,0 +1,58 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: monitoring-orphan-scan
+  namespace: observability
+spec:
+  # Daily, off-peak, off-:00 minute (avoid the top-of-hour scrape/rule herd).
+  schedule: "37 3 * * *"
+  timeZone: Europe/Amsterdam
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 604800
+      template:
+        spec:
+          serviceAccountName: monitoring-orphan-scan
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: scan
+              # Same kubectl image already in use by the envoy status-keeper
+              # CronJob (network ns); ships kubectl + jq + busybox sh.
+              image: docker.io/bitnamilegacy/kubectl:1.33.4
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-c", "/scripts/scan.sh"]
+              env:
+                - name: TZ
+                  value: Europe/Amsterdam
+                - name: SCAN_NAMESPACE
+                  value: observability
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: scripts
+              configMap:
+                name: monitoring-orphan-scan-scripts
+                defaultMode: 0755

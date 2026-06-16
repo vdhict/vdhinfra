@@ -1,0 +1,126 @@
+chg-2026-06-16-005 monitoring-orphan-scan — test evidence (2026-06-16T15:27:50Z)
+
+## Image probe: bitnamilegacy/kubectl:1.33.4 ships kubectl + jq
+/usr/bin/jq  jq-1.6  (verified via kubectl run in observability ns)
+
+## EVIDENCE 1 — scan.sh real output NOW (post chg-004 cleanup): 0 orphans
+{"orphan_monitoring_count":0,"orphans":[],"scan_namespace":"observability"}
+
+## EVIDENCE 2 — kubeconform on built manifests
+Summary: 7 resources found in 2 files - Valid: 6, Invalid: 0, Errors: 0, Skipped: 1
+
+## EVIDENCE 3 — negative test (simulate kube-prometheus-stack release secret missing): detects 45 orphans
+{
+  "orphan_monitoring_count": 45,
+  "sample": [
+    {
+      "name": "kube-prometheus-stack-alertmanager",
+      "kind": "ServiceMonitor",
+      "namespace": "observability",
+      "instance": "kube-prometheus-stack",
+      "age": "2026-04-04T14:51:48Z"
+    },
+    {
+      "name": "kube-prometheus-stack-apiserver",
+      "kind": "ServiceMonitor",
+      "namespace": "observability",
+      "instance": "kube-prometheus-stack",
+      "age": "2026-04-04T14:51:48Z"
+    }
+  ]
+}
+
+
+================================================================================
+REWORK v2 — orphan-of-revision detection (2026-06-16, dated this session)
+================================================================================
+ROOT CAUSE of the qa_failed/correctness finding:
+  v1 logic flagged an object only when its instance label had NO live Helm
+  release secret (release entirely gone). The real chg-2026-06-16-004 orphans
+  had a LIVE owning release (prometheus-operator-crds, CRD-only chart) whose
+  CURRENT rendered manifest simply no longer contained those SMs/PrometheusRules.
+  v1 therefore reported orphan_monitoring_count:0 for the real class.
+
+FIX — detect orphan-of-revision:
+  An object is an orphan iff Helm-managed (annotation meta.helm.sh/release-name
+  OR label app.kubernetes.io/managed-by=Helm) AND no ownerReferences AND
+  EITHER (a) its owning release has no live deployed secret  [release-gone class]
+  OR     (b) its Kind/name is NOT present in that release's CURRENT rendered
+             manifest                                         [orphan-of-revision].
+  Owning release = meta.helm.sh/release-name annotation, falling back to the
+  app.kubernetes.io/instance label.
+
+IMAGE: unchanged. docker.io/bitnamilegacy/kubectl:1.33.4 (same as envoy
+  status-keeper precedent). Probe confirmed it ships kubectl + jq + base64 +
+  gunzip but NO helm binary:
+    /opt/bitnami/kubectl/bin/kubectl  /usr/bin/jq  /usr/bin/base64
+    /usr/bin/gunzip  /usr/bin/gzip  MISSING:helm
+  => option (b) chosen: decode the Helm v3 release secret in-script
+     (.data.release | base64 -d | base64 -d | gunzip | jq .manifest) and parse
+     the Kind/name set. No new image added (precedent preserved).
+
+RBAC: unchanged verbs (get,list on secrets) — still NAMESPACED Role, read-only,
+  no ClusterRole, no cluster-wide secret read. Comment updated: the get verb is
+  now genuinely used to read secret .data (the rendered manifest), not just
+  metadata.name. Argus to re-confirm.
+
+-------- FAITHFUL RE-TEST against LIVE cluster (KUBECONFIG=~/.kube/config) ------
+Image binary probe (kubectl run, observability ns):
+  kubectl jq base64 gunzip gzip present; helm MISSING  -> in-script decode used.
+
+Decode pipeline verified on live sh.helm.release.v1.kube-prometheus-stack.v9
+  (status=deployed, version=9): manifest 623722 bytes, 104 docs ->
+  104 Kind/name pairs (no loss), 45 of them ServiceMonitor/PrometheusRule.
+
+STEP 4 — baseline, no selftest present, expect 0:
+  {"orphan_monitoring_count":0,"orphans":[],"scan_namespace":"observability"}
+  (=> zero false positives across ALL live Helm-managed SMs/PromRules in obs)
+
+STEP 1 — applied EXACT reproduction object:
+  ServiceMonitor zz-orphan-scan-selftest in observability
+    labels {app.kubernetes.io/managed-by: Helm,
+            app.kubernetes.io/instance: prometheus-operator-crds}
+    annotations {meta.helm.sh/release-name: prometheus-operator-crds,
+                 meta.helm.sh/release-namespace: observability}
+    spec.selector.matchLabels {zz-orphan-selftest: "true"}
+    endpoints [{port: metrics}]
+  ownerReferences: none (confirmed).
+
+STEP 2 — scan WITH selftest present, MUST flag it:
+  {
+    "orphan_monitoring_count": 1,
+    "orphans": [
+      { "name": "zz-orphan-scan-selftest", "kind": "ServiceMonitor",
+        "namespace": "observability", "instance": "prometheus-operator-crds",
+        "release": "prometheus-operator-crds",
+        "age": "2026-06-16T15:48:16Z", "reason": "not-in-current-manifest" }
+    ],
+    "scan_namespace": "observability"
+  }
+  SELFTEST FLAGGED = YES (reason=not-in-current-manifest, the real chg-004 class)
+
+STEP 3 — false-positive check, a real live in-manifest SM must NOT be flagged:
+  chosen: kube-prometheus-stack-alertmanager
+    (managed_by=Helm, release=kube-prometheus-stack, ownerRefs=0  => real candidate)
+  present in orphan list? NO -> correct (it IS in its release manifest).
+  Also: no object with instance=kube-prometheus-stack flagged at all -> clean.
+
+STEP 5 — delete selftest, confirm gone + baseline back to 0:
+  servicemonitor "zz-orphan-scan-selftest" deleted
+  get -> Error from server (NotFound) (confirmed gone)
+  post-delete re-scan: {"orphan_monitoring_count":0,"orphans":[],...}
+
+EXTRA — release-entirely-gone class still caught (regression guard):
+  applied SM claiming non-existent release "this-release-does-not-exist" ->
+  flagged with reason "release-secret-missing"; then deleted.
+
+-------- STATIC VALIDATION (REWORK v2) ------
+yamllint kubernetes/main/apps/observability/monitoring-orphan-scan/ -> CLEAN
+kustomize build app | kubeconform -strict ->
+  Summary: 5 resources found parsing stdin - Valid: 5, Invalid: 0, Errors: 0, Skipped: 0
+  (SA, Role, RoleBinding, ConfigMap, CronJob)
+
+VERDICT: selftest flagged = YES; false-positive check = CLEAN; baseline = 0;
+  both orphan classes detected; image unchanged; RBAC unchanged (comment-only).
+  Loki-ruler rule-load remains deferred to post-apply (unchanged from v1; the
+  LogQL alert expr was not touched in this rework).

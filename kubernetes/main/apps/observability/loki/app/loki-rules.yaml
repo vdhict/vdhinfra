@@ -61,3 +61,52 @@ data:
                 usually means a device is flapping or there is an association
                 storm. Check the "UniFi Network Events" dashboard event-rate
                 panel and the event log.
+  monitoring-orphan.yaml: |
+    groups:
+      - name: monitoring-orphan-scan
+        rules:
+          # ── Orphan monitoring resources ─────────────────────────────────
+          # Fires when the daily monitoring-orphan-scan CronJob reports any
+          # Helm-labelled ServiceMonitor / PrometheusRule in the observability
+          # namespace whose owning Helm release secret no longer exists (and
+          # which has no ownerReferences). This is the chg-2026-06-16-004 class
+          # of bootstrap-era leftover that fired false KubeProxyDown /
+          # PrometheusOperatorRejectedResources alerts after sitting orphaned
+          # for 73 days.
+          #
+          # The CronJob emits one JSON line per run:
+          #   {"orphan_monitoring_count": N, "orphans": [...]}
+          # The job runs daily (03:37 Europe/Amsterdam); the 25h window
+          # tolerates one missed run / clock skew without flapping.
+          # severity: warning (NOT critical) — this is a hygiene signal, not a
+          # household-impacting outage. Routes to the same Alertmanager (and
+          # thus HA) as the other Loki-ruler alerts.
+          - alert: MonitoringOrphanResources
+            # LogQL has no PromQL-style range subqueries; a single unwrapped
+            # range aggregation over 25h is the correct, robust form. Fires if
+            # any scan in the last 25h reported a non-zero orphan count.
+            expr: |
+              max_over_time(
+                {namespace="observability", container="scan"}
+                  |= "orphan_monitoring_count"
+                  | json
+                  | unwrap orphan_monitoring_count [25h]
+              ) > 0
+            for: 0s
+            labels:
+              severity: warning
+              component: observability
+              source: monitoring-orphan-scan
+            annotations:
+              summary: "{{ $value }} orphan monitoring resource(s) detected in observability"
+              description: |
+                The daily monitoring-orphan-scan flagged Helm-labelled
+                ServiceMonitor/PrometheusRule object(s) in the observability
+                namespace whose owning Helm release no longer exists and which
+                have no ownerReferences. These are likely bootstrap-era
+                leftovers (cf. chg-2026-06-16-004) that can fire false alerts.
+                List them:
+                  {namespace="observability", container="scan"} |= "orphan_monitoring_count" | json
+                Then verify each (kubectl get servicemonitor,prometheusrule -n
+                observability -l app.kubernetes.io/instance=<instance>) has no
+                live release and delete if confirmed orphaned.

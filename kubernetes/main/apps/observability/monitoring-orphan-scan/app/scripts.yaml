@@ -1,0 +1,129 @@
+---
+# Orphan monitoring-resource scan.
+#
+# Detects the chg-2026-06-16-004 class of leftover: Helm-labelled
+# ServiceMonitors / PrometheusRules that are NOT present in their owning Helm
+# release's CURRENT rendered manifest (orphan-of-revision), AND the older
+# "owning release entirely gone" class.
+#
+# WHY this rewrite (REWORK v2, chg-2026-06-16-005):
+#   The real chg-004 orphans had a LIVE owning release (prometheus-operator-crds,
+#   the CRD-only chart) whose rendered manifest simply no longer contained those
+#   SMs/PrometheusRules. The previous logic only flagged objects whose release
+#   secret was *entirely missing*, so it reported 0 for the real class.
+#
+# Canonical truth = the release's CURRENT rendered manifest. Flux's helm-controller
+# prunes anything not in the current chart, so any legitimately-live Helm object is
+# always present in `helm get manifest`. The bitnamilegacy/kubectl image has no
+# helm binary, so we decode the Helm v3 release secret directly:
+#   secret .data.release -> base64 -d -> base64 -d -> gunzip -> jq .manifest
+# and extract the set of Kind/name pairs it renders.
+#
+# Orphan candidate =
+#   - kind ServiceMonitor or PrometheusRule in the observability namespace, AND
+#   - Helm-managed: annotation meta.helm.sh/release-name present
+#       OR label app.kubernetes.io/managed-by=Helm, AND
+#   - has NO ownerReferences (not garbage-collected by a controller), AND
+#   - EITHER its owning release has no live deployed secret (release gone)
+#       OR its Kind/name is NOT in that release's current rendered manifest.
+#
+# Owning release name = annotation meta.helm.sh/release-name, falling back to the
+# app.kubernetes.io/instance label when the annotation is absent.
+#
+# Emits exactly ONE structured JSON line to stdout:
+#   {"orphan_monitoring_count": N, "orphans": [ {name,kind,namespace,instance,release,reason,age}... ]}
+# promtail/Loki ingest observability stdout; the Loki ruler alert
+# MonitoringOrphanResources fires when orphan_monitoring_count > 0.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: monitoring-orphan-scan-scripts
+  namespace: observability
+data:
+  scan.sh: |
+    #!/bin/sh
+    set -eu
+    NS="${SCAN_NAMESPACE:-observability}"
+    WORK="$(mktemp -d)"
+    trap 'rm -rf "$WORK"' EXIT
+
+    # --- helper: emit the set of "Kind/name" pairs rendered by a Helm release ---
+    # $1 = release name. Writes one "Kind/name" per line, or nothing if the
+    # release has no live (highest-revision) secret. Picks the highest revision
+    # secret for the release (helm-controller's current release is the highest).
+    release_manifest_set() {
+      rel="$1"
+      sec="$(kubectl get secret -n "$NS" -l "owner=helm,name=${rel}" \
+               -o json 2>/dev/null \
+             | jq -r '.items[].metadata.name
+                      | capture("^sh\\.helm\\.release\\.v1\\..+\\.v(?<n>[0-9]+)$").n
+                      // empty' \
+             | sort -n | tail -1)"
+      [ -z "$sec" ] && return 0
+      secname="sh.helm.release.v1.${rel}.v${sec}"
+
+      # Decode: double-base64 then gunzip; pull .manifest; extract Kind/name set.
+      kubectl get secret -n "$NS" "$secname" -o jsonpath='{.data.release}' 2>/dev/null \
+        | base64 -d 2>/dev/null | base64 -d 2>/dev/null | gunzip 2>/dev/null \
+        | jq -r '.manifest' 2>/dev/null \
+        | awk '
+            function flush() { if (kind!="" && name!="") print kind "/" name; kind=""; name=""; seen_name=0 }
+            /^---/      { flush() }
+            /^kind: /   { kind=$2; gsub(/[ \r"]/,"",kind) }
+            /^  name: / { if (!seen_name) { name=$2; gsub(/[ \r"]/,"",name); seen_name=1 } }
+            END         { flush() }
+          '
+    }
+
+    # --- collect Helm-managed candidates with no ownerReferences ---
+    # JSONL: one compact object per candidate, with its owning release resolved.
+    kubectl get servicemonitor,prometheusrule -n "$NS" -o json \
+      | jq -c --arg ns "$NS" '
+          .items[]
+          | select((.metadata.annotations["meta.helm.sh/release-name"] != null)
+                   or (.metadata.labels["app.kubernetes.io/managed-by"] == "Helm"))
+          | select((.metadata.ownerReferences // []) | length == 0)
+          | { name: .metadata.name,
+              kind: .kind,
+              namespace: .metadata.namespace,
+              instance: (.metadata.labels["app.kubernetes.io/instance"] // ""),
+              release: (.metadata.annotations["meta.helm.sh/release-name"]
+                        // .metadata.labels["app.kubernetes.io/instance"] // ""),
+              age: .metadata.creationTimestamp }
+        ' > "$WORK/candidates.jsonl"
+
+    # --- classify each candidate against its release manifest set ---
+    : > "$WORK/orphans.jsonl"
+    while IFS= read -r cand; do
+      [ -z "$cand" ] && continue
+      rel="$(printf '%s' "$cand"  | jq -r '.release')"
+      kind="$(printf '%s' "$cand" | jq -r '.kind')"
+      name="$(printf '%s' "$cand" | jq -r '.name')"
+
+      # No resolvable owning release at all -> orphan (release gone / unmanageable).
+      if [ -z "$rel" ]; then
+        printf '%s\n' "$(printf '%s' "$cand" | jq -c '. + {reason:"no-owning-release"}')" \
+          >> "$WORK/orphans.jsonl"
+        continue
+      fi
+
+      mset="$(release_manifest_set "$rel" || true)"
+
+      if [ -z "$mset" ]; then
+        # Release has no live deployed secret -> release-entirely-gone class.
+        printf '%s\n' "$(printf '%s' "$cand" | jq -c '. + {reason:"release-secret-missing"}')" \
+          >> "$WORK/orphans.jsonl"
+      elif ! printf '%s\n' "$mset" | grep -qxF "${kind}/${name}"; then
+        # Release is live but its current manifest no longer renders this object
+        # -> orphan-of-revision (the real chg-2026-06-16-004 class).
+        printf '%s\n' "$(printf '%s' "$cand" | jq -c '. + {reason:"not-in-current-manifest"}')" \
+          >> "$WORK/orphans.jsonl"
+      fi
+    done < "$WORK/candidates.jsonl"
+
+    # --- emit the single JSON contract line ---
+    jq -s --arg ns "$NS" '
+      { orphan_monitoring_count: length,
+        orphans: .,
+        scan_namespace: $ns }
+    ' "$WORK/orphans.jsonl"

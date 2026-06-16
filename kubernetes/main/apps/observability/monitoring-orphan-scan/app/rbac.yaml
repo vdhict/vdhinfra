@@ -1,0 +1,45 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: monitoring-orphan-scan
+  namespace: observability
+---
+# NAMESPACED Role (NOT a ClusterRole). Read-only, scoped to the observability
+# namespace only — that is where the chg-2026-06-16-004 orphans lived and where
+# our entire monitoring stack runs. We deliberately do NOT grant cluster-wide
+# secret read: the scan only needs to know which Helm releases exist *in this
+# namespace* (sh.helm.release.v1.<release>.vN secrets) and read the
+# servicemonitors / prometheusrules in this namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: monitoring-orphan-scan
+  namespace: observability
+rules:
+  # Read the monitoring objects we want to classify.
+  - apiGroups: [monitoring.coreos.com]
+    resources: [servicemonitors, prometheusrules]
+    verbs: [get, list]
+  # Read Helm release state secrets (sh.helm.release.v1.*) — both to enumerate
+  # live releases (list) AND to decode each release's CURRENT rendered manifest
+  # (get .data.release) so we can detect objects no longer in the chart
+  # (orphan-of-revision). This now legitimately reads secret .data, scoped to
+  # this namespace only by the Role; no ClusterRole, no cluster-wide secret read.
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: monitoring-orphan-scan
+  namespace: observability
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: monitoring-orphan-scan
+subjects:
+  - kind: ServiceAccount
+    name: monitoring-orphan-scan
+    namespace: observability
