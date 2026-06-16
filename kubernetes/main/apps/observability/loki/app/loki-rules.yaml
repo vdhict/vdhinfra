@@ -82,15 +82,17 @@ data:
           # household-impacting outage. Routes to the same Alertmanager (and
           # thus HA) as the other Loki-ruler alerts.
           - alert: MonitoringOrphanResources
-            # LogQL has no PromQL-style range subqueries; a single unwrapped
-            # range aggregation over 25h is the correct, robust form. Fires if
-            # any scan in the last 25h reported a non-zero orphan count.
+            # Use last_over_time (the MOST RECENT scan result), not max_over_time:
+            # the scan runs daily, so the latest reading reflects reality. A
+            # transient non-zero from an earlier run must NOT stay sticky for
+            # 25h. 26h window tolerates one missed daily run. Requires the scan
+            # to emit single-line JSON (jq -cs) for `| json` to parse.
             expr: |
-              max_over_time(
+              last_over_time(
                 {namespace="observability", container="scan"}
                   |= "orphan_monitoring_count"
                   | json
-                  | unwrap orphan_monitoring_count [25h]
+                  | unwrap orphan_monitoring_count [26h]
               ) > 0
             for: 0s
             labels:
