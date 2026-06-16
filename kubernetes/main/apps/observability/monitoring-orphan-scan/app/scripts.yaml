@@ -43,7 +43,10 @@ data:
   scan.sh: |
     #!/bin/sh
     set -eu
-    NS="${SCAN_NAMESPACE:-observability}"
+    # NOTE: shell ${var} are escaped as $${var} because this ConfigMap is
+    # processed by Flux postBuild variable substitution, which would otherwise
+    # replace undefined ${rel}/${sec}/etc. with empty strings. $$ -> literal $.
+    NS="$${SCAN_NAMESPACE:-observability}"
     WORK="$(mktemp -d)"
     trap 'rm -rf "$WORK"' EXIT
 
@@ -53,14 +56,14 @@ data:
     # secret for the release (helm-controller's current release is the highest).
     release_manifest_set() {
       rel="$1"
-      sec="$(kubectl get secret -n "$NS" -l "owner=helm,name=${rel}" \
+      sec="$(kubectl get secret -n "$NS" -l "owner=helm,name=$${rel}" \
                -o json 2>/dev/null \
              | jq -r '.items[].metadata.name
                       | capture("^sh\\.helm\\.release\\.v1\\..+\\.v(?<n>[0-9]+)$").n
                       // empty' \
              | sort -n | tail -1)"
       [ -z "$sec" ] && return 0
-      secname="sh.helm.release.v1.${rel}.v${sec}"
+      secname="sh.helm.release.v1.$${rel}.v$${sec}"
 
       # Decode: double-base64 then gunzip; pull .manifest; extract Kind/name set.
       kubectl get secret -n "$NS" "$secname" -o jsonpath='{.data.release}' 2>/dev/null \
@@ -113,7 +116,7 @@ data:
         # Release has no live deployed secret -> release-entirely-gone class.
         printf '%s\n' "$(printf '%s' "$cand" | jq -c '. + {reason:"release-secret-missing"}')" \
           >> "$WORK/orphans.jsonl"
-      elif ! printf '%s\n' "$mset" | grep -qxF "${kind}/${name}"; then
+      elif ! printf '%s\n' "$mset" | grep -qxF "$${kind}/$${name}"; then
         # Release is live but its current manifest no longer renders this object
         # -> orphan-of-revision (the real chg-2026-06-16-004 class).
         printf '%s\n' "$(printf '%s' "$cand" | jq -c '. + {reason:"not-in-current-manifest"}')" \
