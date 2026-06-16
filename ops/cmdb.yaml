@@ -74,6 +74,15 @@ components:
     group: lan-dns
     sla_tier: family-critical
     health_source: none:config-only-no-runtime-status
+  net.dns.pikvm:
+    type: network-config
+    owner_agent: udm-engineer
+    description: UDM static-dns A record pikvm.bluejungle.net -> 172.16.3.115 (standalone PiKVM, not external-dns managed). A only, no AAAA.
+    depends_on: [net.dns.unifi-static]
+    tier: 2
+    group: lan-dns
+    sla_tier: best-effort
+    health_source: dns://172.16.2.1/pikvm.bluejungle.net
   net.cloudflared:
     type: k8s-app
     owner_agent: k8s-engineer
