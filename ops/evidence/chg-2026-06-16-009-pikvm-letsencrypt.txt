@@ -1,0 +1,11 @@
+EVIDENCE for chg-2026-06-16-009 — PiKVM on-device Let's Encrypt cert (user-executed 2026-06-16)
+Execution (user, on device per docs/runbooks/pikvm-letsencrypt-cert.md):
+- Scoped Cloudflare token created (Zone:DNS:Edit, bluejungle.net only).
+- certbot-dns-cloudflare installed — needed `pacman -Syy` first (stale DB 404 on python-cloudflare).
+- .cloudflare.auth written on PST via a kvmd-pstrun writable sub-shell (nano direct = "Read-only file system").
+- `kvmd-certbot certonly --dns-cloudflare ... -d pikvm.bluejungle.net` -> "Successfully received certificate", expires 2026-09-14.
+- `kvmd-certbot install_nginx pikvm.bluejungle.net` -> "Successfully deployed certificate ... to /etc/kvmd/nginx/ssl".
+- kvmd-certbot.timer enabled; filesystem returned to ro.
+Verification (USER-observed; agent has no LAN path to 172.16.3.115):
+- V1/V2: user confirmed "looks fine" — clean cert + UI loads. Browser-rendered outcome observed by the human.
+- Caveat: user asked to specifically reconfirm H.264/WebRTC stream mode (the regression we avoided by NOT proxying).
