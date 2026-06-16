@@ -1,0 +1,43 @@
+---
+# Off-cluster backend wiring for the Synology DSM web UI (172.16.2.246:5001).
+# DSM is NOT in the cluster, so we use a headless-style selectorless Service
+# plus a hand-managed EndpointSlice. Envoy Gateway v1.3 does not have the
+# envoyproxy.io Backend CRD enabled (no `enableBackend` in the EnvoyGateway
+# config), so the Gateway-API-native path is a plain Service + EndpointSlice.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/v1/service.json
+apiVersion: v1
+kind: Service
+metadata:
+  name: synology-nas
+  namespace: network
+spec:
+  type: ClusterIP
+  # No selector: endpoints are supplied manually via the EndpointSlice below.
+  ports:
+    - name: https
+      port: 5001
+      targetPort: 5001
+      protocol: TCP
+      appProtocol: https
+---
+# Manually-managed EndpointSlice pinning the off-cluster DSM address.
+# Must carry the `kubernetes.io/service-name` label so the Service adopts it.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/discovery.k8s.io/endpointslice_v1.json
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: synology-nas
+  namespace: network
+  labels:
+    kubernetes.io/service-name: synology-nas
+addressType: IPv4
+ports:
+  - name: https
+    port: 5001
+    protocol: TCP
+    appProtocol: https
+endpoints:
+  - addresses:
+      - 172.16.2.246
+    conditions:
+      ready: true

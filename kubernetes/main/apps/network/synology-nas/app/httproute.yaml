@@ -1,0 +1,34 @@
+---
+# Public route: https://nas.bluejungle.net -> Envoy internal gateway (TLS
+# terminated there with the *.bluejungle.net wildcard) -> backend Service
+# (HTTPS to DSM, see backendtlspolicy.yaml). external-dns-unifi watches
+# gateway-httproute sources for ${SECRET_DOMAIN} and will auto-create the LAN
+# A record nas.bluejungle.net -> 172.16.2.241 (gateway address).
+#
+# WebSocket: HTTPRoute passes the Upgrade/Connection headers through by
+# default and no filter here strips them, so the DSM UI's WS survives.
+# DSM accepts any Host header (verified 2026-06-16: HTTP 200 on
+# nas.bluejungle.net / cloudnas / default), so no Host rewrite is required.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/gateway.networking.k8s.io/httproute_v1.json
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: synology-nas
+  namespace: network
+spec:
+  hostnames:
+    - nas.bluejungle.net
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: envoy-internal
+      namespace: network
+      sectionName: https
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: synology-nas
+          port: 5001
