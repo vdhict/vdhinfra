@@ -2,6 +2,12 @@
 age.key
 *.agekey
 
+# airMax/UISP raw config backups contain plaintext WPA PSK + SNMP community.
+# Never commit these (backstop; the airmax-backup-bot must encrypt/scrub).
+# See inc-2026-06-16-001 (history leak, remediation pending).
+configs/airmax/
+*.cfg.bak
+
 # Kubeconfig
 **/kubeconfig
 **/talosconfig

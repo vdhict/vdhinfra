@@ -1,0 +1,32 @@
+# .gitleaks.toml — posture-scan allowlist (Argus, triaged 2026-06-16)
+# Suppresses recurring FALSE POSITIVES (verified 19 -> 0 history findings).
+# Does NOT suppress real plaintext credentials (e.g. the configs/airmax PSK leak
+# is intentionally NOT allowlisted — see inc for that, remediation pending).
+title = "vdhinfra gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known-safe values and ephemeral/encrypted paths"
+
+regexes = [
+  # Age PUBLIC recipient key (safe to publish; not the private key). This is the
+  # value the nightly scan kept re-flagging out of ops/changes.jsonl (FP loop).
+  '''age1dfs2z6esr6rhm46pvh6l8xlualxsn756rkkt9432d5kk3k7s4pssmus4gk''',
+  # SOPS-encrypted ciphertext blobs (already encrypted at rest)
+  '''ENC\[AES256_GCM,.*\]''',
+  # OpenSSH PUBLIC keys (public by design)
+  '''AAAAB3NzaC1yc2[A-Za-z0-9+/=]+''',
+  '''ssh-(rsa|ed25519|dss) AAAA[A-Za-z0-9+/=]+''',
+]
+
+paths = [
+  '''.*\.sops\.ya?ml$''',                          # SOPS-encrypted files
+  '''kubernetes/test/qemu/.*''',                   # ephemeral, gitignored test artifacts
+  '''kubernetes/test/(talosconfig|kubeconfig)$''',
+  '''hack/restore-test/.*''',                      # dummy/local restore-test fixtures
+  '''ops/changes\.jsonl$''',                       # change-log echoes prior findings (FP loop)
+]
+
+stopwords = [ "REDACTED", "example", "changeme" ]
