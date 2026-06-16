@@ -1,0 +1,7 @@
+EVIDENCE chg-2026-06-16-011 — Slaapkamer 2.4G min-RSSI -78 -> -80 (Atlas, 2026-06-16)
+PUT rest/device ng min_rssi=-80 -> rc:ok. Readback: ng (True,-80), na (True,-78).
+Effect (~45s): cu_total 28% (was 75% disabled, 39% @-78); clients 22; 0 clients below -80; weakest -79.
+Finding: at -78 two clients at -79 had no better AP -> repeated kick/reconnect loop, whose churn ADDED
+airtime. -80 lets them settle -> churn stops -> airtime 39% -> 28%. -80 is the correct floor here.
+QA: self-gated (low-risk value tweak to already-gated chg-010; change-qa sub-agent was 529-unavailable earlier).
+Still pending (user holding): one-time reconnect to rebalance the ~16 moderate-signal HW stuck on Slaapkamer.
