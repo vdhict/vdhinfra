@@ -1,6 +1,6 @@
 # Runbook — PiKVM browser-trusted Let's Encrypt cert (on-device kvmd-certbot, Cloudflare DNS-01)
 
-Status: ready to execute (USER-RUN on the device)
+Status: EXECUTED 2026-06-16 (chg-2026-06-16-009) — cert live, expires 2026-09-14. Re-runnable.
 Owner: net.dns.pikvm (Iris / udm-engineer) · author: Daedalus
 Design basis: `docs/research/device-tls-certs-pikvm-synology-2026-06.md` — **option P2**
 Change record for this doc: `chg-2026-06-16-007` (low). The **execution** below is a separate **HIGH-risk, user-approved** change when you run it.
@@ -97,15 +97,22 @@ curl -s -H "Authorization: Bearer <TOKEN>" \
 rw
 ```
 
-### Step 2 — (Only if Step 3's `pacman -S` fails with signature/keyring errors) refresh the pacman keyring
-The live PiKVM Let's Encrypt doc does **not** list these, but a PiKVM that hasn't updated in a while often has an
-expired Arch Linux ARM keyring, which makes `pacman -S` fail with "signature is unknown trust" / "invalid or
-corrupted package". **Only run this if Step 3 fails:**  **[verify on device]**
+### Step 2 — Refresh the pacman databases (and keyring if needed) BEFORE Step 3
+A PiKVM that hasn't updated in a while has a **stale package DB**, so Step 3 fails with a **404** retrieving a
+specific versioned file (e.g. `python-cloudflare-5.2.0-1-...pkg.tar.xz` → `error 404`) — the DB references a version
+the mirror has already replaced. Force-refresh the DBs first (confirmed fix during the 2026-06-16 run):
+```bash
+pacman -Syy
+```
+**Only if Step 3 then fails on signatures** ("signature is unknown trust" / "invalid or corrupted package") the
+keyring is also stale:  **[verify on device]**
 ```bash
 pacman-key --init
 pacman-key --populate archlinuxarm
-pacman -Sy
+pacman -Syy
 ```
+If a single `-Syy` + retry still 404s on the same file, the mirror may be mid-sync — retry shortly, or fall back to
+`pacman -Syu certbot-dns-cloudflare` (⚠️ full system upgrade — may pull a new kvmd/kernel; only if `-Syy` fails).
 
 ### Step 3 — Install the Cloudflare DNS plugin
 ```bash
@@ -115,22 +122,25 @@ pacman -S certbot-dns-cloudflare
 
 ### Step 4 — Write the Cloudflare credentials file on the PST partition
 The auth file must live on the persistent partition (survives the read-only FS) and be owned by `kvmd-certbot`.
+**PST has its OWN rw/ro, independent of the root `rw` from Step 1** — you must write it from inside a `kvmd-pstrun`
+context, or you get `Error writing ...: Read-only file system`. Editing with a single `kvmd-pstrun -- nano <file>`
+is flaky (the save can land after PST is remounted ro); use a **writable sub-shell** so PST stays rw while you edit:
 
 ```bash
-# create the runroot dir on the PST partition
-kvmd-pstrun -- mkdir -p /var/lib/kvmd/pst/data/certbot/runroot
-
-# create/edit the auth file
-kvmd-pstrun -- nano /var/lib/kvmd/pst/data/certbot/runroot/.cloudflare.auth
+kvmd-pstrun -- bash
+#  --- you are now in a shell where PST is writable until you `exit` ---
+mkdir -p /var/lib/kvmd/pst/data/certbot/runroot
+nano /var/lib/kvmd/pst/data/certbot/runroot/.cloudflare.auth
+#   put exactly one line, then Ctrl-O, Enter, Ctrl-X:
+#     dns_cloudflare_api_token = <PASTE_YOUR_SCOPED_TOKEN_HERE>
+chmod 600 /var/lib/kvmd/pst/data/certbot/runroot/.cloudflare.auth
+chown kvmd-certbot: /var/lib/kvmd/pst/data/certbot/runroot/.cloudflare.auth
+exit
+#  --- leaving the sub-shell remounts PST read-only automatically ---
 ```
-Put exactly this single line in the file (paste the token from Step 0), then save & exit nano (Ctrl-O, Enter, Ctrl-X):
-```ini
-dns_cloudflare_api_token = <PASTE_YOUR_SCOPED_TOKEN_HERE>
-```
-Then lock it down:
+Verify (PST is readable without the wrapper):
 ```bash
-kvmd-pstrun -- chmod 600 /var/lib/kvmd/pst/data/certbot/runroot/.cloudflare.auth
-kvmd-pstrun -- chown kvmd-certbot: /var/lib/kvmd/pst/data/certbot/runroot/.cloudflare.auth
+ls -l /var/lib/kvmd/pst/data/certbot/runroot/.cloudflare.auth   # expect -rw------- kvmd-certbot
 ```
 
 ### Step 5 — Obtain the certificate (DNS-01 via Cloudflare)
