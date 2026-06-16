@@ -1,0 +1,27 @@
+---
+# Backend (Envoy -> DSM) TLS. DSM at 172.16.2.246:5001 serves HTTPS ONLY and
+# presents a VALID Let's Encrypt certificate for `cloudnas.vdh-ict.nl`
+# (issuer ISRG / Let's Encrypt YE2, chains to ISRG Root X1 — verified live
+# 2026-06-16, NOT self-signed). So instead of pinning a self-signed leaf we
+# validate against the system trust store and require SNI/SAN
+# `cloudnas.vdh-ict.nl`. This keeps the Envoy->DSM hop encrypted AND fully
+# verified, with zero maintenance across DSM's own LE auto-renewals.
+#
+# `hostname` is used by Envoy both as the SNI sent to DSM and as the name
+# matched against the served cert's SAN — it MUST equal the DSM cert SAN
+# (`cloudnas.vdh-ict.nl`), NOT the public route hostname (nas.bluejungle.net).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/gateway.networking.k8s.io/backendtlspolicy_v1alpha3.json
+apiVersion: gateway.networking.k8s.io/v1alpha3
+kind: BackendTLSPolicy
+metadata:
+  name: synology-nas
+  namespace: network
+spec:
+  targetRefs:
+    - group: ""
+      kind: Service
+      name: synology-nas
+      sectionName: https
+  validation:
+    wellKnownCACertificates: System
+    hostname: cloudnas.vdh-ict.nl
