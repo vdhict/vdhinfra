@@ -124,3 +124,19 @@ VERDICT: selftest flagged = YES; false-positive check = CLEAN; baseline = 0;
   both orphan classes detected; image unchanged; RBAC unchanged (comment-only).
   Loki-ruler rule-load remains deferred to post-apply (unchanged from v1; the
   LogQL alert expr was not touched in this rework).
+
+=== ATLAS FINAL IN-CLUSTER VERIFICATION (2026-06-16, post-rework) ===
+Two deployment bugs found+fixed by running the REAL deployed Job (not local/inline):
+1. Flux postBuild ${...} substitution stripped shell vars ${rel}/${sec}/${secname}/${kind}/${name}
+   from the ConfigMap -> 57 false positives (every release read "release-secret-missing").
+   FIX: escaped as $${...}. Verified deployed ConfigMap now has intact ${rel}.
+2. Pretty-printed multi-line JSON could not be parsed by the alert's `| json` -> alert never fired.
+   FIX: jq -cs (compact). Verified single-line output + LogQL parses it.
+3. Alert design: last_over_time is per-stream and each daily Job pod is a new stream; a window
+   spanning multiple runs kept stale values alive. FIX: window [3h] (one daily run = one stream).
+Final verified state:
+- Real deployed Job: baseline orphan_monitoring_count=0 (no false positives).
+- Faithful chg-004 reproduction present -> count=1, reason "not-in-current-manifest" (flagged).
+- Alert LogQL last_over_time(... unwrap orphan_monitoring_count [3h]) returns 0 baseline / 1 with repro.
+- CronJob suspend=false, schedule 37 3 * * *; alert rule loaded in Loki ruler.
+- 3h Alertmanager silence (id 07680209) covers today's test-run log artifacts aging out; auto-expires.

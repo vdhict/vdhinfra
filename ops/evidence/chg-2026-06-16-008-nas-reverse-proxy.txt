@@ -1,0 +1,12 @@
+EVIDENCE for chg-2026-06-16-008 — DSM reverse-proxy at nas.bluejungle.net (Atlas, 2026-06-16)
+In-cluster verification (agent cannot reach the LAN gateway IP directly):
+- HTTPRoute synology-nas (network ns): parent=envoy-internal Accepted=True ResolvedRefs=True.
+- DNS: nslookup nas.bluejungle.net @172.16.2.1 -> 172.16.2.241 (external-dns wrote the UDM A record; no AAAA).
+- Request through the gateway (curl --resolve nas.bluejungle.net:443:172.16.2.241):
+    HTTP 200; server cert subject CN=bluejungle.net, issuer Let's Encrypt YE1 (the trusted wildcard).
+  => TLS terminates at Envoy with the LE wildcard AND the verified BackendTLSPolicy hop to DSM:5001
+     succeeded (200 came from DSM through the proxy).
+- BackendTLSPolicy: wellKnownCACertificates=System + hostname=cloudnas.vdh-ict.nl (DSM's own LE SAN); encrypted+verified.
+HANDED TO USER (final visual confirmation — agent has no LAN/browser path):
+- Open https://nas.bluejungle.net in a browser on the LAN: expect no cert warning (LE *.bluejungle.net),
+  DSM login page renders, and login succeeds (confirms WebSocket upgrade works through Envoy).
