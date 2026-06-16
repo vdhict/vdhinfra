@@ -1,0 +1,10 @@
+EVIDENCE chg-2026-06-16-012 — one-time reconnect (kick-sta) of stuck HomeWizard on Slaapkamer (Atlas, 2026-06-16)
+Action: POST cmd/stamgr kick-sta x15 (HW MACs on AP03-Slaapkamer ng) -> 15/15 rc:ok.
+HW distribution BEFORE: Slaapkamer 15, Keuken 2-3, Zolder 2-3, Stube 3, Trapkast 3.
+HW distribution AFTER (~80s): Keuken 7, Slaapkamer 7, Zolder 7, Stube 3, Trapkast 3. All 27 HW still connected (none stranded).
+Signal gains for relocated kitchen devices (Slaapkamer -> Keuken):
+  5c:2f:af:17:98:82  -79 -> -59 (+20dB);  5c:2f:af:1e:44:42  -80 -> -62 (+18dB);
+  energymeter 17:08:32 -79 -> -72;  P1 Meter -75 -> -72.
+Slaapkamer 2.4G: clients 22 -> 14; cu_total 28% -> 32% (transient reassoc churn from mass reconnect; expected to settle).
+min-RSSI -80 remains in place to prevent weak re-collapse. Fridge-on-bedroom anomaly resolved (kitchen HW back on Keuken).
+QA: Atlas self-gate (change-qa sub-agent 529-unavailable); reversible (auto-reconnect), user-approved, no power impact.
