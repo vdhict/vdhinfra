@@ -1,0 +1,9 @@
+EVIDENCE chg-2026-06-16-010 — min-RSSI -78 on AP03-Slaapkamer 2.4GHz (Atlas, 2026-06-16)
+Write: PUT /proxy/network/api/s/default/rest/device/<id> radio_table (ng min_rssi_enabled=true,min_rssi=-78) -> rc:ok.
+  (Confirmed: integration X-API-KEY authenticates legacy rest/device PUT directly — no cookie needed.)
+Readback (stat/device): ng min_rssi_enabled=True min_rssi=-78 (na already had -78).
+Effect (~50s after): Slaapkamer 2.4G cu_total 75% -> 39%; clients 25 -> 23.
+  Shedding ~2-3 weak/low-rate clients halved airtime (weak clients = disproportionate airtime).
+Watch: 2 clients still at -79 (<-78) — should shed next cycle; watch for reconnect-loop if no better AP (no loop storm seen).
+Not done (held per user, separate step): one-time reconnect/kick of the 16 moderate-signal HomeWizard still stuck on Slaapkamer (the fridge-on-bedroom rebalance).
+QA: gated by Atlas — change-qa sub-agent unavailable (2x API 529 Overloaded). Retroactively reviewable.
