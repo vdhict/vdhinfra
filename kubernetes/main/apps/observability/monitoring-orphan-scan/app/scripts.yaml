@@ -125,7 +125,11 @@ data:
     done < "$WORK/candidates.jsonl"
 
     # --- emit the single JSON contract line ---
-    jq -s --arg ns "$NS" '
+    # MUST be compact (-c): the Loki ruler alert does `| json | unwrap
+    # orphan_monitoring_count`, which requires each log line to be one complete
+    # JSON object. Pretty-printed multi-line JSON would never parse -> the alert
+    # could never fire.
+    jq -cs --arg ns "$NS" '
       { orphan_monitoring_count: length,
         orphans: .,
         scan_namespace: $ns }
