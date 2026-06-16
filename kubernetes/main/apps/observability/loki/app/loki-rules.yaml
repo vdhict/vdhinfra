@@ -82,17 +82,20 @@ data:
           # household-impacting outage. Routes to the same Alertmanager (and
           # thus HA) as the other Loki-ruler alerts.
           - alert: MonitoringOrphanResources
-            # Use last_over_time (the MOST RECENT scan result), not max_over_time:
-            # the scan runs daily, so the latest reading reflects reality. A
-            # transient non-zero from an earlier run must NOT stay sticky for
-            # 25h. 26h window tolerates one missed daily run. Requires the scan
-            # to emit single-line JSON (jq -cs) for `| json` to parse.
+            # last_over_time over a window SHORTER than the daily run interval.
+            # Each CronJob run is a distinct pod => a distinct Loki stream, and
+            # last_over_time is per-stream; a window spanning multiple runs would
+            # keep an old run's value alive (stale-fire after an orphan is
+            # fixed). The scan runs once daily (03:37), so a 3h window contains
+            # exactly one run => one stream => the true latest reading. The alert
+            # is live in the ~3h after each daily scan and fires daily while
+            # orphans persist. Requires single-line JSON (jq -cs) for `| json`.
             expr: |
               last_over_time(
                 {namespace="observability", container="scan"}
                   |= "orphan_monitoring_count"
                   | json
-                  | unwrap orphan_monitoring_count [26h]
+                  | unwrap orphan_monitoring_count [3h]
               ) > 0
             for: 0s
             labels:
