@@ -1,0 +1,57 @@
+chg-2026-06-20-001 — airmax-backup SOPS-encrypt fix (inc-2026-06-16-001)
+resource: obs.airmax-backup (sensitive:true)  risk: medium  actor: k8s-engineer
+date: 2026-06-20
+
+GOAL: bot encrypts each airOS system.cfg with SOPS(age) before commit; never
+commits plaintext again; encrypted backups resume on a fresh airmax-backups branch.
+
+== COMMITS (pushed to main via GitHub App token) ==
+  db446bf  fix(airmax-backup): SOPS-encrypt airOS configs before commit
+           - Dockerfile: + sops v3.13.1 (sops-v3.13.1.linux.amd64, getsops/sops)
+           - cronjob.yaml: scp -> stage dir OUTSIDE git workdir, sops --encrypt
+             --input-type binary --output-type json -> configs/airmax/<name>.cfg.sops,
+             shred plaintext, `git add configs/airmax/*.cfg.sops` ONLY,
+             pre-commit safety guard (no plaintext .cfg / no secret key=value /
+             gitleaks protect --staged).
+           - cmdb.yaml: + obs.airmax-backup (sensitive:true)
+  6348108  fix(airmax-backup): pin image to sha-db446bf (airmax cronjob only)
+
+== IMAGE ==
+  CI run 27863867605 (build-cluster-health-image.yml) = success
+  published: ghcr.io/vdhict/cluster-health:sha-db446bf  (+ :latest)
+  registry version tags confirmed: ['sha-db446bf','latest']
+  live cronjob image = ghcr.io/vdhict/cluster-health:sha-db446bf ; suspend=true (UNCHANGED)
+  other cluster-health cronjobs left on sha-de00b79 (untouched)
+
+== TEST RUN ==
+  kubectl create job -n observability airmax-fix-test --from=cronjob/airmax-backup-scp
+  pod airmax-fix-test-7x7nk -> Completed (succeeded=1)
+  job log (redacted): Fetched vdhptp01 6855B -> Encrypted 10149B ;
+                      Fetched vdhptp02 7098B -> Encrypted 10473B ;
+                      "Safety guard passed: only encrypted .cfg.sops staged" ;
+                      gitleaks: "no leaks found" ;
+                      committed 2 files to airmax-backups (root-commit 5f71df3), pushed.
+
+== VERIFICATION ==
+(a) commit 5f71df3 on airmax-backups contains ONLY:
+      configs/airmax/vdhptp01.cfg.sops
+      configs/airmax/vdhptp02.cfg.sops
+(b) NO non-.sops .cfg in tree; 0 secret-shaped strings (wpa.psk=/snmp.community=/
+    password=/radius secret=) in committed blobs; both blobs valid SOPS v3.13.1
+    JSON envelopes, 1 age recipient.
+(c) sops --decrypt (SOPS_AGE_KEY_FILE=config/age.key) of both blobs: rc=0,
+    byte-exact round-trip (6855 / 7098 B = original SCP sizes), valid airOS
+    key=value config (227 / 229 lines), EXACTLY 1 non-empty wpa.psk line each.
+    PSK VALUE NEVER PRINTED (grep -c / mask only). age PRIVATE key never echoed/committed.
+(d) gitleaks detect on airmax-backups (gitleaks 8.30.1): "no leaks found", exit 0.
+
+== CLEANUP ==
+  test job deleted; local decrypted plaintext shredded; scan clone removed.
+
+== STATE LEFT FOR ATLAS ==
+  suspend: true  (NOT changed)  — Atlas to set suspend:false after review.
+  incident inc-2026-06-16-001: NOT closed.
+  recommendation: unsuspend airmax-backup-scp; nightly encrypted backups will resume.
+
+ROLLBACK: revert db446bf + 6348108 on main; bot stays suspended either way (no
+re-leak path). The encrypted-only airmax-backups branch may be re-deleted if desired.
