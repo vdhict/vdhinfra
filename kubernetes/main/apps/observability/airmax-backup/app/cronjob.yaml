@@ -16,10 +16,10 @@ spec:
   # Nightly at 03:00 — same maintenance window as health-triage.
   # Chosen to avoid overlap with health-collect (02:00) and health-report (06:00).
   concurrencyPolicy: Forbid
-  # SUSPENDED 2026-06-18 (inc-2026-06-16-001): this bot commits the RAW airOS
-  # system.cfg (plaintext WPA PSK + SNMP community + admin hash) to the
-  # airmax-backups branch. Keep suspended until it encrypts/scrubs before commit.
-  suspend: true
+  # Resumed 2026-06-20 (chg-2026-06-20-001, QA-passed): the bot now SOPS-encrypts
+  # each airOS system.cfg before commit (commits only *.cfg.sops) with a triple
+  # pre-commit plaintext guard. No more plaintext leaks (inc-2026-06-16-001).
+  suspend: false
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 5
   jobTemplate:
