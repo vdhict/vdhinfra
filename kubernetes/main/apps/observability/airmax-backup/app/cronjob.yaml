@@ -94,24 +94,65 @@ spec:
                   # private /23 VLAN managed by us. We don't need TOFU for public IPs.
                   SCP_OPTS="-i $${SSH_KEY_DST} -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=$${KNOWN_HOSTS} -o BatchMode=yes -o ConnectTimeout=15"
 
+                  # SOPS age recipient = repo PUBLIC age key. Encryption needs only the
+                  # public key; the private key never touches this pod. Plaintext
+                  # system.cfg is fetched to a STAGE dir OUTSIDE the git workdir, encrypted
+                  # into the workdir as <name>.cfg.sops, then the plaintext is shredded.
+                  # inc-2026-06-16-001: this bot must NEVER commit plaintext again.
+                  AGE_RECIPIENT="age1dfs2z6esr6rhm46pvh6l8xlualxsn756rkkt9432d5kk3k7s4pssmus4gk"
+                  STAGE_DIR="/tmp/airmax-stage"
+                  mkdir -p "$${STAGE_DIR}"
+
                   backup_device() {
                     local HOST="$1"
                     local NAME="$2"
+                    local TMP_CFG="$${STAGE_DIR}/$${NAME}.system.cfg"
+                    local OUT_SOPS="$${WORK_DIR}/configs/airmax/$${NAME}.cfg.sops"
                     echo "--- Backing up $${NAME} ($${HOST}) ---"
-                    scp -O $${SCP_OPTS} "ubnt@$${HOST}:/tmp/system.cfg" \
-                        "$${WORK_DIR}/configs/airmax/$${NAME}.cfg"
-                    echo "OK: $${NAME}.cfg ($(wc -c < "$${WORK_DIR}/configs/airmax/$${NAME}.cfg") bytes)"
+                    # scp plaintext to the STAGE dir (NOT under the git workdir).
+                    scp -O $${SCP_OPTS} "ubnt@$${HOST}:/tmp/system.cfg" "$${TMP_CFG}"
+                    echo "Fetched: $${NAME} system.cfg ($(wc -c < "$${TMP_CFG}") bytes)"
+                    # Encrypt to JSON-wrapped SOPS envelope in the git workdir.
+                    SOPS_AGE_RECIPIENTS="$${AGE_RECIPIENT}" sops --encrypt \
+                      --input-type binary --output-type json "$${TMP_CFG}" > "$${OUT_SOPS}"
+                    # Shred the plaintext immediately — it must never reach the git index.
+                    rm -f "$${TMP_CFG}"
+                    echo "Encrypted: $${NAME}.cfg.sops ($(wc -c < "$${OUT_SOPS}") bytes)"
                   }
 
                   backup_device "172.16.2.71" "vdhptp01"
                   backup_device "172.16.2.72" "vdhptp02"
 
+                  # Stage ONLY the encrypted envelopes. Never `git add configs/airmax/`
+                  # blindly — that could pick up a stray plaintext .cfg.
+                  git add configs/airmax/*.cfg.sops
+
+                  # SAFETY GUARD — refuse to commit if anything plaintext-secret-shaped
+                  # is staged. Two independent checks; either failing aborts the job.
+                  echo "--- Safety guard: scanning staged content for plaintext secrets ---"
+                  # 1) No raw .cfg / system.cfg may ever be staged.
+                  if git diff --cached --name-only | grep -E '(^|/)(system\.cfg$|.*\.cfg$)' | grep -vE '\.cfg\.sops$' ; then
+                    echo "FATAL: a plaintext .cfg is staged — aborting to prevent re-leak" >&2
+                    exit 1
+                  fi
+                  # 2) No secret-shaped key=value may appear in the staged diff.
+                  if git diff --cached -U0 | grep -E '^\+' \
+                       | grep -Ei 'wpa\.psk=|wpa2?\.psk=|snmp\.community=|users\.[0-9]+\.password=|radius\.[0-9]+\.[0-9]+\.secret=' ; then
+                    echo "FATAL: plaintext secret string found in staged diff — aborting" >&2
+                    exit 1
+                  fi
+                  # 3) gitleaks on the staged index as a defense-in-depth scan.
+                  if ! gitleaks protect --staged --no-banner --redact -v ; then
+                    echo "FATAL: gitleaks flagged the staged content — aborting" >&2
+                    exit 1
+                  fi
+                  echo "Safety guard passed: only encrypted .cfg.sops staged, no plaintext secrets."
+
                   # Commit and push if there are any changes.
-                  git add configs/airmax/
                   if git diff --cached --quiet; then
                     echo "No changes in device configs — skipping commit"
                   else
-                    git commit -m "chore(airmax): backup vdhptp01+vdhptp02 $${TODAY}"
+                    git commit -m "chore(airmax): backup vdhptp01+vdhptp02 $${TODAY} (sops-encrypted)"
                     git push origin "$${BRANCH}"
                     echo "Pushed backup commit for $${TODAY}"
                   fi
