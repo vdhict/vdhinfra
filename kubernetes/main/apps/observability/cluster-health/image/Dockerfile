@@ -2,6 +2,7 @@ FROM python:3.12-alpine
 
 ARG KUBECTL_VERSION=v1.35.3
 ARG GITLEAKS_VERSION=8.21.2
+ARG SOPS_VERSION=v3.13.1
 ARG TARGETARCH=amd64
 
 RUN apk add --no-cache \
@@ -23,6 +24,9 @@ RUN apk add --no-cache \
  && curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
       | tar -xz -C /usr/local/bin gitleaks \
  && chmod +x /usr/local/bin/gitleaks \
+ && curl -fsSL "https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.${TARGETARCH}" \
+      -o /usr/local/bin/sops \
+ && chmod +x /usr/local/bin/sops \
  && adduser -D -u 1000 health
 
 # No python deps beyond stdlib — keeps the image small and avoids supply-chain risk.
