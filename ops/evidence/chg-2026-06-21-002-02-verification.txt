@@ -1,0 +1,38 @@
+=== POST-DECOMMISSION VERIFICATION  zo 21 jun. 2026 20:54:31 UTC  chg-2026-06-21-002 ===
+merge_commit=b2f432a  thanos_commit=9af35b8  PR=#84
+
+--- thanos pods (expect none) ---
+NONE (pruned)
+--- thanos Kustomization + HelmRelease (expect NotFound) ---
+Error from server (NotFound): kustomizations.kustomize.toolkit.fluxcd.io "thanos" not found
+Error from server (NotFound): helmreleases.helm.toolkit.fluxcd.io "thanos" not found
+--- thanos ServiceMonitors / Services (expect none) ---
+  servicemonitors matching thanos: 0
+  services matching thanos: 0
+--- thanos-objstore ExternalSecret + secret (expect NotFound) ---
+Error from server (NotFound): externalsecrets.external-secrets.io "thanos" not found
+Error from server (NotFound): secrets "thanos-objstore" not found
+--- thanos PVCs (expect none; 3 deleted: ruler, storegateway StatefulSet PVCs + compactor pruned with deployment) ---
+  NONE (all thanos PVCs deleted)
+
+=== SAFETY / NEGATIVE CHECKS ===
+--- prometheus/AM/grafana pods ---
+alertmanager-kube-prometheus-stack-0             2/2     Running     0              6d6h
+alertmanager-kube-prometheus-stack-1             2/2     Running     0              6d6h
+grafana-9786fcbbf-qm5kd                          3/3     Running     0              3m6s
+prometheus-kube-prometheus-stack-0               2/2     Running     0              6d6h
+prometheus-kube-prometheus-stack-1               2/2     Running     0              6d6h
+--- Prometheus /-/healthy ---
+  prometheus-kube-prometheus-stack-0: Prometheus Server is Healthy.
+  prometheus-kube-prometheus-stack-1: Prometheus Server is Healthy.
+--- Grafana Prometheus datasource proxy count(up) = 131 (success) [captured live] ---
+--- no 'thanos' in Grafana provisioned datasources [verified live] ---
+--- Flux Kustomizations NotReady (pre-existing evcc/tesla only, MATCHES baseline) ---
+evcc                               47d    False     dependency 'flux-system/tesla-http-proxy' is not ready
+tesla-http-proxy                   47d    False     dependency 'flux-system/tesla-public-key' is not ready
+tesla-public-key                   47d    Unknown   Reconciliation in progress
+--- Flux HelmReleases NotReady ---
+  all Ready
+--- Alertmanager active alerts (PrometheusDown=0; Watchdog normal; KubeJobFailed=airmax pre-existing) ---
+  Watchdog(normal), KubeJobFailed(airmax-backup-scp, from 2026-06-18, pre-existing) — NO new alerts from removal
+--- PrometheusDown silence 1d0b68b1-... now state=expired (deleted via DELETE /api/v2/silence, http 200) ---
