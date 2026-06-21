@@ -1,0 +1,33 @@
+=== BASELINE zo 21 jun. 2026 20:47:30 UTC ===
+--- thanos pods ---
+thanos-bucketweb-67754f9b85-h4dh6                1/1     Running     0              6d6h
+thanos-compactor-dc8cf9556-db4mk                 1/1     Running     0              6d6h
+thanos-query-5df67d87d-bz7hh                     1/1     Running     0              6d6h
+thanos-query-frontend-66495b7f9c-5l8sk           1/1     Running     0              6d6h
+thanos-ruler-0                                   1/1     Running     0              6d6h
+thanos-storegateway-0                            1/1     Running     0              6d6h
+--- thanos pvcs ---
+data-thanos-ruler-0                                                          Bound    pvc-04a90b21-7e55-4018-adf1-ef1dc8ff2a62   10Gi       RWO            rook-ceph-block        <unset>                 78d
+data-thanos-storegateway-0                                                   Bound    pvc-d4b96301-9a31-49e6-b19c-a89588dc982d   10Gi       RWO            rook-ceph-block        <unset>                 78d
+thanos-compactor                                                             Bound    pvc-a00f0bf6-c01a-4dcc-8bc3-07343b463c7f   10Gi       RWO            rook-ceph-block        <unset>                 78d
+--- thanos servicemonitors ---
+thanos-bucketweb                                78d
+thanos-compactor                                78d
+thanos-query                                    78d
+thanos-query-frontend                           78d
+thanos-ruler                                    78d
+thanos-storegateway                             78d
+--- thanos-objstore secret ---
+NAME              TYPE     DATA   AGE
+thanos-objstore   Opaque   1      74d
+--- prometheus/AM/grafana ---
+alertmanager-kube-prometheus-stack-0             2/2     Running     0              6d6h
+alertmanager-kube-prometheus-stack-1             2/2     Running     0              6d6h
+grafana-65897599fd-lvmq2                         3/3     Running     0              6d6h
+prometheus-kube-prometheus-stack-0               2/2     Running     0              6d6h
+prometheus-kube-prometheus-stack-1               2/2     Running     0              6d6h
+--- flux ks NotReady (should be empty) ---
+evcc                               47d    False     dependency 'flux-system/tesla-http-proxy' is not ready
+tesla-http-proxy                   47d    False     dependency 'flux-system/tesla-public-key' is not ready
+tesla-public-key                   47d    Unknown   Reconciliation in progress
+--- flux hr NotReady (should be empty) ---
