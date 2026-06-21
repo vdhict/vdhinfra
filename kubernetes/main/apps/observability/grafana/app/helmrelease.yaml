@@ -157,7 +157,6 @@ spec:
             access: proxy
             url: http://prometheus-operated.observability.svc.cluster.local:9090
             jsonData:
-              prometheusType: Thanos
               timeInterval: 1m
             isDefault: true
           - name: Loki
