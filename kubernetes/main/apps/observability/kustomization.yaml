@@ -10,7 +10,6 @@ resources:
   - ./kube-prometheus-stack/install.yaml
   - ./grafana/install.yaml
   - ./loki/install.yaml
-  - ./thanos/install.yaml
   - ./promtail/install.yaml
   - ./vector/install.yaml
   - ./network-ups-tools/install.yaml

@@ -23,7 +23,3 @@ spec:
   wait: false
   interval: 30m
   timeout: 15m
-  postBuild:
-    substitute:
-      # renovate: datasource=docker depName=quay.io/thanos/thanos
-      THANOS_VERSION: v0.41.0
