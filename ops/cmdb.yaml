@@ -376,6 +376,30 @@ components:
     description: /config/configuration.yaml in the PVC. Auth providers, http config, includes.
     depends_on: [ha.pod]
     sensitive: true
+  ha.sensor.fp2_keuken:
+    type: ha-device
+    owner_agent: ha-engineer
+    description: Aqara Presence-Sensor-FP2-F08E in the kitchen (wifi). Provides binary_sensor.presence_sensor_fp2_f08e_presence_sensor_1/2/3 + sensor.presence_sensor_fp2_f08e_light_sensor_light_level (lux). Only lux+presence sensor on the ground floor; morning kitchen routine + adaptive ground-floor lighting depend on it. Drops offline intermittently (wifi).
+    depends_on: [ha.pod]
+    sensitive: false
+  ha.automation.ochtend_keuken_routine:
+    type: ha-automation
+    owner_agent: ha-engineer
+    description: Morning kitchen routines (Ochtend Keuken Routine + _weekend). Presence-triggered 05:30-09:30; lights gated on FP2 lux <40 (chg-2026-07-20-001); also espresso + Radio Veronica.
+    depends_on: [ha.pod, ha.sensor.fp2_keuken]
+    sensitive: false
+  ha.automation.tuin_fontein_bij_muziek:
+    type: ha-automation
+    owner_agent: ha-engineer
+    description: "Tuin Fontein Aan bij Muziek (chg-2026-07-20-002): any of 4 garden speakers -> playing, 09:00-21:00 -> switch.0xa4c138a04a98d51e (Fontein) on. Separate fontein_uitzetten turns it off at 21:00."
+    depends_on: [ha.pod]
+    sensitive: false
+  ha.automation.adaptieve_verlichting_begane_grond:
+    type: ha-automation
+    owner_agent: ha-engineer
+    description: "Adaptive ground-floor lighting (chg-2026-07-20-006, id 1753005600006): kitchen+woonkamer lights, brightness on inverse FP2-lux curve (Cozy 20-70%, <40lux). Track+auto-off: turns off when lux>60 (aggressive, user-accepted 2026-07-20 - overrides manual daytime lights). Inactive 05:30-09:30. Depends on flaky FP2 sensor."
+    depends_on: [ha.pod, ha.sensor.fp2_keuken]
+    sensitive: false
   ha.config.automations_yaml:
     type: ha-config-file
     owner_agent: ha-engineer
