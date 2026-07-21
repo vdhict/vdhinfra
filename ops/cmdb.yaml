@@ -397,8 +397,26 @@ components:
   ha.automation.adaptieve_verlichting_begane_grond:
     type: ha-automation
     owner_agent: ha-engineer
-    description: "Adaptive ground-floor lighting (chg-2026-07-20-006, id 1753005600006): kitchen+woonkamer lights, brightness on inverse FP2-lux curve (Cozy 20-70%, <40lux). Track+auto-off: turns off when lux>60 (aggressive, user-accepted 2026-07-20 - overrides manual daytime lights). Inactive 05:30-09:30. Depends on flaky FP2 sensor."
-    depends_on: [ha.pod, ha.sensor.fp2_keuken]
+    description: "Adaptive ground-floor lighting REDESIGN A (chg-2026-07-21-005, id 1753005600006): evening adaptive turn-on ONCE per evening. Sunset-1h..23:00, on dark (<40lux) + FP2 zone-3 presence, brightness on inverse-lux curve (Cozy 20-70%, 60% at 12lux). NO auto-off, NO re-dim (fixes the old fighting/auto-off@>60lux). Gated by latch ha.input_boolean.adaptief_bg_vanavond_gedaan (re-armed at window_start, set after on) -> max 1x/evening + 'manual off stays off'. 8 lights (keuken+woonkamer). Night-off moved to separate automation ha.automation.laatste_licht_uit. Depends on flaky FP2 sensor."
+    depends_on: [ha.pod, ha.sensor.fp2_keuken, ha.input_boolean.adaptief_bg_vanavond_gedaan]
+    sensitive: false
+  ha.automation.laatste_licht_uit:
+    type: ha-automation
+    owner_agent: ha-engineer
+    description: "Woonlaag - Nachtelijke uit REDESIGN B (chg-2026-07-21-005, id 1753005600008, entity_id kept as automation.woonlaag_laatste_licht_uit). REPLACES the old manual-off-triggered 'Laatste licht uit' sweep. 23:00-06:00 inactivity-timeout OFF: sweeps 10 ground-floor social-zone lights (keuken+woonkamer+2 bar lights) when ALL activity gone (FP2 zone-3 off, tv_woonkamer_2 not on/playing, no Sonos playing on woonkamer/platenspeler/keuken/bar_2). Fires 15min after all-clear, or at 23:00 if already quiet, or 15min after a light turns on while quiet. light.woonkamer_lamp gets 10-min courtesy then off. mode restart. Touches nothing before 23:00."
+    depends_on: [ha.pod]
+    sensitive: false
+  ha.input_boolean.adaptief_bg_vanavond_gedaan:
+    type: ha-input-boolean
+    owner_agent: ha-engineer
+    description: "Latch helper (chg-2026-07-21-005, input_boolean.adaptief_bg_vanavond_gedaan) for automation A ha.automation.adaptieve_verlichting_begane_grond. off=armed (adaptive-on may fire), on=already fired this evening (suppresses re-fire + keeps 'manual off stays off'). Re-armed to off at window_start (sunset-1h); set to on after adaptive turn-on. Created via WS input_boolean/create. Low risk."
+    depends_on: [ha.pod]
+    sensitive: false
+  ha.script.naar_bed:
+    type: ha-script
+    owner_agent: ha-engineer
+    description: "Naar bed / go-to-bed script (chg-2026-07-20-009, script.naar_bed): off all 11 ground-floor social-zone lights + TV off + pause indoor Sonos (woonkamer/woonkamer_platenspeler/keuken/bar_2) + activate scene.hal_nachtlampje & scene.overloop_nachtlampje. No trigger wired yet (callable from dashboard/Assist/physical)."
+    depends_on: [ha.pod]
     sensitive: false
   ha.config.automations_yaml:
     type: ha-config-file
