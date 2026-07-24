@@ -382,10 +382,16 @@ components:
     description: Aqara Presence-Sensor-FP2-F08E in the kitchen (wifi). Provides binary_sensor.presence_sensor_fp2_f08e_presence_sensor_1/2/3 + sensor.presence_sensor_fp2_f08e_light_sensor_light_level (lux). Only lux+presence sensor on the ground floor; morning kitchen routine + adaptive ground-floor lighting depend on it. Drops offline intermittently (wifi).
     depends_on: [ha.pod]
     sensitive: false
+  ha.sensor.fp300_woonkamer:
+    type: ha-device
+    owner_agent: ha-engineer
+    description: Aqara FP300 multisensor in the living room (zigbee/z2m, battery CR2450). True mmWave presence + PIR + lux + temp + humidity. Registry-pinned entity_ids binary_sensor.presence_woonkamer / _pir + sensor.presence_woonkamer_illuminance/_temperature/_humidity/_battery (stable, IEEE-based unique_id survives z2m rename). Feeds ground-floor lighting (chg-2026-07-24-002) - living-room presence into 'Woonlaag Nachtelijke uit' + provisional woonkamer lux source for evening adaptive. Lux sampling bumped low->medium; battery cost unbaselined, watch ~1 month.
+    depends_on: [ha.pod]
+    sensitive: false
   ha.automation.ochtend_keuken_routine:
     type: ha-automation
     owner_agent: ha-engineer
-    description: Morning kitchen routines (Ochtend Keuken Routine + _weekend). Presence-triggered 05:30-09:30; lights gated on FP2 lux <40 (chg-2026-07-20-001); also espresso + Radio Veronica.
+    description: "Morning kitchen routine (chg-2026-07-24-002): MERGED to one automation, all 7 days (the _weekend duplicate was deleted, fixing the weekday/weekend inversion). Presence-triggered 05:30-09:30 -> espresso (if remote-start armed) + Radio Veronica FV:2/130. LIGHTING REMOVED - kitchen adaptive lighting now owned by ha.automation.keuken_adaptief_dag."
     depends_on: [ha.pod, ha.sensor.fp2_keuken]
     sensitive: false
   ha.automation.tuin_fontein_bij_muziek:
@@ -397,19 +403,41 @@ components:
   ha.automation.adaptieve_verlichting_begane_grond:
     type: ha-automation
     owner_agent: ha-engineer
-    description: "Adaptive ground-floor lighting REDESIGN A (chg-2026-07-21-005, id 1753005600006): evening adaptive turn-on ONCE per evening. Sunset-1h..23:00, on dark (<40lux) + FP2 zone-3 presence, brightness on inverse-lux curve (Cozy 20-70%, 60% at 12lux). NO auto-off, NO re-dim (fixes the old fighting/auto-off@>60lux). Gated by latch ha.input_boolean.adaptief_bg_vanavond_gedaan (re-armed at window_start, set after on) -> max 1x/evening + 'manual off stays off'. 8 lights (keuken+woonkamer). Night-off moved to separate automation ha.automation.laatste_licht_uit. Depends on flaky FP2 sensor."
-    depends_on: [ha.pod, ha.sensor.fp2_keuken, ha.input_boolean.adaptief_bg_vanavond_gedaan]
+    description: "Adaptive ground-floor lighting REDESIGN A (chg-2026-07-21-005, id 1753005600006): evening adaptive turn-on ONCE per evening. Sunset-1h..23:00, on dark (<40lux) + FP2 zone-3 presence, brightness on inverse-lux curve (Cozy 20-70%, 60% at 12lux). NO auto-off, NO re-dim (fixes the old fighting/auto-off@>60lux). Gated by latch ha.input_boolean.adaptief_bg_vanavond_gedaan (re-armed at window_start, set after on) -> max 1x/evening + 'manual off stays off'. 8 lights (keuken+woonkamer). Night-off moved to separate automation ha.automation.laatste_licht_uit. chg-2026-07-24-002: woonkamer lights now dim off FP300 living-room lux (ha.sensor.fp300_woonkamer) when fresh (<3600s), else fall back to FP2 - kitchen lights keep using FP2. Depends on flaky FP2 sensor."
+    depends_on: [ha.pod, ha.sensor.fp2_keuken, ha.sensor.fp300_woonkamer, ha.input_boolean.adaptief_bg_vanavond_gedaan]
     sensitive: false
   ha.automation.laatste_licht_uit:
     type: ha-automation
     owner_agent: ha-engineer
-    description: "Woonlaag - Nachtelijke uit REDESIGN B (chg-2026-07-21-005, id 1753005600008, entity_id kept as automation.woonlaag_laatste_licht_uit). REPLACES the old manual-off-triggered 'Laatste licht uit' sweep. 23:00-06:00 inactivity-timeout OFF: sweeps 10 ground-floor social-zone lights (keuken+woonkamer+2 bar lights) when ALL activity gone (FP2 zone-3 off, tv_woonkamer_2 not on/playing, no Sonos playing on woonkamer/platenspeler/keuken/bar_2). Fires 15min after all-clear, or at 23:00 if already quiet, or 15min after a light turns on while quiet. light.woonkamer_lamp gets 10-min courtesy then off. mode restart. Touches nothing before 23:00."
-    depends_on: [ha.pod]
+    description: "Woonlaag - Nachtelijke uit REDESIGN B (chg-2026-07-21-005, id 1753005600008, entity_id kept as automation.woonlaag_laatste_licht_uit). REPLACES the old manual-off-triggered 'Laatste licht uit' sweep. 23:00-06:00 inactivity-timeout OFF: sweeps 10 ground-floor social-zone lights (keuken+woonkamer+2 bar lights) when ALL activity gone (FP2 zone-3 off, tv_woonkamer_2 not on/playing, no Sonos playing on woonkamer/platenspeler/keuken/bar_2). Fires 15min after all-clear, or at 23:00 if already quiet, or 15min after a light turns on while quiet. light.woonkamer_lamp gets 10-min courtesy then off. mode restart. Touches nothing before 23:00. chg-2026-07-24-002: window shortened 23:00-06:00 -> 23:00-05:30; all-clear now ALSO requires FP300 living-room presence off (ha.sensor.fp300_woonkamer) so someone sitting still in the woonkamer keeps the floor lit."
+    depends_on: [ha.pod, ha.sensor.fp300_woonkamer]
     sensitive: false
   ha.input_boolean.adaptief_bg_vanavond_gedaan:
     type: ha-input-boolean
     owner_agent: ha-engineer
     description: "Latch helper (chg-2026-07-21-005, input_boolean.adaptief_bg_vanavond_gedaan) for automation A ha.automation.adaptieve_verlichting_begane_grond. off=armed (adaptive-on may fire), on=already fired this evening (suppresses re-fire + keeps 'manual off stays off'). Re-armed to off at window_start (sunset-1h); set to on after adaptive turn-on. Created via WS input_boolean/create. Low risk."
+  ha.automation.keuken_adaptief_dag:
+    type: ha-automation
+    owner_agent: ha-engineer
+    description: "Kitchen adaptive daytime lighting C (chg-2026-07-24-002, automation.keuken_adaptief_dag). 05:30->sunset-1h (covers dark afternoons; hands to automation A at sunset-1h). On when FP2 presence + lux<70, brightness scaled to darkness, warm 120s ramp (255/136/0 + task lights). Sustained through window. Auto-off when lux>150 sustained >=8min (>=8min because FP2 lux reports only every ~2.5-5min). Latch ha.input_boolean.adaptief_keuken_dag_gedaan re-armed at 05:30 + on the bright auto-off -> hysteresis dark->on->bright->off->dark->on, and 'manual off stays off'. Kitchen lights only. Depends on flaky FP2."
+    depends_on: [ha.pod, ha.sensor.fp2_keuken, ha.input_boolean.adaptief_keuken_dag_gedaan]
+    sensitive: false
+  ha.automation.keuken_nachtlamp:
+    type: ha-automation
+    owner_agent: ha-engineer
+    description: "Kitchen night-light D (chg-2026-07-24-002, automation.keuken_nachtlamp). 23:00->05:30, presence-following: FP2 zone-3 presence ON -> ledstrip_keukenkastjes + lightstrip_koof low warm (~12%, 255/122/0); presence clear ~3min debounce -> off. No coffee, no radio. Time-overlaps B (laatste_licht_uit) but presence-mutually-exclusive (D acts on presence-ON, B on presence-OFF) so never opposing. Depends on flaky FP2."
+    depends_on: [ha.pod, ha.sensor.fp2_keuken]
+    sensitive: false
+  ha.automation.woonkamer_dawn_backstop:
+    type: ha-automation
+    owner_agent: ha-engineer
+    description: "Woonkamer Dawn Backstop E (chg-2026-07-24-002, automation.woonkamer_dawn_backstop). Fixes the ~15min edge from shortening B to 05:30: if the woonkamer empties 05:15-05:30, B's 15min grace crosses 05:30 and its sweep is suppressed, so A-lit woonkamer lights could linger past dawn. At 05:30, if all-clear (incl FP300 presence off), turns off ONLY the 3 woonkamer lights. Touches provably-unowned-at-05:30 lights, so cannot reopen the B/D kitchen analysis."
+    depends_on: [ha.pod, ha.sensor.fp300_woonkamer]
+    sensitive: false
+  ha.input_boolean.adaptief_keuken_dag_gedaan:
+    type: ha-input-boolean
+    owner_agent: ha-engineer
+    description: "Latch helper (chg-2026-07-24-002, input_boolean.adaptief_keuken_dag_gedaan) for automation C ha.automation.keuken_adaptief_dag. off=armed, on=already handled this daytime cycle. Re-armed at 05:30 and set on the bright auto-off, giving lux hysteresis across the day-long window + 'manual off stays off'. Low risk."
     depends_on: [ha.pod]
     sensitive: false
   ha.script.naar_bed:
