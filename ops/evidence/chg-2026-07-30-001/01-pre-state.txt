@@ -1,0 +1,28 @@
+### PRE-STATE  2026-07-30T08:20:11Z  chg-2026-07-30-001
+--- UniFi client record (34:b7:da:93:30:74) ---
+{
+  "mac": "34:b7:da:93:30:74",
+  "ip": "172.16.3.117",
+  "network": "CLIENT-VLAN",
+  "network_id": "5e9afa144edb2e02cf522ef5",
+  "essid": "VDHFEMFLEX",
+  "ap_mac": "68:d7:9a:4d:ac:52",
+  "channel": 6,
+  "rssi": 26,
+  "uptime": 81497
+}
+--- UniFi configured-client (rest/user) entry, if any ---
+{
+  "_id": "67e95e624000e67d0db1a07d",
+  "mac": "34:b7:da:93:30:74",
+  "name": null,
+  "fixed_ip": null,
+  "use_fixedip": null,
+  "network_id": null,
+  "virtual_network_override_enabled": null
+}
+--- device-side WiFi.GetConfig (passphrases are write-only, none shown) ---
+{"ap":{"ssid":"Shelly1PMMiniG3-34B7DA933074","is_open":true,"enable":false,"range_extender":{"enable":false}},"sta":{"ssid":"VDHFEMFLEX","is_open":false,"enable":true,"ipv4mode":"dhcp","ip":null,"netmask":null,"gw":null,"nameserver":null},"sta1":{"ssid":null,"is_open":true,"enable":false,"ipv4mode":"dhcp","ip":null,"netmask":null,"gw":null,"nameserver":null},"roam":{"rssi_thr":-80,"interval":60}}
+--- device-side WiFi.GetStatus + relay ---
+{"sta_ip":"172.16.3.117","status":"got ip","ssid":"VDHFEMFLEX","channel":6,"rssi":-65,"bssid":"6a:d7:9a:1d:ac:53","sta_ip6":["fe80::36b7:daff:fe93:3074"]}
+{"output":false,"apower":0.0,"voltage":235.9}

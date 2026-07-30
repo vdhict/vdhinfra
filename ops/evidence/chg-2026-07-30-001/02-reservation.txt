@@ -1,0 +1,11 @@
+### RESERVATION WRITE 2026-07-30T08:21:24Z
+rc=ok  msg=-
+--- GET-after-write read back ---
+{
+  "mac": "34:b7:da:93:30:74",
+  "name": "Shelly - Verlichting Schuur",
+  "use_fixedip": true,
+  "fixed_ip": "172.16.4.20",
+  "network_id": "6226f5bddd6f9706a46a66cb",
+  "virtual_network_override_enabled": null
+}

@@ -1,0 +1,6 @@
+### SOAK RE-CHECK (~20 min after zone create)  2026-07-30T08:42:31Z
+   unifi: ip=172.16.4.20 net=IOT-VLAN essid=VDHIOT assoc_uptime=1164s (no flap if climbing)
+   device: {"sta_ip":"172.16.4.20","ssid":"VDHIOT","status":"got ip","rssi":-65}
+   isolation still enforced (IoT->Internal must fail):
+     {"code":null,"err":"-1: Connection error: -13"}
+   HA entity: switch.verlichting_schuur = off  (Verlichting Schuur)

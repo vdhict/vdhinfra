@@ -1,0 +1,4 @@
+### POST user policy: Internal -> IoT ALLOW  2026-07-30T08:34:55Z
+{"_id":"6a6b0cb0d71f730c128ea97a","name":"Allow Internal to IoT","action":"ALLOW","enabled":true,"index":10000,"predefined":false,"src":"67862226fe53ff1afe6e9de1","dst":"6a6b0c0dd71f730c128ea73f","create_allow_respond":true}
+-- verify Internal->IoT restored (HA is the real consumer) --
+   HA->Shelly http=200

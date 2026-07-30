@@ -1,0 +1,25 @@
+### T1 NETWORK — both ends  2026-07-30T08:23:46Z
+-- controller side (UniFi stat/sta) --
+{
+  "mac": "34:b7:da:93:30:74",
+  "name": "Shelly - Verlichting Schuur",
+  "ip": "172.16.4.20",
+  "network": "IOT-VLAN",
+  "network_id": "6226f5bddd6f9706a46a66cb",
+  "essid": "VDHIOT",
+  "wlanconf_id": "654a052797f26402c0cb173c",
+  "ap_mac": "68:d7:9a:4d:ac:52",
+  "channel": 6,
+  "rssi": 26
+}
+-- device side (WiFi.GetStatus / WiFi.GetConfig) --
+{"sta_ip":"172.16.4.20","status":"got ip","ssid":"VDHIOT","channel":6,"rssi":-65,"bssid":"6a:d7:9a:3d:ac:53","sta_ip6":["fe80::36b7:daff:fe93:3074"]}
+{"sta":{"ssid":"VDHIOT","enable":true,"ipv4mode":"dhcp"},"sta1":{"ssid":"VDHFEMFLEX","enable":true}}
+-- relay untouched by the move? (was output=false, apower=0.0) --
+{"output":false,"apower":0.0,"voltage":238.0}
+-- device did NOT reboot: uptime should be large despite restart_required:true --
+{"uptime":769051,"restart_required":true,"available_updates":[]}
+
+### T2 CROSS-SUBNET REACHABILITY from the real consumer (HA pod, hostNetwork 172.16.2.81)
+src=10.42.4.169
+{"name":null,"id":"shelly1pmminig3-34b7da933074","mac":"34B7DA933074","slot":0,"model":"S3SW-001P8EU","gen":3,"fw_id":"20260710-101127/2.0.0-g87fbfa4","ver":"2.0.0","app":"Mini1PMG3","auth_en":false,"auth_domain":null,"matter":false,"provision":"complete","enhanced_security":false}

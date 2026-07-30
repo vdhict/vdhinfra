@@ -1,0 +1,12 @@
+### T2/T3 REAL TRAFFIC FROM INSIDE THE IoT SEGMENT  2026-07-30T08:35:54Z
+T2  IoT -> Internal  http://172.16.2.237:8123/  (baseline code=200; MUST now fail)
+      {"code":null,"err":"-1: Connection error: -13"}
+T2b IoT -> Internal  http://172.16.2.246:5000/  (NAS, second target)
+      {"code":null,"err":"-1: Connection error: -13"}
+T2c IoT -> SERVER-VLAN http://172.16.10.1/  (also left Internal zone? no - SERVER stayed in Internal)
+      {"code":null,"err":"-1: Connection error: -15"}
+
+T3  IoT -> External  http://1.1.1.1/  (baseline err=-4 'too big' == connected; MUST survive)
+      {"code":null,"err":"-4: Request or response is too big"}
+T3b device cloud + clock (external deps must survive)
+      {"cloud":{"connected":true},"sys_time":"10:36","uptime":769796}

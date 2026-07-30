@@ -1,0 +1,24 @@
+### BASELINE BEFORE FIREWALL CHANGE  2026-07-30T08:29:29Z  chg-2026-07-30-002
+-- zone membership: IOT-VLAN is inside 'Internal' --
+{
+  "name": "Internal",
+  "_id": "67862226fe53ff1afe6e9de1",
+  "network_ids": [
+    "5e9afa144edb2e02cf522ef5",
+    "6226f5bddd6f9706a46a66cb",
+    "65bc72a01bae851cd96df5f3"
+  ]
+}
+-- policy count / user-created count --
+total=82 predefined=82 user_created=0
+
+-- REAL-TRAFFIC PROBE from inside the IoT segment (Shelly HTTP.GET at 172.16.4.20) --
+   IoT -> Internal  http://172.16.2.237:8123/ (Home Assistant):
+{"code":200,"err":null}
+   IoT -> External  http://1.1.1.1/ (-4 'response too big' == connected OK):
+{"code":null,"err":"-4: Request or response is too big"}
+   device cloud + clock (external deps):
+{"cloud":{"connected":true},"sys_time":"10:29"}
+
+-- Internal -> IoT from the real consumer (HA) must keep working after the change --
+   HA->Shelly http=200
