@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>net.vdhict.shelly-iot-migration</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/sheijden/Code/homelab-migration/vdhinfra/hack/migrate-shellys-to-iot.sh</string>
+    <string>chg-2026-07-30-003</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict><key>Hour</key><integer>0</integer><key>Minute</key><integer>0</integer></dict>
+  <key>StandardOutPath</key><string>/Users/sheijden/Code/homelab-migration/vdhinfra/ops/evidence/chg-2026-07-30-003/launchd.out</string>
+  <key>StandardErrorPath</key><string>/Users/sheijden/Code/homelab-migration/vdhinfra/ops/evidence/chg-2026-07-30-003/launchd.err</string>
+  <key>WorkingDirectory</key><string>/Users/sheijden/Code/homelab-migration/vdhinfra</string>
+  <key>RunAtLoad</key><false/>
+</dict>
+</plist>
