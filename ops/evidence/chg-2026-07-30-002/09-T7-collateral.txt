@@ -1,0 +1,48 @@
+### T7 NO COLLATERAL DAMAGE  2026-07-30T08:38:03Z
+-- UDM controller health --
+   udm http=200 t=0.032558s
+-- client counts by network (was: CLIENT 82 wifi + 24 wired, IOT 3) --
+   CLIENT-VLAN: 114
+   IOT-VLAN: 4
+-- the 3 Tapo P115s on IOT-VLAN still associated? --
+-- IOT-VLAN members total --
+   count=4
+-- CLIENT-VLAN internet + cluster reachability from the HA node --
+   internet(1.1.1.1) http=301
+   udm https=200
+   HA self http=200
+-- cluster nodes --
+   vdhclu01master01 Ready
+   vdhclu01master02 Ready
+   vdhclu01master03 Ready
+   vdhclu01node01 Ready
+   vdhclu01node02 Ready
+   vdhclu01node03 Ready
+-- (T7 cont.) IOT-VLAN membership detail --
+   shelly1pmminig3-34b7da933074  ip=172.16.4.20  essid=VDHIOT  assoc_uptime=998s  rssi=25
+   P115  ip=172.16.5.93  essid=VDHIOT  assoc_uptime=860367s  rssi=43
+   P115  ip=172.16.5.186  essid=VDHIOT  assoc_uptime=860379s  rssi=33
+   P115  ip=172.16.5.243  essid=VDHIOT  assoc_uptime=860379s  rssi=43
+-- final policy matrix for the IoT zone --
+   ALLOW  Internal->IoT  idx=10000  user=true  proto=all  dport=-  Allow Internal to IoT
+   ALLOW  External->IoT  idx=30000  user=false  proto=all  dport=-  Allow Return Traffic
+   BLOCK  Hotspot->IoT  idx=30000  user=false  proto=all  dport=-  Post-Authorization Restrictions
+   ALLOW  IoT->Internal  idx=30000  user=false  proto=all  dport=-  Allow Internal to IoT (Return)
+   BLOCK  IoT->External  idx=30000  user=false  proto=all  dport=-  Block Invalid Traffic
+   ALLOW  IoT->Gateway  idx=30000  user=false  proto=udp  dport=5353  Allow mDNS
+   BLOCK  External->IoT  idx=30001  user=false  proto=all  dport=-  Block Invalid Traffic
+   BLOCK  Internal->IoT  idx=2147483647  user=false  proto=all  dport=-  Block All Traffic
+   BLOCK  External->IoT  idx=2147483647  user=false  proto=all  dport=-  Block All Traffic
+   ALLOW  Gateway->IoT  idx=2147483647  user=false  proto=all  dport=-  Allow All Traffic
+   BLOCK  Vpn->IoT  idx=2147483647  user=false  proto=all  dport=-  Block All Traffic
+   BLOCK  Hotspot->IoT  idx=2147483647  user=false  proto=all  dport=-  Block All Traffic
+   BLOCK  Dmz->IoT  idx=2147483647  user=false  proto=all  dport=-  Block All Traffic
+   BLOCK  IoT->Internal  idx=2147483647  user=false  proto=all  dport=-  Block All Traffic
+   ALLOW  IoT->External  idx=2147483647  user=false  proto=all  dport=-  Allow All Traffic
+   ALLOW  IoT->Gateway  idx=2147483647  user=false  proto=all  dport=-  Allow All Traffic
+   BLOCK  IoT->Vpn  idx=2147483647  user=false  proto=all  dport=-  Block All Traffic
+   BLOCK  IoT->Hotspot  idx=2147483647  user=false  proto=all  dport=-  Block All Traffic
+   BLOCK  IoT->Dmz  idx=2147483647  user=false  proto=all  dport=-  Block All Traffic
+   BLOCK  IoT->IoT  idx=2147483647  user=false  proto=all  dport=-  Block All Traffic
+-- user-created policy count (should be exactly 1) --
+   total=102  user_created=1

@@ -1,0 +1,11 @@
+### ZONE CREATE  2026-07-30T08:32:13Z
+{"_id":"6a6b0c0dd71f730c128ea73f","attr_no_edit":false,"cloud_template":null,"default_zone":false,"external_id":"9c076ebe-4596-490f-ac1b-b1e8fe570b61","name":"IoT","network_ids":["6226f5bddd6f9706a46a66cb"],"zone_key":null}
+
+### T1 ZONE MEMBERSHIP read-back (both halves must hold)
+67862226fe53ff1afe6e9de1  Internal  networks=["5e9afa144edb2e02cf522ef5","65bc72a01bae851cd96df5f3"]
+67862226fe53ff1afe6e9de2  External  networks=["5e9afa144edb2e02cf522ef3","5e9afa144edb2e02cf522ef4","67180041c15467005483b7e6","67180076c15467005483b7f1","671800b5c15467005483b81b"]
+67862226fe53ff1afe6e9de3  Gateway  networks=[]
+67862226fe53ff1afe6e9de4  Vpn  networks=["66cf1354b2681e23c8f9179b","6806794129d77163da678fc4"]
+67862226fe53ff1afe6e9de5  Hotspot  networks=["622471e4dd6f9706a4694410"]
+67862226fe53ff1afe6e9de6  Dmz  networks=[]
+6a6b0c0dd71f730c128ea73f  IoT  networks=["6226f5bddd6f9706a46a66cb"]

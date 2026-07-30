@@ -1,0 +1,29 @@
+### AUTO-GENERATED POLICY MATRIX for the new IoT zone  2026-07-30T08:32:47Z
+0
+0
+0
+0
+0
+0
+0
+on   ALLOW  External->IoT  idx=30000  pre=true  proto=all  dport=-  Allow Return Traffic
+on   BLOCK  Hotspot->IoT  idx=30000  pre=true  proto=all  dport=-  Post-Authorization Restrictions
+on   BLOCK  IoT->External  idx=30000  pre=true  proto=all  dport=-  Block Invalid Traffic
+on   ALLOW  IoT->Gateway  idx=30000  pre=true  proto=udp  dport=5353  Allow mDNS
+on   BLOCK  External->IoT  idx=30001  pre=true  proto=all  dport=-  Block Invalid Traffic
+on   BLOCK  Internal->IoT  idx=2147483647  pre=true  proto=all  dport=-  Block All Traffic
+on   BLOCK  External->IoT  idx=2147483647  pre=true  proto=all  dport=-  Block All Traffic
+on   ALLOW  Gateway->IoT  idx=2147483647  pre=true  proto=all  dport=-  Allow All Traffic
+on   BLOCK  Vpn->IoT  idx=2147483647  pre=true  proto=all  dport=-  Block All Traffic
+on   BLOCK  Hotspot->IoT  idx=2147483647  pre=true  proto=all  dport=-  Block All Traffic
+on   BLOCK  Dmz->IoT  idx=2147483647  pre=true  proto=all  dport=-  Block All Traffic
+on   BLOCK  IoT->Internal  idx=2147483647  pre=true  proto=all  dport=-  Block All Traffic
+on   ALLOW  IoT->External  idx=2147483647  pre=true  proto=all  dport=-  Allow All Traffic
+on   ALLOW  IoT->Gateway  idx=2147483647  pre=true  proto=all  dport=-  Allow All Traffic
+on   BLOCK  IoT->Vpn  idx=2147483647  pre=true  proto=all  dport=-  Block All Traffic
+on   BLOCK  IoT->Hotspot  idx=2147483647  pre=true  proto=all  dport=-  Block All Traffic
+on   BLOCK  IoT->Dmz  idx=2147483647  pre=true  proto=all  dport=-  Block All Traffic
+on   BLOCK  IoT->IoT  idx=2147483647  pre=true  proto=all  dport=-  Block All Traffic
+
+-- totals now --
+total=100 predefined=100 user=0

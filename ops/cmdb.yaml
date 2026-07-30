@@ -214,6 +214,37 @@ components:
     group: core-network
     sla_tier: family-critical
     health_source: unifi://wlanconf/minrate_ng
+  net.vlan.iot:
+    type: network-segment
+    owner_agent: udm-engineer
+    description: "IOT-VLAN — vlan 250, 172.16.4.1/23, networkconf _id 6226f5bddd6f9706a46a66cb. DHCP pool 172.16.5.1-254 (so 172.16.4.2-254 is free for reservations), DHCP DNS 1.1.1.1 (external, NOT the UDM), no IPv6, mdns_enabled true. Reached wirelessly via the VDHIOT SSID's IOT Private PSK (dual-PPSK WLAN — the other PPSK lands on CLIENT-VLAN, so the VLAN is chosen by passphrase). SEGMENTED as of chg-2026-07-30-002: sits in its own 'IoT' firewall zone, IoT->Internal BLOCKED (measured), Internal->IoT allowed, IoT->External allowed. mDNS reflection to CLIENT-VLAN still works via the Gateway zone, so HA zeroconf auto-heal survives the block. Target segment for all IoT devices; migration started 2026-07-30 with Shelly 'Verlichting Schuur' (172.16.4.20). Runbook: docs/runbooks/iot-vlan-migration.md"
+    depends_on: [net.udm, net.firewall.zones]
+    sensitive: true
+    tier: 2
+    group: core-network
+    sla_tier: family-important
+    health_source: unifi://networkconf/6226f5bddd6f9706a46a66cb
+    external_id: "6226f5bddd6f9706a46a66cb"
+  net.firewall.zones:
+    type: firewall-config
+    owner_agent: udm-engineer
+    description: "UniFi zone-based firewall matrix on the UDM Pro Max. Zones: Internal 67862226fe53ff1afe6e9de1 (CLIENT-VLAN + SERVER-VLAN), IoT 6a6b0c0dd71f730c128ea73f (IOT-VLAN, created chg-2026-07-30-002), External ...de2, Gateway ...de3, Vpn ...de4, Hotspot ...de5, Dmz ...de6. Read: GET /proxy/network/v2/api/site/default/firewall/zone and /firewall-policies. Exactly ONE user-created policy exists site-wide: 'Allow Internal to IoT' 6a6b0cb0d71f730c128ea97a (idx 10000, create_allow_respond true); everything else is predefined. Creating a zone auto-generates a DEFAULT-DENY matrix for it, including Internal->new-zone BLOCK — expect to lose access to the segment until you add the ALLOW. The matrix legitimately shows both 'ALLOW IoT->Internal (Return)' (stateful companion) and 'BLOCK IoT->Internal' (catch-all for new IoT-initiated flows); that is not a hole. Any policy that must reach Home Assistant has to be scoped to CLIENT-VLAN 172.16.2.0/23, NOT a single node IP — HA runs hostNetwork and reschedules across 172.16.2.81/82/83 (verified: 'ip route get' from the HA netns selects src 172.16.2.81 on enp89s0, not a pod CIDR address)."
+    depends_on: [net.udm]
+    sensitive: true
+    tier: 1
+    group: core-network
+    sla_tier: family-critical
+    health_source: unifi://firewall/zone
+  ha.integration.shelly:
+    type: ha-integration
+    owner_agent: ha-engineer
+    description: "Home Assistant Shelly integration — 10x Shelly 1PM Mini Gen3 (S3SW-001P8EU, fw 2.0.0), 210 entities. 9 are the mains supply to a Sonos speaker; the 10th is Verlichting Schuur. Each config entry pins a hard-coded host IP and Shelly has NO dhcp discovery (manifest dhcp: null), so zeroconf is the only auto-heal — use fixed DHCP reservations. Host IP is changed in place via the config flow's async_step_reconfigure (preserves entity_ids + long-term statistics; no delete/re-add). Devices are local_push with Ws.enable false, so HA opens the websocket outbound: required flow is HA -> Shelly TCP/80 only. auth_en is false on all 10."
+    depends_on: [ha.pod, net.vlan.iot]
+    sensitive: false
+    tier: 5
+    group: home-automation
+    sla_tier: family-important
+    health_source: ha://switch.verlichting_schuur
 
   # ── Kubernetes cluster (tier 4) ─────────────────────────────────────
   k8s.cluster:

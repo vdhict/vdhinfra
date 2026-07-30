@@ -1,0 +1,9 @@
+### T3 END-TO-END: HA -> device (control path across the VLAN boundary)  2026-07-30T08:25:15Z
+t0    HA: switch.verlichting_schuur = off  (Verlichting Schuur)   DEVICE: {"output":false,"apower":0.0}
+ON    HA: switch.verlichting_schuur = on  (Verlichting Schuur)   DEVICE: {"output":true,"apower":8.9}
+OFF   HA: switch.verlichting_schuur = off  (Verlichting Schuur)   DEVICE: {"output":false,"apower":0.0}
+
+### T4 PUSH PATH: device -> HA (local_push websocket re-established across subnets?)
+flip the relay on the DEVICE directly, then read HA without prompting it
+dev-set ON    DEVICE: {"output":true,"apower":8.9}   HA: switch.verlichting_schuur = on  (Verlichting Schuur)
+dev-set OFF   DEVICE: {"output":false,"apower":0.0}   HA: switch.verlichting_schuur = off  (Verlichting Schuur)

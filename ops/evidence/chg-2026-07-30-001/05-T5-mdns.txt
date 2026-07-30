@@ -1,0 +1,5 @@
+### T5 mDNS REFLECTION CLIENT<->IOT  2026-07-30T08:24:44Z
+(now that an mDNS-speaking host lives on IOT-VLAN, the earlier inconclusive test can be settled)
+IOT-VLAN hosts seen via mDNS from CLIENT-VLAN: 2
+   172.16.4.20 _http._tcp.local. shelly1pmminig3-34b7da933074._http._tcp.local.
+   172.16.4.20 _shelly._tcp.local. shelly1pmminig3-34b7da933074._shelly._tcp.local.

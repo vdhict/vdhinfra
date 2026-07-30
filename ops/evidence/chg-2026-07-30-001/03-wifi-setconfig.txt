@@ -1,0 +1,4 @@
+### WiFi.SetConfig 2026-07-30T08:21:45Z  sta=VDHIOT(IoT PPSK)  sta1=VDHFEMFLEX(fallback)
+request shape (passwords redacted): {"config":{"sta":{"ssid":"VDHIOT","pass":"<redacted>","enable":true,"ipv4mode":"dhcp"},"sta1":{"ssid":"VDHFEMFLEX","pass":"<redacted>","enable":true,"ipv4mode":"dhcp"}}}
+--- response ---
+{"restart_required":true}

@@ -1,0 +1,4 @@
+### enforcement check immediately after zone create (before adding Internal->IoT ALLOW)  2026-07-30T08:33:40Z
+-- IoT -> Internal (must now FAIL; baseline was code=200) --
+   HA->Shelly http=000 (000 = blocked)
+command terminated with exit code 28

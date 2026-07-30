@@ -1,0 +1,8 @@
+### T4 END-TO-END Internal->IoT control, UNDER THE NEW POLICY  2026-07-30T08:36:40Z
+t0    HA: switch.verlichting_schuur = off   DEVICE: {"output":false,"apower":0.0}
+ON    HA: switch.verlichting_schuur = on   DEVICE: {"output":true,"apower":8.9}
+OFF   HA: switch.verlichting_schuur = off   DEVICE: {"output":false,"apower":0.0}
+
+### T5 PUSH PATH device->HA under the new policy (relay flipped at the device)
+dev ON    DEVICE: {"output":true,"apower":8.9}   HA: switch.verlichting_schuur = on
+dev OFF   DEVICE: {"output":false,"apower":0.0}   HA: switch.verlichting_schuur = off
