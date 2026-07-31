@@ -1,0 +1,11 @@
+### STABILITY SOAK 2026-07-31T12:47:34Z
+  t+30s  ip=172.16.4.23  net=IOT-VLAN  assoc_uptime=91s  rssi=30
+  t+60s  ip=172.16.4.23  net=IOT-VLAN  assoc_uptime=91s  rssi=30
+  t+90s  ip=172.16.4.23  net=IOT-VLAN  assoc_uptime=91s  rssi=30
+  t+120s  ip=172.16.4.23  net=IOT-VLAN  assoc_uptime=174s  rssi=30
+  t+150s  ip=172.16.4.23  net=IOT-VLAN  assoc_uptime=174s  rssi=30
+  t+180s  ip=172.16.4.23  net=IOT-VLAN  assoc_uptime=174s  rssi=30
+-- both migrated Sonos plugs + the pilot, final --
+  Shelly - Sonos Achtertuin  172.16.4.23  uptime=174s
+  Shelly - Sonos Play:1  172.16.4.25  uptime=911s
+  Shelly - Verlichting Schuur  172.16.4.20  uptime=102454s
