@@ -119,7 +119,12 @@ for entry in "${DEVICES[@]}"; do
         "https://$UDM/proxy/network/api/s/default/rest/user/$CID" | jq -r '.meta.rc // "err"')
   say "  reservation rc=$RC"
   [ "$RC" = "ok" ] || { say "  FAIL: reservation rejected"; FAILED="$LABEL (reservation rc=$RC)"; break; }
-  sleep 2   # UniFi 10.x rate-limits; pace writes
+  # Settle time before the device re-DHCPs. UniFi accepts and stores the reservation
+  # immediately (rc=ok) but the DHCP server does not honour it for a further while.
+  # inc-2026-07-31-001: a 2s gap gave the device a POOL address; the pilot's 21s gap
+  # landed the reserved one. 30s with margin.
+  say "  waiting 30s for the reservation to become live in the UDM's DHCP server"
+  sleep 30
 
   # 2. re-home wifi, sta1 = current net as the self-recovery path
   REQ=$(jq -nc --arg ip "$IOTPSK" --arg fp "$FEMPSK" '{config:{
@@ -128,21 +133,45 @@ for entry in "${DEVICES[@]}"; do
   RESP=$(curl -s --max-time 10 -X POST -H "Content-Type: application/json" -d "$REQ" "http://$OLDIP/rpc/WiFi.SetConfig")
   say "  WiFi.SetConfig -> ${RESP:-'(no body; reassociated immediately)'}   [restart_required is ADVISORY - not rebooting]"
 
-  # 3. wait for it to land on IOT-VLAN at the reserved address
-  LANDED=0
+  # 3. wait for it to land ON IOT-VLAN. The OBJECTIVE is the VLAN, not a specific IP.
+  #    inc-2026-07-31-001: the original check demanded net==IOT-VLAN AND ip==reserved,
+  #    so a device that had genuinely succeeded (IOT-VLAN, pool IP) was scored as a
+  #    failure, rolled back, and aborted the whole run. A wrong IP is CORRECTABLE, not
+  #    fatal — HA self-heals the config-entry host via zeroconf either way.
+  LANDED=0; ACTUAL=""
   for i in $(seq 1 24); do
     sleep 5
     N=$(sta_field "$MAC" network); I=$(sta_field "$MAC" ip)
-    if [ "$N" = "IOT-VLAN" ] && [ "$I" = "$NEWIP" ]; then LANDED=1; say "  landed after $((i*5))s: net=$N ip=$I"; break; fi
+    if [ "$N" = "IOT-VLAN" ] && [ -n "$I" ]; then LANDED=1; ACTUAL="$I"; say "  landed on IOT-VLAN after $((i*5))s at $I"; break; fi
   done
   if [ "$LANDED" != "1" ]; then
-    say "  FAIL: did not land on IOT-VLAN/$NEWIP within 120s (net=$(sta_field "$MAC" network) ip=$(sta_field "$MAC" ip))"
-    say "  attempting rollback of this device to VDHFEMFLEX"
+    say "  FAIL: never associated to IOT-VLAN within 120s (net=$(sta_field "$MAC" network) ip=$(sta_field "$MAC" ip))"
+    say "  rolling this device back to VDHFEMFLEX"
     TGT=$(sta_field "$MAC" ip); TGT=${TGT:-$OLDIP}
     RB=$(jq -nc --arg fp "$FEMPSK" '{config:{sta:{ssid:"VDHFEMFLEX",pass:$fp,enable:true,ipv4mode:"dhcp"}}}')
     curl -s --max-time 10 -X POST -H "Content-Type: application/json" -d "$RB" "http://$TGT/rpc/WiFi.SetConfig" >/dev/null 2>&1
     FAILED="$LABEL (no association on IOT-VLAN)"; break
   fi
+
+  # 3b. got the VLAN but not the reserved address -> nudge it to re-DHCP once.
+  #     Re-applying the same wifi config forces reassociation and a fresh DHCP request,
+  #     which by now should see the settled reservation.
+  if [ "$ACTUAL" != "$NEWIP" ]; then
+    say "  on IOT-VLAN but at $ACTUAL, not the reserved $NEWIP — forcing one re-DHCP"
+    curl -s --max-time 10 -X POST -H "Content-Type: application/json" -d "$REQ" "http://$ACTUAL/rpc/WiFi.SetConfig" >/dev/null 2>&1
+    for i in $(seq 1 18); do
+      sleep 5
+      I=$(sta_field "$MAC" ip)
+      if [ "$I" = "$NEWIP" ]; then ACTUAL="$NEWIP"; say "  picked up the reservation after $((i*5))s: $I"; break; fi
+      [ -n "$I" ] && ACTUAL="$I"
+    done
+    if [ "$ACTUAL" != "$NEWIP" ]; then
+      say "  WARNING (not fatal): staying on $ACTUAL. Objective met (device is on IOT-VLAN);"
+      say "           lease stability is reduced until it renews onto the reservation."
+    fi
+  fi
+  # everything downstream must use the address it ACTUALLY has
+  NEWIP="$ACTUAL"
 
   # 4. prove HOME ASSISTANT (not this shell) is talking to the device across the
   #    boundary: its power sensor must be live and agree with the device's own reading.

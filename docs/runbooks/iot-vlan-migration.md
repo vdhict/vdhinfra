@@ -77,6 +77,18 @@ curl -sk -X PUT -H "X-API-KEY: $KEY" -H "Content-Type: application/json" -d "$BO
 
 Read it back — do **not** trust `rc=ok` alone.
 
+> ⚠️ **`rc=ok` means stored, NOT live.** UniFi accepts and persists the reservation
+> immediately, but the DHCP server does not honour it for a further while. Wait **~30 s**
+> before letting the device re-DHCP. Evidence (`inc-2026-07-31-001`): the pilot had a 21 s
+> gap and got its reserved address; the batch run had 2 s and the device got a *pool*
+> address instead.
+>
+> ⚠️ **And do not treat a wrong IP as a failure.** The objective is *the device is on
+> IOT-VLAN and HA can reach it*. The reserved address is a convenience for lease
+> stability. Landing on IOT-VLAN with a pool IP is a **success that needs a nudge**
+> (re-apply the wifi config to force a fresh DHCP request), not a reason to roll back.
+> Conflating the two is exactly what aborted the first batch run at device 1 of 9.
+
 ### 2. Re-home the device's Wi-Fi
 
 The VLAN is chosen by **passphrase**, not by SSID. Both PPSKs live on the `VDHIOT` WLAN:
