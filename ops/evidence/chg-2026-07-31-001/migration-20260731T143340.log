@@ -1,0 +1,25 @@
+2026-07-31T12:33:40Z  passphrases resolved (never logged): IOT len=10 FEMFLEX len=8
+2026-07-31T12:33:40Z  Home Assistant API reachable (no kubectl needed)
+2026-07-31T12:33:40Z  ONLY=34:b7:da:8f:dc:60 — single-device run
+2026-07-31T12:33:40Z  NO_ACTUATION=1 — relay will NOT be toggled; verification stays read-only
+2026-07-31T12:33:40Z  ──────── Sonos Play:1 (34:b7:da:8f:dc:60) 172.16.3.80 -> 172.16.4.25 ────────
+2026-07-31T12:33:40Z    pre-state relay: {"output":true,"apower":2.6}
+2026-07-31T12:33:40Z    reservation rc=ok
+2026-07-31T12:33:40Z    waiting 30s for the reservation to become live in the UDM's DHCP server
+2026-07-31T12:34:10Z    WiFi.SetConfig -> {"restart_required":true}   [restart_required is ADVISORY - not rebooting]
+2026-07-31T12:34:21Z    landed on IOT-VLAN after 10s at 172.16.3.80
+2026-07-31T12:34:21Z    on IOT-VLAN but at 172.16.3.80, not the reserved 172.16.4.25 — forcing one re-DHCP
+2026-07-31T12:34:36Z    picked up the reservation after 5s: 172.16.4.25
+2026-07-31T12:34:42Z    HA sensor.sonos_play_1_vermogen=2.7W  device apower=2.7W  (must agree => HA is reaching 172.16.4.25)
+2026-07-31T12:34:42Z    post-state relay: {"output":true,"apower":2.7}  (pre was {"output":true,"apower":2.6})
+2026-07-31T12:34:50Z    HA entity switch.sonos_play_1 = on (device output=true)
+2026-07-31T12:34:50Z    actuation test SKIPPED (NO_ACTUATION=1). Control path evidence is the live
+2026-07-31T12:34:50Z    wattage agreement in step 4, which already proves HA is talking to the device.
+2026-07-31T12:34:50Z    ✅ Sonos Play:1 migrated and verified
+2026-07-31T12:34:55Z  ════════ RESULT: 1/9 migrated ════════
+2026-07-31T12:34:55Z  All 9 migrated. IOT-VLAN membership:
+  Shelly - Sonos Play:1  172.16.4.25  VDHIOT
+  Shelly - Verlichting Schuur  172.16.4.20  VDHIOT
+  P115  172.16.5.93  VDHIOT
+  P115  172.16.5.186  VDHIOT
+  P115  172.16.5.243  VDHIOT

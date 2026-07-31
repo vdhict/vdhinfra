@@ -1,0 +1,15 @@
+### INDEPENDENT VERIFICATION 2026-07-31T12:35:24Z
+-- T1/T2 controller view --
+  ip=172.16.4.25  net=IOT-VLAN  essid=VDHIOT  assoc_uptime=3s
+-- device view --
+  {"sta_ip":"172.16.4.25","ssid":"VDHIOT","status":"got ip","rssi":-70}
+-- T4 relay (must still be true; pre was true/2.6W) --
+  {"output":true,"apower":2.7,"voltage":233.5}
+-- T5/T6 HA view --
+  switch.sonos_play_1                on
+  sensor.sonos_play_1_vermogen       2.6
+  media_player.terras                idle
+-- the speaker that was playing, untouched? --
+  media_player.keuken                playing
+-- segmentation applies to this device too (IoT->Internal must fail) --
+  {"code":null,"err":"-1: Connection error: -13"}
