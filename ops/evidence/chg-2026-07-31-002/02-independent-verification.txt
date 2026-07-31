@@ -1,0 +1,19 @@
+### INDEPENDENT VERIFICATION 2026-07-31T12:47:10Z
+-- controller: where is 34:b7:da:8f:f2:0c ? --
+  ip=172.16.4.23  net=IOT-VLAN  essid=VDHIOT  assoc_uptime=8s  rssi=28
+-- full IOT-VLAN membership now --
+  P115  172.16.5.186
+  P115  172.16.5.243
+  P115  172.16.5.93
+  Shelly - Sonos Achtertuin  172.16.4.23
+  Shelly - Sonos Play:1  172.16.4.25
+  Shelly - Verlichting Schuur  172.16.4.20
+-- device direct --
+  {"sta_ip":"172.16.4.23","ssid":"VDHIOT","status":"got ip","rssi":-66}
+  relay: {"output":true,"apower":3.8}
+-- HA --
+  switch.sonos_achtertuin              on
+  sensor.sonos_achtertuin_vermogen     3.9
+  media_player.achtertuin              paused
+-- T7 IoT->Internal blocked from this device --
+  {"code":null,"err":"-1: Connection error: -13"}
