@@ -1,0 +1,52 @@
+2026-07-31T13:03:50Z  passphrases resolved (never logged): IOT len=10 FEMFLEX len=8
+2026-07-31T13:03:50Z  Home Assistant API reachable (no kubectl needed)
+2026-07-31T13:03:50Z  ONLY=54:32:04:5f:2c:c4,34:b7:da:92:1c:8c,34:b7:da:92:6e:64,34:b7:da:90:9a:14 — restricted run
+2026-07-31T13:03:50Z  NO_ACTUATION=1 — relay will NOT be toggled; verification stays read-only
+2026-07-31T13:03:50Z  ──────── Sonos Surround Linksachter (54:32:04:5f:2c:c4) 172.16.3.42 -> 172.16.4.24 ────────
+2026-07-31T13:03:50Z    pre-state relay: {"output":true,"apower":2.0}
+2026-07-31T13:03:50Z    reservation rc=ok
+2026-07-31T13:03:51Z    waiting 30s for the reservation to become live in the UDM's DHCP server
+2026-07-31T13:04:21Z    WiFi.SetConfig -> {"restart_required":true}   [restart_required is ADVISORY - not rebooting]
+2026-07-31T13:05:02Z    landed on IOT-VLAN after 40s, answering at 172.16.4.24 (MAC verified)
+2026-07-31T13:05:08Z    HA sensor.sonos_surround_linksachter_vermogen=1.9W  device apower=1.9W  (must agree => HA is reaching 172.16.4.24)
+2026-07-31T13:05:08Z    post-state relay: {"output":true,"apower":2.1}  (pre was {"output":true,"apower":2.0})
+2026-07-31T13:05:16Z    HA entity switch.sonos_surround_linksachter = on (device output=true)
+2026-07-31T13:05:16Z    actuation test SKIPPED (NO_ACTUATION=1). Control path evidence is the live
+2026-07-31T13:05:16Z    wattage agreement in step 4, which already proves HA is talking to the device.
+2026-07-31T13:05:16Z    ✅ Sonos Surround Linksachter migrated and verified
+2026-07-31T13:05:21Z  ──────── Sonos Arc Ultra (34:b7:da:92:1c:8c) 172.16.3.170 -> 172.16.4.26 ────────
+2026-07-31T13:05:21Z    pre-state relay: {"output":true,"apower":4.7}
+2026-07-31T13:05:22Z    reservation rc=ok
+2026-07-31T13:05:22Z    waiting 30s for the reservation to become live in the UDM's DHCP server
+2026-07-31T13:05:52Z    WiFi.SetConfig -> {"restart_required":true}   [restart_required is ADVISORY - not rebooting]
+2026-07-31T13:05:58Z    landed on IOT-VLAN after 5s, answering at 172.16.4.26 (MAC verified)
+2026-07-31T13:06:04Z    HA sensor.sonos_arc_ultra_vermogen=4.6W  device apower=4.6W  (must agree => HA is reaching 172.16.4.26)
+2026-07-31T13:06:04Z    post-state relay: {"output":true,"apower":4.6}  (pre was {"output":true,"apower":4.7})
+2026-07-31T13:06:12Z    HA entity switch.sonos_arc_ultra = on (device output=true)
+2026-07-31T13:06:12Z    actuation test SKIPPED (NO_ACTUATION=1). Control path evidence is the live
+2026-07-31T13:06:12Z    wattage agreement in step 4, which already proves HA is talking to the device.
+2026-07-31T13:06:12Z    ✅ Sonos Arc Ultra migrated and verified
+2026-07-31T13:06:17Z  ──────── Sonos Sub (34:b7:da:92:6e:64) 172.16.3.36 -> 172.16.4.27 ────────
+2026-07-31T13:06:17Z    pre-state relay: {"output":true,"apower":1.9}
+2026-07-31T13:06:17Z    reservation rc=ok
+2026-07-31T13:06:17Z    waiting 30s for the reservation to become live in the UDM's DHCP server
+2026-07-31T13:06:47Z    WiFi.SetConfig -> {"restart_required":true}   [restart_required is ADVISORY - not rebooting]
+2026-07-31T13:06:58Z    landed on IOT-VLAN after 10s, answering at 172.16.4.27 (MAC verified)
+2026-07-31T13:07:04Z    HA sensor.sonos_sub_vermogen=1.9W  device apower=2.0W  (must agree => HA is reaching 172.16.4.27)
+2026-07-31T13:07:05Z    post-state relay: {"output":true,"apower":2.0}  (pre was {"output":true,"apower":1.9})
+2026-07-31T13:07:13Z    HA entity switch.sonos_sub = on (device output=true)
+2026-07-31T13:07:13Z    actuation test SKIPPED (NO_ACTUATION=1). Control path evidence is the live
+2026-07-31T13:07:13Z    wattage agreement in step 4, which already proves HA is talking to the device.
+2026-07-31T13:07:13Z    ✅ Sonos Sub migrated and verified
+2026-07-31T13:07:18Z  ──────── Sonos Bartafel (34:b7:da:90:9a:14) 172.16.3.54 -> 172.16.4.29 ────────
+2026-07-31T13:07:18Z    pre-state relay: {"output":true,"apower":3.0}
+2026-07-31T13:07:18Z    reservation rc=ok
+2026-07-31T13:07:18Z    waiting 30s for the reservation to become live in the UDM's DHCP server
+2026-07-31T13:07:48Z    WiFi.SetConfig -> {"restart_required":true}   [restart_required is ADVISORY - not rebooting]
+2026-07-31T13:08:04Z    landed on IOT-VLAN after 15s, answering at 172.16.4.29 (MAC verified)
+2026-07-31T13:08:10Z    HA sensor.sonos_bartafel_vermogen=unavailableW  device apower=2.9W  (must agree => HA is reaching 172.16.4.29)
+2026-07-31T13:08:10Z    FAIL: HA has no live power reading — it is not reaching the device
+2026-07-31T13:08:10Z  ════════ RESULT: 3/9 migrated ════════
+2026-07-31T13:08:10Z  ABORTED at: Sonos Bartafel (HA not reaching device)
+2026-07-31T13:08:10Z  Remaining devices were NOT touched. Already-migrated devices are verified working.
+2026-07-31T13:08:10Z  sta1=VDHFEMFLEX is armed on every migrated device, so none can be stranded.

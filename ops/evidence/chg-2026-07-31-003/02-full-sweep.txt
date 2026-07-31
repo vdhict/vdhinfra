@@ -1,0 +1,21 @@
+### FULL SWEEP — all migrated Shellys  2026-07-31T13:09:10Z
+DEVICE                         IP(verified)   SSID     RELAY   DEV_W     HA_W     HA_SWITCH
+Verlichting Schuur             172.16.4.20    VDHIOT   false   0.0       0.0      off
+Surround Rechtsachter          172.16.4.22    VDHIOT   true    4.7       4.7      on
+Achtertuin                     172.16.4.23    VDHIOT   true    3.9       3.9      on
+Surround Linksachter           172.16.4.24    VDHIOT   true    4.8       4.7      on
+Play:1 Terras                  172.16.4.25    VDHIOT   true    2.7       2.6      on
+Arc Ultra                      172.16.4.26    VDHIOT   true    16.0      15.9     on
+Sub                            172.16.4.27    VDHIOT   true    4.6       4.6      on
+Bartafel                       172.16.4.29    VDHIOT   true    2.9       2.9      on
+
+-- UniFi IOT-VLAN membership --
+   count=11
+-- speakers: nothing should have been disturbed --
+   media_player.woonkamer         playing
+   media_player.bar               paused
+   media_player.terras            idle
+   media_player.achtertuin        paused
+   media_player.keuken            paused
+-- isolation spot-check from the Arc plug --
+   {"code":null,"err":"-1: Connection error: -13"}
