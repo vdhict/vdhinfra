@@ -182,10 +182,41 @@ Record every result to `ops/evidence/<chg-id>/`.
 
 ---
 
+## Status: COMPLETE (2026-07-31)
+
+All 10 Shellys are on IOT-VLAN at 172.16.4.20–.29. Zero remain on CLIENT-VLAN.
+This section is kept for the wider IoT sweep and for the lessons below.
+
+### Lessons that cost us three false aborts
+
+Every failure in this migration was the same defect shape: **sampling a state that had
+not yet converged and treating "not yet" as "failed".** No device ever actually failed to
+migrate. If you extend this script, watch for it.
+
+1. **Don't require the reserved IP to call it landed.** The objective is *on IOT-VLAN and
+   reachable*. Landing on a pool address is a success needing a nudge, not a rollback.
+2. **Don't trust UniFi `stat/sta`'s `ip` field.** It goes stale for minutes after a VLAN
+   move — observed still reporting the old CLIENT-VLAN address 165 s after the device had
+   moved. The `network` field IS reliable. Find the address by probing candidates and
+   matching the MAC the device reports back; that is self-validating.
+3. **Don't single-sample Home Assistant.** HA re-discovers the new IP via zeroconf and its
+   sensors go briefly unavailable. One abort came from checking 2 SECONDS too early. Poll
+   to convergence.
+
+### Also learned
+
+- **`WiFi.SetConfig` returning `restart_required: true` is advisory** — never reboot.
+- **Plug labels lie.** Verify what a plug actually feeds before actuating it. Query the
+  Sonos zone directly (`http://<ip>:1400/status/zp`) rather than trusting an HA entity
+  name, and correlate plug wattage across a play/pause transition.
+- **A no-actuation re-home cannot disturb a Sonos stereo pair or surround bond.** The
+  speakers are separate network clients from their plugs; moving the plug's Wi-Fi touches
+  neither the speaker's power nor its own CLIENT-VLAN connection. Proven in live use: the
+  Woonkamer home theatre played at 15.9 W through freshly migrated plugs.
+
 ## Remaining work
 
-**9 Shellys still on CLIENT-VLAN** — all supply mains to a Sonos speaker, so migrate in small
-waves with a soak between, weakest signal last:
+~~**9 Shellys still on CLIENT-VLAN**~~ — **DONE 2026-07-31.** Final addressing:
 
 | HA name | IP | MAC | RSSI |
 |---|---|---|---|

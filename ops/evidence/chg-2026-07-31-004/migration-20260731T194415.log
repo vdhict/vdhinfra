@@ -1,0 +1,43 @@
+2026-07-31T17:44:16Z  passphrases resolved (never logged): IOT len=10 FEMFLEX len=8
+2026-07-31T17:44:16Z  Home Assistant API reachable (no kubectl needed)
+2026-07-31T17:44:16Z  ONLY=34:b7:da:90:7d:f0,34:b7:da:8b:b3:1c — restricted run
+2026-07-31T17:44:16Z  NO_ACTUATION=1 — relay will NOT be toggled; verification stays read-only
+2026-07-31T17:44:16Z  ──────── Sonos Keuken (34:b7:da:90:7d:f0) 172.16.3.109 -> 172.16.4.21 ────────
+2026-07-31T17:44:16Z    pre-state relay: {"output":true,"apower":3.1}
+2026-07-31T17:44:16Z    reservation rc=ok
+2026-07-31T17:44:16Z    waiting 30s for the reservation to become live in the UDM's DHCP server
+2026-07-31T17:44:46Z    WiFi.SetConfig -> {"restart_required":true}   [restart_required is ADVISORY - not rebooting]
+2026-07-31T17:44:56Z    landed on IOT-VLAN after 10s, answering at 172.16.4.21 (MAC verified)
+2026-07-31T17:45:07Z    HA sensor.sonos_keuken_vermogen=3.0W  device apower=3.1W  (must agree => HA is reaching 172.16.4.21)
+2026-07-31T17:45:07Z    post-state relay: {"output":true,"apower":3.1}  (pre was {"output":true,"apower":3.1})
+2026-07-31T17:45:15Z    HA entity switch.sonos_keuken = on (device output=true)
+2026-07-31T17:45:15Z    actuation test SKIPPED (NO_ACTUATION=1). Control path evidence is the live
+2026-07-31T17:45:15Z    wattage agreement in step 4, which already proves HA is talking to the device.
+2026-07-31T17:45:15Z    ✅ Sonos Keuken migrated and verified
+2026-07-31T17:45:20Z  ──────── Sonos Eetkamer (34:b7:da:8b:b3:1c) 172.16.3.200 -> 172.16.4.28 ────────
+2026-07-31T17:45:20Z    pre-state relay: {"output":true,"apower":3.1}
+2026-07-31T17:45:20Z    reservation rc=ok
+2026-07-31T17:45:20Z    waiting 30s for the reservation to become live in the UDM's DHCP server
+2026-07-31T17:45:50Z    WiFi.SetConfig -> {"restart_required":true}   [restart_required is ADVISORY - not rebooting]
+2026-07-31T17:46:01Z    landed on IOT-VLAN after 10s, answering at 172.16.4.28 (MAC verified)
+2026-07-31T17:46:06Z    HA sensor.sonos_eetkamer_vermogen=3.1W  device apower=3.0W  (must agree => HA is reaching 172.16.4.28)
+2026-07-31T17:46:07Z    post-state relay: {"output":true,"apower":3.0}  (pre was {"output":true,"apower":3.1})
+2026-07-31T17:46:16Z    HA entity switch.sonos_eetkamer = on (device output=true)
+2026-07-31T17:46:16Z    actuation test SKIPPED (NO_ACTUATION=1). Control path evidence is the live
+2026-07-31T17:46:16Z    wattage agreement in step 4, which already proves HA is talking to the device.
+2026-07-31T17:46:16Z    ✅ Sonos Eetkamer migrated and verified
+2026-07-31T17:46:21Z  ════════ RESULT: 2/9 migrated ════════
+2026-07-31T17:46:21Z  All 9 migrated. IOT-VLAN membership:
+  Shelly - Sonos Keuken  172.16.4.21  VDHIOT
+  Shelly - Sonos Play:1  172.16.4.25  VDHIOT
+  Shelly - Sonos Surround Linksachter  172.16.4.24  VDHIOT
+  Shelly - Sonos Sub  172.16.4.27  VDHIOT
+  Shelly - Verlichting Schuur  172.16.4.20  VDHIOT
+  Shelly - Sonos Arc Ultra  172.16.4.26  VDHIOT
+  Shelly - Sonos Achtertuin  172.16.4.23  VDHIOT
+  Shelly - Sonos Bartafel  172.16.4.29  VDHIOT
+  P115  172.16.5.93  VDHIOT
+  Shelly - Sonos Eetkamer  172.16.4.28  VDHIOT
+  P115  172.16.5.186  VDHIOT
+  P115  172.16.5.243  VDHIOT
+  Shelly - Sonos Surround Rechtsachter  172.16.4.22  VDHIOT
