@@ -95,15 +95,15 @@ ha_call()  { # ha_call <domain/service> <entity>
     --max-time 15 -X POST -d "{\"entity_id\":\"$2\"}" "$HA_URL/services/$1" >/dev/null 2>&1
 }
 
-# ONLY=<mac>       restrict the run to a single device (single-device rehearsal)
-# NO_ACTUATION=1   skip the relay off->on control test (leaves the speaker untouched)
-[ -n "${ONLY:-}" ]            && say "ONLY=$ONLY — single-device run"
+# ONLY=<mac>[,<mac>...]  restrict the run to specific devices (rehearsal / partial wave)
+# NO_ACTUATION=1         skip the relay off->on control test (leaves the speaker untouched)
+[ -n "${ONLY:-}" ]            && say "ONLY=$ONLY — restricted run"
 [ "${NO_ACTUATION:-0}" = "1" ] && say "NO_ACTUATION=1 — relay will NOT be toggled; verification stays read-only"
 
 OK=0; FAILED=""
 for entry in "${DEVICES[@]}"; do
   IFS='|' read -r MAC CID NEWIP OLDIP ENT LABEL <<<"$entry"
-  if [ -n "${ONLY:-}" ] && [ "$MAC" != "$ONLY" ]; then continue; fi
+  if [ -n "${ONLY:-}" ] && [[ ",${ONLY}," != *",${MAC},"* ]]; then continue; fi
   say "──────── $LABEL ($MAC) $OLDIP -> $NEWIP ────────"
 
   CURNET=$(sta_field "$MAC" network)
@@ -139,54 +139,90 @@ for entry in "${DEVICES[@]}"; do
   RESP=$(curl -s --max-time 10 -X POST -H "Content-Type: application/json" -d "$REQ" "http://$OLDIP/rpc/WiFi.SetConfig")
   say "  WiFi.SetConfig -> ${RESP:-'(no body; reassociated immediately)'}   [restart_required is ADVISORY - not rebooting]"
 
-  # 3. wait for it to land ON IOT-VLAN. The OBJECTIVE is the VLAN, not a specific IP.
-  #    inc-2026-07-31-001: the original check demanded net==IOT-VLAN AND ip==reserved,
+  # 3. wait for it to land ON IOT-VLAN, then discover its address AUTHORITATIVELY.
+  #    UniFi's stat/sta `network` field is reliable. Its `ip` field is NOT — it goes
+  #    stale for minutes after a VLAN move (observed: net=IOT-VLAN but ip still the old
+  #    CLIENT-VLAN address 165s after association, while the device was actually on its
+  #    reserved .22 the whole time). So: use UniFi only to confirm the VLAN, and find the
+  #    real address by probing candidates and matching the MAC the device reports back.
+  #    That is self-validating and cannot be fooled by a stale controller cache.
+  WANTMAC=$(echo "$MAC" | tr -d ':' | tr '[:lower:]' '[:upper:]')
+  probe_mac() { curl -s --max-time 4 "http://$1/rpc/Shelly.GetDeviceInfo" 2>/dev/null | jq -r '.mac // empty'; }
+  find_device() { # echo the address that answers with our MAC, or nothing
+    local c
+    for c in "$NEWIP" "$(sta_field "$MAC" ip)" "$OLDIP"; do
+      [ -n "$c" ] || continue
+      [ "$(probe_mac "$c")" = "$WANTMAC" ] && { echo "$c"; return 0; }
+    done
+    return 1
+  }
+  #    Prior history (inc-2026-07-31-001): the original check demanded net==IOT-VLAN AND ip==reserved,
   #    so a device that had genuinely succeeded (IOT-VLAN, pool IP) was scored as a
   #    failure, rolled back, and aborted the whole run. A wrong IP is CORRECTABLE, not
   #    fatal — HA self-heals the config-entry host via zeroconf either way.
   LANDED=0; ACTUAL=""
   for i in $(seq 1 24); do
     sleep 5
-    N=$(sta_field "$MAC" network); I=$(sta_field "$MAC" ip)
-    if [ "$N" = "IOT-VLAN" ] && [ -n "$I" ]; then LANDED=1; ACTUAL="$I"; say "  landed on IOT-VLAN after $((i*5))s at $I"; break; fi
+    N=$(sta_field "$MAC" network)
+    if [ "$N" = "IOT-VLAN" ]; then
+      if ACTUAL=$(find_device); then
+        LANDED=1; say "  landed on IOT-VLAN after $((i*5))s, answering at $ACTUAL (MAC verified)"; break
+      fi
+    fi
   done
   if [ "$LANDED" != "1" ]; then
-    say "  FAIL: never associated to IOT-VLAN within 120s (net=$(sta_field "$MAC" network) ip=$(sta_field "$MAC" ip))"
+    N=$(sta_field "$MAC" network)
+    if [ "$N" = "IOT-VLAN" ]; then
+      say "  on IOT-VLAN but not answering at any known address — forcing one re-DHCP"
+      T2=$(sta_field "$MAC" ip); T2=${T2:-$OLDIP}
+      curl -s --max-time 10 -X POST -H "Content-Type: application/json" -d "$REQ" "http://$T2/rpc/WiFi.SetConfig" >/dev/null 2>&1
+      for i in $(seq 1 18); do
+        sleep 5
+        if ACTUAL=$(find_device); then LANDED=1; say "  reachable after re-DHCP at $ACTUAL (MAC verified)"; break; fi
+      done
+    fi
+  fi
+  if [ "$LANDED" != "1" ]; then
+    say "  FAIL: not on IOT-VLAN or unreachable (unifi net=$(sta_field "$MAC" network) ip=$(sta_field "$MAC" ip))"
     say "  rolling this device back to VDHFEMFLEX"
     TGT=$(sta_field "$MAC" ip); TGT=${TGT:-$OLDIP}
     RB=$(jq -nc --arg fp "$FEMPSK" '{config:{sta:{ssid:"VDHFEMFLEX",pass:$fp,enable:true,ipv4mode:"dhcp"}}}')
     curl -s --max-time 10 -X POST -H "Content-Type: application/json" -d "$RB" "http://$TGT/rpc/WiFi.SetConfig" >/dev/null 2>&1
-    FAILED="$LABEL (no association on IOT-VLAN)"; break
+    FAILED="$LABEL (not reachable on IOT-VLAN)"; break
+  fi
+  if [ "$ACTUAL" != "$NEWIP" ]; then
+    say "  NOTE: reachable at $ACTUAL, not the reserved $NEWIP — nudging once for lease stability"
+    curl -s --max-time 10 -X POST -H "Content-Type: application/json" -d "$REQ" "http://$ACTUAL/rpc/WiFi.SetConfig" >/dev/null 2>&1
+    for i in $(seq 1 12); do
+      sleep 5
+      if [ "$(probe_mac "$NEWIP")" = "$WANTMAC" ]; then ACTUAL="$NEWIP"; say "  now on the reserved $NEWIP"; break; fi
+    done
+    [ "$ACTUAL" = "$NEWIP" ] || say "  WARNING (not fatal): staying on $ACTUAL. Objective met; lease stability reduced."
   fi
 
-  # 3b. got the VLAN but not the reserved address -> nudge it to re-DHCP once.
-  #     Re-applying the same wifi config forces reassociation and a fresh DHCP request,
-  #     which by now should see the settled reservation.
-  if [ "$ACTUAL" != "$NEWIP" ]; then
-    say "  on IOT-VLAN but at $ACTUAL, not the reserved $NEWIP — forcing one re-DHCP"
-    curl -s --max-time 10 -X POST -H "Content-Type: application/json" -d "$REQ" "http://$ACTUAL/rpc/WiFi.SetConfig" >/dev/null 2>&1
-    for i in $(seq 1 18); do
-      sleep 5
-      I=$(sta_field "$MAC" ip)
-      if [ "$I" = "$NEWIP" ]; then ACTUAL="$NEWIP"; say "  picked up the reservation after $((i*5))s: $I"; break; fi
-      [ -n "$I" ] && ACTUAL="$I"
-    done
-    if [ "$ACTUAL" != "$NEWIP" ]; then
-      say "  WARNING (not fatal): staying on $ACTUAL. Objective met (device is on IOT-VLAN);"
-      say "           lease stability is reduced until it renews onto the reservation."
-    fi
-  fi
   # everything downstream must use the address it ACTUALLY has
   NEWIP="$ACTUAL"
 
   # 4. prove HOME ASSISTANT (not this shell) is talking to the device across the
   #    boundary: its power sensor must be live and agree with the device's own reading.
   PWRENT="sensor.$(echo "${ENT#switch.}")_vermogen"
-  sleep 6
-  HAW=$(ha_state "$PWRENT"); DEVW=$(curl -s --max-time 6 "http://$NEWIP/rpc/Switch.GetStatus?id=0" | jq -r '.apower')
-  say "  HA $PWRENT=${HAW:-<none>}W  device apower=${DEVW}W  (must agree => HA is reaching $NEWIP)"
-  if [ -z "$HAW" ] || [ "$HAW" = "unavailable" ] || [ "$HAW" = "unknown" ]; then
-    say "  FAIL: HA has no live power reading — it is not reaching the device"; FAILED="$LABEL (HA not reaching device)"; break
+  # POLL, do not single-sample. HA re-discovers the device's new IP via zeroconf and its
+  # sensors go briefly unavailable during the move. Three separate aborts in this
+  # migration came from sampling a not-yet-converged state and calling it a failure
+  # (once HA lagged the check by 2 SECONDS). Wait for convergence instead.
+  HAW=""; DEVW=""
+  for i in $(seq 1 24); do
+    sleep 5
+    HAW=$(ha_state "$PWRENT")
+    DEVW=$(curl -s --max-time 6 "http://$NEWIP/rpc/Switch.GetStatus?id=0" | jq -r '.apower // empty')
+    case "$HAW" in unavailable|unknown|"") continue;; esac
+    [ -n "$DEVW" ] || continue
+    break
+  done
+  say "  HA $PWRENT=${HAW:-<none>}W  device apower=${DEVW:-<none>}W  (must agree => HA is reaching $NEWIP)"
+  if [ -z "$HAW" ] || [ "$HAW" = "unavailable" ] || [ "$HAW" = "unknown" ] || [ -z "$DEVW" ]; then
+    say "  FAIL: HA never got a live power reading within 120s — it is not reaching the device"
+    FAILED="$LABEL (HA not reaching device)"; break
   fi
   DIFF=$(awk -v a="$HAW" -v b="$DEVW" 'BEGIN{d=a-b; print (d<0?-d:d)}')
   awk -v d="$DIFF" 'BEGIN{exit !(d<=2.0)}' || { say "  FAIL: HA ${HAW}W vs device ${DEVW}W diverge by ${DIFF}W"; FAILED="$LABEL (stale HA data)"; break; }
