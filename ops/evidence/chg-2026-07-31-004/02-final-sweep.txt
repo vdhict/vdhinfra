@@ -1,0 +1,22 @@
+### FINAL SWEEP — all 10 Shellys  2026-07-31T17:46:43Z
+DEVICE                         IP(MAC-verif) SSID    RELAY   DEV_W    HA_W    HA_SWITCH
+Verlichting Schuur             172.16.4.20   VDHIOT  false   0.0      0.0     off
+Sonos Keuken                   172.16.4.21   VDHIOT  true    3.0      3.0     on
+Surround Rechtsachter          172.16.4.22   VDHIOT  true    4.8      4.8     on
+Achtertuin                     172.16.4.23   VDHIOT  true    3.8      3.9     on
+Surround Linksachter           172.16.4.24   VDHIOT  true    4.9      4.8     on
+Play:1 Terras                  172.16.4.25   VDHIOT  true    2.6      2.6     on
+Arc Ultra                      172.16.4.26   VDHIOT  true    15.9     16.0    on
+Sub                            172.16.4.27   VDHIOT  true    4.6      4.7     on
+'Eetkamer' (Keuken pair)       172.16.4.28   VDHIOT  true    3.1      3.1     on
+Bartafel                       172.16.4.29   VDHIOT  true    2.9      3.0     on
+
+-- any Shelly left on CLIENT-VLAN? (must be zero) --
+   count=0
+-- speakers undisturbed --
+   media_player.keuken          paused
+   media_player.eetkamer        paused
+   media_player.woonkamer       playing
+   media_player.bar             paused
+-- isolation from the Keuken plug --
+   {"code":null,"err":"-1: Connection error: -13"}
