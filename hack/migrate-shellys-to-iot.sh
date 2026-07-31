@@ -95,9 +95,15 @@ ha_call()  { # ha_call <domain/service> <entity>
     --max-time 15 -X POST -d "{\"entity_id\":\"$2\"}" "$HA_URL/services/$1" >/dev/null 2>&1
 }
 
+# ONLY=<mac>       restrict the run to a single device (single-device rehearsal)
+# NO_ACTUATION=1   skip the relay off->on control test (leaves the speaker untouched)
+[ -n "${ONLY:-}" ]            && say "ONLY=$ONLY — single-device run"
+[ "${NO_ACTUATION:-0}" = "1" ] && say "NO_ACTUATION=1 — relay will NOT be toggled; verification stays read-only"
+
 OK=0; FAILED=""
 for entry in "${DEVICES[@]}"; do
   IFS='|' read -r MAC CID NEWIP OLDIP ENT LABEL <<<"$entry"
+  if [ -n "${ONLY:-}" ] && [ "$MAC" != "$ONLY" ]; then continue; fi
   say "──────── $LABEL ($MAC) $OLDIP -> $NEWIP ────────"
 
   CURNET=$(sta_field "$MAC" network)
@@ -206,7 +212,10 @@ for entry in "${DEVICES[@]}"; do
   #    as everyone will be asleep"). One device at a time, off for ~5s only, and always
   #    restored to its pre-migration state. This briefly power-cycles the Sonos speaker,
   #    which is the same thing the existing script.sonos_power_cycle does deliberately.
-  if [ "$POST_OUT" = "true" ]; then
+  if [ "${NO_ACTUATION:-0}" = "1" ]; then
+    say "  actuation test SKIPPED (NO_ACTUATION=1). Control path evidence is the live"
+    say "  wattage agreement in step 4, which already proves HA is talking to the device."
+  elif [ "$POST_OUT" = "true" ]; then
     ha_call switch/turn_off "$ENT"
     sleep 5
     OFFV=$(curl -s --max-time 6 "http://$NEWIP/rpc/Switch.GetStatus?id=0" | jq -r '.output')

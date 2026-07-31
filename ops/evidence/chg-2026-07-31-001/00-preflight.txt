@@ -1,0 +1,6 @@
+### PRE-FLIGHT 2026-07-31T12:33:31Z
+  media_player.terras                idle
+  switch.sonos_play_1                on
+  sensor.sonos_play_1_vermogen       2.7
+  device relay: {"output":true,"apower":2.7}
+  reminder: media_player.keuken = playing (excluded from this test)

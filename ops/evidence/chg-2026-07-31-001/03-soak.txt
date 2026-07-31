@@ -1,0 +1,7 @@
+### STABILITY SOAK 2026-07-31T12:35:46Z — assoc_uptime must climb monotonically
+  t+30s  ip=172.16.4.25  net=IOT-VLAN  assoc_uptime=88s  rssi=21
+  t+60s  ip=172.16.4.25  net=IOT-VLAN  assoc_uptime=88s  rssi=21
+  t+90s  ip=172.16.4.25  net=IOT-VLAN  assoc_uptime=168s  rssi=22
+  t+120s  ip=172.16.4.25  net=IOT-VLAN  assoc_uptime=168s  rssi=22
+  t+150s  ip=172.16.4.25  net=IOT-VLAN  assoc_uptime=168s  rssi=22
+  t+180s  ip=172.16.4.25  net=IOT-VLAN  assoc_uptime=251s  rssi=23
