@@ -1,0 +1,12 @@
+2026-07-30T22:00:00Z  passphrases resolved (never logged): IOT len=10 FEMFLEX len=8
+2026-07-30T22:00:00Z  Home Assistant API reachable (no kubectl needed)
+2026-07-30T22:00:00Z  ──────── Sonos Keuken (34:b7:da:90:7d:f0) 172.16.3.109 -> 172.16.4.21 ────────
+2026-07-30T22:00:00Z    pre-state relay: {"output":true,"apower":3.1}
+2026-07-30T22:00:01Z    reservation rc=ok
+2026-07-30T22:00:03Z    WiFi.SetConfig -> {"restart_required":true}   [restart_required is ADVISORY - not rebooting]
+2026-07-30T22:02:10Z    FAIL: did not land on IOT-VLAN/172.16.4.21 within 120s (net=IOT-VLAN ip=172.16.5.109)
+2026-07-30T22:02:10Z    attempting rollback of this device to VDHFEMFLEX
+2026-07-30T22:02:10Z  ════════ RESULT: 0/9 migrated ════════
+2026-07-30T22:02:10Z  ABORTED at: Sonos Keuken (no association on IOT-VLAN)
+2026-07-30T22:02:10Z  Remaining devices were NOT touched. Already-migrated devices are verified working.
+2026-07-30T22:02:10Z  sta1=VDHFEMFLEX is armed on every migrated device, so none can be stranded.
