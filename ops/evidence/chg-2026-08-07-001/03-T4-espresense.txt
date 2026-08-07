@@ -1,0 +1,41 @@
+### T4 END-TO-END: does ESPresense reconnect and repopulate HA?  2026-08-07T14:09:29Z
+  t+15s  connectivity=off  uptime=unavailable  free_mem=unavailable
+  t+30s  connectivity=off  uptime=unavailable  free_mem=unavailable
+  t+45s  connectivity=off  uptime=unavailable  free_mem=unavailable
+  t+60s  connectivity=off  uptime=unavailable  free_mem=unavailable
+  t+75s  connectivity=off  uptime=unavailable  free_mem=unavailable
+  t+90s  connectivity=off  uptime=unavailable  free_mem=unavailable
+  t+105s  connectivity=off  uptime=unavailable  free_mem=unavailable
+  t+120s  connectivity=off  uptime=unavailable  free_mem=unavailable
+### T5 MANAGEMENT ACCESS from CLIENT-VLAN (the user's other requirement)  2026-08-07T14:12:32Z
+  attempt 1: http=200 t=0.080241s
+  attempt 2: http=200 t=0.086722s
+  attempt 3: http=200 t=0.068262s
+  attempt 4: http=200 t=0.173684s
+  attempt 5: http=200 t=1.107035s
+
+### T4 continued — longer wait for ESPresense MQTT retry
+  t+145s  connectivity=off  uptime=unavailable
+  t+170s  connectivity=off  uptime=unavailable
+  t+195s  connectivity=off  uptime=unavailable
+  t+220s  connectivity=off  uptime=unavailable
+  t+245s  connectivity=off  uptime=unavailable
+  t+270s  connectivity=off  uptime=unavailable
+### post-restart check  2026-08-07T14:16:50Z
+  t+15s  http=200  assoc_uptime=18440s  HA_connectivity=off  HA_uptime=unavailable
+  t+30s  http=200  assoc_uptime=18440s  HA_connectivity=off  HA_uptime=unavailable
+  t+45s  http=200  assoc_uptime=18494s  HA_connectivity=off  HA_uptime=unavailable
+  t+60s  http=200  assoc_uptime=18494s  HA_connectivity=off  HA_uptime=unavailable
+  t+75s  http=200  assoc_uptime=18494s  HA_connectivity=off  HA_uptime=unavailable
+  t+90s  http=200  assoc_uptime=18494s  HA_connectivity=off  HA_uptime=unavailable
+  t+105s  http=200  assoc_uptime=18494s  HA_connectivity=off  HA_uptime=unavailable
+  t+120s  http=200  assoc_uptime=140s  HA_connectivity=off  HA_uptime=unavailable
+### continued after the observed restart  2026-08-07T14:19:22Z
+  t+20s  connectivity=off  uptime=unavailable  tracker=home
+  t+40s  connectivity=off  uptime=unavailable  tracker=home
+  t+60s  connectivity=off  uptime=unavailable  tracker=home
+  t+80s  connectivity=off  uptime=unavailable  tracker=home
+  t+100s  connectivity=off  uptime=unavailable  tracker=home
+  t+120s  connectivity=off  uptime=unavailable  tracker=home
+--- final: does the broker port still answer from IoT? ---
+{"err":"-1: Connection error: -14"}
