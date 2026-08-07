@@ -65,6 +65,15 @@ broker IP on port 80** all stay blocked. Any further MQTT device needs no new fi
 For a *different* push target, add an equally narrow policy — one host, one port. Do not
 widen `IoT → Internal` wholesale; that would undo the segmentation.
 
+> **Diagnostic tip that settled the ESPresense case: use the firewall policy HIT COUNTERS.**
+> Every UniFi policy exposes `hits` and `last_hit`. They distinguish *"blocked by the
+> firewall"* from *"never even attempted"* — which probing from another host cannot. ESPresense
+> showed zero hits on both the MQTT allow **and** the catch-all block, proving it was not
+> trying to reach the broker at all and that its own MQTT config was the problem, not our
+> segmentation. Also note ESPresense **reboots itself when MQTT stays disconnected**, so a bad
+> broker config presents as a Wi-Fi reboot loop and intermittent HTTP. See
+> `reference_espresense_mqtt_watchdog` in memory.
+>
 > Disproven hypothesis, recorded so nobody repeats it: IOT-VLAN hands out **external** DNS
 > (1.1.1.1 / 8.8.4.4) while CLIENT-VLAN uses an internal resolver, so internal names looked
 > like they should fail from IoT. They do not — `bluejungle.net` is a public zone carrying
