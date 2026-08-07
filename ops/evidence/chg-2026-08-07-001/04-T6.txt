@@ -1,0 +1,7 @@
+### T6 NO COLLATERAL  2026-08-07T14:22:05Z
+  udm http=200 t=0.038871s
+  CLIENT-VLAN: 113
+  IOT-VLAN: 14
+  user-created policies: 2 (expect 2)
+  IOT-VLAN Shellys still healthy:
+    10 of 10 online

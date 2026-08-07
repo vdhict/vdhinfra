@@ -1,0 +1,8 @@
+### T2/T3 real traffic from inside IOT-VLAN  2026-08-07T14:08:48Z
+T2  IoT -> mosquitto 172.16.2.244:1883   (was 'Connection error: -13'; MUST now differ)
+      {"code":null,"err":"-1: Connection error: -14"}
+
+T3  REGRESSION — the boundary must still be closed for everything else:
+    IoT -> HA        172.16.2.237:8123   {"code":null,"err":"-1: Connection error: -13"}
+    IoT -> NAS       172.16.2.246:5000   {"code":null,"err":"-1: Connection error: -13"}
+    IoT -> broker on a DIFFERENT port 172.16.2.244:80   {"code":null,"err":"-1: Connection error: -13"}

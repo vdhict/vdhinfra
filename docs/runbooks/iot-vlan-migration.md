@@ -32,6 +32,45 @@ it lands behind the policy automatically.
 
 ---
 
+## ⚠️ First ask: does the device talk to us, or do we talk to it?
+
+The IoT zone allows `Internal → IoT` and blocks `IoT → Internal`. That fits devices Home
+Assistant **reaches into** — Shelly, HomeWizard, Tapo. All 10 Shellys moved cleanly on this
+model.
+
+**A device that PUSHES to a local service will go silent the moment it lands.** ESPresense did
+exactly this on 2026-08-07: it publishes to mosquitto and its entire entity set went
+`unavailable` within seconds of the move, while still being perfectly reachable over HTTP.
+
+Before moving anything, check which way the traffic flows:
+
+| Pattern | Moves cleanly? |
+|---|---|
+| HA polls / connects to the device (Shelly, HomeWizard, Tapo) | ✅ yes |
+| Device publishes to MQTT | ⚠️ needs a broker allow (see below) |
+| Device calls an HA webhook / pushes to any LAN service | ⚠️ needs its own allow |
+| Device only talks to the internet (cloud plugs) | ✅ yes |
+
+**MQTT is already handled** — `chg-2026-08-07-001` added one narrow policy:
+
+| | |
+|---|---|
+| Source | zone IoT, any |
+| Destination | `172.16.2.244` TCP `1883` only |
+| Action | ALLOW (`_id` 6a75e6dd3c73884a000cb657) |
+
+Verified by real traffic: the broker port opens from IoT, while HA, the NAS **and the same
+broker IP on port 80** all stay blocked. Any further MQTT device needs no new firewall work.
+
+For a *different* push target, add an equally narrow policy — one host, one port. Do not
+widen `IoT → Internal` wholesale; that would undo the segmentation.
+
+> Disproven hypothesis, recorded so nobody repeats it: IOT-VLAN hands out **external** DNS
+> (1.1.1.1 / 8.8.4.4) while CLIENT-VLAN uses an internal resolver, so internal names looked
+> like they should fail from IoT. They do not — `bluejungle.net` is a public zone carrying
+> internal-IP records, and 1.1.1.1, 8.8.4.4 and the IOT gateway all resolve
+> `mqtt.bluejungle.net` to 172.16.2.244. DNS is not a blocker on IOT-VLAN.
+
 ## Per-device procedure
 
 ### 0. Pre-flight
