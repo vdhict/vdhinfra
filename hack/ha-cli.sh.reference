@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+# Slim Home Assistant CLI — one line per fact, no JSON pretty-print.
+# Usage: ha-cli.sh <subcommand> [args]
+# Source ../config/hasskey for the long-lived token.
+set -euo pipefail
+
+HA_URL="${HA_URL:-http://172.16.2.237:8123/api}"
+HA_TOKEN_FILE="${HA_TOKEN_FILE:-$HOME/Code/homelab-migration/config/hasskey}"
+CATALOG_PATH="${HA_CATALOG:-$HOME/Code/homelab-migration/vdhinfra/.claude/ha-entities.json}"
+
+# kubectl via mise, resolved from the repo that carries .mise.toml.
+# ha-cli.sh lives one level up where there is no mise config, so a bare
+# `mise exec -- kubectl` fails with "couldn't exec process".
+KREPO="${KREPO:-/Users/sheijden/Code/homelab-migration/vdhinfra}"
+_kubectl() { (cd "$KREPO" && mise exec -- kubectl "$@"); }
+
+_token() { cat "$HA_TOKEN_FILE"; }
+_get()   { curl -fsS -H "Authorization: Bearer $(_token)" "$HA_URL$1"; }
+_post()  { curl -fsS -H "Authorization: Bearer $(_token)" -H "Content-Type: application/json" -X POST -d "${2:-\{\}}" "$HA_URL$1"; }
+_del()   { curl -fsS -H "Authorization: Bearer $(_token)" -X DELETE "$HA_URL$1"; }
+
+cmd_state() {  # state <entity_id>
+  _get "/states/$1" | jq -r '
+    if .message then "ERR: \(.message)"
+    else "\(.entity_id) = \(.state)  (\(.attributes.friendly_name // "-"))" end'
+}
+
+cmd_states() {  # states <regex>  — match against entity_id (case-insensitive)
+  _get "/states" | jq -r --arg p "$1" '
+    .[] | select(.entity_id | test($p; "i"))
+    | "\(.entity_id) = \(.state)  (\(.attributes.friendly_name // "-"))"
+  ' | sort
+}
+
+cmd_attr() {  # attr <entity_id> [attr_name]
+  if [ $# -ge 2 ]; then
+    _get "/states/$1" | jq -r --arg a "$2" '.attributes[$a] // "<missing>"'
+  else
+    _get "/states/$1" | jq -r '.attributes | to_entries[] | "\(.key) = \(.value)"'
+  fi
+}
+
+cmd_call() {  # call <domain.service> [json_data]
+  local svc="$1" data="${2:-{\}}"
+  local domain="${svc%%.*}" name="${svc##*.}"
+  _post "/services/$domain/$name" "$data" | jq -r '.[]?.entity_id // empty' | head -20
+}
+
+cmd_on()      { local d="${1%%.*}"; cmd_call "$d.turn_on" "{\"entity_id\":\"$1\"}"; }
+cmd_off()     { local d="${1%%.*}"; cmd_call "$d.turn_off" "{\"entity_id\":\"$1\"}"; }
+cmd_trigger() { cmd_call "automation.trigger" "{\"entity_id\":\"$1\"}"; }
+cmd_reload()  { cmd_call "automation.reload"; }
+
+cmd_history() {  # history <entity_id> [hours_back=24] — summary only
+  local e="$1" h="${2:-24}"
+  local start; start=$(date -u -v-"${h}"H +"%Y-%m-%dT%H:%M:%SZ")
+  _get "/history/period/$start?filter_entity_id=$e&minimal_response&significant_changes_only" \
+    | jq -r '
+      if length == 0 or (.[0] == null) then "no history"
+      else .[0] |
+        "samples: \(length)\nfirst:   \(.[0].state) @ \(.[0].last_changed)\nlast:    \(.[-1].state) @ \(.[-1].last_changed)\nuniques: \([.[].state] | unique | join(", "))"
+      end'
+}
+
+cmd_logbook() {  # logbook <entity_id> [hours_back=12]
+  local e="$1" h="${2:-12}"
+  local start; start=$(date -u -v-"${h}"H +"%Y-%m-%dT%H:%M:%SZ")
+  _get "/logbook/$start?entity=$e" | jq -r '.[] | "\(.when)  \(.name // .entity_id)  \(.state // .message // "")"' | tail -50
+}
+
+cmd_forecast() {  # forecast <weather_entity> [hours=12] — sum precipitation, list temp range
+  local e="$1" h="${2:-12}"
+  local body; body=$(jq -nc --arg e "$e" '{type:"hourly", entity_id:$e}')
+  curl -fsS -H "Authorization: Bearer $(_token)" -H "Content-Type: application/json" \
+    -X POST "$HA_URL/services/weather/get_forecasts?return_response" -d "$body" \
+    | jq -r --arg e "$e" --argjson h "$h" '
+      .service_response[$e].forecast[:$h] as $f
+      | "rain_next_\($h)h_mm: \([$f[].precipitation] | add | (.*10|round/10))",
+        "temp_range: \([$f[].temperature] | min)..\([$f[].temperature] | max)°C",
+        "samples: \($f | length)"'
+}
+
+cmd_persistent() {  # persistent — list current persistent_notifications via WS
+  cmd_ws "persistent_notification/get" '{}' | jq -r '.result[]? | "\(.notification_id)  \(.title)  —  \(.message[0:80])"'
+}
+
+cmd_trace() {  # trace <automation_id> — most-recent run summary
+  local id="$1"
+  cmd_ws "trace/list" "{\"domain\":\"automation\",\"item_id\":\"$id\"}" \
+    | jq -r '.result[-1] | "state=\(.state) last_step=\(.last_step // "-") error=\(.error // "-") timestamp=\(.timestamp.start // "-")"'
+}
+
+cmd_ws() {  # ws <type> [json_extra] — exec a WS command from inside the HA pod
+  local t="$1" extra="${2:-}"
+  [ -z "$extra" ] && extra='{}'
+  local pod
+  pod=$(_kubectl -n home-automation get pods -l app.kubernetes.io/name=home-assistant -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+  [ -n "$pod" ] || { echo "no HA pod" >&2; return 1; }
+  local script=$(mktemp)
+  cat >"$script" <<'PY'
+import json, sys, websocket
+URL = "ws://localhost:8123/api/websocket"
+TOKEN = open("/tmp/ha_token").read().strip()
+ws = websocket.create_connection(URL, timeout=15); ws.recv()
+ws.send(json.dumps({"type":"auth","access_token":TOKEN}))
+assert json.loads(ws.recv())["type"]=="auth_ok"
+extra = json.loads(sys.argv[2]) if len(sys.argv)>2 else {}
+ws.send(json.dumps({"id":1,"type":sys.argv[1], **extra}))
+while True:
+    r=json.loads(ws.recv())
+    if r.get("id")==1: print(json.dumps(r)); break
+PY
+  _kubectl -n home-automation cp "$script" "home-automation/$pod:/tmp/ws.py" -c app >/dev/null
+  _kubectl -n home-automation exec "$pod" -c app -- sh -c "
+    echo '$(_token)' > /tmp/ha_token
+    python3 /tmp/ws.py '$t' '$extra'
+    rm -f /tmp/ha_token /tmp/ws.py
+  "
+  rm -f "$script"
+}
+
+cmd_catalog() {  # catalog [out_path] — refresh entity catalog (NDJSON, grep-friendly)
+  local out="${1:-$CATALOG_PATH}"
+  mkdir -p "$(dirname "$out")"
+  _get "/states" | jq -c '.[] | {
+    id: .entity_id,
+    state: .state,
+    name: (.attributes.friendly_name // null),
+    unit: (.attributes.unit_of_measurement // null),
+    class: (.attributes.device_class // null),
+    domain: (.entity_id | split(".")[0])
+  }' > "$out"
+  echo "wrote $(wc -l <"$out" | tr -d ' ') entities to $out ($(du -h "$out" | cut -f1))"
+}
+
+cmd_find() {  # find <regex> [--catalog] — search the offline catalog
+  local pat="$1"
+  if [ ! -s "$CATALOG_PATH" ]; then
+    echo "catalog missing — run: ha-cli.sh catalog" >&2; return 1
+  fi
+  grep -iE "$pat" "$CATALOG_PATH" | jq -r '"\(.id)  \(.state // "-")  (\(.name // "-"))"' | head -50
+}
+
+cmd_help() {
+  cat <<EOF
+ha-cli.sh — slim Home Assistant queries. Output is one line per fact.
+
+  state <entity>                 single entity state line
+  states <regex>                 multi-entity state lines, regex on entity_id
+  attr <entity> [name]           one attribute, or all key=value
+  history <entity> [hours=24]    sample count + first/last/uniques
+  logbook <entity> [hours=12]    last 50 logbook events
+  forecast <weather> [hours=12]  rain sum + temp range from get_forecasts
+
+  call <domain.service> [json]   invoke service, returns affected entities
+  on <entity>                    turn_on shortcut
+  off <entity>                   turn_off shortcut
+  trigger <automation>           trigger shortcut
+  reload                         automation.reload
+
+  ws <ws_type> [json_extra]      arbitrary WS command via the HA pod
+  trace <automation_id>          last run state/last_step/error
+  persistent                     list persistent notifications
+
+  catalog [out_path]             refresh offline NDJSON catalog
+  find <regex>                   grep the offline catalog (no API call)
+
+Env: HA_URL, HA_TOKEN_FILE, HA_CATALOG (override defaults).
+EOF
+}
+
+main() {
+  local sub="${1:-help}"; shift || true
+  if declare -f "cmd_$sub" >/dev/null; then "cmd_$sub" "$@"; else
+    echo "unknown subcommand: $sub" >&2; cmd_help >&2; exit 2
+  fi
+}
+main "$@"
