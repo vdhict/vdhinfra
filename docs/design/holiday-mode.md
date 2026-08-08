@@ -4,6 +4,7 @@
 - **Author**: Atlas
 - **Status**: proposal — nothing deployed
 - **Goal**: cut standby power to a minimum while the house is empty, without compromising safety
+- **Trip**: 8 → 31 August 2026, possibly returning a few days early (user will confirm)
 
 ---
 
@@ -19,12 +20,28 @@ The real, measurable wins are standby loads:
 | Load | Estimate | Basis |
 |---|---|---|
 | 15 Sonos plugs | **~50–60 W continuous** | measured 1.9–16 W each, mostly 2.6–4.9 W |
-| Water heater at 55 °C | ~1–2 kWh/day | tank standby loss; `water_heater.warm_water` is `auto`, setpoint 55 |
+| ~~Water heater~~ | **~0 — CORRECTED** | see below |
 | AV / kiosk / misc standby | unknown | needs the socket mapping to quantify |
 
-Realistically **~2–4 kWh/day**, so roughly **30–55 kWh over a fortnight**. At current tariffs
-that's on the order of **€10–17**. Worth doing, not worth losing sleep over — and the Sonos half
-is a one-line reuse of a script you already have.
+> ### ⚠️ Correction: the water heater is not a saving
+>
+> I originally costed `water_heater.warm_water` at 1–2 kWh/day of tank standby loss, and it was
+> the single biggest item in this table. **That was wrong on three counts.**
+>
+> It is a **Tado zone** (`integration=tado`, device "Warm water", model "Zone") in front of a
+> **gas combi ketel** — an on-demand instantaneous heater with **no storage tank**, so there is
+> no standing heat to lose. And it burns **gas, not electricity**, so it could never have shown
+> up in an electricity saving at all.
+>
+> Confirmed by measurement: `sensor.zonneplan_gasverbruik_vandaag` = **0 m³ today**. The boiler
+> is not burning anything to keep water warm.
+>
+> Switching it off while away therefore saves **essentially nothing**. Leave it alone. If you
+> ever do want it handled, Tado's own Away mode is the natural mechanism, not an HA automation.
+
+With that removed, the honest figure is **~1.3–1.5 kWh/day**, dominated almost entirely by the
+Sonos plugs. Over **8–31 August (23 days)** that is roughly **30–35 kWh**, on the order of
+**€9–11**. Worth the one script call; not worth building much else for.
 
 The stronger argument is arguably *risk reduction*: fewer energised appliances in an empty house.
 
@@ -61,9 +78,8 @@ iterate over "all switches" — that's exactly how the fridge incident happened.
 ### On activation
 
 1. **Sonos** — call the existing `script.sonos_alles_uit` (15 plugs). Already written, already
-   tested by you.
-2. **Water heater** — `water_heater.warm_water` → `off` (it supports `auto`/`heat`/`off`).
-   The single biggest continuous load in scope.
+   tested by you. This is now the *only* significant electrical saving in scope.
+2. ~~Water heater~~ — **dropped**, see the correction above. Gas combi ketel, on demand.
 3. **Climate** — set every zone to its frost-protection minimum rather than `off`, so the
    house can't freeze if the weather turns. `min_temp` is 5 °C for most zones; **note
    `climate.kantoor` reports `min_temp: 18`**, so it can't be set lower — leave it `off` as it
@@ -159,7 +175,8 @@ Regardless of whether this gets built:
 
 1. **`script.sonos_alles_uit`** — this exists and works today. Running it manually captures the
    single biggest chunk of the saving with zero new code.
-2. **`water_heater.warm_water` → `off`** — one tap, probably the largest single load.
+2. ~~`water_heater.warm_water` → `off`~~ — **dropped.** Gas combi ketel, on-demand, no tank.
+   Saves nothing. (See the correction above.)
 3. **Suspend the scheduled/adaptive light automations** (list below) — this is the bit you
    actually care about, and it is the one thing the manual checklist cannot do well by hand.
 4. **Check `binary_sensor.rookmelder_smoke_detected` ×2 read `off`, not `unavailable`.**
