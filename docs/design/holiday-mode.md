@@ -75,7 +75,8 @@ iterate over "all switches" — that's exactly how the fridge incident happened.
    - `automation.keuken_adaptief_dag`, `automation.keuken_nachtlamp`
    - `automation.adaptieve_verlichting_begane_grond`
    - `automation.keuken_tablet_scherm_aan_uit_bij_aanwezigheid`
-5. **Arm the alarm** — `alarm_control_panel.vdhngfw_alarm_manager` (currently `disarmed`).
+5. ~~Arm the alarm~~ — **removed.** There is no house alarm.
+   `alarm_control_panel.vdhngfw_alarm_manager` is UniFi's own entity, not a security system.
 
 ### Deliberately left running
 
@@ -86,7 +87,34 @@ iterate over "all switches" — that's exactly how the fridge incident happened.
   standby, useful if anyone (neighbour, plant-waterer) needs to get in.
 - Presence detection, door/window sensors, leak sensors, the P1 meter.
 
-### Presence simulation
+### Lights — the actual priority
+
+Confirmed with you: the point is **lights not coming on when nobody needs them**. Measured
+split of what is currently enabled:
+
+**Suspend while away — these fire on a schedule or on adaptive triggers, with nobody home:**
+
+```
+ochtend_keuken_routine                 keuken_adaptief_dag
+keuken_screen_openen_ochtend           keuken_nachtlamp
+adaptieve_verlichting_begane_grond     woonlaag_laatste_licht_uit
+kantoor_focus_mode_lichten_dimmen      kantoor_focus_mode_lichten_herstellen
+kantoor_einde_werkdag_lichten_uit      kantoor_ochtend_klimaat
+kantoor_aanwezig_verwarm_naar_21degc   keuken_tablet_scherm_aan_uit_bij_aanwezigheid
+voordeur_uit_om_middernacht
+```
+
+**Keep running — motion-triggered, so they only fire if someone is actually there:**
+
+```
+gangverlichting_brandpad   verlichting_schuur   trapkast_licht
+achtertuin_verlichting     voordeur_licht_bij_detectie
+```
+
+Leaving these is deliberate: they cost nothing at idle and a light responding to movement is a
+deterrent.
+
+### Presence simulation — confirmed wanted
 
 A light schedule so the house doesn't read as obviously empty: 2–3 rooms on a randomised
 evening window (roughly sunset → 23:00, ±20 min jitter). Randomised, not a fixed timer —
@@ -132,13 +160,45 @@ Regardless of whether this gets built:
 1. **`script.sonos_alles_uit`** — this exists and works today. Running it manually captures the
    single biggest chunk of the saving with zero new code.
 2. **`water_heater.warm_water` → `off`** — one tap, probably the largest single load.
-3. **Arm the alarm** — currently `disarmed`.
+3. **Suspend the scheduled/adaptive light automations** (list below) — this is the bit you
+   actually care about, and it is the one thing the manual checklist cannot do well by hand.
 4. **Check `binary_sensor.rookmelder_smoke_detected` ×2 read `off`, not `unavailable`.**
-5. **Enable `switch_lock` on the Mac Mini socket** — worth doing permanently.
+5. ✅ **`switch_lock` on the Mac Mini socket — DONE 2026-08-08.** Its power switch now reports
+   `unavailable`, i.e. it can no longer be switched off.
 
-Those five take about two minutes and get you most of the benefit without deploying anything.
+Those take about two minutes and get you most of the benefit without deploying anything.
 
 ---
+
+## Separate finding: the UniFi estate is probably your biggest always-on load
+
+You suspected this, and the evidence supports it — with caveats.
+
+**16 UniFi devices**: 1 UDM Pro Max, 6 APs, and **9 switches** (USL24P, USL16P, USWED72,
+USWED36, USF5P, USC8, USL8A, 2× USMINI).
+
+Measured, 2026-08-08:
+
+| Source | Reading |
+|---|---|
+| PoE actually delivered | **66.6 W** (USL24P 30.3, USWED72 15.7, USF5P 11.5, USL16P 9.1) |
+| `sensor.netwerk_power` + `_2` | 17.3 + 18.2 = **35.5 W** |
+| Stroomblok (rack strip) channels | 19.1 + 36.2 + 37.6 ≈ **93 W** |
+
+⚠️ **I cannot cleanly total these** — I don't know which meter covers which gear, and the
+Netwerk/Stroomblok readings may overlap with the PoE figure rather than add to it. Directionally
+it lands around **100–150 W continuous**, i.e. **2.4–3.6 kWh/day** — comfortably more than the
+Sonos plugs. But treat that as an estimate, not a measurement, until the sockets are mapped.
+
+**This is NOT a holiday-mode item.** Switching off the network while away would take out Home
+Assistant, the cameras, remote access, and any ability to switch things back on. It is a
+**right-sizing project**: nine switches for one house is a lot, and consolidation would save
+year-round rather than a fortnight. Worth a proper look when you're back — I'd start by
+identifying what each of the nine actually serves.
+
+Also spotted: `sensor.stroomblok_electric_w` reports **107374182.9 W** — a counter overflow
+(2³⁰×100), not a real reading. Harmless but it will poison any energy dashboard that averages
+it. Worth excluding or fixing.
 
 ## Risk
 
