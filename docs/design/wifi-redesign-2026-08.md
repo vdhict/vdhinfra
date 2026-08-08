@@ -5,7 +5,8 @@
 - **Status**: survey + proposal — **nothing changed.** No radio settings will be touched while
   the household is away (8–31 Aug); a bad radio change is a remote lock-out.
 - **Trigger**: user observation — Slaapkamer and Zolder APs are metres apart, and the Kantoor
-  (directly above Slaapkamer) has poor reception.
+  (directly above Slaapkamer) has poor reception. The first holds up; the second turns out to be
+  a 2.4 GHz-only issue affecting one non-critical sensor (see §2).
 
 ---
 
@@ -74,8 +75,8 @@ have no OFDMA/BSS-colouring, which is exactly what helps in a dense 2.4 GHz envi
 Both UAP-AC-Pro, both on 2.4 ch6, 14 and 12 clients. Two Wi-Fi 5 radios metres apart, co-channel
 on 2.4, contributing utilisation to each other for very little coverage gain.
 
-**They are the obvious consolidation.** One of them relocated to the Kantoor solves a coverage
-gap *and* removes a co-channel interferer — two problems, one move, no new hardware.
+**They are the obvious consolidation** — retire one and you remove a co-channel interferer for
+free. See the next section for why *retiring* beats *relocating to the Kantoor*.
 
 ### 2. Kantoor reception — **the real devices are fine. Only 2.4 GHz is weak.**
 
