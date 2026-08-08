@@ -40,7 +40,7 @@ cycled the fridge and freezer plugs.
 | Category | Why |
 |---|---|
 | The 9 `switch_lock: on` sockets | Fridge/freezer class. HA already shows them `unavailable`, and the lock is enforced **device-side**, which is a genuine second line of defence. Leave every one alone. |
-| `switch.main_equipment_room_mac_mini_1` | Powers the Mac Mini agent host — i.e. the thing that would run the automation. Its switch lock is **OFF**; I'd enable it regardless of this project. |
+| `switch.main_equipment_room_mac_mini_1` | Powers the Mac Mini agent host — i.e. the thing that would run the automation. ✅ `switch_lock` **enabled 2026-08-08**; its power switch now reports `unavailable` and cannot be switched off. |
 | Anything network | UDM, APs, switches. The CMDB still lists `hw.plug.vdhngfw_power` (UDM on a smart plug); 172.16.3.205 is gone from the network so it looks retired — **confirm before relying on that**. |
 | Smoke detectors | `binary_sensor.rookmelder_smoke_detected` ×2 — Zigbee/battery, unaffected by socket switching. Verify they're `off` (not `unavailable`) before you go. |
 | Cameras (7) | Deterrent + evidence. |
@@ -123,8 +123,8 @@ a light that switches at exactly 19:00 every night advertises absence rather tha
 ### On deactivation
 
 Reverse everything: water heater → `auto`, climate zones → previous mode, automations
-re-enabled, Sonos plugs back on, presence simulation off. **Restore before disarming** so you
-don't walk into a dark house with the alarm going.
+re-enabled, Sonos plugs back on, presence simulation off. Restore runs **before** the
+auto-exit notification, so you don't walk into a house with every schedule still suspended.
 
 ### Guards
 
