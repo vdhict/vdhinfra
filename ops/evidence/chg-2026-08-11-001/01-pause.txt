@@ -1,0 +1,14 @@
+### PAUSING 2026-08-11T07:15:48Z  (13 automations)
+  adaptieve_verlichting_begane_grond               -> off
+  keuken_adaptief_dag                              -> off
+  keuken_nachtlamp                                 -> off
+  woonkamer_dawn_backstop                          -> off
+  ochtend_keuken_routine                           -> off
+  kantoor_aanwezig_verwarm_naar_21degc             -> off
+  kantoor_ochtend_klimaat                          -> off
+  kantoor_focus_mode_lichten_dimmen                -> off
+  kantoor_focus_mode_lichten_herstellen            -> off
+  kantoor_notificatie_wasmachine_klaar             -> off
+  kantoor_notificatie_droger_klaar                 -> off
+  keuken_tablet_schermhelderheid_op_tijd           -> off
+  tuin_fontein_aan_bij_muziek                      -> off
