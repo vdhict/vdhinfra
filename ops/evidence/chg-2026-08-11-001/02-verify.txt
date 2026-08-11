@@ -1,0 +1,35 @@
+### VERIFY 2026-08-11T07:16:13Z
+  T4 enabled 40 -> 27   disabled 19   total 46
+  T5 none in a bad state: PASS
+
+  STILL RUNNING (27):
+      achtertuin_verlichting
+      alertmanager_critical_alert_notification
+      automatische_backups
+      canary_critical_notify_path_heartbeat
+      canary_notify_path_staleness_watchdog
+      fontein_uitzetten
+      fp2_keuken_offline_detectie
+      fp2_keuken_weer_online
+      gangverlichting_brandpad
+      homewizard_energy_sockets_30s_poll
+      irrigatie_achtertuin
+      kantoor_afwezig_terugzetten_naar_17degc
+      kantoor_avond_klimaat_uit
+      kantoor_einde_werkdag_lichten_uit
+      kantoor_notificatie_deurbel
+      keuken_screen_openen_ochtend
+      keuken_screen_openen_weekend
+      keuken_screen_sluiten_avond
+      keuken_tablet_nachtelijke_herstart
+      keuken_tablet_scherm_aan_uit_bij_aanwezigheid
+      outdoor_power_blip_logger_observe_only
+      trapkast_licht
+      verlichting_schuur
+      ververs_greenwave_powernode_sockets
+      voordeur_licht_bij_detectie
+      voordeur_uit_om_middernacht
+      woonlaag_laatste_licht_uit
+
+  T1 all 13 confirmed off: PASS
+  T3 irrigatie_achtertuin: PASS - still on
