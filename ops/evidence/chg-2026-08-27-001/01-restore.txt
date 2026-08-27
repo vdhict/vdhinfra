@@ -1,0 +1,14 @@
+### RESTORE 2026-08-27T20:00:28Z  (13 automations)
+  adaptieve_verlichting_begane_grond               off -> on
+  keuken_adaptief_dag                              off -> on
+  keuken_nachtlamp                                 off -> on
+  woonkamer_dawn_backstop                          off -> on
+  ochtend_keuken_routine                           off -> on
+  kantoor_aanwezig_verwarm_naar_21degc             off -> on
+  kantoor_ochtend_klimaat                          off -> on
+  kantoor_focus_mode_lichten_dimmen                off -> on
+  kantoor_focus_mode_lichten_herstellen            off -> on
+  kantoor_notificatie_wasmachine_klaar             off -> on
+  kantoor_notificatie_droger_klaar                 off -> on
+  keuken_tablet_schermhelderheid_op_tijd           off -> on
+  tuin_fontein_aan_bij_muziek                      off -> on

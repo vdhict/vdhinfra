@@ -1,0 +1,12 @@
+### VERIFY 2026-08-27T20:00:52Z
+  enabled 40  disabled 6  total 46   (was 27/19/46 while away, 40/6/46 before)
+  none in a bad state: PASS
+  all 13 confirmed on: PASS
+
+  still disabled (6) - these were OFF before the holiday too:
+     kantoor_adaptieve_verlichting
+     kantoor_notificatie_vaatwasser_klaar
+     kantoor_ochtend_pc_opstarten
+     kerstverlichting_aan_en_uitzetten
+     stalen_deur_open
+     vloerverwarmingspomp_beheer
