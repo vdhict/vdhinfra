@@ -437,6 +437,17 @@ components:
     description: "Adaptive ground-floor lighting REDESIGN A (chg-2026-07-21-005, id 1753005600006): evening adaptive turn-on ONCE per evening. Sunset-1h..23:00, on dark (<40lux) + FP2 zone-3 presence, brightness on inverse-lux curve (Cozy 20-70%, 60% at 12lux). NO auto-off, NO re-dim (fixes the old fighting/auto-off@>60lux). Gated by latch ha.input_boolean.adaptief_bg_vanavond_gedaan (re-armed at window_start, set after on) -> max 1x/evening + 'manual off stays off'. 8 lights (keuken+woonkamer). Night-off moved to separate automation ha.automation.laatste_licht_uit. chg-2026-07-24-002: woonkamer lights now dim off FP300 living-room lux (ha.sensor.fp300_woonkamer) when fresh (<3600s), else fall back to FP2 - kitchen lights keep using FP2. Depends on flaky FP2 sensor."
     depends_on: [ha.pod, ha.sensor.fp2_keuken, ha.sensor.fp300_woonkamer, ha.input_boolean.adaptief_bg_vanavond_gedaan]
     sensitive: false
+  hw.stroomblok.trapkast:
+    type: power-device
+    owner_agent: ha-engineer
+    description: "GreenWave NP240/NP242 6-channel PowerNode in the Trapkast (zwave_js device d23393aebf1d7959531421dcf75604fd, entity prefix sensor.stroomblok_electric_consumption_*). THE PHYSICAL SOCKETS ARE UNNUMBERED - this mapping was established 2026-08-29 by toggling a known load and by user physical inspection, so do not re-derive it. ch1=UPS via an Innr smart plug (673.9 kWh) | ch2=empty | ch3=UniFi USW 24-port PoE switch (70.1 kWh, ~41W steady) | ch4=power brick for the rechargeable vacuum (0.31 kWh) | ch5=empty | ch6=vloerverwarming pump via Innr 0xa4c138909e11e8e9 (157.6 kWh) - PROVEN by toggling the pump and watching ch6 go 0.0->37.7->0.0. ENERGY DASHBOARD: ch1 and ch6 are DELIBERATELY EXCLUDED because their loads are already measured by the Innr plugs in front of them (sensor.0xa4c138bdc1d57e65_energy and sensor.0xa4c138909e11e8e9_energy); adding them double counts. Only ch2-ch5 are tracked. NOTE: AP01-Trapkast is NOT on this strip - it is powered directly from the rack switch for its 10Gb uplink. Two other unrelated GreenWave strips also named Stroomblok exist in Slaapkamer Niko and Slaapkamer Jurre; entity name prefixes do NOT map to devices, always resolve by device_id."
+    depends_on: [ha.pod]
+    sensitive: false
+    tier: 3
+    group: power
+    sla_tier: family-important
+    health_source: ha://sensor.stroomblok_electric_consumption_w_3
+
   ha.automation.vloerverwarmingspomp:
     type: ha-automation
     owner_agent: ha-engineer
