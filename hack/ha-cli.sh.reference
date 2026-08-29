@@ -41,7 +41,8 @@ cmd_attr() {  # attr <entity_id> [attr_name]
 }
 
 cmd_call() {  # call <domain.service> [json_data]
-  local svc="$1" data="${2:-{\}}"
+  local svc="$1" data="${2:-}"
+  [ -z "$data" ] && data='{}'
   local domain="${svc%%.*}" name="${svc##*.}"
   _post "/services/$domain/$name" "$data" | jq -r '.[]?.entity_id // empty' | head -20
 }
