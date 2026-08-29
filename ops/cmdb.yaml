@@ -16,6 +16,12 @@
 #   sla_tier: family-critical | ops-only | nice-to-have
 #   health_source: URI for live join (unifi://, k8s://, prometheus://, http(s)://, ha://, none:<reason>)
 #   physical_link_to: [id, ...] — physical L2 uplinks (network tier only)
+#   location: physical room. Matches the Home Assistant area name where one exists.
+#     NOTE 2026-08-30: the rack (cluster, NAS, UDM, VDHPOESW01, server UPS) MOVED from the
+#     Trapkast to the "Main Equipment Room". That room currently shares physical space with
+#     the Gamekamer; it will be split into a utility room + gameroom/fitness room when the
+#     ESS arrives. What REMAINS in the Trapkast: the GreenWave stroomblok (wall-fed), the
+#     idle Trapkast UPS on its ch1, the USW 24 PoE on ch3, and the trapkast door sensor.
 # Rolled out tier-1 (perimeter) only in this PR; tiers 2–5 follow in phase 2b–e.
 
 components:
@@ -116,6 +122,7 @@ components:
     sla_tier: family-critical
     health_source: none:awaiting-iris-unifi-adapter
     physical_link_to: [net.udm]
+    location: "Main Equipment Room"
   net.ap.kantoor:
     type: network-device
     owner_agent: udm-engineer
@@ -257,6 +264,7 @@ components:
     group: cluster-cp
     sla_tier: family-critical
     health_source: k8s://nodes/ready-count
+    location: "Main Equipment Room"
   k8s.node.cp01:
     type: k8s-node
     owner_agent: k8s-engineer
@@ -268,6 +276,7 @@ components:
     sla_tier: family-critical
     health_source: k8s://node/vdhclu01master01
     physical_link_to: [net.switch.poesw01]
+    location: "Main Equipment Room"
   k8s.node.cp02:
     type: k8s-node
     owner_agent: k8s-engineer
@@ -279,6 +288,7 @@ components:
     sla_tier: family-critical
     health_source: k8s://node/vdhclu01master02
     physical_link_to: [net.switch.poesw01]
+    location: "Main Equipment Room"
   k8s.node.cp03:
     type: k8s-node
     owner_agent: k8s-engineer
@@ -290,6 +300,7 @@ components:
     sla_tier: family-critical
     health_source: k8s://node/vdhclu01master03
     physical_link_to: [net.switch.poesw01]
+    location: "Main Equipment Room"
   k8s.node.worker01:
     type: k8s-node
     owner_agent: k8s-engineer
@@ -301,6 +312,7 @@ components:
     sla_tier: family-critical
     health_source: k8s://node/vdhclu01node01
     physical_link_to: [net.switch.poesw01]
+    location: "Main Equipment Room"
   k8s.node.worker02:
     type: k8s-node
     owner_agent: k8s-engineer
@@ -312,6 +324,7 @@ components:
     sla_tier: family-critical
     health_source: k8s://node/vdhclu01node02
     physical_link_to: [net.switch.poesw01]
+    location: "Main Equipment Room"
   k8s.node.worker03:
     type: k8s-node
     owner_agent: k8s-engineer
@@ -323,6 +336,7 @@ components:
     sla_tier: family-critical
     health_source: k8s://node/vdhclu01node03
     physical_link_to: [net.switch.poesw01]
+    location: "Main Equipment Room"
   k8s.cni.cilium:
     type: k8s-app
     owner_agent: k8s-engineer
@@ -447,6 +461,7 @@ components:
     group: power
     sla_tier: family-critical
     health_source: ha://sensor.0xa4c138909e11e8e9_power
+    location: "Main Equipment Room"
 
   hw.stroomblok.trapkast:
     type: power-device
@@ -459,6 +474,7 @@ components:
     sla_tier: family-important
     health_source: ha://sensor.stroomblok_electric_consumption_w_3
     switchable: "Each outlet is INDIVIDUALLY SWITCHABLE as well as metered. Proven from Z-Wave endpoints (zero-risk, no toggling): switch entities are node41-cc37-endpointN and meter entities are node41-cc50-endpointN, so switch.stroomblok<N> and sensor.stroomblok_electric_consumption_*<N> are the SAME physical outlet for all 6. Switches renamed 2026-08-29 to carry their load names because two of them are dangerous: ch1 cuts the UPS and ch3 cuts the UniFi 24-port PoE switch (= AP outage). CONSEQUENCE: the Innr plugs on ch1 and ch6 are redundant - the strip already switches AND meters those outlets - so they can be freed for use elsewhere, e.g. on the server-UPS input which currently has no meter."
+    location: "Trapkast"
 
   ha.automation.vloerverwarmingspomp:
     type: ha-automation
@@ -593,6 +609,7 @@ components:
     description: Synology NAS at 172.16.2.246, NFS exports for media
     depends_on: [net.udm]
     sensitive: false
+    location: "Main Equipment Room"
   db.cnpg.postgres:
     type: k8s-app
     owner_agent: k8s-engineer
@@ -698,6 +715,7 @@ components:
     group: block-storage
     sla_tier: family-critical
     health_source: ceph://daemon/osd.0
+    location: "Main Equipment Room"
   ceph.osd.1:
     type: daemon
     owner_agent: k8s-engineer
@@ -708,6 +726,7 @@ components:
     group: block-storage
     sla_tier: family-critical
     health_source: ceph://daemon/osd.1
+    location: "Main Equipment Room"
   ceph.osd.2:
     type: daemon
     owner_agent: k8s-engineer
@@ -718,6 +737,7 @@ components:
     group: block-storage
     sla_tier: family-critical
     health_source: ceph://daemon/osd.2
+    location: "Main Equipment Room"
 
   # mds — CephFilesystem ceph-filesystem: activeCount=1, activeStandby=true
   # live placement 2026-05-14: ceph-filesystem-a (active)→worker03, ceph-filesystem-b (standby)→worker02
