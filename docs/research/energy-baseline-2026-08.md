@@ -147,6 +147,75 @@ Items 1–5 are the cheap ones and together plausibly remove **~600 kWh/yr (≈ 
 
 ---
 
+---
+
+## UPDATE 2026-08-30 — half the mystery solved: the server UPS
+
+Freeing the Innr plug from the floor-heating pump (the strip now switches and meters that
+outlet itself) let us put a meter on the **server UPS input**, which had never been measured.
+
+**It draws ~320–340 W continuously.**
+
+That is the single largest always-on load in the house, and it was completely invisible.
+It also explains most of the unexplained baseline:
+
+| | before | after |
+|---|---|---|
+| True always-on (night, no solar) | ~957 W | ~957 W |
+| Identified | ~490 W | **~820 W** |
+| **Unexplained** | **~467 W (49%)** | **~137 W (14%)** |
+
+At ~330 W the server UPS is **≈ 2,890 kWh/yr ≈ €870/yr** — comfortably the biggest single
+line in the household's electricity bill after the EV.
+
+Note this figure is the UPS *input*, so it correctly includes the UPS's own conversion losses
+as well as everything behind it (the Talos cluster, switches, and whatever else is on that UPS).
+That is exactly what NUT's `ups.load` percentage could not have told us.
+
+### ⚠️ Safety consequence
+
+The Innr is a **switch** as well as a meter, and it now sits in front of the cluster's UPS.
+Turning it off cuts the UPS input; the cluster then runs on battery until it dies. It has been
+renamed **"Server UPS voeding (NOOIT UITZETTEN - cluster)"** so nobody toggles it by accident,
+but the switch capability itself cannot be removed. Treat it as a hazard.
+
+### ⚠️ Double-counting: fixed, and it pre-dated today
+
+The user flagged that devices sit **behind** the cluster UPS. They were right, and the
+dashboard had it wrong already.
+
+Nine devices were declared `included_in_stat` under `sensor.0xa4c138bdc1d57e65_energy` — a plug
+reading **18 W**, while its declared children draw **230–260 W**. Children cannot exceed their
+parent, so that hierarchy was impossible. With the server UPS now metered at ~314 W, those rack
+devices would have been counted twice: once inside the UPS total, once as children of the wrong
+plug.
+
+Corrected:
+
+| Device | Area | Action |
+|---|---|---|
+| NUC1 / NUC2 / NUC3 | Trapkast | → child of the real server UPS |
+| Synology NAS | Trapkast | → child of the real server UPS |
+| VDHNGFW (UDM) | Trapkast | → child of the real server UPS |
+| VDHPOESW01 | Trapkast | → child of the real server UPS |
+| Computer Jurre | Slaapkamer Jurre | parent removed — not in the rack |
+| Sonos Play:5 | Kantoor | parent removed — not in the rack |
+| Sonos One SL Links | Stube | parent removed — not in the rack |
+
+Sanity check: children ≈ NAS 90 + PoE 53 + 3 NUCs (~75) + UDM ≈ 250 W against a 314 W parent,
+leaving ~65 W for UPS conversion losses and anything else in the rack. Coherent.
+
+**Assumption to confirm:** that all six Trapkast devices are genuinely behind the *server* UPS.
+Area membership is strong evidence but not proof, and the CMDB notes an intent to keep the UDM
+off smart plugs entirely. If any of the six is on a different supply, its parent should be cleared.
+
+### Remaining ~137 W
+
+Now genuinely small and consistent with unmetered hardwired circuits: lighting, oven/hob,
+boiler electronics, extractor, doorbell transformer, plus the 33 unmetered Hue lights
+(~13 W standby).
+
+
 ## Method / caveats
 
 - Baseline from HA long-term statistics (`recorder/statistics_during_period`, daily), not
