@@ -447,6 +447,7 @@ components:
     group: power
     sla_tier: family-important
     health_source: ha://sensor.stroomblok_electric_consumption_w_3
+    switchable: "Each outlet is INDIVIDUALLY SWITCHABLE as well as metered. Proven from Z-Wave endpoints (zero-risk, no toggling): switch entities are node41-cc37-endpointN and meter entities are node41-cc50-endpointN, so switch.stroomblok<N> and sensor.stroomblok_electric_consumption_*<N> are the SAME physical outlet for all 6. Switches renamed 2026-08-29 to carry their load names because two of them are dangerous: ch1 cuts the UPS and ch3 cuts the UniFi 24-port PoE switch (= AP outage). CONSEQUENCE: the Innr plugs on ch1 and ch6 are redundant - the strip already switches AND meters those outlets - so they can be freed for use elsewhere, e.g. on the server-UPS input which currently has no meter."
 
   ha.automation.vloerverwarmingspomp:
     type: ha-automation
