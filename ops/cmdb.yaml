@@ -437,6 +437,17 @@ components:
     description: "Adaptive ground-floor lighting REDESIGN A (chg-2026-07-21-005, id 1753005600006): evening adaptive turn-on ONCE per evening. Sunset-1h..23:00, on dark (<40lux) + FP2 zone-3 presence, brightness on inverse-lux curve (Cozy 20-70%, 60% at 12lux). NO auto-off, NO re-dim (fixes the old fighting/auto-off@>60lux). Gated by latch ha.input_boolean.adaptief_bg_vanavond_gedaan (re-armed at window_start, set after on) -> max 1x/evening + 'manual off stays off'. 8 lights (keuken+woonkamer). Night-off moved to separate automation ha.automation.laatste_licht_uit. chg-2026-07-24-002: woonkamer lights now dim off FP300 living-room lux (ha.sensor.fp300_woonkamer) when fresh (<3600s), else fall back to FP2 - kitchen lights keep using FP2. Depends on flaky FP2 sensor."
     depends_on: [ha.pod, ha.sensor.fp2_keuken, ha.sensor.fp300_woonkamer, ha.input_boolean.adaptief_bg_vanavond_gedaan]
     sensitive: false
+  hw.plug.server_ups_voeding:
+    type: power-device
+    owner_agent: ha-engineer
+    description: "Innr smart plug 0xa4c138909e11e8e9 on the SERVER UPS INPUT (moved there 2026-08-30 from the vloerverwarming pump, which the Trapkast strip now switches and meters itself). Measures ~320-340 W continuously - the largest always-on load in the house, previously completely unmetered, and the bulk of what was an unexplained 467 W baseline. Because it is the UPS INPUT it correctly includes the UPS's own conversion losses plus everything behind it (Talos cluster, switches). DANGER: this plug is a SWITCH as well as a meter and it feeds the cluster's UPS - turning switch.0xa4c138909e11e8e9 off cuts the UPS input and the cluster runs on battery until it dies. Renamed 'Server UPS voeding (NOOIT UITZETTEN - cluster)' as the only available guard; Zigbee/Innr has no switch-lock. Its lifetime energy total carries ~240 kWh of history from its previous life on the pump, so the absolute kWh figure is offset - deltas are correct."
+    depends_on: [ha.pod]
+    sensitive: true
+    tier: 1
+    group: power
+    sla_tier: family-critical
+    health_source: ha://sensor.0xa4c138909e11e8e9_power
+
   hw.stroomblok.trapkast:
     type: power-device
     owner_agent: ha-engineer
