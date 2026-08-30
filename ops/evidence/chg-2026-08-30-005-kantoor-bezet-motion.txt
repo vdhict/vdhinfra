@@ -298,3 +298,81 @@ ROUND-2 ROLLBACK (untriggered)
   cp /config/configuration.yaml.bak-chg-2026-08-30-005-r2 /config/configuration.yaml
   cp /config/automations.yaml.bak-chg-2026-08-30-005-r2   /config/automations.yaml
   then homeassistant.restart.   (.bak-chg-2026-08-30-005 without -r2 = pre-change baseline)
+
+
+=====================================================================================
+ROUND 3 — documentation-hygiene remediation (Themis narrow fail on round 2)
+=====================================================================================
+SCOPE: /config/automations.yaml ONLY. No configuration.yaml change, therefore
+automation.reload — NOT a restart.
+Backup: /config/automations.yaml.bak-chg-2026-08-30-005-r3 (4455231762169ac97dd7582dcc81f994)
+Post-edit md5: 968c73f60f5b858616916598c2bbadee (local == pod, verified)
+
+DEFECT: round 2 APPENDED four accurate paragraphs to 1747224001001's description but
+never reconciled the two pre-existing ones that R1/R2/R3 had just invalidated, so the
+description contradicted itself WITH THE SUPERSEDED NUMBERS FIRST:
+    para 1  "De 2-min ON-debounce"        vs para 3  45 s
+    para 2  "heat -> 21 / cool -> 24"     vs para 4  20 / 21
+    para 2  ">22 koelen"                  vs para 5  >= 23
+Same defect class Themis failed in round 1 (its remediation #6). Afwezig 1747224001002
+was clean — its 18/26 figures never changed — and was left alone.
+
+FIX A — 1747224001001 description rewritten as ONE coherent block, not layered
+corrections. Stale paragraphs DELETED, nothing appended. New structure:
+  1. what it actuates (a real split-airco in an occupied house; it can also START the
+     unit, not just adjust setpoints) — leads the text, per Themis remediation #6
+  2. trigger + debounce 45 s ON / 15 min OFF, and that the debounce lives in the
+     template sensor, not the automation; plus the _2=Schuur/_3=no-area entity trap
+  3. unit already on -> adjust only, mode preserved, heat 20 / cool 21, NO time window
+  4. unit off -> <18 heat@20, >=23 cool@21, nothing in between, and these two START
+     branches run ONLY 08:00-18:00, with the reason (18:00 shutoff + Afwezig never
+     setting hvac_mode off)
+  5. coupling warning to 1734200001001
+  6. HISTORIE paragraph that deliberately carries NO superseded numbers — it points at
+     the change record instead, so the description can never again disagree with itself.
+
+FIX B — the 0.09 C sliver: Ochtend 1734200001001 `above: 22.9` -> `above: 22.99`, in
+BOTH the or-gate and the choose branch. 22.9 fires at >=22.91; 22.99 with a 2-decimal
+sensor is exactly equivalent to `>= 23.00`, so it now matches the occupancy pair
+precisely. Its description text updated to state that equivalence.
+
+ROUND 3 EVIDENCE
+-------------------------------------------------------------------------------------
+Diff vs the r3 backup: 4 hunks (3 in the Ochtend block = threshold x2 + its description,
+1 in the Aanwezig description). Automation ids 49 before and 49 after — no collateral.
+
+⚠ TRANSFER FAULT CAUGHT BY THE md5 GATE — worth recording as a tooling lesson:
+  the first write used `kubectl exec -i ... -- sh -c 'cat > /config/automations.yaml'`
+  and TRUNCATED the file at exactly 65536 bytes (64 KiB pipe boundary); the file had
+  grown to 77878 bytes. md5 mismatched (968c73f6... local vs d3b08293... pod) and
+  check_config immediately returned:
+      {"result":"invalid","errors":"... found unexpected end of stream ... line 1891"}
+  HA was still serving the in-memory config and automation.reload had NOT been called,
+  so there was no outage at any point. Re-transferred with `kubectl cp`: 77878 bytes,
+  md5 matched, check_config returned valid. USE kubectl cp FOR FILES > 64 KiB — the
+  earlier rounds only survived because automations.yaml was still under that boundary.
+
+V1 check_config after correct transfer -> {"result":"valid","errors":null,"warnings":null}
+V2 automation.reload at 23:07:04Z (no restart). Zero kantoor/automation/template errors.
+V3 Read back from HA's LOADED config (/api/config/automation/config/1747224001001),
+   asserting the stale strings are ABSENT, not merely that new ones are present:
+     absent: "2 min", "2-min", "heat -> 21", "cool -> 24", "24 degC", "22 degC",
+             ">22 koelen", "wordt nooit getriggerd"          -> all ok
+     present: "debounce 45 s AAN / 15 min UIT", "heat -> 20 degC", "cool -> 21 degC",
+              ">= 23 degC", "ALLEEN tussen 08:00 en 18:00", "GEEN tijdvenster",
+              "WAT DEZE AUTOMATION AANSTUURT"                -> all ok
+     every degC figure now in the text: 20, 21, 18, 20, 23, 21, 23 — no 22, no 24.
+V4 Ochtend loaded config: or-gate (22.99, None) and branch (22.99, None). ok.
+V5 R1-R4 invariants re-asserted unchanged after the reload: adjust setpoints 20/21 with
+   no time guard, start branches 20/21 with 08:00-18:00, ">= 23" on the cool-start
+   template, Avond weekday absent, Afwezig description still clean.
+V6 Aircon as found: climate.kantoor state=off, temperature=5, hvac_action=off,
+   swing_mode=off, fan_mode=auto, preset_mode=auto — and last_changed is still
+   2026-08-30T22:37:54.624938+00:00, i.e. the round-2 restart. It never moved in
+   round 3 at all.
+V7 Automation enable-states survived the reload: climate pair on, the four vdhws01
+   notification automations still off.
+
+STATUS: left at `validated`, NOT closed. Both locks still held by ha-engineer. The
+user's physical walk-in test (section 7, as updated at the end of ROUND 2) is still
+outstanding, so the wait-for-user rule binds regardless of QA outcome.
