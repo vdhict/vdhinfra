@@ -1,0 +1,397 @@
+--- /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/04ec693c-aa7d-438b-b754-379669948d04/scratchpad/automations.orig.yaml	2026-08-30 20:09:09
++++ /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/04ec693c-aa7d-438b-b754-379669948d04/scratchpad/automations.new.yaml	2026-08-30 20:22:11
+@@ -538,7 +538,7 @@
+   description: Pas kantoorverlichting aan op basis van omgevingslicht tijdens werkuren
+   triggers:
+   - trigger: state
+-    entity_id: sensor.motion_sensor_illuminance
++    entity_id: sensor.multisensor_illuminance
+   conditions:
+   - condition: time
+     after: 08:30:00
+@@ -560,7 +560,7 @@
+   - choose:
+     - conditions:
+       - condition: numeric_state
+-        entity_id: sensor.motion_sensor_illuminance
++        entity_id: sensor.multisensor_illuminance
+         below: 50
+       sequence:
+       - action: light.turn_on
+@@ -572,7 +572,7 @@
+           transition: 5
+     - conditions:
+       - condition: numeric_state
+-        entity_id: sensor.motion_sensor_illuminance
++        entity_id: sensor.multisensor_illuminance
+         above: 49
+         below: 100
+       sequence:
+@@ -585,7 +585,7 @@
+           transition: 5
+     - conditions:
+       - condition: numeric_state
+-        entity_id: sensor.motion_sensor_illuminance
++        entity_id: sensor.multisensor_illuminance
+         above: 99
+         below: 200
+       sequence:
+@@ -598,7 +598,7 @@
+           transition: 5
+     - conditions:
+       - condition: numeric_state
+-        entity_id: sensor.motion_sensor_illuminance
++        entity_id: sensor.multisensor_illuminance
+         above: 199
+         below: 300
+       sequence:
+@@ -611,7 +611,7 @@
+           transition: 5
+     - conditions:
+       - condition: numeric_state
+-        entity_id: sensor.motion_sensor_illuminance
++        entity_id: sensor.multisensor_illuminance
+         above: 299
+         below: 400
+       sequence:
+@@ -624,7 +624,7 @@
+           transition: 5
+     - conditions:
+       - condition: numeric_state
+-        entity_id: sensor.motion_sensor_illuminance
++        entity_id: sensor.multisensor_illuminance
+         above: 399
+       sequence:
+       - action: light.turn_off
+@@ -680,11 +680,10 @@
+     entity_id: device_tracker.vdhws01
+     state: home
+   actions:
+-  - action: notify.notify
++  - action: notify.vdhws01
+     data:
+       message: Er staat iemand bij de voordeur!
+       title: Deurbel
+-      target: media_player.vdhws01
+   mode: single
+ - id: '1734200001006'
+   alias: Kantoor Notificatie - Wasmachine Klaar
+@@ -692,17 +691,16 @@
+   triggers:
+   - trigger: state
+     entity_id: sensor.wasmachine_taakstatus
+-    to: finished
++    to: finish
+   conditions:
+   - condition: state
+     entity_id: device_tracker.vdhws01
+     state: home
+   actions:
+-  - action: notify.notify
++  - action: notify.vdhws01
+     data:
+       message: De wasmachine is klaar!
+       title: Wasmachine
+-      target: media_player.vdhws01
+   mode: single
+ - id: '1734200001007'
+   alias: Kantoor Notificatie - Droger Klaar
+@@ -716,29 +714,27 @@
+     entity_id: device_tracker.vdhws01
+     state: home
+   actions:
+-  - action: notify.notify
++  - action: notify.vdhws01
+     data:
+       message: De droger is klaar!
+       title: Droger
+-      target: media_player.vdhws01
+   mode: single
+ - id: '1734200001008'
+   alias: Kantoor Notificatie - Vaatwasser Klaar
+   description: Toon notificatie op werkstation wanneer vaatwasser klaar is
+   triggers:
+   - trigger: state
+-    entity_id: sensor.vaatwasser_operation_state
++    entity_id: sensor.vaatwasser_status
+     to: finished
+   conditions:
+   - condition: state
+     entity_id: device_tracker.vdhws01
+     state: home
+   actions:
+-  - action: notify.notify
++  - action: notify.vdhws01
+     data:
+       message: De vaatwasser is klaar!
+       title: Vaatwasser
+-      target: media_player.vdhws01
+   mode: single
+ - id: '1734761531071'
+   alias: Kerstverlichting aan en uitzetten
+@@ -1178,73 +1174,218 @@
+   mode: queued
+   max: 10
+ - id: '1747224001001'
+-  alias: Kantoor Aanwezig - Verwarm naar 21°C
+-  description: 'Zet Tado op 21°C verwarmingsmodus zodra binary_sensor.kantoor_bezet gedurende ≥2 minuten
+-    actief is. De 2-min ON-debounce zit al in de template binary sensor; de trigger hier is simpelweg
+-    de state-flip. Werkt alleen als klimaat niet uitstaat (hvac_mode != off).
++  alias: Kantoor Aanwezig - Comfort setpoint
++  description: 'Zet het kantoorklimaat op de comfort-setpoint zodra binary_sensor.kantoor_bezet
++    actief wordt. De 2-min ON-debounce zit in de template binary sensor, niet hier.
+ 
++    Behoudt de ACTIEVE hvac_mode en wijzigt alleen de setpoint: heat -> 21 degC,
++    cool -> 24 degC. Staat de unit uit, dan wordt de modus afgeleid uit
++    sensor.kantoor_temperatuur volgens dezelfde regel als de 08:30 ochtend-automation
++    (<18 verwarmen, >22 koelen, daartussen bewust NIET aanzetten). auto/dry/fan_only/
++    heat_cool worden met rust gelaten. Een open raam wint altijd.
++
++    LET OP (2026-08-30): binary_sensor.kantoor_bezet is nog een STUB. De template in
++    configuration.yaml verwijst naar de letterlijke placeholder FP2_ID; er is geen
++    kantoor-FP2 gekoppeld (alleen de keuken-FP2 f08e bestaat). De sensor staat dus
++    permanent op ''off'' en deze automation wordt nooit getriggerd tot er een echte
++    aanwezigheidsbron is aangesloten. De logica hieronder is wel correct.
++
+     '
+   triggers:
+   - trigger: state
+     entity_id: binary_sensor.kantoor_bezet
+     to: 'on'
+   conditions:
+-  - condition: not
+-    conditions:
+-    - condition: state
+-      entity_id: climate.kantoor
+-      state: 'off'
++  - condition: state
++    entity_id: binary_sensor.kantoor_raam
++    state: 'off'
+   actions:
+-  - action: climate.set_hvac_mode
+-    target:
+-      entity_id: climate.kantoor
+-    data:
+-      hvac_mode: heat
+-  - action: climate.set_temperature
+-    target:
+-      entity_id: climate.kantoor
+-    data:
+-      temperature: 21
+-  - action: climate.set_swing_mode
+-    target:
+-      entity_id: climate.kantoor
+-    data:
+-      swing_mode: both
++  - variables:
++      hvac: "{{ states('climate.kantoor') }}"
++      kamer_temp: "{{ states('sensor.kantoor_temperatuur') | float(-99) }}"
++  - choose:
++    - conditions:
++      - condition: template
++        value_template: "{{ hvac == 'heat' }}"
++      sequence:
++      - action: climate.set_temperature
++        target:
++          entity_id: climate.kantoor
++        data:
++          temperature: 21
++    - conditions:
++      - condition: template
++        value_template: "{{ hvac == 'cool' }}"
++      sequence:
++      - action: climate.set_temperature
++        target:
++          entity_id: climate.kantoor
++        data:
++          temperature: 24
++    - conditions:
++      - condition: template
++        value_template: "{{ hvac == 'off' and (kamer_temp | float(-99)) > -99 and (kamer_temp | float(-99)) < 18 }}"
++      sequence:
++      - action: climate.set_hvac_mode
++        target:
++          entity_id: climate.kantoor
++        data:
++          hvac_mode: heat
++      - action: climate.set_temperature
++        target:
++          entity_id: climate.kantoor
++        data:
++          temperature: 21
++      - action: climate.set_swing_mode
++        target:
++          entity_id: climate.kantoor
++        data:
++          swing_mode: both
++    - conditions:
++      - condition: template
++        value_template: "{{ hvac == 'off' and (kamer_temp | float(-99)) > 22 }}"
++      sequence:
++      - action: climate.set_hvac_mode
++        target:
++          entity_id: climate.kantoor
++        data:
++          hvac_mode: cool
++      - action: climate.set_temperature
++        target:
++          entity_id: climate.kantoor
++        data:
++          temperature: 24
++      - action: climate.set_swing_mode
++        target:
++          entity_id: climate.kantoor
++        data:
++          swing_mode: both
+   mode: single
+ - id: '1747224001002'
+-  alias: Kantoor Afwezig - Terugzetten naar 17°C
+-  description: 'Zet Tado terug op 17°C (setback) zodra binary_sensor.kantoor_bezet gedurende ≥15 minuten
+-    inactief is. De 15-min OFF-debounce zit in de template binary sensor zodat korte pauzes (toilet, koffie)
+-    de klimaat niet verstoren. Werkt alleen als klimaat actief is.
++  alias: Kantoor Afwezig - Setback
++  description: 'Zet het kantoorklimaat terug zodra binary_sensor.kantoor_bezet inactief
++    wordt. De 15-min OFF-debounce zit in de template binary sensor, niet hier, zodat
++    korte pauzes (toilet, koffie) niets verstoren.
+ 
++    Behoudt de ACTIEVE hvac_mode en wijzigt alleen de setpoint: heat -> 18 degC,
++    cool -> 26 degC. 18 degC is het device-minimum (climate.kantoor min_temp = 18.0);
++    de oorspronkelijke 17 degC werd door het device geweigerd. Thermisch is dat verschil
++    verwaarloosbaar: bij 18 degC in heat staat de compressor stil. Bewust GEEN
++    hvac_mode off, want dan verliest de unit zijn modus en komt koeling op een milde
++    dag niet terug. Staat de unit al uit, dan gebeurt er niets. Een open raam wint altijd.
++
++    LET OP (2026-08-30): binary_sensor.kantoor_bezet is nog een STUB. De template in
++    configuration.yaml verwijst naar de letterlijke placeholder FP2_ID; er is geen
++    kantoor-FP2 gekoppeld (alleen de keuken-FP2 f08e bestaat). De sensor staat dus
++    permanent op ''off'' en deze automation wordt nooit getriggerd tot er een echte
++    aanwezigheidsbron is aangesloten. De logica hieronder is wel correct.
++
+     '
+   triggers:
+   - trigger: state
+     entity_id: binary_sensor.kantoor_bezet
+     to: 'off'
+   conditions:
+-  - condition: not
+-    conditions:
+-    - condition: state
+-      entity_id: climate.kantoor
+-      state: 'off'
++  - condition: state
++    entity_id: binary_sensor.kantoor_raam
++    state: 'off'
+   actions:
+-  - action: climate.set_hvac_mode
+-    target:
+-      entity_id: climate.kantoor
+-    data:
+-      hvac_mode: heat
+-  - action: climate.set_temperature
+-    target:
+-      entity_id: climate.kantoor
+-    data:
+-      temperature: 17
+-  - action: climate.set_swing_mode
+-    target:
+-      entity_id: climate.kantoor
++  - variables:
++      hvac: "{{ states('climate.kantoor') }}"
++      kamer_temp: "{{ states('sensor.kantoor_temperatuur') | float(-99) }}"
++  - choose:
++    - conditions:
++      - condition: template
++        value_template: "{{ hvac == 'heat' }}"
++      sequence:
++      - action: climate.set_temperature
++        target:
++          entity_id: climate.kantoor
++        data:
++          temperature: 18
++    - conditions:
++      - condition: template
++        value_template: "{{ hvac == 'cool' }}"
++      sequence:
++      - action: climate.set_temperature
++        target:
++          entity_id: climate.kantoor
++        data:
++          temperature: 26
++  mode: single
++- id: '1756580000001'
++  alias: Kantoor Raam Open - Klimaat Uit
++  description: 'Zet climate.kantoor uit als binary_sensor.kantoor_raam langer dan 2
++    minuten open staat. De toestand vlak voor het openen wordt eerst in een snapshot-scene
++    bewaard zodat Kantoor Raam Dicht hem exact kan herstellen (modus, setpoint, fan,
++    swing, preset).
++
++    Er wordt ALTIJD een snapshot gemaakt, ook als de unit al uit stond - anders zou
++    een oude scene blijven staan en bij het sluiten een verouderde toestand terugzetten.
++
++    Let op: binary_sensor.kantoor_raam is Tado Open Window Detection (algoritmisch,
++    geen fysiek raamcontact) en detecteert alleen als de zone actief is.
++
++    '
++  triggers:
++  - trigger: state
++    entity_id: binary_sensor.kantoor_raam
++    to: 'on'
++    for:
++      minutes: 2
++  conditions: []
++  actions:
++  - action: scene.create
+     data:
+-      swing_mode: both
++      scene_id: kantoor_klimaat_voor_raam
++      snapshot_entities:
++      - climate.kantoor
++  - if:
++    - condition: not
++      conditions:
++      - condition: state
++        entity_id: climate.kantoor
++        state: 'off'
++    then:
++    - action: climate.set_hvac_mode
++      target:
++        entity_id: climate.kantoor
++      data:
++        hvac_mode: 'off'
+   mode: single
++- id: '1756580000002'
++  alias: Kantoor Raam Dicht - Klimaat Herstellen
++  description: 'Herstelt climate.kantoor naar de toestand van vlak voor het openen van
++    het raam. Doet niets als de snapshot-scene niet bestaat - scenes uit scene.create
++    overleven een HA-herstart niet, en dan is "uit laten staan" de veilige uitkomst.
++
++    De guard doet twee dingen. (1) "states.scene.X is not none" en NIET states("scene.X"):
++    een vers aangemaakte scene die nog nooit geactiveerd is heeft state "unknown",
++    precies dezelfde waarde die een NIET-bestaande entiteit teruggeeft; alleen de
++    object-vorm onderscheidt die twee. (2) De last_triggered-vergelijking eist dat
++    "Raam Open" NA de vorige herstelactie heeft gedraaid. Zonder die eis zou een raam
++    dat korter dan 2 minuten open staat (Raam Open vuurt dan niet, er is dus geen
++    verse snapshot) bij het sluiten een VEROUDERDE scene terugzetten en de airco
++    spontaan aanzetten. Beide geverifieerd op 2026-08-30.
++
++    '
++  triggers:
++  - trigger: state
++    entity_id: binary_sensor.kantoor_raam
++    to: 'off'
++  conditions:
++  - condition: template
++    value_template: >-
++      {{ states.scene.kantoor_klimaat_voor_raam is not none
++         and state_attr('automation.kantoor_raam_open_klimaat_uit', 'last_triggered') is not none
++         and (state_attr('automation.kantoor_raam_dicht_klimaat_herstellen', 'last_triggered') is none
++              or state_attr('automation.kantoor_raam_open_klimaat_uit', 'last_triggered')
++                 > state_attr('automation.kantoor_raam_dicht_klimaat_herstellen', 'last_triggered')) }}
++  actions:
++  - action: scene.turn_on
++    target:
++      entity_id: scene.kantoor_klimaat_voor_raam
++  mode: single
+ - id: '1749566000001'
+   alias: Outdoor Power-Blip Logger (observe-only)
+   description: 'Durably logs outdoor Hue light power-blips, covering BOTH known variants: (1) a member

@@ -1,0 +1,260 @@
+chg-2026-08-30-004  ha.automation.kantoor  medium  actor: ha-engineer (Hestia)
+Kantoor automation rebuild - evidence bundle, 2026-08-30
+File: /config/automations.yaml in the home-automation/home-assistant PVC (NOT git-managed)
+  pre-change  md5 268000abf03cd1471042c12419e8dea1  (backup: /config/automations.yaml.bak-chg-2026-08-30-004)
+  post-change md5 684db522082752f4abae935ae7b06521
+  47 -> 49 automations; every untouched automation asserted byte-identical after YAML parse
+  reload method: automation.reload (automations.yaml only; configuration.yaml untouched)
+
+==============================================================================
+1. STATIC VALIDATION - branch truth table rendered by HA's OWN Jinja engine
+   (POST /api/template, before deploy)
+==============================================================================
+A heat/16  AANWEZIG=setpoint21-keep-heat  AFWEZIG=setpoint18-keep-heat
+B cool/25  AANWEZIG=setpoint24-keep-cool  AFWEZIG=setpoint26-keep-cool
+C off/16  AANWEZIG=START-heat-21  AFWEZIG=NO-OP
+D off/23.03 LIVE-temp  AANWEZIG=START-cool-24  AFWEZIG=NO-OP
+E off/20 deadband  AANWEZIG=NO-OP  AFWEZIG=NO-OP
+F off/unknown-temp  AANWEZIG=NO-OP  AFWEZIG=NO-OP
+G auto  AANWEZIG=NO-OP  AFWEZIG=NO-OP
+H heat_cool  AANWEZIG=NO-OP  AFWEZIG=NO-OP
+I dry  AANWEZIG=NO-OP  AFWEZIG=NO-OP
+J fan_only  AANWEZIG=NO-OP  AFWEZIG=NO-OP
+LIVE climate=off temp=23.03 raam=off
+SCENEGUARD=False scenestate=unknown
+
+Scene-guard predicate verification (POST /api/template):
+  real_exists_objattr=True    real_state="unknown"
+  bogus_exists_objattr=False  bogus_state="unknown"
+  OLD_GUARD_real=False   <-- states('scene.X') cannot distinguish "never activated" from "does not exist"
+  NEW_GUARD_real=True    <-- states.scene.X is not none
+  NEW_GUARD_bogus=False
+
+last_triggered predicate verification (POST /api/template):
+  open_lt=2026-08-30 18:18:42.070445+00:00
+  dicht_lt=2026-08-30 18:19:57.740908+00:00
+  scene_exists=True   comparable=False   FULL_GUARD=False
+  (correctly refuses to restore a stale snapshot)
+
+==============================================================================
+2. REAL-HARDWARE E2E - climate mode preservation (tests 1+2)
+==============================================================================
+START state: ('off', 5) | room temp: 23.03 | raam: off
+
+### TEST 1 - mode preservation: unit running in COOL, occupancy flips
+PASS  1a setup: unit put into cool 24
+        -> climate.kantoor state='cool' setpoint=24.0  (expected state='cool' setpoint=24)
+PASS  1b AFWEZIG fired -> mode MUST stay cool, setpoint -> 26 (old code forced heat 17)
+        -> climate.kantoor state='cool' setpoint=26.0  (expected state='cool' setpoint=26)
+PASS  1c AANWEZIG fired -> mode MUST stay cool, setpoint -> 24 (old code forced heat 21)
+        -> climate.kantoor state='cool' setpoint=24.0  (expected state='cool' setpoint=24)
+
+### TEST 2 - unit OFF: mode derived from room temp (23.03 > 22 => cool)
+PASS  2a setup: unit off
+        -> climate.kantoor state='off' setpoint=5
+PASS  2b AFWEZIG while off -> must be a NO-OP
+        -> climate.kantoor state='off' setpoint=5
+PASS  2c AANWEZIG while off -> derives cool 24 from 23.03C
+        -> climate.kantoor state='cool' setpoint=24.0  (expected state='cool' setpoint=24)
+
+This is the exact defect (b) from the brief, disproved on real hardware: under the old
+code step 1b would have flipped the unit to heat/17 and cooling would not have returned.
+
+==============================================================================
+3. REAL-HARDWARE E2E - window guard / window-open-wins / stale-snapshot hazard
+==============================================================================
+### TEST 3 - window-open guard: snapshot + restore (after scene-guard fix)
+PASS  3a setup: unit running cool 24 swing=both
+        -> climate.kantoor state='cool' setpoint=24.0 swing='both'
+PASS  3b window OPEN >2min -> climate forced off
+        -> climate.kantoor state='off' setpoint=5 swing='both'
+PASS  3c snapshot scene exists in state machine (state='unknown')
+PASS  3d window CLOSED -> exact previous state (cool 24) restored
+        -> climate.kantoor state='cool' setpoint=24.0 swing='both'
+PASS  3e restored state identical to pre-window snapshot
+        -> before=('cool', 24.0, 'both')  after=('cool', 24.0, 'both')
+
+### TEST 5 - an OPEN window must BLOCK the occupancy pair
+   (binary_sensor.kantoor_raam forced to 'on' via POST /api/states, then restored)
+PASS  5a AFWEZIG blocked while window open -> ('cool', 24.0) unchanged
+PASS  5b AANWEZIG blocked while window open -> ('cool', 24.0) unchanged
+   control: with raam='off' both DID act (tests 1/2) - so the block is real, not a no-op
+
+### TEST 6 - stale-snapshot hazard (window open <2 min then closes)
+PASS  6a close WITHOUT a preceding open -> blocked, aircon stays off ('off'/5)
+
+### TEST 7 - full window cycle still works after the guard hardening
+PASS  7a setup: unit running cool 24
+PASS  7b window OPEN -> snapshot + climate off
+PASS  7c window CLOSED -> cool 24 restored
+PASS  7d a SECOND close in a row is a no-op (not a re-restore) -> 'cool'/24.0
+
+### CLEANUP
+PASS  final climate.kantoor 'off'/5  == the state found at the start of the change
+
+==============================================================================
+4. NOTIFICATION TRIGGER PROOF - forced sensor states + automation traces
+==============================================================================
+device_tracker.vdhws01 = not_home -> the "only notify when at the desk" condition
+legitimately BLOCKS the action. What is proven here is that the TRIGGER now matches,
+which it demonstrably never did before.
+
+--- forcing sensor.wasmachine_taakstatus -> 'finish' (was 'none') ---
+--- forcing sensor.vaatwasser_status    -> 'finished' (was 'delayedstart') ---
+(both restored immediately; the integrations re-assert on next poll regardless)
+
+Automation traces after the forced states:
+  1734200001006  state=stopped last_step=condition/0/entity_id/0  timestamp=2026-08-30T18:20:52Z
+  1734200001008  state=stopped last_step=condition/0/entity_id/0  timestamp=2026-08-30T18:20:56Z
+
+Reading: the trigger FIRED (a trace was created) and execution stopped at condition 0,
+which is device_tracker.vdhws01 == home. Exactly the expected behaviour.
+
+Retained trace counts (retention is 5, so a recently-firing automation would show more):
+  1734200001006  1 trace  ['2026-08-30T18:20:52']   <- the one just caused; consistent with "never fired before"
+  1734200001008  1 trace  ['2026-08-30T18:20:56']
+  1747224001001  4 traces (all from this test session; previously it had NEVER fired)
+  1747224001002  3 traces (all from this test session)
+  1756580000001  2 traces / 1756580000002  3 traces (new automations)
+
+==============================================================================
+5. FINAL READBACK THROUGH THE HA API + LIVE STATES
+==============================================================================
+=== FINAL READBACK THROUGH THE HA API (not the file on disk) ===
+PASS 1734200001005 Kantoor Notificatie - Deurbel        notify.vdhws01, no media_player target
+PASS 1734200001006 Kantoor Notificatie - Wasmachine Kla notify.vdhws01, no media_player target
+PASS            wasmachine trigger to == 'finish'
+PASS 1734200001007 Kantoor Notificatie - Droger Klaar   notify.vdhws01, no media_player target
+PASS 1734200001008 Kantoor Notificatie - Vaatwasser Kla notify.vdhws01, no media_player target
+PASS            vaatwasser trigger entity == sensor.vaatwasser_status
+PASS 1734200001012 Kantoor Adaptieve Verlichting        7x sensor.multisensor_illuminance
+PASS 1747224001001 Kantoor Aanwezig - Comfort setpoint  setpoints [21, 24]
+PASS            raam guard present AND climate!=off condition gone
+PASS            set_hvac_mode only inside an hvac=='off' branch
+PASS 1747224001002 Kantoor Afwezig - Setback            setpoints [18, 26]
+PASS            raam guard present AND climate!=off condition gone
+PASS            set_hvac_mode only inside an hvac=='off' branch
+PASS 1756580000001 Kantoor Raam Open - Klimaat Uit      loaded
+PASS 1756580000002 Kantoor Raam Dicht - Klimaat Herstel loaded
+
+=== LIVE ENTITY STATES ===
+  automation.kantoor_notificatie_deurbel                   = on
+  automation.kantoor_notificatie_wasmachine_klaar          = on
+  automation.kantoor_notificatie_droger_klaar              = on
+  automation.kantoor_notificatie_vaatwasser_klaar          = on
+  automation.kantoor_adaptieve_verlichting                 = off
+  automation.kantoor_ochtend_pc_opstarten                  = off
+  automation.kantoor_aanwezig_verwarm_naar_21degc          = on
+  automation.kantoor_afwezig_terugzetten_naar_17degc       = on
+  automation.kantoor_raam_open_klimaat_uit                 = on
+  automation.kantoor_raam_dicht_klimaat_herstellen         = on
+  climate.kantoor                                          = off  setpoint=5
+  binary_sensor.kantoor_raam                               = off
+  binary_sensor.kantoor_bezet                              = off
+  sensor.wasmachine_taakstatus                             = none
+  sensor.vaatwasser_status                                 = delayedstart
+  sensor.multisensor_illuminance                           = 11.0
+
+PASS vaatwasser automation ENABLED
+PASS adaptieve verlichting STILL DISABLED (as instructed)
+PASS PC opstarten untouched, still disabled
+PASS aircon left OFF - sane end state
+
+OVERALL: ALL PASS
+
+==============================================================================
+6. HA LOG - 25 min window covering all edits, reloads and tests
+==============================================================================
+grep -E 'ERROR' (excluding pre-existing, unrelated pyotgw serial retries): ZERO lines
+grep -iE 'automation|climate|scene|notify|Invalid config': ZERO lines
+Only warning at reload time: pre-existing duplicate key in
+/config/themes/m3-07-darkolivegreen/m3-07-darkolivegreen.yaml lines 858/881
+(automation.reload re-reads the whole configuration.yaml, which is why a theme
+ warning surfaces at that timestamp; unrelated to this change and pre-dates it).
+
+==============================================================================
+7. NOT TESTED IN THE REAL PATH - handed to the user
+==============================================================================
+a) The physical firing of binary_sensor.kantoor_raam. It is Tado Open Window
+   Detection (algorithmic, not a reed contact) and needs the zone to be ACTIVE
+   to detect anything; the zone has been off all week. The automation wiring is
+   proven by trigger-level execution; the sensor's own physical behaviour is not.
+b) A real notify.vdhws01 notification landing on the workstation.
+   device_tracker.vdhws01 = not_home, so the gating condition blocks the action.
+c) The heat branches (heat 21 / setback 18) were proven by HA's template engine
+   and by structural readback, but NOT exercised on the compressor - the room was
+   23.03 C, so only the cool branches could be driven safely. The heat and cool
+   branches are structurally identical apart from the literal setpoint.
+
+==============================================================================
+8. POST-QA REMEDIATION - Themis F1 (aircon safety) + F2 (asymmetric dormancy)
+   md5 684db522082752f4abae935ae7b06521 -> fb86afae61a7e53ee1806b32fabb9297
+   Change: add from: 'on' to the triggers of 1756580000002 and 1747224001002.
+   Diff vs previously deployed file = those two lines plus description text ONLY.
+==============================================================================
+
+-- F1 PREMISE INDEPENDENTLY CONFIRMED ---------------------------------------
+My first attempt to check this returned '1 row in 7d' and appeared to REFUTE Themis.
+That was my error: HA's /api/history/period defaults end_time to start+1day, so a
+7-day start silently returns only the FIRST day. Re-run as seven stitched 1-day
+windows, binary_sensor.kantoor_raam over 7 days:
+    state counts: {'off': 12, 'unknown': 4, 'on': 1}
+    off -> unknown: 4     unknown -> off: 4     off -> on: 1     on -> off: 1
+    unknown at: 2026-08-25T01:03:00, 2026-08-26T09:44:32,
+                2026-08-27T21:41:31, 2026-08-29T09:56:18
+Themis is right: 4 unknown->off transitions in 7 days, roughly every 36 h.
+
+binary_sensor.kantoor_bezet over the same 7 days: 11 rows, all 'off', ZERO unknown
+transitions. So F2's specific mechanism is NOT observed in the retained data. The
+from: 'on' fix is still correct and free - it makes Afwezig require a real prior
+'on' exactly as Aanwezig does - but the ratchet was theoretical, not observed.
+
+-- READBACK OF THE DEPLOYED CONFIG ------------------------------------------
+PASS 1756580000002 trigger={'trigger':'state','entity_id':'binary_sensor.kantoor_raam','from':'on','to':'off'}
+PASS 1747224001002 trigger={'trigger':'state','entity_id':'binary_sensor.kantoor_bezet','from':'on','to':'off'}
+PASS 1747224001001 unchanged, no from: -> {'trigger':'state','entity_id':'binary_sensor.kantoor_bezet','to':'on'}
+PASS 1756580000001 unchanged, no from: -> {'trigger':'state','entity_id':'binary_sensor.kantoor_raam','to':'on','for':{'minutes':2}}
+
+-- BEHAVIOURAL PROOF (real hardware) ----------------------------------------
+Setup deliberately makes clause 3 TRUE (fresh snapshot, open fired after the last
+restore) so that the guard clauses CANNOT mask the trigger result - only the
+trigger can decide the outcome. Trace retention is capped at 5, so this compares
+the newest trace timestamp AND the last_triggered attribute, not trace counts.
+NOTE: trace retention is capped at 5, so trace COUNT cannot grow. This run compares
+      the NEWEST trace timestamp and the automation's last_triggered attribute.
+
+### SETUP
+   climate after window-open: ('off', 5)
+PASS setup: snapshot fresh, unit off
+
+### NEGATIVE - unknown -> off (F1)
+   before: newest_trace=2026-08-30T18:44:30.646773+00:00 last_triggered=2026-08-30T18:43:52.182755+00:00 climate=('off', 5)
+   after:  newest_trace=2026-08-30T18:44:30.646773+00:00 last_triggered=2026-08-30T18:43:52.182755+00:00 climate=('off', 5)
+PASS unknown -> off did NOT fire (no new trace)
+PASS unknown -> off did NOT fire (last_triggered unchanged)
+PASS aircon stayed off
+
+### POSITIVE CONTROL - genuine on -> off
+   after:  newest_trace=2026-08-30T18:45:57.711237+00:00 last_triggered=2026-08-30T18:45:57.711549+00:00 climate=('cool', 24.0)
+PASS on -> off DID fire (new trace timestamp)
+PASS on -> off DID fire (last_triggered advanced)
+PASS aircon restored to the snapshot cool 24
+
+### CLEANUP
+PASS aircon left OFF, setpoint 5, as found
+        climate=('off', 5) raam=off
+
+RESULT: 8/8 passed -> ALL PASS
+
+-- F2 behavioural proof (from the first remediation run, trace counts below the
+   retention cap so counts were meaningful there) ---------------------------
+PASS Afwezig: unknown -> off did NOT fire   (traces 3 -> 3)
+PASS Afwezig: genuine on -> off DID fire    (traces 3 -> 4)
+   (raam was held 'on' during this so the window guard blocked any real climate
+    action; the trace still records the trigger firing and stopping at condition 0)
+
+-- LOG + FINAL STATE ---------------------------------------------------------
+HA log for the remediation window: zero automation/climate/scene/config errors.
+Two unrelated device-comms ERRORs (homewizard, shelly1pmminig3) - known flaky IoT.
+Final resting state: climate.kantoor = off setpoint 5 (as found); raam = off;
+bezet = off; adaptieve verlichting still disabled; vaatwasser notification enabled.

@@ -1,0 +1,44 @@
+--- /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/04ec693c-aa7d-438b-b754-379669948d04/scratchpad/deployed.yaml	2026-08-30 20:42:24
++++ /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/04ec693c-aa7d-438b-b754-379669948d04/scratchpad/automations.new.yaml	2026-08-30 20:42:15
+@@ -1267,6 +1267,11 @@
+     wordt. De 15-min OFF-debounce zit in de template binary sensor, niet hier, zodat
+     korte pauzes (toilet, koffie) niets verstoren.
+ 
++    De trigger eist expliciet from: "on". Zonder dat zou een template-herrendering
++    (unknown -> off) de setback laten vuren terwijl er nooit iemand weg is gegaan:
++    een eenrichtings-ratel die alleen comfort omlaag kan bijstellen. Aanwezig
++    (to: "on") heeft dat probleem niet, dus dit maakt de twee helften symmetrisch.
++
+     Behoudt de ACTIEVE hvac_mode en wijzigt alleen de setpoint: heat -> 18 degC,
+     cool -> 26 degC. 18 degC is het device-minimum (climate.kantoor min_temp = 18.0);
+     de oorspronkelijke 17 degC werd door het device geweigerd. Thermisch is dat verschil
+@@ -1284,6 +1289,7 @@
+   triggers:
+   - trigger: state
+     entity_id: binary_sensor.kantoor_bezet
++    from: 'on'
+     to: 'off'
+   conditions:
+   - condition: state
+@@ -1358,6 +1364,13 @@
+   description: 'Herstelt climate.kantoor naar de toestand van vlak voor het openen van
+     het raam. Doet niets als de snapshot-scene niet bestaat - scenes uit scene.create
+     overleven een HA-herstart niet, en dan is "uit laten staan" de veilige uitkomst.
++
++    De trigger eist expliciet from: "on". binary_sensor.kantoor_raam doorloopt
++    aantoonbaar off -> unknown -> off ongeveer elke 36 uur (4x in 7 dagen, gemeten
++    2026-08-30). Zonder from: "on" vuurt elk van die herrenderingen deze automation.
++    Vandaag onschadelijk omdat clausule 1 hem tegenhoudt, maar bij een Tado
++    config-entry reload terwijl het raam echt open staat is de snapshot vers en
++    passeren alle clausules - dan gaat de airco weer aan met het raam open.
+ 
+     De guard doet twee dingen. (1) "states.scene.X is not none" en NIET states("scene.X"):
+     een vers aangemaakte scene die nog nooit geactiveerd is heeft state "unknown",
+@@ -1372,6 +1385,7 @@
+   triggers:
+   - trigger: state
+     entity_id: binary_sensor.kantoor_raam
++    from: 'on'
+     to: 'off'
+   conditions:
+   - condition: template
