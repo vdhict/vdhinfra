@@ -74,7 +74,21 @@ spread, ~€0.23**, subject to your netting arrangement.
 
 ---
 
-## Option A — single-phase the wallbox ⭐ recommended
+## ⚠️ RETRACTED 2026-08-30 — do NOT single-phase the wallbox
+
+The user is building a 3-phase Victron MultiRS Solar ESS (one unit per phase, 6 kVA + 6 kWp
+each → 18 kVA / up to 18 kWp) and replacing the 10-year-old 250 Wp array while panels are cheap
+ahead of the 1 Jan 2027 end of salderen. With that system, surplus clears the 4,140 W 3-phase
+floor routinely and 3-phase charging becomes the *better* option — 11 kW to the car on a sunny
+day instead of 3.7 kW.
+
+Single-phasing would be undone by the rebuild. **The EV problem solves itself as a side effect
+of the ESS project.** See `docs/design/energy-transition-2027.md`.
+
+Option A below is retained only to document the physics of the current system — the surplus
+analysis and the phases:1 warning remain accurate and useful.
+
+## Option A — single-phase the wallbox ~~⭐ recommended~~ (SUPERSEDED)
 
 Rewire the TWC3 to one phase.
 
