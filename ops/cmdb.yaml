@@ -975,6 +975,20 @@ components:
     description: cluster-health-report (https://health.bluejungle.net) — to be extended into the ops portal
     depends_on: [k8s.cluster]
     sensitive: false
+  obs.energy_sanity:
+    type: k8s-cronjob
+    owner_agent: observability-engineer
+    description: "health-energy-sanity CronJob (observability ns, daily 07:15 CEST, script energy_sanity.py in the cluster-health scripts ConfigMap). Detects energy sensors that corrupt HA long-term statistics. PRIMARY detector = a BACKWARD jump >5 kWh on a total_increasing kWh sensor that does NOT land near zero (<=1.0 kWh): HA reads any backward jump as a meter replacement and re-adds the whole climb as phantom consumption. ⚠️ THE RULE IS PURELY VALUE-BASED AND USES NO NAME MATCHING — do not reintroduce a name regex. Two earlier attempts were QA-failed: unanchored, 'uur' matches 'Apparatuur' and 'Schuur' and blinds the detector on sensor.apparatuur_electric_consumption_kwh (a Z-Wave sibling of the incident sensor); and even anchored it breaks on sensor.evcc_garage_session_energy, which rolls to zero after every charge session with no period token and would alert daily. A rollover lands at ~0, corruption lands at an arbitrary value — that single distinction is the whole rule. Aggregates ARE scanned for resets (a reset in a grid meter matters most) but skipped for the magnitude checks. Also flags impossible instantaneous power (>20 kW, catches the sensor.stroomblok_electric_w 2^30 overflow) and any zwave_js node_status == dead. Accepted limitation: corruption landing at exactly zero is indistinguishable from a rollover and is missed by detector A — but its usual root cause is a dead/flapping node, which detector D catches regardless. Read-only; notifies via persistent_notification + notify.mobile_app_galaxy_s25_ultra. Built for inc-2026-08-30-002 (chg-2026-08-30-003). Validated over 7 days x 162 sensors: zero false positives, zero false negatives. Run `python3 energy_sanity.py --selftest` (needs HA_URL+HA_TOKEN) after touching any threshold."
+    depends_on: [obs.health_report, ha.core]
+    runbook: docs/runbooks/energy-statistics-corruption.md
+    sensitive: false
+  hw.plug.netwerk_stube:
+    type: zwave-device
+    owner_agent: ha-engineer
+    location: stube
+    description: "Fibaro FGWP-102 Wall Plug metering the Stube network gear (~18 W). Entities sensor.netwerk_*_2 (node_status_2, power_2, electric_consumption_kwh_2/w_2). FLAPPING since 2026-08-29: node_status went alive->dead 20:04, ->alive 21:05, ->dead 22:02, ->alive 23:05, ->dead 06:50 on 2026-08-30, currently dead. sensor.netwerk_electric_consumption_w_2 has been frozen at 18.6 W since 2026-08-23. While flapping it emitted a spurious backward jump 285.95 -> 122.15 kWh at 2026-08-30T05:05:17, which HA re-added as phantom consumption; the long-term statistic had reached 168,608 kWh (1,069 years at 18 W) before it was cleared on 2026-08-30. REMOVED from the Energy dashboard. Its healthy twin is the Zolder FGWP-102 (sensor.netwerk_electric_consumption_kwh, intact at 61.65 kWh). Replacement recommended — see inc-2026-08-30-002. Do NOT re-add to the Energy dashboard until replaced."
+    depends_on: [ha.integration.zwave]
+    sensitive: false
   obs.airmax-backup:
     type: k8s-cronjob
     owner_agent: k8s-engineer

@@ -36,6 +36,7 @@ configMapGenerator:
       - scripts/triage.py
       - scripts/trends.py
       - scripts/z2m_watchdog.py
+      - scripts/energy_sanity.py
       - scripts/report.py
       - scripts/notify.py
       - scripts/git_push.py

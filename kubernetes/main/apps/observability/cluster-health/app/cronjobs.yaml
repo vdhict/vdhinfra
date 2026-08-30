@@ -355,6 +355,76 @@ spec:
                 name: cluster-health-scripts
                 defaultMode: 0755
 ---
+# Energy statistics sanity check — runs daily at 07:15, just after the nightly
+# recorder purge and before the 08:00 health notification.
+#
+# Watches for the failure that produced inc-2026-08-30-002: a dead Z-Wave node
+# emitting spurious BACKWARD jumps on a total_increasing kWh sensor. HA reads
+# each jump as a meter replacement and adds the whole re-climb as real
+# consumption — "Netwerk Stube" reached 168,608 kWh for an 18 W device before
+# anyone noticed, three months later.
+#
+# Detects the reset (same-day) rather than the inflated total (months later).
+# Read-only: it notifies, it never writes HA state.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: health-energy-sanity
+  namespace: observability
+spec:
+  schedule: "15 7 * * *"
+  timeZone: Europe/Amsterdam
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 3600
+      template:
+        spec:
+          serviceAccountName: cluster-health
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+          containers:
+            - name: energy-sanity
+              image: ghcr.io/vdhict/cluster-health:sha-de00b79
+              imagePullPolicy: IfNotPresent
+              command: ["python3", "/scripts/energy_sanity.py"]
+              env:
+                - name: TZ
+                  value: Europe/Amsterdam
+                - name: HA_URL
+                  value: http://home-assistant.home-automation.svc.cluster.local:8123
+                # NOT mobile_app_s25_ultra_sander — that target is stale and is
+                # the open half of inc-2026-08-27-001.
+                - name: HA_NOTIFY_TARGET
+                  value: mobile_app_galaxy_s25_ultra
+              envFrom:
+                - secretRef:
+                    name: cluster-health-secret
+                    optional: true
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                - name: scripts
+                  mountPath: /scripts
+              resources:
+                requests: { cpu: 10m, memory: 64Mi }
+                limits: { cpu: 500m, memory: 256Mi }
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: cluster-health-data
+            - name: scripts
+              configMap:
+                name: cluster-health-scripts
+                defaultMode: 0755
+---
 # Renders the ops portal HTML into /data/web/ops.html every 10 minutes by
 # shallow-cloning the repo and running `ops/ops dashboard --html`. nginx
 # (cluster-health-ui) serves /data/web, so the result is reachable at

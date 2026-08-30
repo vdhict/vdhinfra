@@ -21,7 +21,14 @@ WEB_DIR = DATA_DIR / "web"
 STATE_DIR = DATA_DIR / "state"
 
 for d in (RAW_DIR, TRIAGE_DIR, TRENDS_DIR, REPORTS_DIR, WEB_DIR, STATE_DIR):
-    d.mkdir(parents=True, exist_ok=True)
+    try:
+        d.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        # No writable /data outside the pod. Importing lib must not fail for
+        # that reason alone, or read-only tooling (e.g. energy_sanity.py
+        # --selftest) can't run locally or in CI. Anything that actually
+        # writes will still raise at write time.
+        pass
 
 
 def today() -> str:
