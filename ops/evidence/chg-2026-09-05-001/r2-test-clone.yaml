@@ -1,0 +1,163 @@
+- id: zz_test_woonkamer_avond_uit
+  alias: ZZ TEST - Woonkamer Avond (chg-2026-09-05-001 R2)
+  description: TIJDELIJK TESTBLOK chg-2026-09-05-001 R2 - structureel identiek aan woonkamer_avond_uit. WORDT DIRECT
+    NA DE TRACES VERWIJDERD.
+  triggers:
+  - id: all_clear
+    trigger: template
+    value_template: '{{ is_state(''input_boolean.hestia_test_allclear'',''on'') }}'
+  - id: window_start
+    trigger: sun
+    event: sunset
+    offset: -01:00:00
+  - id: light_on_quiet
+    trigger: state
+    entity_id:
+    - light.woonkamer
+    - light.woonkamer_lamp
+    - light.woonkamer_lamp_2
+    to: 'on'
+    for:
+      minutes: 1
+  conditions:
+  - alias: Alleen avond, nooit na 23:00 (dan is B eigenaar)
+    condition: time
+    after: 00:00:00
+    before: '23:59:59'
+  - alias: Alle activiteit weg (identieke template als B)
+    condition: template
+    value_template: '{{ is_state(''input_boolean.hestia_test_allclear'',''on'') }}'
+  - alias: Minstens 1 woonkamer-lamp aan
+    condition: template
+    value_template: '{{ expand(''light.woonkamer'',''light.woonkamer_lamp'',''light.woonkamer_lamp_2'') | selectattr(''state'',''eq'',''on'')
+      | list | count > 0 }}'
+  actions:
+  - alias: Fase 1 - 10 min aaneengesloten all-clear afwachten (breekt af zodra iemand terug is)
+    wait_template: '{{ not ( is_state(''input_boolean.hestia_test_allclear'',''on'') ) }}'
+    timeout: 00:00:10
+    continue_on_timeout: true
+  - alias: Iemand terug voor het dimmen - er is nog niets veranderd, stoppen
+    if:
+    - condition: template
+      value_template: '{{ wait.completed }}'
+    then:
+    - stop: Aanwezigheid terug binnen 10 min; niet gedimd, niets uitgezet.
+  - alias: Nog binnen het avondvenster (anders neemt B over om 23:00)
+    condition: time
+    after: 00:00:00
+    before: '23:59:59'
+  - alias: GUARD 1/3 - handmatig uit tijdens fase 1? Dan stoppen (handmatig uit blijft uit)
+    condition: template
+    value_template: '{{ expand(''light.woonkamer'',''light.woonkamer_lamp'',''light.woonkamer_lamp_2'') | selectattr(''state'',''eq'',''on'')
+      | list | count > 0 }}'
+  - alias: Onthoud welke lampen nu branden
+    variables:
+      dim_targets: '{{ expand(''light.woonkamer'',''light.woonkamer_lamp'',''light.woonkamer_lamp_2'') | selectattr(''state'',''eq'',''on'')
+        | map(attribute=''entity_id'') | list }}'
+  - alias: Snapshot van de huidige woonkamerstaat (voor exact herstel)
+    action: scene.create
+    data:
+      scene_id: zz_test_predim
+      snapshot_entities:
+      - light.woonkamer
+      - light.woonkamer_lamp
+      - light.woonkamer_lamp_2
+  - alias: Fase 1 - dim de brandende woonkamerlampen naar 30%
+    action: light.turn_on
+    target:
+      entity_id: '{{ dim_targets }}'
+    data:
+      brightness_pct: 30
+      transition: 2
+  - alias: Fase 2 - nog 10 min all-clear afwachten (totaal 20)
+    wait_template: '{{ not ( is_state(''input_boolean.hestia_test_allclear'',''on'') ) }}'
+    timeout: 00:01:00
+    continue_on_timeout: true
+  - alias: Iemand terug na het dimmen - volledig herstellen en stoppen
+    if:
+    - condition: template
+      value_template: '{{ wait.completed }}'
+    then:
+    - alias: GUARD 2/3 - tijdens fase 2 handmatig uitgezet? Dan NIET herstellen EN de run stoppen (een kale condition
+        in een then-tak stopt de run NIET, die valt door naar de uit-tak - bewezen met trace e6b300a0 op 2026-09-05,
+        daarom expliciet stop)
+      if:
+      - condition: template
+        value_template: '{{ expand(dim_targets) | selectattr(''state'',''eq'',''on'') | list | count == 0 }}'
+      then:
+      - stop: Handmatig uitgezet tijdens fase 2; niet herstellen, niets uitzetten, niet heraansteken.
+    - choose:
+      - alias: Exact herstel via snapshot-scene
+        conditions:
+        - condition: template
+          value_template: '{{ states.scene.zz_test_predim is not none }}'
+        sequence:
+        - action: scene.turn_on
+          target:
+            entity_id: scene.zz_test_predim
+          data:
+            transition: 2
+      default:
+      - alias: Fallback - A''s lux-geschaalde helderheid (nooit hardgecodeerd 100%)
+        action: light.turn_on
+        target:
+          entity_id: '{{ dim_targets }}'
+        data:
+          transition: 2
+          brightness_pct: '{% set fp = states(''sensor.presence_woonkamer_illuminance'')|float(-1) %}{% set age
+            = (now() - states.sensor.presence_woonkamer_illuminance.last_updated).total_seconds() if has_value(''sensor.presence_woonkamer_illuminance'')
+            else 99999 %}{% set fp2 = states(''sensor.presence_sensor_fp2_f08e_light_sensor_light_level'')|float(-1)
+            %}{% set L = fp if (fp >= 0 and age < 3600) else fp2 %}{% set b = (20 + 50*((40 - L)/35))|round(0) %}{{
+            [70,[20,b]|max]|min }}'
+    - stop: Aanwezigheid terug; volledige helderheid hersteld, niets uitgezet.
+  - alias: Nog binnen het avondvenster (anders neemt B over om 23:00)
+    condition: time
+    after: 00:00:00
+    before: '23:59:59'
+  - alias: GUARD 3/3 - handmatig uit tijdens fase 2? Dan stoppen (handmatig uit blijft uit)
+    condition: template
+    value_template: '{{ expand(''light.woonkamer'',''light.woonkamer_lamp'',''light.woonkamer_lamp_2'') | selectattr(''state'',''eq'',''on'')
+      | list | count > 0 }}'
+  - alias: Fase 2 - de 3 woonkamerlampen uit (keuken en bar blijven ongemoeid)
+    action: light.turn_off
+    target:
+      entity_id:
+      - light.woonkamer
+      - light.woonkamer_lamp
+      - light.woonkamer_lamp_2
+  - alias: Na EIGEN auto-uit - wachten tot de woonkamer-FP300 weer iemand ziet (max 3u)
+    wait_for_trigger:
+    - trigger: state
+      entity_id: input_boolean.hestia_test_presence
+      to: 'on'
+    timeout: 00:02:00
+    continue_on_timeout: true
+  - alias: Niemand teruggekomen binnen 3u - klaar
+    if:
+    - condition: template
+      value_template: '{{ wait.trigger is none }}'
+    then:
+    - stop: Geen terugkeer binnen 3u; lampen blijven uit.
+  - alias: Heraansteken mag alleen binnen het avondvenster (na 23:00 is B eigenaar)
+    condition: time
+    after: 00:00:00
+    before: '23:59:59'
+  - alias: Alleen heraansteken als niemand ze zelf al heeft aangedaan
+    condition: template
+    value_template: '{{ expand(''light.woonkamer'',''light.woonkamer_lamp'',''light.woonkamer_lamp_2'') | selectattr(''state'',''eq'',''on'')
+      | list | count == 0 }}'
+  - alias: Alleen heraansteken als het donker is (zelfde lux-bron als A, behoudt A''s donker-voorwaarde)
+    condition: template
+    value_template: '{{ is_state(''input_boolean.hestia_test_dark'',''on'') }}'
+  - alias: Heraansteken - dezelfde 3 lampen op A''s lux-geschaalde helderheid (A''s latch blijft ongemoeid)
+    action: light.turn_on
+    target:
+      entity_id: '{{ dim_targets }}'
+    data:
+      transition: 2
+      brightness_pct: '{% set fp = states(''sensor.presence_woonkamer_illuminance'')|float(-1) %}{% set age = (now()
+        - states.sensor.presence_woonkamer_illuminance.last_updated).total_seconds() if has_value(''sensor.presence_woonkamer_illuminance'')
+        else 99999 %}{% set fp2 = states(''sensor.presence_sensor_fp2_f08e_light_sensor_light_level'')|float(-1)
+        %}{% set L = fp if (fp >= 0 and age < 3600) else fp2 %}{% set b = (20 + 50*((40 - L)/35))|round(0) %}{{
+        [70,[20,b]|max]|min }}'
+  mode: restart

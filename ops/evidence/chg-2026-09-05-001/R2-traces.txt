@@ -1,0 +1,80 @@
+chg-2026-09-05-001 R2 -- live automation traces (HA WS trace/get, real 3 woonkamer lamps)
+Driven through a structurally identical throwaway clone (zz_test_woonkamer_avond_uit,
+same 18 action indices and same aliases, generated programmatically from the real block).
+Substituted in the clone ONLY: all-clear -> input_boolean.hestia_test_allclear,
+FP300 re-light trigger -> input_boolean.hestia_test_presence, darkness -> input_boolean.hestia_test_dark,
+timeouts 10s/60s/120s, time window widened. Clone + toggles deleted afterwards.
+
+================================================================
+TRACE 0 -- the DEFECT Themis found, reproduced with the ORIGINAL bare-condition guard
+run_id=e6b300a065f7f654b1f0ff0d162b57aa  start=15:12:38
+  action/7      wait={"remaining": 44.80, "completed": true}
+  action/8/if                     result=True
+  action/8/then/0                 result=False   <-- R1 guard correctly FAILS
+  action/9                        result=True    <-- but the run CONTINUES (fall-through)
+  action/10                       result=False   <-- only stopped here, by GUARD 3/3
+FINDING: a bare `condition:` inside an if/then does NOT stop the run; it aborts only the
+nested sequence and execution falls through to the following top-level actions. R1 as
+specified blocks the restore but does not halt, so the run drops into the turn-off branch.
+Fix applied: replaced the bare condition with an explicit `if -> stop`.
+
+================================================================
+TRACE A -- user switches all 3 lamps OFF during phase 2  (manual off stays off)
+run_id=10b82945abddf0eb14185e9eddbf79d1  start=15:15:24
+  condition/0,1,2                 result=True
+  action/0      wait={"remaining": 0.0, "completed": false}   (phase 1 timed out)
+  action/1/if                     result=False
+  action/2 (window)               result=True
+  action/3 (GUARD 1/3)            result=True
+  action/5      -> scene.create
+  action/6      -> light.turn_on  (dim to 30%)
+  action/7      wait={"remaining": 51.89, "completed": true}  (presence returned)
+  action/8/if                     result=True
+  action/8/then/0/if              result=True    <-- lamps all off -> guard trips
+  action/8/then/0/then/0          STOP           <-- run ENDS here
+NOT reached: action/8/then/1 (restore choose), action/9, action/10, action/11 (turn_off),
+action/12-17 (re-light).
+Lamp states: 204/203/203 -> dim 76/77/77 -> manual off -> FINAL off/off/off. No restore.
+
+================================================================
+TRACE B -- identical flow, NO manual off  (guard must not break the legitimate restore)
+run_id=01d22622b9ca7da77c33e09098a304e0  start=15:16:22
+  action/6      -> light.turn_on  (dim to 30%: 82/77/77)
+  action/7      wait={"remaining": 54.88, "completed": true}
+  action/8/then/0/if              result=False   <-- lamps still on -> guard does NOT trip
+  action/8/then/1                 choice=0
+  action/8/then/1/choose/0/sequence/0 -> scene.turn_on
+  action/8/then/2                 STOP
+Lamp states: 204/203/203 -> dim 82/77/77 -> FINAL 204/203/203. Exact pre-dim restore.
+
+================================================================
+TRACE C -- full auto-off then FP300 re-light  (D2 redesign, latch never touched)
+run_id=2eb3ab86df08d280cd0410fe7c3dadf4  start=15:18:34
+  action/0      wait completed=false            (phase 1 timeout)
+  action/6      -> light.turn_on  (dim 76/77/77)
+  action/7      wait completed=false            (phase 2 timeout -> genuine auto-off)
+  action/9  (window)              result=True
+  action/10 (GUARD 3/3)           result=True
+  action/11     -> light.turn_off                <-- AUTO-OFF
+  action/12     wait={"remaining":113.12,"completed":true,"trigger":{...}}  <-- FP300 saw someone
+  action/13/if                    result=False   (wait.trigger not none)
+  action/14 (window)              result=True
+  action/15 (nobody turned them on)  result=True
+  action/16 (dark)                result=True
+  action/17     -> light.turn_on                 <-- RE-LIGHT at A's lux-scaled brightness
+Lamp states: on 80% -> dim 76/77/77 -> auto-off -> FINAL re-lit 51/52/52 (=20%, A's floor at high lux).
+input_boolean.adaptief_bg_vanavond_gedaan: "on" BEFORE and "on" AFTER -> latch never touched.
+No input_boolean service call appears anywhere in the trace.
+
+================================================================
+N5a re-verify on the FINAL real block (automation.woonkamer_avond_uit_bij_afwezigheid)
+run_id=747916a751242351ad8d47363cce0bb6  start=15:21:39  (17:21 local, sunset-1h = 19:19)
+  condition/0 (time 12:00-23:00)  result=True
+  condition/1 (sun after sunset-1h) result=False   -> run stops, nothing outside the window
+
+N4 re-verify on the FINAL real block (TV genuinely ON at the time)
+run_id=6531e385c68f29e62cb2e044f25c4c34  start=15:21:43
+  action/0      wait={"remaining": 600.0, "completed": true}   (all-clear false instantly)
+  action/1/if                     result=True
+  action/1/then/0                 STOP
+Lamps unchanged off/off/off; latch unchanged "on".

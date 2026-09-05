@@ -1,0 +1,2197 @@
+- id: '1733041026132'
+  alias: Ververs Greenwave PowerNode Sockets
+  description: Ververs elke 5 minuten de energiewaarden van de Greenwave PowerNode stekkers via Z-Wave
+  triggers:
+  - trigger: time_pattern
+    minutes: /5
+  conditions: []
+  actions:
+  - action: zwave_js.refresh_value
+    metadata: {}
+    data:
+      entity_id:
+      - sensor.stroomblok_electric_consumption_kwh_6
+      - sensor.stroomblok_electric_consumption_kwh_5
+  mode: single
+- id: '1734326332877'
+  alias: Automatische Backups
+  description: Maakt dagelijks automatische backups van Home Assistant configuratie en data volgens een
+    vast schema
+  use_blueprint:
+    path: jcwillox/automatic_backups.yaml
+- id: '1742276544597'
+  alias: Ochtend Keuken Routine
+  description: Start de ochtendrutine bij aanwezigheid in de keuken tussen 05:30 en 09:30. Schakelt keukenverlichting
+    geleidelijk in, zet het koffiezetapparaat aan indien remote start actief is, en speelt Radio Veronica
+    af
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.presence_sensor_fp2_f08e_presence_sensor_3
+    to: 'on'
+    from: 'off'
+  conditions:
+  - condition: time
+    weekday:
+    - mon
+    - tue
+    - wed
+    - thu
+    - fri
+    - sat
+    - sun
+    enabled: true
+    after: 05:30:00
+    before: 09:30:00
+  - condition: template
+    value_template: '{% set lt = state_attr(''automation.ochtend_keuken_routine'', ''last_triggered'')
+      %}
+
+      {{ lt is none or (as_timestamp(now()) - as_timestamp(lt)) > 14400 }}'
+  actions:
+  - parallel:
+    - choose:
+      - conditions:
+        - condition: state
+          entity_id: binary_sensor.espresso_volautomaat_start_op_afstand
+          state: 'on'
+        sequence:
+        - action: switch.turn_on
+          data: {}
+          target:
+            entity_id: switch.espresso_volautomaat_inschakelen
+      alias: Start Coffee Machine
+    - sequence:
+      - action: media_player.unjoin
+        data: {}
+        target:
+          entity_id: media_player.keuken
+      - wait_template: '{{ state_attr(''media_player.keuken'', ''group_members'') | count == 1 }}'
+        continue_on_timeout: true
+        timeout: '10'
+      - data:
+          volume_level: 0.08
+        action: media_player.volume_set
+        target:
+          entity_id: media_player.keuken
+      - action: media_player.volume_mute
+        data:
+          is_volume_muted: false
+        target:
+          entity_id: media_player.keuken
+      - data:
+          enqueue: replace
+          media_content_id: FV:2/130
+          media_content_type: favorite_item_id
+        action: media_player.play_media
+        target:
+          entity_id: media_player.keuken
+      alias: Play Radio Veronica on Keuken
+  mode: single
+- id: '1734200001010'
+  alias: Keuken Screen - Openen Ochtend
+  description: Open het screen in de keuken om 7:00 op weekdagen
+  triggers:
+  - trigger: time
+    at: 07:00:00
+  conditions:
+  - condition: time
+    weekday:
+    - mon
+    - tue
+    - wed
+    - thu
+    - fri
+  actions:
+  - action: cover.open_cover
+    target:
+      entity_id: cover.screen
+  mode: single
+- id: '1734200001013'
+  alias: Keuken Screen - Openen Weekend
+  description: Open het screen in de keuken 1 uur na de ochtend routine in het weekend
+  triggers:
+  - trigger: state
+    entity_id: automation.ochtend_keuken_routine
+    attribute: last_triggered
+  conditions:
+  - condition: time
+    weekday:
+    - sat
+    - sun
+  actions:
+  - delay:
+      hours: 1
+      minutes: 0
+      seconds: 0
+  - action: cover.open_cover
+    target:
+      entity_id: cover.screen
+  mode: single
+- id: '1734200001011'
+  alias: Keuken Screen - Sluiten Avond
+  description: Sluit het screen in de keuken 30 minuten voor zonsondergang
+  triggers:
+  - trigger: sun
+    event: sunset
+    offset: -00:30:00
+  conditions: []
+  actions:
+  - action: cover.close_cover
+    target:
+      entity_id: cover.screen
+  mode: single
+- id: '1740400001'
+  alias: Keuken Tablet - Scherm aan/uit bij aanwezigheid
+  description: Zet het tablet scherm aan bij aanwezigheid in de keuken en uit na 5 minuten afwezigheid
+  triggers:
+  - trigger: state
+    entity_id: binary_sensor.presence_sensor_fp2_f08e_presence_sensor_3
+    to: 'on'
+    id: presence_on
+  - trigger: state
+    entity_id: binary_sensor.presence_sensor_fp2_f08e_presence_sensor_3
+    to: 'off'
+    for:
+      minutes: 5
+    id: presence_off
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id:
+        - presence_on
+      sequence:
+      - action: switch.turn_on
+        target:
+          entity_id: switch.pixel_tablet_scherm
+    - conditions:
+      - condition: trigger
+        id:
+        - presence_off
+      sequence:
+      - action: switch.turn_off
+        target:
+          entity_id: switch.pixel_tablet_scherm
+  mode: restart
+- id: '1740400002'
+  alias: Keuken Tablet - Schermhelderheid op tijd
+  description: Past de schermhelderheid van het tablet aan op basis van het tijdstip
+  triggers:
+  - trigger: time
+    at: 07:00:00
+    id: morning
+  - trigger: time
+    at: '21:00:00'
+    id: evening
+  - trigger: time
+    at: '23:00:00'
+    id: night
+  conditions:
+  - condition: state
+    entity_id: switch.pixel_tablet_scherm
+    state: 'on'
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id:
+        - morning
+      sequence:
+      - action: number.set_value
+        target:
+          entity_id: number.pixel_tablet_schermhelderheid
+        data:
+          value: 255
+    - conditions:
+      - condition: trigger
+        id:
+        - evening
+      sequence:
+      - action: number.set_value
+        target:
+          entity_id: number.pixel_tablet_schermhelderheid
+        data:
+          value: 102
+    - conditions:
+      - condition: trigger
+        id:
+        - night
+      sequence:
+      - action: number.set_value
+        target:
+          entity_id: number.pixel_tablet_schermhelderheid
+        data:
+          value: 25
+  mode: single
+- id: '1740400003'
+  alias: Keuken Tablet - Nachtelijke herstart
+  description: Herstart de Fully Kiosk Browser elke nacht om 04:00 voor stabiele werking
+  triggers:
+  - trigger: time
+    at: 04:00:00
+  conditions: []
+  actions:
+  - action: button.press
+    target:
+      entity_id: button.pixel_tablet_herstart_browser
+  mode: single
+- id: '1737892216860'
+  alias: Stalen Deur Open
+  description: Spreekt een waarschuwing uit via TTS wanneer de woonkamerdeur langer dan 30 seconden open
+    staat (alleen overdag)
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.deursensor_open
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 30
+  conditions:
+  - condition: or
+    conditions:
+    - condition: time
+      after: 07:00:00
+      before: '21:00:00'
+      weekday:
+      - mon
+      - tue
+      - wed
+      - thu
+      - fri
+    - condition: time
+      after: 08:00:00
+      before: '21:00:00'
+      weekday:
+      - sat
+      - sun
+  actions:
+  - repeat:
+      sequence:
+      - action: tts.speak
+        metadata: {}
+        data:
+          cache: true
+          message: De deur van de woonkamer is niet dicht
+          media_player_entity_id: media_player.eetkamer_2
+        target:
+          entity_id: tts.home_assistant_cloud
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 30
+      while:
+      - condition: state
+        entity_id: binary_sensor.deursensor_open
+        state: 'on'
+  mode: single
+- id: '1744728869124'
+  alias: Vloerverwarmingspomp Beheer
+  description: 'Pomp aan bij warmtevraag, uit 15 min na einde vraag. Dagelijkse anti-vastloop cyclus van
+    5 min via een TIJD-trigger. Stuurt sinds 2026-08-30 het STROOMBLOK-stopcontact ch6 aan (switch.stroomblok_6)
+    i.p.v. de Innr-plug: het stroomblok schakelt en meet zelf, dus de Innr is overbodig en kan elders
+    gebruikt worden. Verifieert dat de pomp echt stroom trekt.'
+  triggers:
+  - trigger: numeric_state
+    entity_id: sensor.woonkamer_verwarmen
+    above: 0
+    id: demand_on
+  - trigger: numeric_state
+    entity_id: sensor.woonkamer_verwarmen
+    below: 1
+    for:
+      minutes: 15
+    id: demand_off
+  - trigger: time
+    at: '11:00:00'
+    id: exercise
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id: demand_on
+      sequence:
+      - action: switch.turn_on
+        target:
+          entity_id: switch.stroomblok_6
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.vloerpomp_laatste_run
+        data:
+          datetime: '{{ now().strftime(''%Y-%m-%d %H:%M:%S'') }}'
+    - conditions:
+      - condition: trigger
+        id: demand_off
+      sequence:
+      - action: switch.turn_off
+        target:
+          entity_id: switch.stroomblok_6
+    - conditions:
+      - condition: trigger
+        id: exercise
+      - condition: template
+        value_template: '{{ (now().timestamp() - state_attr(''input_datetime.vloerpomp_laatste_run'',''timestamp''))
+          > 86400 }}'
+      sequence:
+      - action: switch.turn_on
+        target:
+          entity_id: switch.stroomblok_6
+      - delay:
+          seconds: 45
+      - if:
+        - condition: numeric_state
+          entity_id: sensor.stroomblok_electric_consumption_w_6
+          above: 10
+        then:
+        - action: input_boolean.turn_off
+          target:
+            entity_id: input_boolean.vloerpomp_storing
+        else:
+        - action: input_boolean.turn_on
+          target:
+            entity_id: input_boolean.vloerpomp_storing
+        - action: notify.mobile_app_galaxy_s25_ultra
+          data:
+            title: Vloerverwarmingspomp
+            message: Pomp aangestuurd maar trekt <10W. Mogelijk defect of stekker eruit.
+      - delay:
+          minutes: 5
+      - action: switch.turn_off
+        target:
+          entity_id: switch.stroomblok_6
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.vloerpomp_laatste_run
+        data:
+          datetime: '{{ now().strftime(''%Y-%m-%d %H:%M:%S'') }}'
+  mode: queued
+  max: 5
+- id: '1734200001001'
+  alias: Kantoor Ochtend - Klimaat
+  description: 'Verwarm kantoor bij ≤17°C of koel bij ≥23°C om 8:30 op werkdagen als
+    Sander thuis is.
+
+    chg-2026-08-30-005: de koel-drempel stond in code op `above: 22` terwijl deze
+    omschrijving al ≥23°C beloofde. De code is nu gelijkgetrokken met de omschrijving
+    (above 22.99). sensor.kantoor_temperatuur rapporteert 2 decimalen, dus
+    `above: 22.99` is exact equivalent aan >= 23.00 - een drempel van 22.9 zou al
+    bij 22.91 vuren en dus 0,09 degC afwijken van de occupancy-pair. Dezelfde
+    drempel geldt nu in de occupancy-pair 1747224001001.
+
+    De setpoints hier (heat 20 / cool 21) zijn LEIDEND: 1747224001001 is er in ronde 2
+    op gelijkgetrokken. Daarvoor zette die bij aanwezigheid cool 24 over deze cool 21
+    heen, waardoor de eerste aanwezigheids-latch de ochtendroutine meteen ongedaan
+    maakte. Wijzig deze waarden niet los van 1747224001001.
+
+    '
+  triggers:
+  - trigger: time
+    at: 08:30:00
+  conditions:
+  - condition: time
+    weekday:
+    - mon
+    - tue
+    - wed
+    - thu
+    - fri
+  - condition: state
+    entity_id: person.sander_van_der_heijden
+    state: home
+  - condition: or
+    conditions:
+    - condition: numeric_state
+      entity_id: sensor.kantoor_temperatuur
+      below: 18
+    - condition: numeric_state
+      entity_id: sensor.kantoor_temperatuur
+      above: 22.99
+  actions:
+  - choose:
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.kantoor_temperatuur
+        below: 18
+      sequence:
+      - action: climate.set_hvac_mode
+        target:
+          entity_id: climate.kantoor
+        data:
+          hvac_mode: heat
+      - action: climate.set_temperature
+        target:
+          entity_id: climate.kantoor
+        data:
+          temperature: 20
+      - action: climate.set_swing_mode
+        target:
+          entity_id: climate.kantoor
+        data:
+          swing_mode: both
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.kantoor_temperatuur
+        above: 22.99
+      sequence:
+      - action: climate.set_hvac_mode
+        target:
+          entity_id: climate.kantoor
+        data:
+          hvac_mode: cool
+      - action: climate.set_temperature
+        target:
+          entity_id: climate.kantoor
+        data:
+          temperature: 21
+      - action: climate.set_swing_mode
+        target:
+          entity_id: climate.kantoor
+        data:
+          swing_mode: both
+  mode: single
+- id: '1747987200001'
+  alias: Kantoor Avond - Klimaat Uit
+  description: 'Zet de kantoor-airco om 18:00 uit, ALLE ZEVEN DAGEN (tegenhanger van
+    de ochtend-automation 1734200001001, die zelf wel werkdag-only is).
+
+    chg-2026-08-30-005: de weekday-conditie mon-vri is hier bewust VERWIJDERD. Sinds
+    de aanwezigheidssensor live is kan de occupancy-pair (1747224001001) de airco ook
+    in het weekend aanzetten, en Afwezig zet bewust nooit hvac_mode off. Met een
+    werkdag-only uitschakelaar bleef een split-unit dan het hele weekend in cool met
+    swing draaien in een bewoond huis. Zet de weekday-conditie hier niet terug zonder
+    ook de aanzet-branches van 1747224001001 opnieuw te bekijken.
+
+    '
+  triggers:
+  - trigger: time
+    at: '18:00:00'
+  conditions:
+  - condition: not
+    conditions:
+    - condition: state
+      entity_id: climate.kantoor
+      state: 'off'
+  actions:
+  - action: climate.set_hvac_mode
+    target:
+      entity_id: climate.kantoor
+    data:
+      hvac_mode: 'off'
+  mode: single
+- id: '1734200001002'
+  alias: Kantoor Ochtend - PC Opstarten
+  description: Start werkstation via Wake on LAN om 8:45 op werkdagen als Sander thuis is
+  triggers:
+  - trigger: time
+    at: 08:45:00
+  conditions:
+  - condition: time
+    weekday:
+    - mon
+    - tue
+    - wed
+    - thu
+    - fri
+  - condition: state
+    entity_id: person.sander_van_der_heijden
+    state: home
+  actions:
+  - action: button.press
+    target:
+      entity_id: button.wake_on_lan_d8_bb_c1_94_90_c0
+  mode: single
+- id: '1734200001003'
+  alias: Kantoor Focus Mode - Lichten Dimmen
+  description: Dim kantoorverlichting naar 50% tijdens agenda-afspraken (focus mode)
+  triggers:
+  - trigger: state
+    entity_id: calendar.sheijden_gmail_com
+    to: 'on'
+  conditions:
+  - condition: state
+    entity_id: person.sander_van_der_heijden
+    state: home
+  - condition: state
+    entity_id: device_tracker.vdhws01
+    state: home
+  actions:
+  - action: light.turn_on
+    target:
+      entity_id:
+      - light.kantoor
+    data:
+      brightness_pct: 50
+      transition: 5
+  mode: single
+- id: '1734200001004'
+  alias: Kantoor Focus Mode - Lichten Herstellen
+  description: Herstel kantoorverlichting na afloop van agenda-afspraak
+  triggers:
+  - trigger: state
+    entity_id: calendar.sheijden_gmail_com
+    to: 'off'
+  conditions:
+  - condition: state
+    entity_id: person.sander_van_der_heijden
+    state: home
+  - condition: state
+    entity_id: light.kantoor
+    state: 'on'
+  actions:
+  - action: light.turn_on
+    target:
+      entity_id:
+      - light.kantoor
+    data:
+      brightness_pct: 100
+      transition: 5
+  mode: single
+- id: '1734200001012'
+  alias: Kantoor Adaptieve Verlichting
+  description: Pas kantoorverlichting aan op basis van omgevingslicht tijdens werkuren
+  triggers:
+  - trigger: state
+    entity_id: sensor.multisensor_illuminance
+  conditions:
+  - condition: time
+    after: 08:30:00
+    before: '17:00:00'
+    weekday:
+    - mon
+    - tue
+    - wed
+    - thu
+    - fri
+  - condition: state
+    entity_id: person.sander_van_der_heijden
+    state: home
+  - condition: state
+    entity_id: device_tracker.vdhws01
+    state:
+    - home
+  actions:
+  - choose:
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.multisensor_illuminance
+        below: 50
+      sequence:
+      - action: light.turn_on
+        target:
+          entity_id:
+          - light.kantoor
+        data:
+          brightness_pct: 100
+          transition: 5
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.multisensor_illuminance
+        above: 49
+        below: 100
+      sequence:
+      - action: light.turn_on
+        target:
+          entity_id:
+          - light.kantoor
+        data:
+          brightness_pct: 80
+          transition: 5
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.multisensor_illuminance
+        above: 99
+        below: 200
+      sequence:
+      - action: light.turn_on
+        target:
+          entity_id:
+          - light.kantoor
+        data:
+          brightness_pct: 60
+          transition: 5
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.multisensor_illuminance
+        above: 199
+        below: 300
+      sequence:
+      - action: light.turn_on
+        target:
+          entity_id:
+          - light.kantoor
+        data:
+          brightness_pct: 40
+          transition: 5
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.multisensor_illuminance
+        above: 299
+        below: 400
+      sequence:
+      - action: light.turn_on
+        target:
+          entity_id:
+          - light.kantoor
+        data:
+          brightness_pct: 20
+          transition: 5
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.multisensor_illuminance
+        above: 399
+      sequence:
+      - action: light.turn_off
+        target:
+          entity_id:
+          - light.kantoor
+        data:
+          transition: 5
+  mode: single
+- id: '1734200001009'
+  alias: Kantoor Einde Werkdag - Lichten Uit
+  description: Zet kantoorverlichting uit wanneer werkstation offline gaat na 17:00 op werkdagen
+  triggers:
+  - trigger: state
+    entity_id: device_tracker.vdhws01
+    to: not_home
+    for:
+      minutes: 5
+  conditions:
+  - condition: time
+    after: '17:00:00'
+    weekday:
+    - mon
+    - tue
+    - wed
+    - thu
+    - fri
+  - condition: state
+    entity_id: light.kantoor
+    state: 'on'
+  actions:
+  - action: light.turn_off
+    target:
+      entity_id:
+      - light.kantoor
+    data:
+      transition: 10
+  - action: climate.set_hvac_mode
+    target:
+      entity_id: climate.kantoor
+    data:
+      hvac_mode: 'off'
+  mode: single
+- id: '1734200001005'
+  alias: Kantoor Notificatie - Deurbel
+  description: '⚠ UITGESCHAKELD 2026-08-30 (chg-2026-08-30-005) — werkstation VDHWS01
+    is opnieuw geinstalleerd met Linux en heeft geen HA-agent meer. LEES DIT VOOR JE
+    HEM WEER AANZET: er zijn TWEE dode afhankelijkheden. (1) De conditie
+    device_tracker.vdhws01 == home staat sinds 2026-08-30 21:27 permanent op
+    not_home, dus zelfs ingeschakeld zou deze automation nooit vuren. (2) Het
+    oorspronkelijke doel notify.vdhws01 bestaat nog wél als service, maar er zit geen
+    agent meer achter — bezorging faalt STIL, zonder fout in het log. Het doel is
+    daarom omgezet naar notify.persistent_notification, dat altijd aankomt in de
+    HA-UI. Kies bij heractivering een echt bureau-doel en herstel of verwijder de
+    aanwezigheidsconditie. Origineel: Toon notificatie op werkstation bij deurbel.'
+  triggers:
+  - trigger: state
+    entity_id: binary_sensor.camera_deurbel_deurbel
+    to: 'on'
+  conditions:
+  - condition: state
+    entity_id: device_tracker.vdhws01
+    state: home
+  actions:
+  - action: notify.persistent_notification
+    data:
+      message: Er staat iemand bij de voordeur!
+      title: Deurbel
+  mode: single
+- id: '1734200001006'
+  alias: Kantoor Notificatie - Wasmachine Klaar
+  description: '⚠ UITGESCHAKELD 2026-08-30 (chg-2026-08-30-005) — werkstation VDHWS01
+    is opnieuw geinstalleerd met Linux en heeft geen HA-agent meer. LEES DIT VOOR JE
+    HEM WEER AANZET: er zijn TWEE dode afhankelijkheden. (1) De conditie
+    device_tracker.vdhws01 == home staat sinds 2026-08-30 21:27 permanent op
+    not_home, dus zelfs ingeschakeld zou deze automation nooit vuren. (2) Het
+    oorspronkelijke doel notify.vdhws01 bestaat nog wél als service, maar er zit geen
+    agent meer achter — bezorging faalt STIL, zonder fout in het log. Het doel is
+    daarom omgezet naar notify.persistent_notification, dat altijd aankomt in de
+    HA-UI. Kies bij heractivering een echt bureau-doel en herstel of verwijder de
+    aanwezigheidsconditie. NB de trigger is `finish` (niet `finished`) — Samsung
+    gebruikt voor de wasmachine echt een andere waarde dan voor de droger, dat is
+    geen typefout. Origineel: Toon notificatie op werkstation wanneer wasmachine
+    klaar is.'
+  triggers:
+  - trigger: state
+    entity_id: sensor.wasmachine_taakstatus
+    to: finish
+  conditions:
+  - condition: state
+    entity_id: device_tracker.vdhws01
+    state: home
+  actions:
+  - action: notify.persistent_notification
+    data:
+      message: De wasmachine is klaar!
+      title: Wasmachine
+  mode: single
+- id: '1734200001007'
+  alias: Kantoor Notificatie - Droger Klaar
+  description: '⚠ UITGESCHAKELD 2026-08-30 (chg-2026-08-30-005) — werkstation VDHWS01
+    is opnieuw geinstalleerd met Linux en heeft geen HA-agent meer. LEES DIT VOOR JE
+    HEM WEER AANZET: er zijn TWEE dode afhankelijkheden. (1) De conditie
+    device_tracker.vdhws01 == home staat sinds 2026-08-30 21:27 permanent op
+    not_home, dus zelfs ingeschakeld zou deze automation nooit vuren. (2) Het
+    oorspronkelijke doel notify.vdhws01 bestaat nog wél als service, maar er zit geen
+    agent meer achter — bezorging faalt STIL, zonder fout in het log. Het doel is
+    daarom omgezet naar notify.persistent_notification, dat altijd aankomt in de
+    HA-UI. Kies bij heractivering een echt bureau-doel en herstel of verwijder de
+    aanwezigheidsconditie. NB de trigger is `finished` (niet `finish`) — Samsung
+    gebruikt voor de droger echt een andere waarde dan voor de wasmachine, dat is
+    geen typefout. Origineel: Toon notificatie op werkstation wanneer droger klaar
+    is.'
+  triggers:
+  - trigger: state
+    entity_id: sensor.droger_taakstatus
+    to: finished
+  conditions:
+  - condition: state
+    entity_id: device_tracker.vdhws01
+    state: home
+  actions:
+  - action: notify.persistent_notification
+    data:
+      message: De droger is klaar!
+      title: Droger
+  mode: single
+- id: '1734200001008'
+  alias: Kantoor Notificatie - Vaatwasser Klaar
+  description: '⚠ UITGESCHAKELD 2026-08-30 (chg-2026-08-30-005) — werkstation VDHWS01
+    is opnieuw geinstalleerd met Linux en heeft geen HA-agent meer. LEES DIT VOOR JE
+    HEM WEER AANZET: er zijn TWEE dode afhankelijkheden. (1) De conditie
+    device_tracker.vdhws01 == home staat sinds 2026-08-30 21:27 permanent op
+    not_home, dus zelfs ingeschakeld zou deze automation nooit vuren. (2) Het
+    oorspronkelijke doel notify.vdhws01 bestaat nog wél als service, maar er zit geen
+    agent meer achter — bezorging faalt STIL, zonder fout in het log. Het doel is
+    daarom omgezet naar notify.persistent_notification, dat altijd aankomt in de
+    HA-UI. Kies bij heractivering een echt bureau-doel en herstel of verwijder de
+    aanwezigheidsconditie. Origineel: Toon notificatie op werkstation wanneer
+    vaatwasser klaar is.'
+  triggers:
+  - trigger: state
+    entity_id: sensor.vaatwasser_status
+    to: finished
+  conditions:
+  - condition: state
+    entity_id: device_tracker.vdhws01
+    state: home
+  actions:
+  - action: notify.persistent_notification
+    data:
+      message: De vaatwasser is klaar!
+      title: Vaatwasser
+  mode: single
+- id: '1734761531071'
+  alias: Kerstverlichting aan en uitzetten
+  description: '⚠ UITGESCHAKELD buiten kerstseizoen — entiteiten bestaan alleen als de lampen fysiek aangesloten
+    zijn. Re-enable in december en verifieer entity_ids: light.icicle_keuken, light.kerst_ijspegels, light.on_off_plug_1_2
+    (deze hadden in 2026-04 hun originele namen). Oorspronkelijke beschrijving: Zet kerstverlichting aan
+    om 06:30 en uit om 21:00'
+  triggers:
+  - trigger: time
+    at: 06:30:00
+    id: ochtend
+  - trigger: time
+    at: '21:00:00'
+    id: avond
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id:
+        - ochtend
+      sequence:
+      - parallel:
+        - action: light.turn_on
+          target:
+            entity_id:
+            - light.kerst_ijspegels
+            - light.icicle_keuken
+            - light.on_off_plug_1_2
+          data:
+            brightness_pct: 100
+        - action: switch.turn_on
+          target:
+            entity_id:
+            - switch.0x7cb03eaa0a0c03a0
+            - switch.0xa4c138935509f13a
+            - switch.0xa4c138a64565764a
+            - switch.0x7cb03eaa0a0c0720
+    - conditions:
+      - condition: trigger
+        id:
+        - avond
+      sequence:
+      - parallel:
+        - action: light.turn_off
+          target:
+            entity_id:
+            - light.kerst_ijspegels
+            - light.icicle_keuken
+            - light.on_off_plug_1_2
+        - action: switch.turn_off
+          target:
+            entity_id:
+            - switch.0x7cb03eaa0a0c03a0
+            - switch.0xa4c138935509f13a
+            - switch.0xa4c138a64565764a
+            - switch.0x7cb03eaa0a0c0720
+  mode: single
+- id: '1736714303570'
+  alias: Gangverlichting Brandpad
+  description: Schakelt de gangverlichting bij het brandpad in bij bewegingsdetectie wanneer het lichtniveau
+    laag is, en schakelt uit na 5 minuten zonder beweging
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.brandpad_beweging
+    from: 'off'
+    to: 'on'
+  conditions:
+  - condition: numeric_state
+    entity_id: sensor.brandpad_licht
+    attribute: light_level
+    below: 55
+  actions:
+  - action: light.turn_on
+    target:
+      entity_id: light.brandpad
+    data:
+      brightness_pct: 100
+  - delay:
+      hours: 0
+      minutes: 5
+      seconds: 0
+  - action: light.turn_off
+    target:
+      entity_id: light.brandpad
+  mode: restart
+- id: '1743483971322'
+  alias: Verlichting Schuur
+  description: Verlichting in de schuur aanzetten bij beweging en laag lichtniveau. Uitzetten wanneer
+    er 5 min geen beweging is gedetecteerd
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.multisensor_motion_detection
+    from: 'off'
+    to: 'on'
+  conditions:
+  - condition: numeric_state
+    entity_id: sensor.multisensor_illuminance
+    below: 100
+  actions:
+  - action: switch.turn_on
+    target:
+      entity_id: switch.verlichting_schuur
+  - wait_for_trigger:
+    - entity_id: binary_sensor.multisensor_motion_detection
+      to: 'off'
+      for: 00:05:00
+      trigger: state
+  - action: switch.turn_off
+    target:
+      entity_id: switch.verlichting_schuur
+  mode: restart
+- id: '1743594938098'
+  alias: Trapkast licht
+  description: Schakelt trapkastverlichting aan bij openen deur, uit bij sluiten (na 15 sec) of na 5 minuten
+    automatisch
+  triggers:
+  - entity_id: binary_sensor.0x54ef441000d51990_contact
+    to: 'on'
+    trigger: state
+    id: trapkast_deur_open
+  - entity_id: binary_sensor.0x54ef441000d51990_contact
+    to: 'off'
+    trigger: state
+    id: trapkast_deur_gesloten
+  - entity_id:
+    - switch.trapkast
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 5
+      seconds: 0
+    trigger: state
+    id: trapkast_lamp_aan
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id:
+        - trapkast_deur_open
+      sequence:
+      - action: switch.turn_on
+        data: {}
+        target:
+          device_id: a5af9f668a3e5115e41a4e619bbddeb3
+    - conditions:
+      - condition: trigger
+        id:
+        - trapkast_deur_gesloten
+      sequence:
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 15
+          milliseconds: 0
+      - action: switch.turn_off
+        data: {}
+        target:
+          device_id: a5af9f668a3e5115e41a4e619bbddeb3
+    - conditions:
+      - condition: trigger
+        id:
+        - trapkast_lamp_aan
+      sequence:
+      - action: switch.turn_off
+        data: {}
+        target:
+          device_id: a5af9f668a3e5115e41a4e619bbddeb3
+  mode: restart
+- id: '1747761397947'
+  alias: Fontein Uitzetten
+  description: Schakelt de tuinfontein elke avond om 21:00 uit om geluidsoverlast te voorkomen en energie
+    te besparen
+  triggers:
+  - trigger: time
+    at: '21:00:00'
+  conditions: []
+  actions:
+  - action: switch.turn_off
+    target:
+      entity_id: switch.0xa4c138a04a98d51e
+  mode: single
+- id: irrigatie_achtertuin_v2
+  alias: Irrigatie Achtertuin
+  description: Dagelijks om 06:00 — irrigeer alleen als bodemvocht laag is en er weinig regen verwacht
+    wordt. Bodemvocht = mediaan van 3 Tuya bodemsensoren (voor / midden / boom). Drempels en duur via
+    input_number helpers. Master-aan via input_boolean.irrigatie_aan.
+  triggers:
+  - platform: time
+    at: 06:00:00
+  conditions:
+  - condition: state
+    entity_id: input_boolean.irrigatie_aan
+    state: 'on'
+  actions:
+  - variables:
+      s1_raw: '{{ states(''sensor.0xa4c1385f5913929f_soil_moisture'') }}'
+      s2_raw: '{{ states(''sensor.0xa4c138ab28d3ef87_soil_moisture'') }}'
+      s3_raw: '{{ states(''sensor.0xa4c13874a5e6db97_soil_moisture'') }}'
+      valid: '{{ [s1_raw, s2_raw, s3_raw] | reject(''in'', [''unknown'', ''unavailable'', ''none'']) |
+        map(''int'', 0) | list }}'
+      moisture: '{% set v = valid | sort %}{% if v|length == 0 %}-1{% elif v|length == 1 %}{{ v[0] }}{%
+        elif v|length == 2 %}{{ ((v[0] + v[1]) / 2) | int }}{% else %}{{ v[1] }}{% endif %}'
+      threshold: '{{ states(''input_number.irrigatie_drempel'') | int(30) }}'
+      rain_skip: '{{ states(''input_number.irrigatie_regen_skip'') | float(3) }}'
+      duration: '{{ states(''input_number.irrigatie_duur'') | int(10) }}'
+  - if:
+    - condition: template
+      value_template: '{{ moisture | int < 0 }}'
+    then:
+    - data:
+        title: Irrigatie overgeslagen
+        message: Geen bodemsensoren beschikbaar — handmatig controleren.
+        notification_id: irrigatie_skip
+      action: persistent_notification.create
+    - stop: no sensors
+  - if:
+    - condition: template
+      value_template: '{{ moisture | int >= threshold | int }}'
+    then:
+    - data:
+        title: Irrigatie overgeslagen — bodem nat
+        message: Bodemvocht {{ moisture }}% ≥ {{ threshold }}%. Niet nodig.
+        notification_id: irrigatie_skip
+      action: persistent_notification.create
+    - stop: soil already wet
+  - data:
+      type: hourly
+    target:
+      entity_id: weather.forecast_thuis
+    response_variable: forecast_data
+    action: weather.get_forecasts
+  - variables:
+      rain_next_12h: '{{ forecast_data[''weather.forecast_thuis''].forecast[:12] | map(attribute=''precipitation'')
+        | select(''number'') | sum | round(1) }}'
+  - if:
+    - condition: template
+      value_template: '{{ rain_next_12h | float >= rain_skip | float }}'
+    then:
+    - data:
+        title: Irrigatie overgeslagen — regen verwacht
+        message: 'Verwachte neerslag komende 12u: {{ rain_next_12h }} mm ≥ {{ rain_skip }} mm.'
+        notification_id: irrigatie_skip
+      action: persistent_notification.create
+    - stop: rain forecast
+  - target:
+      entity_id: switch.diivoo_smart_dual_water_timer_switch_1
+    action: switch.turn_on
+  - delay:
+      minutes: '{{ duration | int }}'
+  - target:
+      entity_id: switch.diivoo_smart_dual_water_timer_switch_1
+    action: switch.turn_off
+  - target:
+      entity_id: input_datetime.irrigatie_laatste_run
+    data:
+      datetime: '{{ now().strftime(''%Y-%m-%d %H:%M:%S'') }}'
+    action: input_datetime.set_datetime
+  - data:
+      title: Irrigatie voltooid
+      message: '{{ duration }} min gedraaid op switch_1. Bodemvocht was {{ moisture }}%, regenverwachting
+        {{ rain_next_12h }} mm.'
+      notification_id: irrigatie_done
+    action: persistent_notification.create
+  mode: single
+- id: achtertuin_verlichting
+  alias: Achtertuin Verlichting
+  description: Aan zodra het lichtniveau achter < 150 lx (2 min sustained) OF 30 min voor zonsondergang.
+    Alleen tussen zonsondergang-1u en zonsopgang. Uit om 23:00.
+  triggers:
+  - trigger: numeric_state
+    entity_id: sensor.beweging_sensor_achtertuin_licht
+    below: 150
+    for:
+      minutes: 2
+    id: aan
+  - trigger: sun
+    event: sunset
+    offset: -00:30:00
+    id: aan
+  - trigger: time
+    at: '23:00:00'
+    id: uit
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id: aan
+      - condition: or
+        conditions:
+        - condition: sun
+          after: sunset
+          after_offset: -01:00:00
+        - condition: sun
+          before: sunrise
+      sequence:
+      - action: light.turn_on
+        target:
+          entity_id: light.achtertuin
+        data:
+          brightness_pct: 100
+          transition: 30
+    - conditions:
+      - condition: trigger
+        id: uit
+      sequence:
+      - action: light.turn_off
+        target:
+          entity_id: light.achtertuin
+        data:
+          transition: 5
+  mode: single
+- id: voordeur_licht_detectie
+  alias: Voordeur Licht bij Detectie
+  description: Persoon gedetecteerd bij de voordeur na zonsondergang -> licht 10 min aan, behalve als
+    de voordeur-lamp al aan staat (zodat handmatig licht niet wordt overgenomen). Re-trigger restart de
+    10 min.
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.camera_deurbel_deurbel
+    - binary_sensor.camera_deurbel_persoon_gedetecteerd
+    - binary_sensor.camera_deurbel_voertuig_gedetecteerd
+    - binary_sensor.camera_voorkant_persoon_gedetecteerd
+    - binary_sensor.camera_voorkant_voertuig_gedetecteerd
+    from: 'off'
+    to: 'on'
+  conditions:
+  - condition: state
+    entity_id: sun.sun
+    state: below_horizon
+  - condition: state
+    entity_id: light.voordeur
+    state: 'off'
+  actions:
+  - action: light.turn_on
+    target:
+      entity_id:
+      - light.voordeur
+      - light.voordeur_2
+    data:
+      brightness_pct: 100
+  - delay:
+      minutes: 10
+  - action: light.turn_off
+    target:
+      entity_id:
+      - light.voordeur
+      - light.voordeur_2
+  mode: restart
+- id: voordeur_off_midnight
+  alias: Voordeur uit om middernacht
+  description: Vangnet om middernacht - als de voordeur-lamp aan staat (bv. handmatig aangezet en vergeten)
+    zet hem uit.
+  triggers:
+  - trigger: time
+    at: 00:00:00
+  conditions:
+  - condition: state
+    entity_id: light.voordeur
+    state: 'on'
+  actions:
+  - action: light.turn_off
+    target:
+      entity_id:
+      - light.voordeur
+      - light.voordeur_2
+  mode: single
+- id: alertmanager_critical_notify
+  alias: 'Alertmanager: Critical Alert Notification'
+  description: Receives critical alerts from Alertmanager via webhook and sends persistent notification
+    + mobile push to S25 Ultra Sander
+  triggers:
+  - trigger: webhook
+    webhook_id: alertmanager-critical
+    allowed_methods:
+    - POST
+    local_only: false
+  conditions: []
+  actions:
+  - repeat:
+      for_each: '{{ trigger.json.alerts }}'
+      sequence:
+      - choose:
+        - conditions:
+          - condition: template
+            value_template: '{{ repeat.item.status == ''firing'' }}'
+          sequence:
+          - action: persistent_notification.create
+            data:
+              notification_id: am_critical_{{ repeat.item.labels.alertname | slugify }}_{{ repeat.item.labels.instance
+                | default('cluster') | slugify }}
+              title: 🔥 {{ repeat.item.labels.alertname }}
+              message: '**Severity:** {{ repeat.item.labels.severity }}
+
+                **Instance:** {{ repeat.item.labels.instance | default(''cluster'') }}
+
+                **Summary:** {{ repeat.item.annotations.summary | default(''no summary'') }}
+
+
+                {{ repeat.item.annotations.description | default('''') | truncate(300) }}
+
+
+                [Alertmanager](http://alertmanager.bluejungle.net) | [Prometheus](http://prometheus.bluejungle.net)'
+          - action: notify.mobile_app_galaxy_s25_ultra
+            continue_on_error: true
+            data:
+              title: 🔥 {{ repeat.item.labels.alertname }}
+              message: '{{ repeat.item.annotations.summary | default(''Critical alert firing'') }}
+
+                Instance: {{ repeat.item.labels.instance | default(''cluster'') }}'
+              data:
+                tag: am_critical_{{ repeat.item.labels.alertname | slugify }}
+                priority: high
+                ttl: 43200
+        - conditions:
+          - condition: template
+            value_template: '{{ repeat.item.status == ''resolved'' }}'
+          sequence:
+          - action: persistent_notification.dismiss
+            data:
+              notification_id: am_critical_{{ repeat.item.labels.alertname | slugify }}_{{ repeat.item.labels.instance
+                | default('cluster') | slugify }}
+          - action: notify.mobile_app_galaxy_s25_ultra
+            continue_on_error: true
+            data:
+              title: '✅ RESOLVED: {{ repeat.item.labels.alertname }}'
+              message: '{{ repeat.item.annotations.summary | default(''Alert resolved'') }}
+
+                Instance: {{ repeat.item.labels.instance | default(''cluster'') }}'
+              data:
+                tag: am_critical_{{ repeat.item.labels.alertname | slugify }}
+                priority: default
+  mode: queued
+  max: 10
+- id: '1747224001001'
+  alias: Kantoor Aanwezig - Comfort setpoint
+  description: 'Zet het kantoorklimaat op de comfort-setpoint zodra
+    binary_sensor.kantoor_bezet actief wordt.
+
+    ⚠ WAT DEZE AUTOMATION AANSTUURT: climate.kantoor, een echte split-airco in een
+    bewoond huis. Hij past niet alleen setpoints aan maar kan de unit ook AANZETTEN.
+    Lees de drempels en het tijdvenster hieronder voor je iets wijzigt.
+
+    TRIGGER: binary_sensor.kantoor_bezet naar ''on''. Dat is een template-sensor in
+    configuration.yaml met debounce 45 s AAN / 15 min UIT - de debounce zit daar, niet
+    in deze automation. Bron is de Z-Wave PIR van het kantoor,
+    binary_sensor.multisensor_motion_detection. LET OP: de ongesuffixte entiteit is
+    Kantoor, _2 = Schuur en _3 = geen area.
+
+    STAAT DE UNIT AL AAN: alleen de setpoint wordt bijgesteld en de ACTIEVE hvac_mode
+    blijft behouden - heat -> 20 degC, cool -> 21 degC. auto/dry/fan_only/heat_cool
+    worden met rust gelaten. Deze twee branches hebben GEEN tijdvenster.
+
+    STAAT DE UNIT UIT: de modus wordt afgeleid uit sensor.kantoor_temperatuur -
+    < 18 degC verwarmen naar 20 degC, >= 23 degC koelen naar 21 degC, en daartussen
+    bewust NIETS aanzetten. Deze twee AANZET-branches werken ALLEEN tussen 08:00 en
+    18:00; buiten dat venster zet deze automation de airco dus nooit aan. Reden: de
+    tegenhanger 1747987200001 zet de airco alle zeven dagen om 18:00 uit, en Afwezig
+    (1747224001002) zet bewust NOOIT hvac_mode off (chg-2026-08-30-004). Zonder deze
+    poort zou een latch om bijvoorbeeld 20:00 een split-unit de hele nacht in cool
+    laten draaien. Een open raam wint altijd.
+
+    ⚠ GEKOPPELD AAN 1734200001001 (Kantoor Ochtend - Klimaat): de comfort-setpoints
+    heat 20 / cool 21 en de koeldrempel >= 23 degC zijn exact gelijk aan die van de
+    ochtendroutine, zodat de eerste aanwezigheids-latch de routine van 08:30 niet
+    overschrijft maar bevestigt. Wijzig deze waarden nooit los van 1734200001001.
+
+    HISTORIE: tot 2026-08-30 was deze automation dormant, omdat
+    binary_sensor.kantoor_bezet een stub was (letterlijke placeholder FP2_ID; de
+    kantoor-FP2 is nooit gekoppeld). chg-2026-08-30-005 heeft hem live gezet en in
+    ronde 2 de debounce, de setpoints, de koeldrempel en het tijdvenster bijgesteld.
+    De vervangen waarden staan in dat change-record, niet hier - deze omschrijving
+    beschrijft uitsluitend de HUIDIGE werking.
+
+    '
+  triggers:
+  - trigger: state
+    entity_id: binary_sensor.kantoor_bezet
+    to: 'on'
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.kantoor_raam
+    state: 'off'
+  actions:
+  - variables:
+      hvac: "{{ states('climate.kantoor') }}"
+      kamer_temp: "{{ states('sensor.kantoor_temperatuur') | float(-99) }}"
+  - choose:
+    - conditions:
+      - condition: template
+        value_template: "{{ hvac == 'heat' }}"
+      sequence:
+      - action: climate.set_temperature
+        target:
+          entity_id: climate.kantoor
+        data:
+          temperature: 20
+    - conditions:
+      - condition: template
+        value_template: "{{ hvac == 'cool' }}"
+      sequence:
+      - action: climate.set_temperature
+        target:
+          entity_id: climate.kantoor
+        data:
+          temperature: 21
+    - conditions:
+      - condition: template
+        value_template: "{{ hvac == 'off' and (kamer_temp | float(-99)) > -99 and (kamer_temp | float(-99)) < 18 }}"
+      - condition: time
+        after: 08:00:00
+        before: '18:00:00'
+      sequence:
+      - action: climate.set_hvac_mode
+        target:
+          entity_id: climate.kantoor
+        data:
+          hvac_mode: heat
+      - action: climate.set_temperature
+        target:
+          entity_id: climate.kantoor
+        data:
+          temperature: 20
+      - action: climate.set_swing_mode
+        target:
+          entity_id: climate.kantoor
+        data:
+          swing_mode: both
+    - conditions:
+      - condition: template
+        value_template: "{{ hvac == 'off' and (kamer_temp | float(-99)) >= 23 }}"
+      - condition: time
+        after: 08:00:00
+        before: '18:00:00'
+      sequence:
+      - action: climate.set_hvac_mode
+        target:
+          entity_id: climate.kantoor
+        data:
+          hvac_mode: cool
+      - action: climate.set_temperature
+        target:
+          entity_id: climate.kantoor
+        data:
+          temperature: 21
+      - action: climate.set_swing_mode
+        target:
+          entity_id: climate.kantoor
+        data:
+          swing_mode: both
+  mode: single
+- id: '1747224001002'
+  alias: Kantoor Afwezig - Setback
+  description: 'Zet het kantoorklimaat terug zodra binary_sensor.kantoor_bezet inactief
+    wordt. De 15-min OFF-debounce zit in de template binary sensor, niet hier, zodat
+    korte pauzes (toilet, koffie) niets verstoren.
+
+    De trigger eist expliciet from: "on". Zonder dat zou een template-herrendering
+    (unknown -> off) de setback laten vuren terwijl er nooit iemand weg is gegaan:
+    een eenrichtings-ratel die alleen comfort omlaag kan bijstellen. Aanwezig
+    (to: "on") heeft dat probleem niet, dus dit maakt de twee helften symmetrisch.
+
+    Behoudt de ACTIEVE hvac_mode en wijzigt alleen de setpoint: heat -> 18 degC,
+    cool -> 26 degC. 18 degC is het device-minimum (climate.kantoor min_temp = 18.0);
+    de oorspronkelijke 17 degC werd door het device geweigerd. Thermisch is dat verschil
+    verwaarloosbaar: bij 18 degC in heat staat de compressor stil. Bewust GEEN
+    hvac_mode off, want dan verliest de unit zijn modus en komt koeling op een milde
+    dag niet terug. Staat de unit al uit, dan gebeurt er niets. Een open raam wint altijd.
+
+    LIVE sinds 2026-08-30 (chg-2026-08-30-005). binary_sensor.kantoor_bezet was tot
+    dan een STUB (letterlijke placeholder FP2_ID; de kantoor-FP2 is nooit gekoppeld)
+    en kon alleen ''off'' zijn, dus deze automation vuurde nooit. De bron is nu de
+    Z-Wave PIR van het kantoor, binary_sensor.multisensor_motion_detection - de
+    ongesuffixte entiteit is Kantoor, _2 = Schuur en _3 = geen area. De 15-minuten
+    OFF-debounce zit in die template binary sensor en is bewust lang: hij overbrugt
+    de gaten terwijl je stil aan je bureau zit. Niet verkorten.
+
+    Deze automation zet nog steeds NOOIT hvac_mode off - dat is opzet. Het nachtelijke
+    gat dat daardoor ontstond is aan de andere kant dichtgezet: 1747987200001 zet de
+    airco nu ALLE DAGEN om 18:00 uit, en de aanzet-branches van Aanwezig
+    (1747224001001) staan alleen tussen 08:00 en 18:00.
+
+    '
+  triggers:
+  - trigger: state
+    entity_id: binary_sensor.kantoor_bezet
+    from: 'on'
+    to: 'off'
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.kantoor_raam
+    state: 'off'
+  actions:
+  - variables:
+      hvac: "{{ states('climate.kantoor') }}"
+      kamer_temp: "{{ states('sensor.kantoor_temperatuur') | float(-99) }}"
+  - choose:
+    - conditions:
+      - condition: template
+        value_template: "{{ hvac == 'heat' }}"
+      sequence:
+      - action: climate.set_temperature
+        target:
+          entity_id: climate.kantoor
+        data:
+          temperature: 18
+    - conditions:
+      - condition: template
+        value_template: "{{ hvac == 'cool' }}"
+      sequence:
+      - action: climate.set_temperature
+        target:
+          entity_id: climate.kantoor
+        data:
+          temperature: 26
+  mode: single
+- id: '1756580000001'
+  alias: Kantoor Raam Open - Klimaat Uit
+  description: 'Zet climate.kantoor uit als binary_sensor.kantoor_raam langer dan 2
+    minuten open staat. De toestand vlak voor het openen wordt eerst in een snapshot-scene
+    bewaard zodat Kantoor Raam Dicht hem exact kan herstellen (modus, setpoint, fan,
+    swing, preset).
+
+    Er wordt ALTIJD een snapshot gemaakt, ook als de unit al uit stond - anders zou
+    een oude scene blijven staan en bij het sluiten een verouderde toestand terugzetten.
+
+    Let op: binary_sensor.kantoor_raam is Tado Open Window Detection (algoritmisch,
+    geen fysiek raamcontact) en detecteert alleen als de zone actief is.
+
+    '
+  triggers:
+  - trigger: state
+    entity_id: binary_sensor.kantoor_raam
+    to: 'on'
+    for:
+      minutes: 2
+  conditions: []
+  actions:
+  - action: scene.create
+    data:
+      scene_id: kantoor_klimaat_voor_raam
+      snapshot_entities:
+      - climate.kantoor
+  - if:
+    - condition: not
+      conditions:
+      - condition: state
+        entity_id: climate.kantoor
+        state: 'off'
+    then:
+    - action: climate.set_hvac_mode
+      target:
+        entity_id: climate.kantoor
+      data:
+        hvac_mode: 'off'
+  mode: single
+- id: '1756580000002'
+  alias: Kantoor Raam Dicht - Klimaat Herstellen
+  description: 'Herstelt climate.kantoor naar de toestand van vlak voor het openen van
+    het raam. Doet niets als de snapshot-scene niet bestaat - scenes uit scene.create
+    overleven een HA-herstart niet, en dan is "uit laten staan" de veilige uitkomst.
+
+    De trigger eist expliciet from: "on". binary_sensor.kantoor_raam doorloopt
+    aantoonbaar off -> unknown -> off ongeveer elke 36 uur (4x in 7 dagen, gemeten
+    2026-08-30). Zonder from: "on" vuurt elk van die herrenderingen deze automation.
+    Vandaag onschadelijk omdat clausule 1 hem tegenhoudt, maar bij een Tado
+    config-entry reload terwijl het raam echt open staat is de snapshot vers en
+    passeren alle clausules - dan gaat de airco weer aan met het raam open.
+
+    De guard doet twee dingen. (1) "states.scene.X is not none" en NIET states("scene.X"):
+    een vers aangemaakte scene die nog nooit geactiveerd is heeft state "unknown",
+    precies dezelfde waarde die een NIET-bestaande entiteit teruggeeft; alleen de
+    object-vorm onderscheidt die twee. (2) De last_triggered-vergelijking eist dat
+    "Raam Open" NA de vorige herstelactie heeft gedraaid. Zonder die eis zou een raam
+    dat korter dan 2 minuten open staat (Raam Open vuurt dan niet, er is dus geen
+    verse snapshot) bij het sluiten een VEROUDERDE scene terugzetten en de airco
+    spontaan aanzetten. Beide geverifieerd op 2026-08-30.
+
+    '
+  triggers:
+  - trigger: state
+    entity_id: binary_sensor.kantoor_raam
+    from: 'on'
+    to: 'off'
+  conditions:
+  - condition: template
+    value_template: >-
+      {{ states.scene.kantoor_klimaat_voor_raam is not none
+         and state_attr('automation.kantoor_raam_open_klimaat_uit', 'last_triggered') is not none
+         and (state_attr('automation.kantoor_raam_dicht_klimaat_herstellen', 'last_triggered') is none
+              or state_attr('automation.kantoor_raam_open_klimaat_uit', 'last_triggered')
+                 > state_attr('automation.kantoor_raam_dicht_klimaat_herstellen', 'last_triggered')) }}
+  actions:
+  - action: scene.turn_on
+    target:
+      entity_id: scene.kantoor_klimaat_voor_raam
+  mode: single
+- id: '1749566000001'
+  alias: Outdoor Power-Blip Logger (observe-only)
+  description: 'Durably logs outdoor Hue light power-blips, covering BOTH known variants: (1) a member
+    becoming ''on'' shortly after ''unavailable'' (classic power-restore, any hour), and (2) any member
+    turning ''on'' during the overnight window 00:30-05:30 local, when there is no legitimate dusk (dusk
+    ~21:00) or manual activation - this catches the flicker-burst variant that records no ''unavailable''
+    state. Observe-only: never turns any light on or off. Writes to counter.outdoor_blip_count, input_datetime.outdoor_blip_last
+    and input_text.outdoor_blip_log so the record survives the recorder purge and HA restarts. Normal
+    ~21:00 dusk activation is a clean off->on outside the overnight window and does NOT match.'
+  triggers:
+  - trigger: state
+    id: unavail
+    entity_id:
+    - light.lichtzuil_linksvoor
+    - light.lichtzuil_rechtsvoor
+    - light.schutting_voor
+    - light.schutting_achter
+    - light.spot_boom_linksachter
+    - light.spot_boom_rechtsachter
+    - light.lichtstrip_tuinhuis_links
+    - light.lamp_buitenkeuken
+    from: unavailable
+    to: 'on'
+  - trigger: state
+    id: overnight
+    entity_id:
+    - light.lichtzuil_linksvoor
+    - light.lichtzuil_rechtsvoor
+    - light.schutting_voor
+    - light.schutting_achter
+    - light.spot_boom_linksachter
+    - light.spot_boom_rechtsachter
+    - light.lichtstrip_tuinhuis_links
+    - light.lamp_buitenkeuken
+    to: 'on'
+  conditions:
+  - condition: template
+    value_template: '{% if trigger.id == ''unavail'' %}true{% else %}{% set t = now().strftime(''%H:%M'')
+      %}{{ (t >= ''00:30'') and (t <= ''05:30'') }}{% endif %}'
+  actions:
+  - action: counter.increment
+    target:
+      entity_id: counter.outdoor_blip_count
+  - action: input_datetime.set_datetime
+    target:
+      entity_id: input_datetime.outdoor_blip_last
+    data:
+      datetime: '{{ now().strftime("%Y-%m-%d %H:%M:%S") }}'
+  - variables:
+      which: '{{ trigger.to_state.name if (trigger is defined and trigger.to_state is defined and trigger.to_state)
+        else ''outdoor light'' }}'
+      kind: '{% if trigger is defined and trigger.id == ''unavail'' %}power-restore{% elif trigger is
+        defined and trigger.id == ''overnight'' %}overnight-on{% else %}manual{% endif %}'
+      entry: '{{ now().strftime("%Y-%m-%d %H:%M") }} ({{ which }}, {{ kind }})'
+      prev: '{% set p = states("input_text.outdoor_blip_log") %}{{ "" if p in ["unknown", "unavailable",
+        "none", ""] else p }}'
+      combined: '{{ (entry ~ (" | " ~ prev if prev else "")) }}'
+  - action: input_text.set_value
+    target:
+      entity_id: input_text.outdoor_blip_log
+    data:
+      value: '{{ combined[:255] }}'
+  - action: persistent_notification.create
+    data:
+      notification_id: outdoor_blip_{{ now().strftime('%Y%m%d_%H%M%S') }}
+      title: Outdoor lights powered on unexpectedly
+      message: 'Outdoor lights powered on unexpectedly at {{ now().strftime(''%H:%M:%S on %d-%m-%Y'')
+        }} (triggered by {{ trigger.to_state.name if (trigger is defined and trigger.to_state is defined
+        and trigger.to_state) else ''outdoor light'' }}) - blip #{{ states(''counter.outdoor_blip_count'')
+        }}. {% if trigger is defined and trigger.id == ''unavail'' %}This matches a power-restore signature
+        (light came on shortly after being unavailable).{% elif trigger is defined and trigger.id == ''overnight''
+        %}This was a spontaneous overnight on (00:30-05:30) with no dusk or manual cause - matches the
+        flicker-burst power-blip signature.{% else %}Logged by the outdoor power-blip logger.{% endif
+        %}'
+  - action: notify.send_message
+    continue_on_error: true
+    target:
+      entity_id: notify.s25_ultra_sander
+    data:
+      title: Outdoor power-blip detected
+      message: 'Outdoor lights powered on unexpectedly at {{ now().strftime(''%H:%M:%S'') }} - blip #{{
+        states(''counter.outdoor_blip_count'') }} ({% if trigger is defined and trigger.id == ''overnight''
+        %}overnight-on{% else %}power-restore{% endif %}).'
+  - delay:
+      seconds: 90
+  mode: single
+  max_exceeded: silent
+- id: homewizard_sockets_30s_poll
+  alias: HomeWizard Energy Sockets 30s poll
+  description: Auto-polling is disabled on the 25 HomeWizard Energy Socket config entries (coordinator
+    default 5s) to cut 2.4GHz airtime. This refreshes one entity per socket coordinator every 30s, which
+    triggers a full device refresh. Leaves P1/kWh/Watermeter on their own polling.
+  triggers:
+  - trigger: time_pattern
+    seconds: /30
+  conditions: []
+  actions:
+  - action: homeassistant.update_entity
+    data:
+      entity_id:
+      - sensor.energy_socket_power
+      - sensor.energy_socket_power_10
+      - sensor.energy_socket_power_11
+      - sensor.energy_socket_power_12
+      - sensor.energy_socket_power_13
+      - sensor.energy_socket_power_14
+      - sensor.energy_socket_power_15
+      - sensor.energy_socket_power_16
+      - sensor.energy_socket_power_17
+      - sensor.energy_socket_power_18
+      - sensor.energy_socket_power_19
+      - sensor.energy_socket_power_2
+      - sensor.energy_socket_power_20
+      - sensor.energy_socket_power_21
+      - sensor.energy_socket_power_22
+      - sensor.energy_socket_power_23
+      - sensor.energy_socket_power_24
+      - sensor.energy_socket_power_25
+      - sensor.energy_socket_power_3
+      - sensor.energy_socket_power_4
+      - sensor.energy_socket_power_5
+      - sensor.energy_socket_power_6
+      - sensor.energy_socket_power_7
+      - sensor.energy_socket_power_8
+      - sensor.energy_socket_power_9
+  mode: single
+  max_exceeded: silent
+- id: '1784538201197'
+  alias: Tuin Fontein Aan bij Muziek
+  description: Zet de tuinfontein aan zodra een van de tuinspeakers muziek speelt, tussen 09:00 en 21:00.
+    Uitzetten gebeurt uitsluitend door de bestaande automatisering Fontein Uitzetten om 21:00.
+  triggers:
+  - trigger: state
+    entity_id:
+    - media_player.terras
+    - media_player.terras_2
+    - media_player.achtertuin
+    - media_player.achtertuin_2
+    - media_player.eetkamer
+    - media_player.eetkamer_2
+    - media_player.bar_unnamed_room
+    - media_player.bar_unnamed_room_2
+    to: playing
+  conditions:
+  - condition: time
+    after: 09:00:00
+    before: '21:00:00'
+  actions:
+  - action: switch.turn_on
+    target:
+      entity_id: switch.0xa4c138a04a98d51e
+  mode: single
+- id: '1753005600006'
+  alias: Adaptieve Verlichting Begane Grond
+  description: 'Avond-adaptief: 1u voor zonsondergang t/m 23:00 gaat de begane grond (keuken+woonkamer,
+    8 lampen) EENMAAL per avond aan bij donker (<40 lux) + aanwezigheid (FP2 zone 3), helderheid geschaald
+    op lux (Cozy 20-70%, feller=donkerder). GEEN auto-uit, GEEN her-dim: handmatig aan/uit voor 23:00
+    wordt nooit overschreven. Latch input_boolean.adaptief_bg_vanavond_gedaan wordt bij window-start (zonsondergang-1u)
+    opnieuw gewapend en na inschakelen gezet -> max 1x per avond en ''handmatig uit blijft uit''. Nachtelijke
+    uit staat in aparte automation ''Woonlaag - Nachtelijke uit''.'
+  triggers:
+  - id: window_start
+    trigger: sun
+    event: sunset
+    offset: -01:00:00
+  - id: lux_dark
+    trigger: numeric_state
+    entity_id: sensor.presence_sensor_fp2_f08e_light_sensor_light_level
+    below: 40
+    for:
+      minutes: 2
+  - id: presence
+    trigger: state
+    entity_id: binary_sensor.presence_sensor_fp2_f08e_presence_sensor_3
+    to: 'on'
+    from: 'off'
+  conditions:
+  - alias: Alleen middag/avond (geen na-middernacht venster)
+    condition: time
+    after: '12:00:00'
+    before: '23:00:00'
+  - alias: Na zonsondergang-1u
+    condition: sun
+    after: sunset
+    after_offset: -01:00:00
+  - alias: Lux geldig (fail-safe)
+    condition: template
+    value_template: '{{ has_value(''sensor.presence_sensor_fp2_f08e_light_sensor_light_level'') and states(''sensor.presence_sensor_fp2_f08e_light_sensor_light_level'')|float(-1)
+      >= 0 }}'
+  actions:
+  - alias: 'Bij window-start: latch opnieuw wapenen'
+    if:
+    - condition: template
+      value_template: '{{ trigger.id == ''window_start'' }}'
+    then:
+    - action: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.adaptief_bg_vanavond_gedaan
+  - alias: Eenmaal per avond aan bij donker + aanwezig
+    if:
+    - condition: state
+      entity_id: input_boolean.adaptief_bg_vanavond_gedaan
+      state: 'off'
+    - condition: numeric_state
+      entity_id: sensor.presence_sensor_fp2_f08e_light_sensor_light_level
+      below: 40
+    - condition: state
+      entity_id: binary_sensor.presence_sensor_fp2_f08e_presence_sensor_3
+      state: 'on'
+    then:
+    - alias: Keuken (FP2-lux)
+      action: light.turn_on
+      target:
+        entity_id:
+        - light.ledstrip_keukenkastjes
+        - light.lightstrip_koof
+        - light.verlichting_aanrecht
+        - light.verlichting_eettafel
+        - light.keuken
+      data:
+        transition: 2
+        brightness_pct: '{% set L = states(''sensor.presence_sensor_fp2_f08e_light_sensor_light_level'')|float(-1)
+          %}{% set b = (20 + 50*((40 - L)/35))|round(0) %}{{ [70,[20,b]|max]|min }}'
+    - alias: Woonkamer (FP300-lux, FP2-fallback)
+      action: light.turn_on
+      target:
+        entity_id:
+        - light.woonkamer
+        - light.woonkamer_lamp
+        - light.woonkamer_lamp_2
+      data:
+        transition: 2
+        brightness_pct: '{% set fp = states(''sensor.presence_woonkamer_illuminance'')|float(-1) %}{%
+          set age = (now() - states.sensor.presence_woonkamer_illuminance.last_updated).total_seconds()
+          if has_value(''sensor.presence_woonkamer_illuminance'') else 99999 %}{% set fp2 = states(''sensor.presence_sensor_fp2_f08e_light_sensor_light_level'')|float(-1)
+          %}{% set L = fp if (fp >= 0 and age < 3600) else fp2 %}{% set b = (20 + 50*((40 - L)/35))|round(0)
+          %}{{ [70,[20,b]|max]|min }}'
+    - action: input_boolean.turn_on
+      target:
+        entity_id: input_boolean.adaptief_bg_vanavond_gedaan
+  mode: restart
+- id: '1753005600008'
+  alias: Woonlaag - Nachtelijke uit
+  description: 'Na 23:00 (t/m 06:00): begane grond (10 lampen: keuken+woonkamer+bar) gaat UIT zodra ALLE
+    activiteit weg is - geen aanwezigheid keuken (FP2 zone 3), TV uit (tv_woonkamer_2 niet on/playing),
+    geen Sonos playing in woonkamer/platenspeler/keuken/bar. Uit 15 min nadat alles stil is (template-trigger
+    for:15min), of om 23:00 als het dan al stil is, of 15 min nadat een lamp aangaat terwijl alles stil
+    is. woonkamer_lamp blijft 10 min courtesy en gaat dan uit. Vervangt het oude handmatige-off-getriggerde
+    ''Laatste licht uit''. mode restart. Voor 23:00 raakt deze automation niets aan.'
+  triggers:
+  - id: all_clear_15m
+    trigger: template
+    value_template: '{{ is_state(''binary_sensor.presence_sensor_fp2_f08e_presence_sensor_3'',''off'')
+      and states(''media_player.tv_woonkamer_2'') not in [''on'',''playing''] and states(''media_player.woonkamer'')
+      != ''playing'' and states(''media_player.woonkamer_platenspeler'') != ''playing'' and states(''media_player.keuken'')
+      != ''playing'' and states(''media_player.bar_2'') != ''playing'' and is_state(''binary_sensor.presence_woonkamer'',''off'')
+      }}'
+    for:
+      minutes: 15
+  - id: at_2300
+    trigger: time
+    at: '23:00:00'
+  - id: light_on_quiet
+    trigger: state
+    entity_id:
+    - light.woonkamer
+    - light.woonkamer_lamp
+    - light.woonkamer_lamp_2
+    - light.keuken
+    - light.lightstrip_koof
+    - light.ledstrip_keukenkastjes
+    - light.verlichting_aanrecht
+    - light.verlichting_eettafel
+    - light.bartafel
+    - light.bartafel_grond
+    to: 'on'
+    for:
+      minutes: 15
+  conditions:
+  - alias: Alleen 23:00-05:30
+    condition: time
+    after: '23:00:00'
+    before: 05:30:00
+  - alias: Alle activiteit weg
+    condition: template
+    value_template: '{{ is_state(''binary_sensor.presence_sensor_fp2_f08e_presence_sensor_3'',''off'')
+      and states(''media_player.tv_woonkamer_2'') not in [''on'',''playing''] and states(''media_player.woonkamer'')
+      != ''playing'' and states(''media_player.woonkamer_platenspeler'') != ''playing'' and states(''media_player.keuken'')
+      != ''playing'' and states(''media_player.bar_2'') != ''playing'' and is_state(''binary_sensor.presence_woonkamer'',''off'')
+      }}'
+  - alias: Minstens 1 doellamp aan
+    condition: template
+    value_template: '{{ expand(''light.woonkamer'',''light.woonkamer_lamp'',''light.woonkamer_lamp_2'',''light.keuken'',''light.lightstrip_koof'',''light.ledstrip_keukenkastjes'',''light.verlichting_aanrecht'',''light.verlichting_eettafel'',''light.bartafel'',''light.bartafel_grond'')
+      | selectattr(''state'',''eq'',''on'') | list | count > 0 }}'
+  actions:
+  - alias: Veeg 9 lampen (behalve woonkamer_lamp)
+    action: light.turn_off
+    target:
+      entity_id:
+      - light.woonkamer
+      - light.woonkamer_lamp_2
+      - light.keuken
+      - light.lightstrip_koof
+      - light.ledstrip_keukenkastjes
+      - light.verlichting_aanrecht
+      - light.verlichting_eettafel
+      - light.bartafel
+      - light.bartafel_grond
+  - alias: 'Courtesy: woonkamer_lamp nog 10 min'
+    delay:
+      minutes: 10
+  - alias: woonkamer_lamp uit (idempotent)
+    action: light.turn_off
+    target:
+      entity_id: light.woonkamer_lamp
+  mode: restart
+- id: '1753268400001'
+  alias: FP2 Keuken - Offline detectie
+  description: Notify-only wedge detector for the kitchen Aqara FP2 (chg-2026-07-23-005). A1 = unavailable
+    30 min continuously. A2 = >75 min cumulative unavailability in a rolling 4 h while currently down
+    >=10 min. One notification per DISTINCT outage episode, minimum 60 min between notifications. There
+    is deliberately NO recovery action - no smart plug exists. See docs/design/fp2-watchdog.md.
+  triggers:
+  - trigger: state
+    entity_id: binary_sensor.presence_sensor_fp2_f08e_presence_sensor_1
+    to: unavailable
+    for: 00:30:00
+    id: A1
+  - trigger: numeric_state
+    entity_id: sensor.fp2_keuken_offline_4u
+    above: 1.25
+    id: A2
+  conditions:
+  - alias: FP2 must actually be down right now
+    condition: template
+    value_template: '{{ is_state(''binary_sensor.presence_sensor_fp2_f08e_presence_sensor_1'',''unavailable'')
+      }}'
+  - alias: A2 dwell - down for at least 10 minutes
+    condition: template
+    value_template: '{% set t = trigger | default({}, true) %}{% set tid = t.id | default('''') %}{{ tid
+      == ''A1'' or (now() - states.binary_sensor.presence_sensor_fp2_f08e_presence_sensor_1.last_changed).total_seconds()
+      >= 600 }}'
+  - alias: distinct episode + 60 min minimum re-notify interval
+    condition: template
+    value_template: '{% set lt = state_attr(''automation.fp2_keuken_offline_detectie'',''last_triggered'')
+      %}{% set ep = states.binary_sensor.presence_sensor_fp2_f08e_presence_sensor_1.last_changed %}{{
+      lt is none or (lt < ep and (now() - lt).total_seconds() >= 3600) }}'
+  actions:
+  - variables:
+      down_min: '{{ ((now() - states.binary_sensor.presence_sensor_fp2_f08e_presence_sensor_1.last_changed).total_seconds()
+        / 60) | round(0) | int }}'
+      reden: '{% set t = trigger | default({}, true) %}{% set tid = t.id | default('''') %}{% if tid ==
+        ''A1'' %}A1 - 30 min onafgebroken offline{% else %}A2 - {{ (states(''sensor.fp2_keuken_offline_4u'')
+        | float(0) * 60) | round(0) | int }} min offline in de laatste 4 uur{% endif %}'
+      bericht: 'FP2 keuken is offline. Trigger: {{ reden }}. Nu {{ down_min }} min onbereikbaar. Offline
+        in de laatste 24 u: {{ states(''sensor.fp2_keuken_offline_24u'') | float(0) | round(1) }} u. Er
+        is geen automatisch herstel - power-cycle de USB-voeding handmatig als dit aanhoudt.'
+  - action: persistent_notification.create
+    data:
+      notification_id: fp2_keuken_offline
+      title: FP2 keuken offline
+      message: '{{ bericht }}'
+  - action: notify.mobile_app_galaxy_s25_ultra
+    continue_on_error: true
+    data:
+      title: FP2 keuken offline
+      message: '{{ bericht }}'
+  mode: single
+  max_exceeded: silent
+- id: '1753268400002'
+  alias: FP2 Keuken - Weer online
+  description: Recovery notification for the kitchen Aqara FP2 (chg-2026-07-23-005). Only fires when the
+    offline detector actually notified during the outage that just ended, so a short blip never produces
+    a lone "recovered" message. The user is explicitly monitoring whether the FP2 recovers on its own.
+  triggers:
+  - trigger: state
+    entity_id: binary_sensor.presence_sensor_fp2_f08e_presence_sensor_1
+    from: unavailable
+  conditions:
+  - alias: recovered to a real state, not unknown
+    condition: template
+    value_template: '{% set t = trigger | default({}, true) %}{% set ts = t.to_state | default(none, true)
+      %}{{ ts is not none and ts.state in [''on'',''off''] }}'
+  - alias: a detection notification was sent during this same outage
+    condition: template
+    value_template: '{% set lt = state_attr(''automation.fp2_keuken_offline_detectie'',''last_triggered'')
+      %}{% set t = trigger | default({}, true) %}{% set fs = t.from_state | default(none, true) %}{{ lt
+      is not none and fs is not none and lt >= fs.last_changed }}'
+  actions:
+  - variables:
+      duur_min: '{% set t = trigger | default({}, true) %}{% set ts = t.to_state | default(none, true)
+        %}{% set fs = t.from_state | default(none, true) %}{{ ((ts.last_changed - fs.last_changed).total_seconds()
+        / 60) | round(0) | int if ts and fs else 0 }}'
+  - action: persistent_notification.dismiss
+    data:
+      notification_id: fp2_keuken_offline
+  - action: notify.mobile_app_galaxy_s25_ultra
+    continue_on_error: true
+    data:
+      title: FP2 keuken weer online
+      message: 'FP2 keuken is uit zichzelf hersteld na {{ duur_min }} min offline. Offline in de laatste
+        24 u: {{ states(''sensor.fp2_keuken_offline_24u'') | float(0) | round(1) }} u.'
+  mode: single
+  max_exceeded: silent
+- id: notify_path_canary
+  alias: 'Canary: critical notify-path heartbeat'
+  description: 'Weekly heartbeat pushing a test notification through the SAME notify service the Alertmanager
+    critical path uses (notify.mobile_app_galaxy_s25_ultra), keeping notify.s25_ultra_sander last-sent
+    fresh during quiet periods. Dead-path DETECTION is done by the decoupled notify_path_watchdog (reads
+    timestamp only, never calls notify) because continue_on_error does NOT catch ServiceNotFound on a
+    renamed service - an inline detector could be aborted by the very failure it must report. Manual run:
+    fire event notify_canary_run. Ref chg-2026-07-24-001 / inc-2026-07-23-001.'
+  triggers:
+  - trigger: time
+    at: 09:00:00
+    id: sched
+  - trigger: event
+    event_type: notify_canary_run
+    id: manual
+  conditions:
+  - condition: template
+    value_template: '{{ trigger is none or trigger.id == ''manual'' or now().weekday() == 0 }}'
+  actions:
+  - action: notify.mobile_app_galaxy_s25_ultra
+    continue_on_error: true
+    data:
+      title: Notify-path canary
+      message: Weekly critical-notify path check {{ now().strftime('%Y-%m-%d %H:%M') }}
+      data:
+        tag: notify_canary
+        priority: high
+        ttl: 3600
+  mode: single
+- id: notify_path_watchdog
+  alias: 'Canary: notify-path staleness watchdog'
+  description: 'Daily DECOUPLED detector for a dead critical-notify path. Reads ONLY notify.s25_ultra_sander
+    last-sent (never calls notify, so a ServiceNotFound on a renamed service cannot abort it). If nothing
+    reached the phone in > 8 days (the weekly canary guarantees a heartbeat when healthy) it raises an
+    in-HA persistent_notification + logbook entry and sets input_boolean.notify_path_stale ON (REST-visible
+    for the health report); clears them on recovery. Makes a silently dead path visible in < 9 days vs
+    the 12 days of inc-2026-07-23-001. Manual test: fire event notify_watchdog_run with data {"force_stale":
+    true} to exercise the failure branch. Ref chg-2026-07-24-001.'
+  triggers:
+  - trigger: time
+    at: 09:15:00
+    id: sched
+  - trigger: event
+    event_type: notify_watchdog_run
+    id: manual
+  variables:
+    last_sent: '{{ states(''notify.s25_ultra_sander'') }}'
+    age_hours: '{% set s = states(''notify.s25_ultra_sander'') %}{% if s in [''unknown'',''unavailable'','''',''none'']
+      %}9999{% else %}{{ ((now() - as_datetime(s)).total_seconds() / 3600) | round(1) }}{% endif %}'
+    stale: '{% if trigger is not none and trigger.id == ''manual'' and (trigger.event.data.force_stale
+      | default(false)) %}true{% else %}{{ (age_hours | float(9999)) > 192 }}{% endif %}'
+  actions:
+  - choose:
+    - conditions:
+      - condition: template
+        value_template: '{{ stale }}'
+      sequence:
+      - action: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.notify_path_stale
+      - action: persistent_notification.create
+        data:
+          notification_id: notify_path_stale
+          title: Critical notify path may be DEAD
+          message: 'No notification has reached notify.s25_ultra_sander in {{ ((age_hours | float(9999))
+            / 24) | round(1) }} days (last: {{ last_sent }}). The weekly canary should keep this under
+            8 days. Likely the mobile_app notify service was renamed again (inc-2026-07-23-001 was a silent
+            12-day break). Check ha-cli.sh states notify, then re-fire event notify_canary_run.'
+      - action: logbook.log
+        data:
+          name: Notify path watchdog
+          message: STALE - no delivery in {{ ((age_hours | float(9999)) / 24) | round(1) }} days; critical
+            notify path may be dead
+          entity_id: automation.notify_path_watchdog
+    default:
+    - action: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.notify_path_stale
+    - action: persistent_notification.dismiss
+      data:
+        notification_id: notify_path_stale
+  mode: single
+- id: keuken_adaptief_dag
+  alias: Keuken Adaptief (dag)
+  description: 'C (chg-2026-07-24-002): 05:30 t/m zonsondergang-1u. Keuken (4 lampen: kastjes/koof/aanrecht/eettafel)
+    AAN bij aanwezigheid (FP2 zone-3) + donker (FP2 lux <70, 2min), helderheid geschaald op donkerte,
+    warme 120s ramp. AUTO-UIT bij FP2 lux >150 (8min sustained). Latch input_boolean.adaptief_keuken_dag_gedaan:
+    her-gewapend bij 05:30 en na auto-uit -> dekt donkere middagen af + ''handmatig uit blijft uit''.
+    Overdag eigenaar van de keukenlampen (alleen actief als donker). Avond = 1753005600006, nacht = keuken_nachtlamp.'
+  triggers:
+  - id: window_start
+    trigger: time
+    at: 05:30:00
+  - id: dark
+    trigger: numeric_state
+    entity_id: sensor.presence_sensor_fp2_f08e_light_sensor_light_level
+    below: 70
+    for:
+      minutes: 2
+  - id: presence
+    trigger: state
+    entity_id: binary_sensor.presence_sensor_fp2_f08e_presence_sensor_3
+    to: 'on'
+    from: 'off'
+  - id: bright
+    trigger: numeric_state
+    entity_id: sensor.presence_sensor_fp2_f08e_light_sensor_light_level
+    above: 150
+    for:
+      minutes: 8
+  conditions:
+  - alias: Na 05:30
+    condition: time
+    after: 05:30:00
+  - alias: Voor zonsondergang-1u
+    condition: sun
+    before: sunset
+    before_offset: -01:00:00
+  actions:
+  - choose:
+    - conditions:
+      - condition: template
+        value_template: '{{ trigger.id == ''window_start'' }}'
+      sequence:
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.adaptief_keuken_dag_gedaan
+    - conditions:
+      - condition: template
+        value_template: '{{ trigger.id == ''bright'' }}'
+      sequence:
+      - action: light.turn_off
+        target:
+          entity_id:
+          - light.ledstrip_keukenkastjes
+          - light.lightstrip_koof
+          - light.verlichting_aanrecht
+          - light.verlichting_eettafel
+        data:
+          transition: 3
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.adaptief_keuken_dag_gedaan
+    - conditions:
+      - condition: state
+        entity_id: input_boolean.adaptief_keuken_dag_gedaan
+        state: 'off'
+      - condition: numeric_state
+        entity_id: sensor.presence_sensor_fp2_f08e_light_sensor_light_level
+        below: 70
+      - condition: state
+        entity_id: binary_sensor.presence_sensor_fp2_f08e_presence_sensor_3
+        state: 'on'
+      sequence:
+      - action: light.turn_on
+        target:
+          entity_id:
+          - light.ledstrip_keukenkastjes
+          - light.lightstrip_koof
+        data:
+          transition: 120
+          rgb_color:
+          - 255
+          - 136
+          - 0
+          brightness_pct: '{% set L = states(''sensor.presence_sensor_fp2_f08e_light_sensor_light_level'')|float(70)
+            %}{% set b = (30 + 40*((70 - L)/70))|round(0) %}{{ [70,[30,b]|max]|min }}'
+      - action: light.turn_on
+        target:
+          entity_id:
+          - light.verlichting_aanrecht
+          - light.verlichting_eettafel
+        data:
+          transition: 120
+          brightness_pct: '{% set L = states(''sensor.presence_sensor_fp2_f08e_light_sensor_light_level'')|float(70)
+            %}{% set b = ((30 + 40*((70 - L)/70))*0.7)|round(0) %}{{ [50,[20,b]|max]|min }}'
+      - action: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.adaptief_keuken_dag_gedaan
+  mode: restart
+- id: keuken_nachtlamp
+  alias: Keuken Nachtlamp
+  description: 'D (chg-2026-07-24-002): 23:00 t/m 05:30. Presence-following nachtlampje in de keuken.
+    FP2 zone-3 aanwezigheid AAN -> ledstrip_keukenkastjes + lightstrip_koof laag warm. Aanwezigheid weg
+    (3 min debounce, FP2 valt kort uit) -> uit. Geen koffie, geen radio. Nacht-uit sweep = 1753005600008;
+    presence-exclusief met deze (B alleen bij presence-off, D alleen bij presence-on).'
+  triggers:
+  - id: aanwezig
+    trigger: state
+    entity_id: binary_sensor.presence_sensor_fp2_f08e_presence_sensor_3
+    to: 'on'
+    from: 'off'
+  - id: weg
+    trigger: state
+    entity_id: binary_sensor.presence_sensor_fp2_f08e_presence_sensor_3
+    to: 'off'
+    from: 'on'
+    for:
+      minutes: 3
+  conditions:
+  - alias: Alleen 23:00-05:30
+    condition: time
+    after: '23:00:00'
+    before: 05:30:00
+  actions:
+  - choose:
+    - conditions:
+      - condition: template
+        value_template: '{{ trigger.id == ''aanwezig'' }}'
+      sequence:
+      - action: light.turn_on
+        target:
+          entity_id:
+          - light.ledstrip_keukenkastjes
+          - light.lightstrip_koof
+        data:
+          transition: 3
+          rgb_color:
+          - 255
+          - 120
+          - 0
+          brightness_pct: 12
+    - conditions:
+      - condition: template
+        value_template: '{{ trigger.id == ''weg'' }}'
+      sequence:
+      - action: light.turn_off
+        target:
+          entity_id:
+          - light.ledstrip_keukenkastjes
+          - light.lightstrip_koof
+        data:
+          transition: 3
+  mode: restart
+- id: woonkamer_dawn_backstop
+  alias: Woonkamer Dawn Backstop
+  description: 'E (chg-2026-07-24-002): 05:30 backstop. Sluit het gaatje van B ingekort naar 05:30: als
+    iedereen weg is maar B''s 15-min grace de 05:30-grens niet haalt, kunnen door A aangezette WOONKAMER-lampen
+    na zonsopkomst blijven branden. Om 05:30, als alle activiteit weg is (zelfde all-clear als B, incl
+    woonkamer FP300), gaan de 3 woonkamer-lampen uit. Raakt GEEN keukenstrips (keuken_nachtlamp/C) en
+    geen bar. Woonkamer is 05:30..zonsondergang-1u verder niemands eigenaar (handmatig).'
+  triggers:
+  - id: at_0530
+    trigger: time
+    at: 05:30:00
+  conditions:
+  - alias: Alle activiteit weg (incl woonkamer FP300)
+    condition: template
+    value_template: '{{ is_state(''binary_sensor.presence_sensor_fp2_f08e_presence_sensor_3'',''off'')
+      and is_state(''binary_sensor.presence_woonkamer'',''off'') and states(''media_player.tv_woonkamer_2'')
+      not in [''on'',''playing''] and states(''media_player.woonkamer'') != ''playing'' and states(''media_player.woonkamer_platenspeler'')
+      != ''playing'' and states(''media_player.keuken'') != ''playing'' and states(''media_player.bar_2'')
+      != ''playing'' }}'
+  - alias: Minstens 1 woonkamer-lamp aan
+    condition: template
+    value_template: '{{ expand(''light.woonkamer'',''light.woonkamer_lamp'',''light.woonkamer_lamp_2'')
+      | selectattr(''state'',''eq'',''on'') | list | count > 0 }}'
+  actions:
+  - action: light.turn_off
+    target:
+      entity_id:
+      - light.woonkamer
+      - light.woonkamer_lamp
+      - light.woonkamer_lamp_2
+  mode: single
+- id: '1756500000001'
+  alias: Vloerverwarmingspomp Watchdog
+  description: 'Meldt als het pompbeheer is uitgevallen: >48u geen pomprun, of de beheer-automation staat
+    uit. Dit is precies de storing die de pomp maandenlang stil liet staan.'
+  triggers:
+  - trigger: time
+    at: '12:00:00'
+  conditions: []
+  actions:
+  - variables:
+      age_h: '{{ ((now().timestamp() - state_attr(''input_datetime.vloerpomp_laatste_run'',''timestamp''))
+        / 3600) | round(1) }}'
+      beheer: '{{ states(''automation.vloerverwarmingspomp_beheer'') }}'
+  - choose:
+    - conditions:
+      - condition: template
+        value_template: '{{ (age_h | float(999)) > 48 or beheer != ''on'' }}'
+      sequence:
+      - action: notify.mobile_app_galaxy_s25_ultra
+        data:
+          title: 'Vloerverwarmingspomp: geen recente run'
+          message: Laatste pomprun {{ age_h }} uur geleden. Beheer-automation staat '{{ beheer }}'. De
+            pomp kan vastlopen.
+      - action: persistent_notification.create
+        data:
+          notification_id: vloerpomp_watchdog
+          title: Vloerverwarmingspomp
+          message: Laatste run {{ age_h }}u geleden; beheer = {{ beheer }}.
+  mode: single
