@@ -1,0 +1,16 @@
+harness expr: (ST['binary_sensor.presence_sensor_fp2_f08e_presence_sensor_3'] == 'off') and ST['media_player.tv_woonkamer_2' ...
+
+PASS  BASELINE all quiet, room empty                       -> True   (expect True)
+PASS  N1 TV tv_woonkamer_2=on (presence OFF)               -> False  (expect False)
+PASS  N1 TV tv_woonkamer_2=playing (presence OFF)          -> False  (expect False)
+PASS  N2 Sonos media_player.woonkamer=playing (presence OFF) -> False  (expect False)
+PASS  N2 Sonos media_player.woonkamer_platenspeler=playing (presence OFF) -> False  (expect False)
+PASS  N2 Sonos media_player.keuken=playing (presence OFF)  -> False  (expect False)
+PASS  N2 Sonos media_player.bar_2=playing (presence OFF)   -> False  (expect False)
+PASS  presence FP2 zone3=on                                -> False  (expect False)
+PASS  presence FP300 woonkamer=on                          -> False  (expect False)
+PASS  FP2 zone3 unavailable (fail-safe)                    -> False  (expect False)
+PASS  FP300 unavailable (fail-safe)                        -> False  (expect False)
+PASS  N2b Sonos paused/idle must NOT block                 -> True   (expect True)
+
+ALL PASS

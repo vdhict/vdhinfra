@@ -1,0 +1,18 @@
+empty-but-lit minutes, single midnight-aligned grid
+day            win  FULLDAY  in-win  in-win AFTER  daytime  >23:00  dims  offs  cancels
+2026-08-30   19:32      104      85            19        0      19     1     1        0
+2026-08-31   19:30      115     114            32        0       1     2     1        1
+2026-09-01   19:28      122     121            48        0       1     2     2        1
+2026-09-02   19:25      136     135            48        0       1     2     2        1
+2026-09-03   19:23      158     147            91        0      11     4     4        3
+2026-09-04   19:21       37      29            19        0       8     1     1        0
+TOTAL                   672     631           257        0      41    12    11        6
+
+in-window empty-but-lit: 631 -> 257 min  (105 -> 43 min/day, -59%)
+ownership: in-window 631/672 = 94% of all empty-but-lit; daytime 0; after 23:00 41 (B's grace)
+residual explained: 11 auto-offs x 20 min arming grace = 220 of the 257 remaining minutes
+
+SAFETY (minutes sim held lamps OFF while an occupancy signal was active):
+  TV on/playing   : 0  (MUST be 0)
+  Sonos playing   : 0  (MUST be 0)
+  FP300 presence  : 0  (MUST be 0)

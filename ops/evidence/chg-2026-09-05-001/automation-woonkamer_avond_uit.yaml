@@ -1,0 +1,208 @@
+- id: woonkamer_avond_uit
+  alias: Woonkamer Avond - Uit bij afwezigheid
+  description: 'D2 (chg-2026-09-05-001): sluit het gat waar NIEMAND de woonkamer uitzette. A (Adaptieve
+    Verlichting Begane Grond) zet ''s avonds aan maar heeft bewust GEEN auto-uit; B (Woonlaag - Nachtelijke
+    uit) begint pas om 23:00. Tussen zonsondergang-1u en 23:00 bleef de woonkamer daardoor gemiddeld
+    ~104 min per dag leeg-maar-verlicht branden (94% van alle leeg-maar-verlicht). Deze automation raakt
+    ALLEEN de 3 woonkamerlampen (light.woonkamer, light.woonkamer_lamp, light.woonkamer_lamp_2) - NOOIT
+    de 5 keukenlampen of de 2 barlampen. Twee trappen: 10 min aaneengesloten all-clear -> dim naar 30%;
+    20 min -> uit. Komt er iemand terug voordat het uitgaat, dan wordt exact de staat van voor het dimmen
+    hersteld (snapshot-scene, fallback = A''s lux-geschaalde helderheid). Na de EIGEN auto-uit blijft de
+    run wachten op de woonkamer-FP300: komt er iemand binnen terwijl het donker is, dan gaan dezelfde 3
+    lampen weer aan op A''s lux-geschaalde helderheid. A''s latch input_boolean.adaptief_bg_vanavond_gedaan
+    wordt NIET aangeraakt (herzien na QA chg-2026-09-05-001): het opnieuw wapenen daarvan liet A opnieuw
+    vuren en dus alle 8 begane-grond-lampen inclusief de keuken aangaan, wat de bewust gekozen
+    woonkamer-only scope doorbrak. A''s "max 1x per avond" blijft dus intact en A wordt niet gewijzigd.
+    All-clear is LETTERLIJK dezelfde template als B: FP2 zone 3 uit EN FP300 woonkamer uit EN TV niet
+    on/playing EN geen Sonos playing in woonkamer/platenspeler/keuken/bar - de FP300 meldt aantoonbaar
+    11-28 min ten onrechte ''afwezig'' terwijl de TV aanstaat, dus de TV/Sonos-guard is veiligheidskritisch
+    en mag NOOIT vereenvoudigd worden. Trigger is uitsluitend AFWEZIGHEID, nooit lux: de lux-gebaseerde
+    auto-uit is bewust verwijderd in chg-2026-07-21-005 en komt hier niet terug; lux wordt alleen gebruikt
+    om de helderheid te kiezen en om te bepalen of het donker genoeg is om weer aan te doen. "Handmatig
+    uit blijft uit" wordt bewaakt door drie identieke guards: voor het dimmen, voor het herstellen en voor
+    het uitzetten wordt gecontroleerd of er nog een doellamp brandt; zet de gebruiker de lampen zelf uit,
+    dan stopt de run daar en gebeurt er niets meer - geen herstel, geen uit, geen heraansteken. Na 23:00
+    stopt deze automation en neemt B het over.'
+  triggers:
+  - id: all_clear
+    trigger: template
+    value_template: '{{ is_state(''binary_sensor.presence_sensor_fp2_f08e_presence_sensor_3'',''off'')
+      and states(''media_player.tv_woonkamer_2'') not in [''on'',''playing''] and states(''media_player.woonkamer'')
+      != ''playing'' and states(''media_player.woonkamer_platenspeler'') != ''playing'' and states(''media_player.keuken'')
+      != ''playing'' and states(''media_player.bar_2'') != ''playing'' and is_state(''binary_sensor.presence_woonkamer'',''off'')
+      }}'
+  - id: window_start
+    trigger: sun
+    event: sunset
+    offset: -01:00:00
+  - id: light_on_quiet
+    trigger: state
+    entity_id:
+    - light.woonkamer
+    - light.woonkamer_lamp
+    - light.woonkamer_lamp_2
+    to: 'on'
+    for:
+      minutes: 1
+  conditions:
+  - alias: Alleen avond, nooit na 23:00 (dan is B eigenaar)
+    condition: time
+    after: '12:00:00'
+    before: '23:00:00'
+  - alias: Na zonsondergang-1u
+    condition: sun
+    after: sunset
+    after_offset: -01:00:00
+  - alias: Alle activiteit weg (identieke template als B)
+    condition: template
+    value_template: '{{ is_state(''binary_sensor.presence_sensor_fp2_f08e_presence_sensor_3'',''off'')
+      and states(''media_player.tv_woonkamer_2'') not in [''on'',''playing''] and states(''media_player.woonkamer'')
+      != ''playing'' and states(''media_player.woonkamer_platenspeler'') != ''playing'' and states(''media_player.keuken'')
+      != ''playing'' and states(''media_player.bar_2'') != ''playing'' and is_state(''binary_sensor.presence_woonkamer'',''off'')
+      }}'
+  - alias: Minstens 1 woonkamer-lamp aan
+    condition: template
+    value_template: '{{ expand(''light.woonkamer'',''light.woonkamer_lamp'',''light.woonkamer_lamp_2'')
+      | selectattr(''state'',''eq'',''on'') | list | count > 0 }}'
+  actions:
+  - alias: Fase 1 - 10 min aaneengesloten all-clear afwachten (breekt af zodra iemand terug is)
+    wait_template: '{{ not ( is_state(''binary_sensor.presence_sensor_fp2_f08e_presence_sensor_3'',''off'')
+      and states(''media_player.tv_woonkamer_2'') not in [''on'',''playing''] and states(''media_player.woonkamer'')
+      != ''playing'' and states(''media_player.woonkamer_platenspeler'') != ''playing'' and states(''media_player.keuken'')
+      != ''playing'' and states(''media_player.bar_2'') != ''playing'' and is_state(''binary_sensor.presence_woonkamer'',''off'')
+      ) }}'
+    timeout: '00:10:00'
+    continue_on_timeout: true
+  - alias: Iemand terug voor het dimmen - er is nog niets veranderd, stoppen
+    if:
+    - condition: template
+      value_template: '{{ wait.completed }}'
+    then:
+    - stop: Aanwezigheid terug binnen 10 min; niet gedimd, niets uitgezet.
+  - alias: Nog binnen het avondvenster (anders neemt B over om 23:00)
+    condition: time
+    after: '12:00:00'
+    before: '23:00:00'
+  - alias: GUARD 1/3 - handmatig uit tijdens fase 1? Dan stoppen (handmatig uit blijft uit)
+    condition: template
+    value_template: '{{ expand(''light.woonkamer'',''light.woonkamer_lamp'',''light.woonkamer_lamp_2'')
+      | selectattr(''state'',''eq'',''on'') | list | count > 0 }}'
+  - alias: Onthoud welke lampen nu branden
+    variables:
+      dim_targets: '{{ expand(''light.woonkamer'',''light.woonkamer_lamp'',''light.woonkamer_lamp_2'')
+        | selectattr(''state'',''eq'',''on'') | map(attribute=''entity_id'') | list }}'
+  - alias: Snapshot van de huidige woonkamerstaat (voor exact herstel)
+    action: scene.create
+    data:
+      scene_id: woonkamer_avond_predim
+      snapshot_entities:
+      - light.woonkamer
+      - light.woonkamer_lamp
+      - light.woonkamer_lamp_2
+  - alias: Fase 1 - dim de brandende woonkamerlampen naar 30%
+    action: light.turn_on
+    target:
+      entity_id: '{{ dim_targets }}'
+    data:
+      brightness_pct: 30
+      transition: 2
+  - alias: Fase 2 - nog 10 min all-clear afwachten (totaal 20)
+    wait_template: '{{ not ( is_state(''binary_sensor.presence_sensor_fp2_f08e_presence_sensor_3'',''off'')
+      and states(''media_player.tv_woonkamer_2'') not in [''on'',''playing''] and states(''media_player.woonkamer'')
+      != ''playing'' and states(''media_player.woonkamer_platenspeler'') != ''playing'' and states(''media_player.keuken'')
+      != ''playing'' and states(''media_player.bar_2'') != ''playing'' and is_state(''binary_sensor.presence_woonkamer'',''off'')
+      ) }}'
+    timeout: '00:10:00'
+    continue_on_timeout: true
+  - alias: Iemand terug na het dimmen - volledig herstellen en stoppen
+    if:
+    - condition: template
+      value_template: '{{ wait.completed }}'
+    then:
+    - alias: GUARD 2/3 - tijdens fase 2 handmatig uitgezet? Dan NIET herstellen EN de run stoppen (een
+        kale condition in een then-tak stopt de run NIET, die valt door naar de uit-tak - bewezen met
+        trace e6b300a0 op 2026-09-05, daarom expliciet stop)
+      if:
+      - condition: template
+        value_template: '{{ expand(dim_targets) | selectattr(''state'',''eq'',''on'') | list | count
+          == 0 }}'
+      then:
+      - stop: Handmatig uitgezet tijdens fase 2; niet herstellen, niets uitzetten, niet heraansteken.
+    - choose:
+      - alias: Exact herstel via snapshot-scene
+        conditions:
+        - condition: template
+          value_template: '{{ states.scene.woonkamer_avond_predim is not none }}'
+        sequence:
+        - action: scene.turn_on
+          target:
+            entity_id: scene.woonkamer_avond_predim
+          data:
+            transition: 2
+      default:
+      - alias: Fallback - A''s lux-geschaalde helderheid (nooit hardgecodeerd 100%)
+        action: light.turn_on
+        target:
+          entity_id: '{{ dim_targets }}'
+        data:
+          transition: 2
+          brightness_pct: '{% set fp = states(''sensor.presence_woonkamer_illuminance'')|float(-1) %}{%
+            set age = (now() - states.sensor.presence_woonkamer_illuminance.last_updated).total_seconds()
+            if has_value(''sensor.presence_woonkamer_illuminance'') else 99999 %}{% set fp2 = states(''sensor.presence_sensor_fp2_f08e_light_sensor_light_level'')|float(-1)
+            %}{% set L = fp if (fp >= 0 and age < 3600) else fp2 %}{% set b = (20 + 50*((40 - L)/35))|round(0)
+            %}{{ [70,[20,b]|max]|min }}'
+    - stop: Aanwezigheid terug; volledige helderheid hersteld, niets uitgezet.
+  - alias: Nog binnen het avondvenster (anders neemt B over om 23:00)
+    condition: time
+    after: '12:00:00'
+    before: '23:00:00'
+  - alias: GUARD 3/3 - handmatig uit tijdens fase 2? Dan stoppen (handmatig uit blijft uit)
+    condition: template
+    value_template: '{{ expand(''light.woonkamer'',''light.woonkamer_lamp'',''light.woonkamer_lamp_2'')
+      | selectattr(''state'',''eq'',''on'') | list | count > 0 }}'
+  - alias: Fase 2 - de 3 woonkamerlampen uit (keuken en bar blijven ongemoeid)
+    action: light.turn_off
+    target:
+      entity_id:
+      - light.woonkamer
+      - light.woonkamer_lamp
+      - light.woonkamer_lamp_2
+  - alias: Na EIGEN auto-uit - wachten tot de woonkamer-FP300 weer iemand ziet (max 3u)
+    wait_for_trigger:
+    - trigger: state
+      entity_id: binary_sensor.presence_woonkamer
+      to: 'on'
+    timeout: '03:00:00'
+    continue_on_timeout: true
+  - alias: Niemand teruggekomen binnen 3u - klaar
+    if:
+    - condition: template
+      value_template: '{{ wait.trigger is none }}'
+    then:
+    - stop: Geen terugkeer binnen 3u; lampen blijven uit.
+  - alias: Heraansteken mag alleen binnen het avondvenster (na 23:00 is B eigenaar)
+    condition: time
+    after: '12:00:00'
+    before: '23:00:00'
+  - alias: Alleen heraansteken als niemand ze zelf al heeft aangedaan
+    condition: template
+    value_template: '{{ expand(''light.woonkamer'',''light.woonkamer_lamp'',''light.woonkamer_lamp_2'')
+      | selectattr(''state'',''eq'',''on'') | list | count == 0 }}'
+  - alias: Alleen heraansteken als het donker is (zelfde lux-bron als A, behoudt A''s donker-voorwaarde)
+    condition: template
+    value_template: '{% set fp = states(''sensor.presence_woonkamer_illuminance'')|float(-1) %}{% set
+      age = (now() - states.sensor.presence_woonkamer_illuminance.last_updated).total_seconds() if has_value(''sensor.presence_woonkamer_illuminance'')
+      else 99999 %}{% set fp2 = states(''sensor.presence_sensor_fp2_f08e_light_sensor_light_level'')|float(-1)
+      %}{% set L = fp if (fp >= 0 and age < 3600) else fp2 %}{{ L >= 0 and L < 40 }}'
+  - alias: Heraansteken - dezelfde 3 lampen op A''s lux-geschaalde helderheid (A''s latch blijft ongemoeid)
+    action: light.turn_on
+    target:
+      entity_id: '{{ dim_targets }}'
+    data:
+      transition: 2
+      brightness_pct: '{% set fp = states(''sensor.presence_woonkamer_illuminance'')|float(-1) %}{% set
+        age = (now() - states.sensor.presence_woonkamer_illuminance.last_updated).total_seconds() if
+        has_value(''sensor.presence_woonkamer_illuminance'') else 99999 %}{% set fp2 = states(''sensor.presence_sensor_fp2_f08e_light_sensor_light_level'')|float(-1)
+        %}{% set L = fp if (fp >= 0 and age < 3600) else fp2 %}{% set b = (20 + 50*((40 - L)/35))|round(0)
+        %}{{ [70,[20,b]|max]|min }}'
+  mode: restart

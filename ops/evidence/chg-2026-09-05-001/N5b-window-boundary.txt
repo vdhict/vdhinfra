@@ -1,0 +1,7 @@
+11:59 in_time_window=False after_sunset_m1=False -> RUNS=False
+19:18 in_time_window=True after_sunset_m1=False -> RUNS=False
+19:20 in_time_window=True after_sunset_m1=True -> RUNS=True
+22:59 in_time_window=True after_sunset_m1=True -> RUNS=True
+23:00 in_time_window=False after_sunset_m1=True -> RUNS=False
+23:01 in_time_window=False after_sunset_m1=True -> RUNS=False
+02:00 in_time_window=False after_sunset_m1=False -> RUNS=False
