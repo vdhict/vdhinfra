@@ -1,0 +1,81 @@
+P1 REAL-PATH EVIDENCE - chg-2026-09-05-001
+captured by Atlas at 2026-09-06T20:06:33Z (local 22:06 CEST)
+
+== trigger ==
+id = woonkamer_avond_uit
+last_triggered = 2026-09-06T19:48:16.418266+00:00
+mode = restart
+current = 1
+friendly_name = Woonkamer Avond - Uit bij afwezigheid
+
+== presence at capture (all-clear must hold) ==
+binary_sensor.presence_woonkamer = off  (Multisensor Bezetting)
+binary_sensor.presence_woonkamer_pir = off  (Multisensor Pir detection)
+
+== PHASE 1 OBSERVED: lamps dimmed to 30% (255*0.30 = 76.5) ==
+light.woonkamer state=on 
+light.woonkamer brightness=76
+light.woonkamer_lamp state=on 
+light.woonkamer_lamp brightness=77
+light.woonkamer_lamp_2 state=on 
+light.woonkamer_lamp_2 brightness=77
+
+== PHASE 2 WATCH: polling every 30s until lamps off (max 12 min) ==
+20:06:47Z woonkamer=on  lamp=on  lamp_2=on  presence=off 
+20:07:17Z woonkamer=on  lamp=on  lamp_2=on  presence=off 
+20:07:47Z woonkamer=on  lamp=on  lamp_2=on  presence=off 
+20:08:17Z woonkamer=on  lamp=off  lamp_2=off  presence=off 
+20:08:47Z woonkamer=off  lamp=off  lamp_2=off  presence=off 
+20:09:17Z woonkamer=off  lamp=off  lamp_2=off  presence=off 
+20:09:47Z woonkamer=off  lamp=off  lamp_2=off  presence=off 
+20:10:17Z woonkamer=off  lamp=off  lamp_2=off  presence=off 
+20:10:48Z woonkamer=off  lamp=off  lamp_2=off  presence=off 
+20:11:18Z woonkamer=off  lamp=off  lamp_2=off  presence=off 
+20:11:48Z woonkamer=off  lamp=off  lamp_2=off  presence=off 
+20:12:18Z woonkamer=off  lamp=off  lamp_2=off  presence=off 
+20:12:48Z woonkamer=off  lamp=off  lamp_2=off  presence=off 
+20:13:18Z woonkamer=off  lamp=off  lamp_2=off  presence=off 
+20:13:48Z woonkamer=off  lamp=off  lamp_2=off  presence=off 
+
+>>> NOTE: the poll loop's break test compared an unstripped value and so ran on past the
+    off-event; the extra identical lines are harmless. Exact times below are from the
+    HA LOGBOOK, not from these 30s polls.
+
+== PHASE 2 CONFIRMED - exact logbook timestamps ==
+trigger (id=light_on_quiet, lamp on for 1 min)  19:48:16.418266Z
+  lamps on at 19:47:15.213 -> +60s = 19:48:15.2; fired 19:48:16.4. Hold honoured.
+-- light.woonkamer
+2026-09-06T19:02:44.397663+00:00  Woonkamer  off
+2026-09-06T19:47:16.416253+00:00  Woonkamer  on
+2026-09-06T20:08:17.752561+00:00  Woonkamer  off
+-- light.woonkamer_lamp
+2026-09-06T19:02:43.297261+00:00  Woonkamer Lamp  off
+2026-09-06T19:47:15.236722+00:00  Woonkamer Lamp  on
+2026-09-06T20:08:16.687174+00:00  Woonkamer Lamp  off
+-- light.woonkamer_lamp_2
+2026-09-06T19:02:43.192443+00:00  Woonkamer Lamp (2)  off
+2026-09-06T19:47:15.213148+00:00  Woonkamer Lamp (2)  on
+2026-09-06T20:08:16.662032+00:00  Woonkamer Lamp (2)  off
+
+  => all 3 OFF within 1.09s of each other, at trigger+20m00.2s. Two-stage timing exact.
+
+== OCCUPANCY CONTEXT (proves the run was legitimate, not a miss) ==
+2026-09-06T18:37:22.694850+00:00  Multisensor Bezetting  off
+2026-09-06T19:47:15.179992+00:00  Multisensor Bezetting  on
+2026-09-06T19:47:37.504757+00:00  Multisensor Bezetting  off
+2026-09-06T18:37:22.694965+00:00  Multisensor Pir detection  off
+2026-09-06T19:47:14.550839+00:00  Multisensor Pir detection  on
+2026-09-06T19:47:37.506017+00:00  Multisensor Pir detection  off
+  User (Sander) confirmed in-session he was NOT in the living room during the run and
+  had last been there 'roughly 10 minutes' before 22:09 CEST. The logbook shows a single
+  22-second pass-through at 21:47:14-21:47:37 CEST and no later presence of any kind.
+  That pass-through is what automation A used to light the lamps at 21:47:15, creating
+  exactly the empty-but-lit condition this change exists to close.
+
+== NO COLLATERAL: keuken / bar must be untouched ==
+light.bar = off  (Bar)
+light.bartafel = off  (Bartafel)
+light.bartafel_grond = off  (Bartafel grond)
+light.keuken = on  (Keuken)
+
+== VERDICT: P1 PASS on the real path, unassisted, no injection. ==
