@@ -1,0 +1,96 @@
+T1 STRUCTURAL DIFF - chg-2026-09-07-001  (STAGED, NOT YET DEPLOYED)
+
+before: automations.before.yaml        md5 5b629a4edd1541fac11c8f6f9d7cb178  89466 bytes
+after : automations.after-STAGED.yaml  md5 7e944d62399618bebe19e18c9e3d6554  95003 bytes
+
+automation count: before=50 after=50   id list identical & same order: True
+changed: ['1734200001001', '1747224001001']      unchanged after parse: 48 of 50
+
+===== 1734200001001  Kantoor Ochtend - Klimaat  -- LOGIC DIFF (descriptions excluded) =====
+--- before
++++ after
+@@ -1,6 +1,17 @@
+ actions:
++- action: homeassistant.update_entity
++  continue_on_error: true
++  target:
++    entity_id:
++    - sensor.kantoor_temperatuur
++    - climate.kantoor
++- variables:
++    meting_vers: '{{ (as_timestamp(now()) - as_timestamp(state_attr(''sensor.kantoor_temperatuur'',
++      ''time''), 0)) < 7200 }}'
+ - choose:
+   - conditions:
++    - condition: template
++      value_template: '{{ meting_vers | bool(false) }}'
+     - below: 18
+       condition: numeric_state
+       entity_id: sensor.kantoor_temperatuur
+@@ -21,7 +32,9 @@
+       target:
+         entity_id: climate.kantoor
+   - conditions:
+-    - above: 22.99
++    - condition: template
++      value_template: '{{ meting_vers | bool(false) }}'
++    - above: 23.49
+       condition: numeric_state
+       entity_id: sensor.kantoor_temperatuur
+     sequence:
+@@ -52,14 +65,6 @@
+ - condition: state
+   entity_id: person.sander_van_der_heijden
+   state: home
+-- condition: or
+-  conditions:
+-  - below: 18
+-    condition: numeric_state
+-    entity_id: sensor.kantoor_temperatuur
+-  - above: 22.99
+-    condition: numeric_state
+-    entity_id: sensor.kantoor_temperatuur
+ id: '1734200001001'
+ mode: single
+ triggers:
+
+===== 1747224001001  Kantoor Aanwezig - Comfort setpoint  -- LOGIC DIFF (descriptions excluded) =====
+--- before
++++ after
+@@ -1,7 +1,15 @@
+ actions:
++- action: homeassistant.update_entity
++  continue_on_error: true
++  target:
++    entity_id:
++    - sensor.kantoor_temperatuur
++    - climate.kantoor
+ - variables:
+     hvac: '{{ states(''climate.kantoor'') }}'
+     kamer_temp: '{{ states(''sensor.kantoor_temperatuur'') | float(-99) }}'
++    meting_vers: '{{ (as_timestamp(now()) - as_timestamp(state_attr(''sensor.kantoor_temperatuur'',
++      ''time''), 0)) < 7200 }}'
+ - choose:
+   - conditions:
+     - condition: template
+@@ -23,8 +31,8 @@
+         entity_id: climate.kantoor
+   - conditions:
+     - condition: template
+-      value_template: '{{ hvac == ''off'' and (kamer_temp | float(-99)) > -99 and
+-        (kamer_temp | float(-99)) < 18 }}'
++      value_template: '{{ hvac == ''off'' and (meting_vers | bool(false)) and (kamer_temp
++        | float(-99)) > -99 and (kamer_temp | float(-99)) < 18 }}'
+     - after: 08:00:00
+       before: '18:00:00'
+       condition: time
+@@ -46,7 +54,8 @@
+         entity_id: climate.kantoor
+   - conditions:
+     - condition: template
+-      value_template: '{{ hvac == ''off'' and (kamer_temp | float(-99)) >= 23 }}'
++      value_template: '{{ hvac == ''off'' and (meting_vers | bool(false)) and (kamer_temp
++        | float(-99)) >= 23.5 }}'
+     - after: 08:00:00
+       before: '18:00:00'
+       condition: time

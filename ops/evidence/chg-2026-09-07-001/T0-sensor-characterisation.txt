@@ -1,0 +1,59 @@
+T0  NOISE / STALENESS CHARACTERISATION OF sensor.kantoor_temperatuur
+    (mandated by the design constraint: derive the mechanism from measured behaviour,
+     do not pick a dwell by intuition)
+
+Source: GET /api/history/period, 10 x 24h windows with explicit end_time
+        (24h windows deliberately - the history/logbook endpoints truncate at start+24h).
+Window: 2026-08-28 04:55:45+00:00 .. 2026-09-07 04:32:04.435850+00:00   n=466 samples
+
+1. SAMPLE CADENCE  -- this is a 30-minute cloud poll, NOT a noisy sensor
+   inter-sample gap (s): min 82.3  p10 1800.5  p25 1800.8  p50 1801.0  p75 1801.1  p90 1801.3  max 5403.2
+   buckets: {'15-25m': 14, '25-31m': 406, '31-63m': 27, '1-5m': 7, '5-15m': 8, '>63m': 3}
+   => 406 of 465 gaps sit in the 25-31 min band. The handful of short gaps are
+      coordinator refreshes forced by HA's own Tado service calls.
+
+2. SAMPLE-TO-SAMPLE MOVEMENT  -- this is thermal drift over 30 min, not jitter
+   |delta| (degC): p50 0.080  p75 0.140  p90 0.250  p95 0.310  p99 0.490  max 1.510
+   => the 0.5 degC start dead-band is sized on p99 = 0.49 degC per 30 min.
+
+3. DECISION STALENESS  (n=226, 5 days with attributes)
+   Tado cloud lag at the moment HA reads it (min): p50 8.3  p90 16.0  p99 23.3  max 40.0
+   MAX age of the measurement backing HA's state (min): p50 38.8  p75 43.4  p90 48.6  p99 92.3  max 105.0
+   Tado cloud publish interval (min): p10 17.9  p50 33.6  p90 39.6  max 91.8
+   => An automation firing at a random instant decides on a measurement that is
+      typically ~39 min old and can be over an hour old. Forcing a refresh cuts
+      that to the cloud lag alone: p50 8.3 min. THIS is the defect, not noise.
+
+4. WHY A `for:` DWELL WAS REJECTED
+   On 2026-09-04 the >=23 condition was continuously true from 07:09:46Z
+   (value 23.02) until 07:37:54Z (value 22.79) = 28 min 08 s.
+   The automation fired at 07:37:53.544Z, 1.0 s before the refresh.
+   A `for:` dwell of any length up to 28 min would have PASSED.
+   (Also: HA supports `for:` on state/device CONDITIONS and on triggers, but not on
+    a numeric_state CONDITION, so a real dwell would need a new helper entity in
+    configuration.yaml = a HIGH-risk resource outside this change. And HA's Jinja has
+    no history access at all, so a min_over_time-style template guard is impossible.)
+
+5. IMPACT OF THE 23.5 degC DEAD-BAND ON 10 DAYS OF REAL DATA (08:00-18:00 CEST)
+   day          n    min    max   n>=23.00  n>=23.50   start@23.0  start@23.5
+   2026-08-28   18  23.31  25.31        18        17   COOL        COOL
+   2026-08-29   20  22.03  23.21         9         0   COOL        -
+   2026-08-30   20  21.16  22.99         0         0   -           -
+   2026-08-31   20  20.82  22.15         0         0   -           -
+   2026-09-01   20  21.60  24.42         8         7   COOL        COOL
+   2026-09-02   18  22.01  23.06         3         0   COOL        -
+   2026-09-03   19  22.02  23.85         7         5   COOL        COOL
+   2026-09-04   21  20.61  23.02         1         0   COOL        -
+   2026-09-05   19  20.73  22.37         0         0   -           -
+   2026-09-06   19  20.44  23.46         2         0   COOL        -
+   => 7 cooling days become 3. The 4 dropped days are exactly the marginal ones
+      (max 23.21 / 23.06 / 23.02 / 23.46); the 3 kept days are the genuinely hot
+      ones (max 25.31 / 24.42 / 23.85). Clean separation, no judgement call.
+
+6. HEAT SIDE  -- no basis for a dead-band
+   samples below 18.0 degC in the whole 10-day set: 0 of 466
+   global minimum observed: 20.44 degC
+   => any heat-side dead-band would be intuition, which this change refuses.
+      climate.kantoor also has min_temp 18.0, so a `below: 17.5` start threshold
+      would sit under the device's own minimum settable temperature.
+      The heat branch gets the freshness fix only. Revisit with winter data.

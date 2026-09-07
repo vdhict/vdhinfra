@@ -1,0 +1,51 @@
+T2  WRITE BLOCKED - kubectl cannot reach the API from this agent shell
+     Recorded 2026-09-07T05:19:08Z
+
+The API server is HEALTHY and reachable from this host. Only the mise/aqua kubectl
+binary is denied LAN access - the documented macOS Local Network Privacy behaviour
+(memory: reference_macos_local_network_privacy). It worked at 07:01Z (the pre-image
+copy out of the pod succeeded) and stopped working by 07:07Z in the same session.
+
+--- proof the network and the API are fine (Apple-signed binaries) ---
+curl  https://172.16.2.240:6443/healthz -> HTTP 401
+curl  https://172.16.2.84:6443/healthz -> HTTP 401
+curl  https://172.16.2.85:6443/healthz -> HTTP 401
+curl  https://172.16.2.86:6443/healthz -> HTTP 401
+nc    Connection to 172.16.2.240 port 6443 [tcp/sun-sr-https] succeeded!
+curl  k8s API with client cert -> HTTP 200
+
+--- proof kubectl specifically is jailed ---
+binary: /Users/sheijden/.local/share/mise/installs/aqua-kubernetes-kubernetes-kubectl/1.36.2/kubectl
+direct        : Unable to connect to the server: dial tcp 172.16.2.240:6443: connect: no route to host
+via launchd   : Unable to connect to the server: dial tcp 172.16.2.240:6443: connect: no route to host
+(launchd run included to rule out process-attribution; same failure)
+retried 12x over 1 min at 07:09Z and 24x over 4 min at 07:12Z - never recovered.
+
+--- alternatives considered and rejected ---
+* POST /api/config/automation/config/<id> : HA's config view load-mutates-DUMPS the
+  WHOLE file with its own YAML dumper, reformatting all 50 automations. automations.yaml
+  here is hand-wrapped, so that is unreviewed collateral damage across 48 automations
+  I was not asked to touch. Rejected.
+* ConfigMap + Job mounting the PVC, created via curl against the k8s API (I do have
+  admin client certs and full non-exec API access): technically viable - PVC is RWO on
+  rook-ceph-block, HA pod is on vdhclu01node01, a Job pinned to that node would share
+  the staged mount. Rejected as a novel, in-session write path to the household's most
+  sensitive config file, deviating from the write method the OPS Manager prescribed.
+* docker-hosted kubectl: docker is not installed on this host.
+* code-server sidecar (hass-code.bluejungle.net) mounts /config, but writing through it
+  needs an interactive VS Code websocket session. Not scriptable.
+
+--- what is needed to unblock (either one) ---
+A) User grants Local Network permission again:
+     System Settings > Privacy & Security > Local Network > enable the terminal app,
+     then restart the tmux server. I then run the transfer myself.
+B) User runs these two commands in their own terminal:
+     kubectl --context=admin@vdhinfra cp -c app \
+       /Users/sheijden/Code/homelab-migration/vdhinfra/ops/evidence/chg-2026-09-07-001/automations.after-STAGED.yaml \
+       home-automation/home-assistant-69ccfbff69-jrhsq:/config/automations.yaml
+     kubectl --context=admin@vdhinfra exec -n home-automation -c app \
+       home-assistant-69ccfbff69-jrhsq -- md5sum /config/automations.yaml
+   expected md5 AFTER  : 7e944d62399618bebe19e18c9e3d6554  (95003 bytes)
+   expected md5 BEFORE : 5b629a4edd1541fac11c8f6f9d7cb178  (89466 bytes)
+   Do NOT reload after copying - I do check_config + automation.reload + verification
+   over the REST API, which works fine.
