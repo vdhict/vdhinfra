@@ -2,3 +2,15 @@ C1 (Themis) - 1734200001001 Kantoor Ochtend Klimaat, NATURAL unattended run
 watcher started by Atlas 2026-09-07T05:59:11Z; automation is scheduled 08:30 CEST = 06:30Z
 baseline last_triggered (from the 05:58:36Z FORCED run): 2026-09-07T05:58:36
 
+06:05:56Z waiting... last_triggered=2026-09-07T05:58:36.586534+00:00 climate=off/2026-09-04T16:00:03.495005+00:00
+06:13:27Z waiting... last_triggered=2026-09-07T05:58:36.586534+00:00 climate=off/2026-09-04T16:00:03.495005+00:00
+06:20:58Z waiting... last_triggered=2026-09-07T05:58:36.586534+00:00 climate=off/2026-09-04T16:00:03.495005+00:00
+06:28:28Z waiting... last_triggered=2026-09-07T05:58:36.586534+00:00 climate=off/2026-09-04T16:00:03.495005+00:00
+06:30:43Z *** NATURAL RUN FIRED *** last_triggered=2026-09-07T06:30:00.452921+00:00  climate=off/2026-09-04T16:00:03.495005+00:00
+--- trace ---
+state=stopped last_step=action/2/choose/1/conditions/1/entity_id/0 error=- timestamp=2026-09-07T06:30:00.452741+00:00
+--- sensor after ---
+  state=21.86 last_updated=2026-09-07T06:30:01.696078+00:00 meas_time=2026-09-07T06:21:09.081Z
+--- climate after ---
+  state=off temp=5 last_changed=2026-09-04T16:00:03.495005+00:00
+watcher ended 06:30:50Z
