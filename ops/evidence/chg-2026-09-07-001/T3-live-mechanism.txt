@@ -1,0 +1,35 @@
+T3  LIVE MECHANISM PROOF - the two new primitives, exercised against the real Tado integration
+     (run BEFORE deployment; these are the building blocks the new logic depends on)
+
+A) homeassistant.update_entity really pulls a fresher Tado measurement, and is fast
+   2026-09-07T04:57:57.953Z  POST /api/services/homeassistant/update_entity
+                             {"entity_id":"sensor.kantoor_temperatuur"}
+   2026-09-07T04:57:59.019Z  call returned  ->  1.07 s, SYNCHRONOUS (state already updated)
+     before: state=22.01  tado measurement time=2026-09-07T04:25:01.679Z  (32 min old)
+     after : state=21.89  tado measurement time=2026-09-07T04:44:07.962Z  (14 min old)
+   => a real 0.12 degC correction obtained purely by removing HA-side staleness.
+
+   Entity-LIST form (as used in the automations) also accepted, 0.88 s:
+     {"entity_id":["sensor.kantoor_temperatuur","climate.kantoor"]} -> HTTP 200, no error.
+     (no value change on that run - Tado had not published anything newer 2 min later,
+      which is the expected and correct behaviour, cloud publish interval p50 33.6 min)
+
+B) the meting_vers freshness expression, rendered by HA itself via POST /api/template
+   {{ state_attr('sensor.kantoor_temperatuur', 'time') }}                                                   -> 2026-09-07T04:44:07.962Z
+   {{ (as_timestamp(now()) - as_timestamp(state_attr('sensor.kantoor_temperatuur', 'time'), 0)) | round(1) }} -> 2124.5
+   {{ (as_timestamp(now()) - as_timestamp(state_attr('sensor.kantoor_temperatuur', 'time'), 0)) < 1800 }}   -> False
+   {{ (as_timestamp(now()) - as_timestamp(state_attr('sensor.kantoor_temperatuur', 'missing_attr'), 0)) < 1800 }} -> False
+   {{ (as_timestamp(now()) - as_timestamp(state_attr('sensor.does_not_exist', 'time'), 0)) < 1800 }}        -> False
+
+   => FAIL-CLOSED confirmed: a missing attribute or a missing entity both yield False,
+      so the unit does not start. This is why continue_on_error: true on the refresh is safe.
+
+C) the DEPLOYED form of meting_vers (7200 s), rendered by HA now:
+   {{ (as_timestamp(now()) - as_timestamp(state_attr('sensor.kantoor_temperatuur', 'time'), 0)) | round(1) }} -> 2309.9
+   {{ (as_timestamp(now()) - as_timestamp(state_attr('sensor.kantoor_temperatuur', 'time'), 0)) < 7200 }}     -> True
+   {{ (as_timestamp(now()) - as_timestamp(state_attr('sensor.kantoor_temperatuur', 'missing_attr'), 0)) < 7200 }} -> False
+   {{ (as_timestamp(now()) - as_timestamp(state_attr('sensor.does_not_exist', 'time'), 0)) < 7200 }}          -> False
+   {{ (as_timestamp(now()) - as_timestamp(state_attr('sensor.kantoor_temperatuur', 'time'), 0)) < 1800 }}     -> False
+   ^ the LAST line is the 1800 s gate I first proposed. It reads False right now, on a
+     completely healthy feed, which is exactly the 18% false-block problem that made me
+     re-size the gate to 7200 s. See T5.

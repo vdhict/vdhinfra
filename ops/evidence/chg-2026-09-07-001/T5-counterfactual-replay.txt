@@ -1,66 +1,78 @@
-COUNTERFACTUAL REPLAY - chg-2026-09-07-001
-Rendered by Home Assistant's OWN template engine via POST /api/template (not a local Jinja re-implementation).
-Condition text copied VERBATIM from the new automation 1747224001001.
-Historical temperatures and Tado measurement timestamps are REAL, read back from
-GET /api/history/period with attributes; they are not fixtures.
+T5  COUNTERFACTUAL REPLAY - chg-2026-09-07-001
+    Rendered by Home Assistant's OWN template engine via POST /api/template.
+    Condition text copied VERBATIM from the staged automation 1747224001001.
+    Temperatures and Tado measurement timestamps are REAL, read back from
+    GET /api/history/period with attributes. They are not fixtures.
 
-  OLD cool-start: {{ hvac == 'off' and (kamer_temp | float(-99)) >= 23 }}
-  NEW cool-start: {{ hvac == 'off' and (meting_vers | bool(false)) and (kamer_temp | float(-99)) >= 23.5 }}
-  meting_vers   = (as_timestamp(nu) - as_timestamp(meet_ts, 0)) < 1800     (1800 s = 30 min)
+    OLD cool-start: {{ hvac == 'off' and (kamer_temp | float(-99)) >= 23 }}
+    NEW cool-start: {{ hvac == 'off' and (meting_vers | bool(false)) and (kamer_temp | float(-99)) >= 23.5 }}
+    meting_vers   = (as_timestamp(nu) - as_timestamp(meet_ts, 0)) < 7200     (7200 s = 2 h dead-feed detector)
 
-a  2026-09-04 INCIDENT - the STALE value the old code actually saw
+a  2026-09-04 INCIDENT - the STALE value the old code actually acted on
      decision at 2026-09-04T07:37:53.544Z   temp=23.02 degC   hvac=off
-     Tado measured it at 2026-09-04T07:05:51.760Z  ->  measurement age 32.0 min   meting_vers=False
-     OLD -> True  (expect True ) PASS
-     NEW -> False (expect False) PASS
-     ==> airco does NOT start
+     Tado measured it at 2026-09-04T07:05:51.760Z  ->  age 32.0 min   meting_vers=True
+     OLD -> True  (expect True ) PASS      NEW -> False (expect False) PASS
+     ==> airco does NOT start   blocked by the 0.5 degC dead-band. This is the case that ran the aircon 8 h 22 m.
 
-b  2026-09-04 INCIDENT - the value Tado ALREADY HELD at that instant (what update_entity fetches)
+b  2026-09-04 INCIDENT - the value Tado ALREADY HELD at that instant, i.e. what
      decision at 2026-09-04T07:37:53.544Z   temp=22.79 degC   hvac=off
-     Tado measured it at 2026-09-04T07:31:57.988Z  ->  measurement age 5.9 min   meting_vers=True
-     OLD -> False (expect False) PASS
-     NEW -> False (expect False) PASS
-     ==> airco does NOT start
+     Tado measured it at 2026-09-04T07:31:57.988Z  ->  age 5.9 min   meting_vers=True
+     OLD -> False (expect False) PASS      NEW -> False (expect False) PASS
+     ==> airco does NOT start   the forced update_entity would have fetched. Blocked twice over: below 23.5 AND below 23.0.
 
-c  NEGATIVE CONTROL - genuine sustained excursion, 2026-08-28 hot day (max 25.31)
+c  NEGATIVE CONTROL - genuine sustained excursion, 2026-08-28 (day max 25.31)
      decision at 2026-08-28T09:05:00.000Z   temp=24.48 degC   hvac=off
-     Tado measured it at 2026-08-28T08:50:58.792Z  ->  measurement age 14.0 min   meting_vers=True
-     OLD -> True  (expect True ) PASS
-     NEW -> True  (expect True ) PASS
-     ==> AIRCO STARTS
+     Tado measured it at 2026-08-28T08:50:58.792Z  ->  age 14.0 min   meting_vers=True
+     OLD -> True  (expect True ) PASS      NEW -> True  (expect True ) PASS
+     ==> AIRCO STARTS   cooling is NOT disabled - a real hot day still starts the unit.
 
-d  STALLED-FEED CONTROL - genuinely hot, but the Tado feed froze 45 min ago
+d  DEAD-FEED CONTROL - genuinely hot, but Tado has published nothing for 3 h
      decision at 2026-08-28T09:05:00.000Z   temp=24.48 degC   hvac=off
-     Tado measured it at 2026-08-28T08:20:00.000Z  ->  measurement age 45.0 min   meting_vers=False
-     OLD -> True  (expect True ) PASS
-     NEW -> False (expect False) PASS
-     ==> airco does NOT start
+     Tado measured it at 2026-08-28T06:05:00.000Z  ->  age 180.0 min   meting_vers=False
+     OLD -> True  (expect True ) PASS      NEW -> False (expect False) PASS
+     ==> airco does NOT start   the dead-feed detector refuses to act on an abandoned measurement.
 
-e  MARGINAL DAY 2026-09-06 peak 23.46 - fresh measurement, just under the dead-band
+e  DEAD-FEED BOUNDARY - hot, measurement 95 min old (just past the worst healthy gap)
+     decision at 2026-08-28T09:05:00.000Z   temp=24.48 degC   hvac=off
+     Tado measured it at 2026-08-28T07:30:00.000Z  ->  age 95.0 min   meting_vers=True
+     OLD -> True  (expect True ) PASS      NEW -> True  (expect True ) PASS
+     ==> AIRCO STARTS   still ALLOWED - 95 min is within normal Tado behaviour (max healthy gap measured 91.8 min).
+
+f  MARGINAL DAY 2026-09-06 (day max 23.46) - fresh measurement, under the dead-band
      decision at 2026-09-06T15:31:38.657Z   temp=23.46 degC   hvac=off
-     Tado measured it at 2026-09-06T15:20:00.000Z  ->  measurement age 11.6 min   meting_vers=True
-     OLD -> True  (expect True ) PASS
-     NEW -> False (expect False) PASS
-     ==> airco does NOT start
+     Tado measured it at 2026-09-06T15:20:00.000Z  ->  age 11.6 min   meting_vers=True
+     OLD -> True  (expect True ) PASS      NEW -> False (expect False) PASS
+     ==> airco does NOT start   the closest call in 10 days of data; 0.04 degC under the band.
 
-f  ADJUST BRANCH UNTOUCHED - unit already cooling, start-branch must stay false
+g  ADJUST BRANCH UNAFFECTED - unit already cooling
      decision at 2026-09-04T07:37:53.544Z   temp=23.02 degC   hvac=cool
-     Tado measured it at 2026-09-04T07:05:51.760Z  ->  measurement age 32.0 min   meting_vers=False
-     OLD -> False (expect False) PASS
-     NEW -> False (expect False) PASS
-     ==> airco does NOT start
+     Tado measured it at 2026-09-04T07:05:51.760Z  ->  age 32.0 min   meting_vers=True
+     OLD -> False (expect False) PASS      NEW -> False (expect False) PASS
+     ==> airco does NOT start   the start branch stays false; the setpoint-adjust branch is untouched by this change.
 
-HEAT BRANCH - threshold deliberately unchanged at <18 degC; only the freshness gate was added
-  g  cold office, fresh measurement -> must STILL heat (no comfort regression)
+HEAT BRANCH - threshold deliberately UNCHANGED at <18 degC; only the dead-feed gate added
+  h  cold office, normal Tado cadence -> must STILL heat (no comfort regression)
      OLD=True  NEW=True  (expect True / True) PASS
-  h  cold office, Tado feed froze 50 min ago -> must NOT heat on stale data
+  i  cold office, Tado silent for 3 h -> must NOT heat on an abandoned measurement
      OLD=True  NEW=False (expect True / False) PASS
 
-MORNING ROUTINE 1734200001001 - same dead-band expressed as `above: 23.49` on a 2-decimal sensor
-     numeric_state above:23.49 with 23.02 -> False (expect False) PASS
-     numeric_state above:23.49 with 23.46 -> False (expect False) PASS
-     numeric_state above:23.49 with 23.49 -> False (expect False) PASS
-     numeric_state above:23.49 with 23.50 -> True  (expect True ) PASS
-     numeric_state above:23.49 with 24.48 -> True  (expect True ) PASS
+MORNING ROUTINE 1734200001001 - same dead-band as `above: 23.49` on a 2-decimal sensor
+     above:23.49 with 22.99 -> False (expect False) PASS
+     above:23.49 with 23.02 -> False (expect False) PASS
+     above:23.49 with 23.46 -> False (expect False) PASS
+     above:23.49 with 23.49 -> False (expect False) PASS
+     above:23.49 with 23.50 -> True  (expect True ) PASS
+     above:23.49 with 24.48 -> True  (expect True ) PASS
+
+FALSE-BLOCK RATE OF THE DEAD-FEED GATE (why 7200 s and not 1800 s)
+    Tado cloud publish interval, n=220 over 5 days: mean 32.7 min, p50 33.6, p90 39.6, max 91.8.
+    Fraction of decisions a gate of T would block even when everything is HEALTHY
+    (length-biased / inspection paradox over the measured interval distribution):
+        T=30 min -> 18.0%    T=45 min -> 5.0%    T=60 min -> 2.0%    T=90 min -> 0.0%    T=120 min -> 0.0%
+    A 30-minute gate was my first choice and it is WRONG: it would silently suppress
+    18% of healthy decisions, i.e. roughly one workday in 5.5 with no morning climate
+    at all for the once-daily routine 1734200001001. 7200 s sits clearly above the worst
+    healthy gap ever observed (91.8 min) so it only fires on a genuinely abandoned feed.
+    The FRESHNESS job is done by homeassistant.update_entity, not by this gate.
 
 RESULT: ALL CASES PASS   (0 failing case(s))
