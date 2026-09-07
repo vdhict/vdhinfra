@@ -1,0 +1,14 @@
+=== T4: targeted automation.reload, NOT a restart ===
+
+--- PRE baseline ---
+pod start/restarts:
+automation entities (expected to MOVE on reload):
+  automation.kantoor_aanwezig_verwarm_naar_21degc            on  2026-09-03T09:08:51.200815+00:00
+  automation.kantoor_ochtend_klimaat                         on  2026-09-03T09:08:51.198674+00:00
+  automation.kantoor_afwezig_terugzetten_naar_17degc         on  2026-09-03T09:08:51.200910+00:00
+  automation.kantoor_avond_klimaat_uit                       on  2026-09-03T09:08:51.198772+00:00
+non-automation controls (must NOT move; a restart would move all of these):
+  binary_sensor.kantoor_bezet                                off          2026-09-06T19:58:34.273342+00:00
+  climate.kantoor                                            off          2026-09-04T16:00:03.495005+00:00
+  person.sander_van_der_heijden                              home         2026-09-06T09:10:30.170000+00:00
+  sun.sun                                                    above_horizon 2026-09-07T05:02:39.863288+00:00
