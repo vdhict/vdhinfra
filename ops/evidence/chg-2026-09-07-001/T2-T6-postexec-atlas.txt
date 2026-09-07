@@ -1,0 +1,62 @@
+chg-2026-09-07-001 POST-EXECUTION EVIDENCE (T2, T3, T4, T6)
+executed and captured by Atlas, 2026-09-07T05:34:15Z
+Executed by Atlas because Hestia's kubectl lost LAN access mid-task
+(macOS Local Network Privacy, per-process). Method unchanged: kubectl cp.
+
+== PRE-STATE ==
+live /config/automations.yaml  md5 5b629a4edd1541fac11c8f6f9d7cb178  89466 B
+  -> EXACTLY matches Hestia's automations.before.yaml rollback artefact.
+     Nothing drifted between staging and execution.
+all four kantoor climate automations last_changed = 2026-09-03T09:08:51 (a restart)
+
+== T2 PASS - transfer verified FROM INSIDE THE POD ==
+kubectl -n home-automation cp ...automations.after-STAGED.yaml <pod>:/config/automations.yaml -c app
+read back in-pod:  7e944d62399618bebe19e18c9e3d6554  /config/automations.yaml
+                   95003
+expected:          7e944d62399618bebe19e18c9e3d6554  /  95003   -> MATCH
+(kubectl cp used deliberately; kubectl exec 'cat >' truncates at 64 KiB and this file is 95003 B)
+
+== T3 PASS - check_config BEFORE reload ==
+POST /api/config/core/check_config -> {"result":"valid","errors":null,"warnings":null}
+
+== T4 PASS - targeted reload, NOT a restart ==
+POST /api/services/automation/reload
+  EDITED    kantoor_aanwezig_verwarm_naar_21degc     on  2026-09-07T05:32:43.135288Z   MOVED
+  EDITED    kantoor_ochtend_klimaat                  on  2026-09-07T05:32:43.135050Z   MOVED
+  UNEDITED  kantoor_afwezig_terugzetten_naar_17degc  on  2026-09-03T09:08:51.200910Z   UNCHANGED
+  UNEDITED  kantoor_avond_klimaat_uit                on  2026-09-03T09:08:51.198772Z   UNCHANGED
+A restart would have moved all four to a common timestamp. Only the two edited moved.
+
+== T6 PASS - live trigger in the SAFE direction, conditions ENFORCED ==
+pre-check: climate.kantoor=off hvac_action=off temp=5; sensor.kantoor_temperatuur=22.01;
+           kantoor_raam=off; kantoor_bezet=off; local time 07:33 = OUTSIDE the 08:00-18:00 gate.
+           22.01 is below the new 23.5 cool-start and above the 18 heat-start -> no branch may match.
+POST automation/trigger with "skip_condition": false   (conditions NOT bypassed)
+trace: state=stopped  last_step=action/2/choose/3/conditions/0  error=-  ts=05:33:09.863117Z
+  -> ran through the refresh + variables steps, evaluated the choose, matched NO branch, no error.
+
+NO CLIMATE CALL EMITTED:
+  climate.kantoor after trigger: state=off temp=5 last_changed=2026-09-04T16:00:03.495005Z
+  i.e. unmoved since Friday. The automation did not touch the unit.
+
+R2 (Themis) ADDRESSED - update_entity genuinely elapsed, was NOT debounced away:
+  sensor.kantoor_temperatuur last_updated = 2026-09-07T05:33:10.816716Z  <- MOVED to trigger time
+  sensor.kantoor_temperatuur last_changed = 2026-09-07T05:29:42.624162Z  <- value unchanged (22.01)
+  last_updated moving while last_changed does not is the exact signature of a real poll that
+  returned the same value. A debounced no-op would have left last_updated untouched.
+
+== T7 OUTSTANDING - HANDED TO USER, LABELLED HONESTLY ==
+The POSITIVE path (a genuine >= 23.5 C sustained excursion actually starting the unit) is proven
+ONLY by counterfactual replay against real historical values through HA's own template engine,
+and by Themis's independent check that 2026-08-28 at 25.39 C would still start. It has NOT been
+observed live - a real hot-office excursion cannot be manufactured on demand. This is a
+SYNTHETIC POSITIVE. The next genuine hot weekday in the office is the real test.
+What IS proven live: the negative path, the reload, the refresh, and no-collateral.
+
+== RESIDUAL RISKS ACCEPTED (Themis, non-blocking) ==
+R1  if update_entity FAILS, a reading up to 7200s old is still permitted. Measured 120-min drift
+    p99 1.51 C / max 2.14 C fully consumes the 0.5 C dead-band. Same failure class as the original
+    incident, but now requires TWO failures where the old code required none.
+    Follow-up: gate on coordinator outcome, not just publish age.
+R3  the above:23.49 / >= 23.5 equivalence holds only while the sensor stays at <= 2 decimals
+    (verified: 283 samples, 258 two-decimal, 25 one-decimal, ZERO three-decimal).
