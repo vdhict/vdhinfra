@@ -1,0 +1,8 @@
+=== T2 REAL-SOURCE PROOF (pre-deploy, one-off Job cloned from live CronJob) 2026-09-07T05:02:09Z ===
+Job: health-notify-chg002-t2  (only delta vs live CronJob = HA_NOTIFY_TARGET=mobile_app_galaxy_s25_ultra)
+Real HA at home-assistant.home-automation.svc:8123, real report file on the cluster-health PVC. No synthetic fixture.
+--- pod phase / exit code ---
+phase=Succeeded exitCode=0
+--- container log ---
+[2026-09-07T05:01:54+00:00] notify: HA notify.mobile_app_galaxy_s25_ultra returned 200 []
+RESULT: PASS - HTTP 200 from HA, exit 0 (pre-state was HTTP 400, exit 1).

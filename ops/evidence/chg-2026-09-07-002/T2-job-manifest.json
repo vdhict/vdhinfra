@@ -1,0 +1,102 @@
+{
+  "apiVersion": "batch/v1",
+  "kind": "Job",
+  "metadata": {
+    "name": "health-notify-chg002-t2",
+    "namespace": "observability"
+  },
+  "spec": {
+    "backoffLimit": 0,
+    "template": {
+      "metadata": {},
+      "spec": {
+        "containers": [
+          {
+            "command": [
+              "python3",
+              "/scripts/notify.py"
+            ],
+            "env": [
+              {
+                "name": "TZ",
+                "value": "Europe/Amsterdam"
+              },
+              {
+                "name": "HA_URL",
+                "value": "http://home-assistant.home-automation.svc.cluster.local:8123"
+              },
+              {
+                "name": "REPORT_BASE_URL",
+                "value": "https://health.bluejungle.net"
+              },
+              {
+                "name": "HA_NOTIFY_TARGET",
+                "value": "mobile_app_galaxy_s25_ultra"
+              }
+            ],
+            "envFrom": [
+              {
+                "secretRef": {
+                  "name": "cluster-health-secret",
+                  "optional": true
+                }
+              }
+            ],
+            "image": "ghcr.io/vdhict/cluster-health:sha-de00b79",
+            "imagePullPolicy": "IfNotPresent",
+            "name": "notify",
+            "resources": {
+              "limits": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              },
+              "requests": {
+                "cpu": "10m",
+                "memory": "64Mi"
+              }
+            },
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/data",
+                "name": "data"
+              },
+              {
+                "mountPath": "/scripts",
+                "name": "scripts"
+              }
+            ]
+          }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "restartPolicy": "Never",
+        "schedulerName": "default-scheduler",
+        "securityContext": {
+          "fsGroup": 1000,
+          "runAsGroup": 1000,
+          "runAsNonRoot": true,
+          "runAsUser": 1000
+        },
+        "serviceAccount": "cluster-health",
+        "serviceAccountName": "cluster-health",
+        "terminationGracePeriodSeconds": 30,
+        "volumes": [
+          {
+            "name": "data",
+            "persistentVolumeClaim": {
+              "claimName": "cluster-health-data"
+            }
+          },
+          {
+            "configMap": {
+              "defaultMode": 493,
+              "name": "cluster-health-scripts"
+            },
+            "name": "scripts"
+          }
+        ]
+      }
+    }
+  }
+}

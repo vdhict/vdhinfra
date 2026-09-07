@@ -1,0 +1,32 @@
+=== T1 PRE-STATE 2026-09-07T05:00:24Z ===
+--- live CronJob health-notify: env block ---
+TZ=Europe/Amsterdam
+HA_URL=http://home-assistant.home-automation.svc.cluster.local:8123
+REPORT_BASE_URL=https://health.bluejungle.net
+--- envFrom ---
+[{"secretRef":{"name":"cluster-health-secret","optional":true}}]
+--- lastSuccessfulTime ---
+2026-07-11T06:00:11Z
+--- HA_NOTIFY_TARGET currently in cluster-health-secret ---
+mobile_app_s25_ultra_sander
+--- failing pod logs (all retained Error pods) ---
+[pod/health-notify-29805480-gtggx] [2026-09-02T06:00:07+00:00] notify: HA notify.mobile_app_s25_ultra_sander returned 400 400: Bad Request
+[pod/health-notify-29805480-lxlxc] [2026-09-02T06:00:22+00:00] notify: HA notify.mobile_app_s25_ultra_sander returned 400 400: Bad Request
+[pod/health-notify-29806920-vpl7b] [2026-09-03T06:00:22+00:00] notify: HA notify.mobile_app_s25_ultra_sander returned 400 400: Bad Request
+[pod/health-notify-29806920-w9rvl] [2026-09-03T06:00:07+00:00] notify: HA notify.mobile_app_s25_ultra_sander returned 400 400: Bad Request
+[pod/health-notify-29808360-7rd2n] [2026-09-04T06:00:06+00:00] notify: HA notify.mobile_app_s25_ultra_sander returned 400 400: Bad Request
+[pod/health-notify-29808360-w5nmn] [2026-09-04T06:00:22+00:00] notify: HA notify.mobile_app_s25_ultra_sander returned 400 400: Bad Request
+[pod/health-notify-29809800-nqpsp] [2026-09-05T06:00:09+00:00] notify: HA notify.mobile_app_s25_ultra_sander returned 400 400: Bad Request
+[pod/health-notify-29809800-p946g] [2026-09-05T06:00:24+00:00] notify: HA notify.mobile_app_s25_ultra_sander returned 400 400: Bad Request
+[pod/health-notify-29811240-hng9k] [2026-09-06T06:00:07+00:00] notify: HA notify.mobile_app_s25_ultra_sander returned 400 400: Bad Request
+[pod/health-notify-29811240-s5nws] [2026-09-06T06:00:22+00:00] notify: HA notify.mobile_app_s25_ultra_sander returned 400 400: Bad Request
+--- HA notify services actually registered ---
+  lg_webos_tv_oled65g42lw
+  mobile_app_galaxy_s25_ultra
+  mobile_app_galaxy_tab_s10
+  mobile_app_motorola_edge_50_neo
+  mobile_app_motorola_edge_50_neo_jurre
+  notify
+  persistent_notification
+  send_message
+  vdhws01
