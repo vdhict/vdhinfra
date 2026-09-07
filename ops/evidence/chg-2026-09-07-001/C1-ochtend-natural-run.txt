@@ -1,0 +1,4 @@
+C1 (Themis) - 1734200001001 Kantoor Ochtend Klimaat, NATURAL unattended run
+watcher started by Atlas 2026-09-07T05:59:11Z; automation is scheduled 08:30 CEST = 06:30Z
+baseline last_triggered (from the 05:58:36Z FORCED run): 2026-09-07T05:58:36
+
