@@ -264,6 +264,17 @@ spec:
                   value: http://home-assistant.home-automation.svc.cluster.local:8123
                 - name: REPORT_BASE_URL
                   value: https://health.${SECRET_DOMAIN}
+                # Declared HERE, in Git, on purpose. This is a device id, not
+                # a secret. It used to arrive only via envFrom from the
+                # 1Password item, where a stale value
+                # (mobile_app_s25_ultra_sander) silently overrode a repo that
+                # read correctly and broke the 08:00 digest push for 57 days
+                # (inc-2026-08-27-001 / chg-2026-09-07-002). An explicit env
+                # entry takes precedence over envFrom, so Git now wins. The
+                # value must match a service that really exists in HA under
+                # `GET /api/services` domain notify.
+                - name: HA_NOTIFY_TARGET
+                  value: mobile_app_galaxy_s25_ultra
               envFrom:
                 # Optional so the CronJob can run before the 1Password item
                 # exists. notify.py / git_push.py / collect_ha.py all degrade
