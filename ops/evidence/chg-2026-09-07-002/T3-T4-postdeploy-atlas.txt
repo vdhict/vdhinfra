@@ -1,0 +1,38 @@
+chg-2026-09-07-002 POST-DEPLOY EVIDENCE (T3, T3b, T4)
+executed and captured by Atlas, 2026-09-07T05:17:46Z
+
+== DEPLOY ==
+push        1771cae..3580878  fix/health-notify-target -> main   (clean fast-forward)
+flux source fetched refs/heads/main@sha1:35808780a6696b77977ca205686ac10c10839961
+kustomization cluster-health applied that revision
+note: kube-prometheus-stack (a dependency) read Ready=False mid-reconcile and
+      resolved to Ready=True on the new revision on its own. Not a fault.
+
+== T3 PASS - live CronJob env, read back from the cluster ==
+TZ=Europe/Amsterdam
+HA_URL=http://home-assistant.home-automation.svc.cluster.local:8123
+REPORT_BASE_URL=https://health.bluejungle.net
+HA_NOTIFY_TARGET=mobile_app_galaxy_s25_ultra     <-- corrected value, from Git
+
+== T3b PASS - ExternalSecret no longer injects the key ==
+externalsecret cluster-health: Ready=True "secret synced", refreshTime 2026-09-07T05:16:40Z
+keys now in secret/cluster-health-secret: HA_TOKEN, UNIFI_API_KEY, github-app-key.pem
+HA_NOTIFY_TARGET is ABSENT. The 1Password override path is closed.
+(Real credentials all still present - nothing needed was removed.)
+
+== T4 PASS - real run from the DEPLOYED CronJob, no manual env patching ==
+kubectl create job health-notify-t4-verify --from=cronjob/health-notify
+status: 1 succeeded / 0 failed
+log:    [2026-09-07T05:17:00+00:00] notify: HA notify.mobile_app_galaxy_s25_ultra returned 200 []
+test job deleted after capture.
+
+== T5 OUTSTANDING - HANDED TO USER ==
+HTTP 200 is HA ACCEPTING the notification. It is NOT proof the handset rendered it.
+The user must confirm a push actually arrived on the Galaxy S25 Ultra.
+Two were sent: ~07:01 local (Sibyl T2) and ~07:17 local (Atlas T4).
+This change MUST NOT close until he confirms.
+
+== CONTEXT ==
+Outage was 58 days (lastSuccessfulTime 2026-07-11T06:00:11Z), not the ~2 weeks
+the incident recorded. Critical alerting was never affected - that path uses
+notify.mobile_app_galaxy_s25_ultra directly and fired 2026-09-01.
