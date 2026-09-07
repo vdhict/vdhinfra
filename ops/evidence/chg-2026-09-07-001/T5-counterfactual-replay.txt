@@ -1,0 +1,66 @@
+COUNTERFACTUAL REPLAY - chg-2026-09-07-001
+Rendered by Home Assistant's OWN template engine via POST /api/template (not a local Jinja re-implementation).
+Condition text copied VERBATIM from the new automation 1747224001001.
+Historical temperatures and Tado measurement timestamps are REAL, read back from
+GET /api/history/period with attributes; they are not fixtures.
+
+  OLD cool-start: {{ hvac == 'off' and (kamer_temp | float(-99)) >= 23 }}
+  NEW cool-start: {{ hvac == 'off' and (meting_vers | bool(false)) and (kamer_temp | float(-99)) >= 23.5 }}
+  meting_vers   = (as_timestamp(nu) - as_timestamp(meet_ts, 0)) < 1800     (1800 s = 30 min)
+
+a  2026-09-04 INCIDENT - the STALE value the old code actually saw
+     decision at 2026-09-04T07:37:53.544Z   temp=23.02 degC   hvac=off
+     Tado measured it at 2026-09-04T07:05:51.760Z  ->  measurement age 32.0 min   meting_vers=False
+     OLD -> True  (expect True ) PASS
+     NEW -> False (expect False) PASS
+     ==> airco does NOT start
+
+b  2026-09-04 INCIDENT - the value Tado ALREADY HELD at that instant (what update_entity fetches)
+     decision at 2026-09-04T07:37:53.544Z   temp=22.79 degC   hvac=off
+     Tado measured it at 2026-09-04T07:31:57.988Z  ->  measurement age 5.9 min   meting_vers=True
+     OLD -> False (expect False) PASS
+     NEW -> False (expect False) PASS
+     ==> airco does NOT start
+
+c  NEGATIVE CONTROL - genuine sustained excursion, 2026-08-28 hot day (max 25.31)
+     decision at 2026-08-28T09:05:00.000Z   temp=24.48 degC   hvac=off
+     Tado measured it at 2026-08-28T08:50:58.792Z  ->  measurement age 14.0 min   meting_vers=True
+     OLD -> True  (expect True ) PASS
+     NEW -> True  (expect True ) PASS
+     ==> AIRCO STARTS
+
+d  STALLED-FEED CONTROL - genuinely hot, but the Tado feed froze 45 min ago
+     decision at 2026-08-28T09:05:00.000Z   temp=24.48 degC   hvac=off
+     Tado measured it at 2026-08-28T08:20:00.000Z  ->  measurement age 45.0 min   meting_vers=False
+     OLD -> True  (expect True ) PASS
+     NEW -> False (expect False) PASS
+     ==> airco does NOT start
+
+e  MARGINAL DAY 2026-09-06 peak 23.46 - fresh measurement, just under the dead-band
+     decision at 2026-09-06T15:31:38.657Z   temp=23.46 degC   hvac=off
+     Tado measured it at 2026-09-06T15:20:00.000Z  ->  measurement age 11.6 min   meting_vers=True
+     OLD -> True  (expect True ) PASS
+     NEW -> False (expect False) PASS
+     ==> airco does NOT start
+
+f  ADJUST BRANCH UNTOUCHED - unit already cooling, start-branch must stay false
+     decision at 2026-09-04T07:37:53.544Z   temp=23.02 degC   hvac=cool
+     Tado measured it at 2026-09-04T07:05:51.760Z  ->  measurement age 32.0 min   meting_vers=False
+     OLD -> False (expect False) PASS
+     NEW -> False (expect False) PASS
+     ==> airco does NOT start
+
+HEAT BRANCH - threshold deliberately unchanged at <18 degC; only the freshness gate was added
+  g  cold office, fresh measurement -> must STILL heat (no comfort regression)
+     OLD=True  NEW=True  (expect True / True) PASS
+  h  cold office, Tado feed froze 50 min ago -> must NOT heat on stale data
+     OLD=True  NEW=False (expect True / False) PASS
+
+MORNING ROUTINE 1734200001001 - same dead-band expressed as `above: 23.49` on a 2-decimal sensor
+     numeric_state above:23.49 with 23.02 -> False (expect False) PASS
+     numeric_state above:23.49 with 23.46 -> False (expect False) PASS
+     numeric_state above:23.49 with 23.49 -> False (expect False) PASS
+     numeric_state above:23.49 with 23.50 -> True  (expect True ) PASS
+     numeric_state above:23.49 with 24.48 -> True  (expect True ) PASS
+
+RESULT: ALL CASES PASS   (0 failing case(s))

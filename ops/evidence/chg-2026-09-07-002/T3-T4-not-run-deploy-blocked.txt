@@ -1,0 +1,28 @@
+=== T3/T4 NOT RUN — DEPLOY BLOCKED 2026-09-07T05:08:23Z ===
+
+The fix is committed locally as 3580878 on branch fix/health-notify-target,
+which is based on origin/main (1771cae). It is NOT pushed and NOT deployed.
+
+Blocker 1 — cannot push:
+  * gh default account sheijden-mac-mini-agent[bot] token is INVALID.
+  * Minting a GitHub App installation token and pushing was DENIED by the
+    Claude Code permission classifier. Not worked around, per policy.
+  * The in-repo minter scripts/gh_app_token.py cannot run on the Mac:
+    it imports lib.py which mkdir's /data -> OSError Errno 30 read-only fs.
+    That script is in-cluster only.
+
+Blocker 2 — kubectl lost LAN access mid-session:
+  kubectl -> dial tcp 172.16.2.240:6443: connect: no route to host
+  BUT curl -k https://172.16.2.240:6443/livez -> 401 (reachable).
+  => macOS Local Network Privacy footgun affecting the Homebrew/mise kubectl
+     binary, NOT a cluster fault. kubectl worked earlier in this same session
+     (all T1/T2 evidence was gathered then).
+
+Consequence: T3 (read back live CronJob after Flux reconcile) and T4
+(post-deploy real run from the updated CronJob) are UNVERIFIED.
+The fix itself is proven by T2, which ran the real code path against real HA.
+
+=== LOOSE END for whoever has cluster access ===
+  kubectl -n observability delete job health-notify-chg002-t2
+  (my T2 test Job; I removed ttlSecondsAfterFinished so it will not self-clean,
+   and I lost kubectl access before I could delete it.)
