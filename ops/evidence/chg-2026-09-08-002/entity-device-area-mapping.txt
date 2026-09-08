@@ -1,0 +1,6 @@
+binary_sensor.multisensor_motion_detection  device=d51c68cc84d57a7924e665c9ab4ff991  area=kantoor  model=FGMS-001  mfr=Fibargroup
+binary_sensor.multisensor_motion_detection_2  device=7151ae540323f663cce0cb7f4a8f6042  area=schuur  model=FGMS-001  mfr=Fibargroup
+binary_sensor.multisensor_motion_detection_3  device=e8e282ca9ed56a3bb02ccb1ba1f48cca  area=NONE  model=FGMS-001  mfr=Fibargroup
+sensor.multisensor_illuminance  device=d51c68cc84d57a7924e665c9ab4ff991  area=kantoor  model=FGMS-001  mfr=Fibargroup
+sensor.multisensor_illuminance_2  device=7151ae540323f663cce0cb7f4a8f6042  area=schuur  model=FGMS-001  mfr=Fibargroup
+sensor.multisensor_illuminance_3  device=e8e282ca9ed56a3bb02ccb1ba1f48cca  area=NONE  model=FGMS-001  mfr=Fibargroup
