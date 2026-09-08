@@ -242,6 +242,12 @@ components:
     group: core-network
     sla_tier: family-critical
     health_source: unifi://firewall/zone
+  net.wifi.vdhiot:
+    owner_agent: udm-engineer
+    sensitive: true
+    depends_on: [net.udm, net.vlan.iot]
+    location: site-wide
+    description: "The VDHIOT WLAN. ⚠️ DUAL PPSK: two passphrases on ONE SSID - one lands on IOT-VLAN (network_id 6226f5bddd6f9706a46a66cb, vlan 250), the other on CLIENT-VLAN. THEREFORE ANY AUDIT OR ALERT MUST KEY ON network_id, NEVER ON essid: a device can sit on the VDHIOT SSID and still be on the trusted CLIENT VLAN. Verified 2026-09-08 (chg-2026-09-08-001): 4 live clients do exactly that - vdh3dprn01 172.16.2.22, SIEMENS Vaatwasser 172.16.3.156, SIEMENS-CT836LEB6 172.16.3.171, and the Aqara FP2 172.16.3.79 (which the woonkamer auto-off automation depends on). Broadcast on 6/6 APs vs VDHFEMFLEX 5/6, so VDHIOT has STRICTLY BROADER 2.4GHz coverage - a VDHFEMFLEX fallback can never rescue coverage, only move a device across the security boundary. minrate_ng 9000 (more permissive than VDHFEMFLEX 12000); min_rssi is a PER-RADIO setting and cannot discriminate between SSIDs on one radio. ⚠️ RECURRENCE DRIVER: UniFi site auto_upgrade=true, auto_upgrade_hour=3 reboots APs unattended; a Shelly whose sta join fails in that window falls back to sta1 and Shelly fallback is STICKY (only retries sta when sta1 fails). ⚠️ Internal->IoT is ALLOW-ALL while IoT->Internal is BLOCK, so a device escaping ONTO the trusted VLAN is privilege ESCALATION, not a lateral move. All 10 Shellys have auth_en=false."
   ha.integration.shelly:
     type: ha-integration
     owner_agent: ha-engineer
