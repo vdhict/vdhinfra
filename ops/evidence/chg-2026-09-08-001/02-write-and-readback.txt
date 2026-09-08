@@ -1,0 +1,72 @@
+=== PRE-WRITE (GET) ===
+{"sta":{"enable":true,"ssid":"VDHIOT"},"sta1":{"enable":true,"ssid":"VDHFEMFLEX"}}
+=== WRITE: WiFi.SetConfig sta1.enable=false ===
+{"restart_required":true}
+=== T1 GET-after-PATCH: WiFi.GetConfig field-by-field ===
+{
+  "sta": {
+    "enable": true,
+    "ssid": "VDHIOT",
+    "is_open": false,
+    "ipv4mode": "dhcp"
+  },
+  "sta1": {
+    "enable": false,
+    "ssid": "VDHFEMFLEX"
+  },
+  "ap_enable": false,
+  "roam": {
+    "rssi_thr": -80,
+    "interval": 60
+  }
+}
+
+=== T2 device-side association ===
+{"sta_ip":"172.16.4.20","status":"got ip","ssid":"VDHIOT","channel":6,"rssi":-65,"bssid":"6a:d7:9a:3d:ac:53","sta_ip6":["fe80::36b7:daff:fe93:3074"]}
+=== T3 INDEPENDENT: UniFi stat/sta for 34:b7:da:93:30:74 ===
+{
+  "mac": "34:b7:da:93:30:74",
+  "name": "Shelly - Verlichting Schuur",
+  "ip": "172.16.4.20",
+  "essid": "VDHIOT",
+  "bssid": "6a:d7:9a:3d:ac:53",
+  "ap_mac": "68:d7:9a:4d:ac:52",
+  "network": "IOT-VLAN",
+  "network_id": "6226f5bddd6f9706a46a66cb",
+  "vlan": 250,
+  "channel": 6,
+  "radio": "ng",
+  "signal": -70,
+  "noise": -96,
+  "tx_rate": 58000,
+  "rx_rate": 39000,
+  "assoc_time": 1788852149,
+  "latest_assoc_time": 1788852154,
+  "satisfaction": 98
+}
+=== T5 END-TO-END TRAFFIC PROOF ===
+-- device BEFORE (from Shelly on 172.16.4.20) --
+{"output":false,"apower":0.0,"voltage":231.2,"current":0.000,"source":"switch"}
+-- HA switch.turn_on (HA on CLIENT-VLAN -> Internal->IoT policy -> 172.16.4.20) --
+service call accepted
+-- device AFTER turn_on --
+{"output":true,"apower":8.8,"voltage":230.9,"current":0.061,"source":"WS_in"}
+-- HA entity state --
+switch.verlichting_schuur = on  (Verlichting Schuur)
+-- restore to pre-change state (off) --
+service call accepted
+{"output":false,"apower":0.0,"source":"WS_in"}
+switch.verlichting_schuur = off  (Verlichting Schuur)
+
+-- config entry final state --
+not found
+Sonos Surround Rechtsachter        state=loaded       reason=-
+Sonos Surround Linksachter         state=loaded       reason=-
+Sonos Eetkamer                     state=loaded       reason=-
+shelly1pmminig3-34b7da907df0       state=loaded       reason=-
+Sonos Sub                          state=loaded       reason=-
+shelly1pmminig3-34b7da909a14       state=loaded       reason=-
+shelly1pmminig3-34b7da921c8c       state=loaded       reason=-
+shelly1pmminig3-34b7da8ff20c       state=loaded       reason=-
+Verlichting Schuur                 state=loaded       reason=- <== SCHUUR
+shelly1pmminig3-34b7da8fdc60       state=loaded       reason=-
