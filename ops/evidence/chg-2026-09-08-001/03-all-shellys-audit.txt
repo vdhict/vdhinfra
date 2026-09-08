@@ -1,0 +1,12 @@
+=== ALL SHELLYS — authoritative controller view (post-change) ===
+NAME                               IP             ESSID       NETWORK     VLAN    SIG  TXRATE
+Shelly - Sonos Surround Rechtsachter 172.16.4.22    VDHIOT      IOT-VLAN     250    -58   14400
+Shelly - Sonos Surround Linksachter 172.16.4.24    VDHIOT      IOT-VLAN     250    -62   14400
+Shelly - Sonos Sub                 172.16.4.27    VDHIOT      IOT-VLAN     250    -66   14400
+Shelly - Sonos Eetkamer            172.16.4.28    VDHIOT      IOT-VLAN     250    -66   14400
+Shelly - Sonos Achtertuin          172.16.4.23    VDHIOT      IOT-VLAN     250    -66   72222
+Shelly - Verlichting Schuur        172.16.4.20    VDHIOT      IOT-VLAN       -    -69   72000
+Shelly - Sonos Bartafel            172.16.4.29    VDHIOT      IOT-VLAN     250    -72   58500
+Shelly - Sonos Arc Ultra           172.16.4.26    VDHIOT      IOT-VLAN     250    -73   65000
+Shelly - Sonos Keuken              172.16.4.21    VDHIOT      IOT-VLAN     250    -74   72222
+Shelly - Sonos Play:1              172.16.4.25    VDHIOT      IOT-VLAN     250    -77   65000

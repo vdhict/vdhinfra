@@ -1,0 +1,49 @@
+{
+  "recurrence_evidence": "UniFi site setting mgmt.auto_upgrade=true, mgmt.auto_upgrade_hour=3 (03:00 CEST = 01:00 UTC). AP01-Trapkast booted 2026-09-01T01:02Z, AP06-Keuken booted 2026-09-04T01:04Z - both are scheduled unattended auto-firmware-upgrade reboots. This is NOT a one-off: every AP firmware release is another chance for a silent VLAN escape.",
+  "R1_systemic_strip_sta1": {
+    "recommendation": "STRIP sta1 on the remaining 9 Shellys. I agree with Atlas's instinct, and the usual counter-argument does not survive measurement.",
+    "decisive_argument": "sta1=VDHFEMFLEX provides ZERO incremental RF coverage. VDHIOT is broadcast on 6/6 APs (ap_group 'All APs'); VDHFEMFLEX on 5/6 (missing AP05-Meterkast). Same radios, same channel 6, same 20 MHz width, all tx_power_mode=auto. Every Shelly is 2.4 GHz-only so VDHIOT's 2g-only restriction is irrelevant. There is NO physical location where a Shelly can hear VDHFEMFLEX and cannot hear VDHIOT. The fallback can therefore never rescue a coverage problem - it can only relocate the device across a security boundary.",
+    "trade_off_is_smaller_than_it_looks": "'Trades a dead device for a safe one' overstates it. With sta1 gone, a Shelly that loses its best VDHIOT AP associates to a weaker VDHIOT BSSID on another AP instead. Proven today: AP01-Trapkast caught the schuur on VDHFEMFLEX at -81 dBm and AP01 broadcasts VDHIOT on the SAME radio/channel/power. Degradation is 'works weakly on the right VLAN', not 'dead'.",
+    "residual_benefit_of_sta1": "Narrow and honest: it protects against a VDHIOT CREDENTIAL/CONFIG failure (PPSK rotation, WLAN disabled, ap_group edit) - not a coverage failure. That class is rare, self-inflicted and recoverable by us.",
+    "risk_tier": "medium - client-device wifi config only, same class as chg-2026-07-30-001. NOT high: no UniFi/VLAN/firewall/radio write.",
+    "safer_than_the_pilot": "The other 9 are ALREADY on sta (VDHIOT), so disabling sta1 removes an unused slot and should cause NO re-association at all. The schuur re-associated only because it was sitting ON sta1.",
+    "sonos_caution": "All 9 supply mains to Sonos speakers. WiFi.SetConfig needs NO reboot - re-confirmed today (schuur re-associated in <5 s, device uptime unbroken at 48.9 d). Do NOT issue Shelly.Reboot; memory shelly-iot-migration warns that is the one way to make this audible on the speakers.",
+    "sequencing": "Detection (R2) FIRST, then strip. Wave 1 = 5 strongest (Rechtsachter -58, Linksachter -62, Sub -66, Eetkamer -66, Achtertuin -66), soak 48 h, wave 2 = 4 weakest (Bartafel -72, Arc Ultra -73, Keuken -74, Play:1 -77).",
+    "not_executed": "Per Atlas's instruction, NOT executed. User's call."
+  },
+  "R2_detection_PRIMARY": {
+    "title": "UniFi-side VLAN-placement alert - the one that actually closes the security hole",
+    "signal": "GET /proxy/network/api/s/default/stat/sta, one request every 5 min. For each MAC on an expected-IoT allowlist, compare network_id against IOT-VLAN 6226f5bddd6f9706a46a66cb. Alert on mismatch sustained > 10 min.",
+    "CRITICAL_DETAIL": "Compare `network` / `network_id`, NOT `essid`. VDHIOT uses dual PPSK - one passphrase lands on IOT-VLAN, the other on CLIENT-VLAN. Memory iot-vlan-segmented records 6 clients sitting on the VDHIOT SSID but on CLIENT-VLAN. A device can be on the right SSID and the wrong VLAN. Checking essid would have MISSED that entire class.",
+    "why_this_and_not_a_shelly_poll": "Device-agnostic (catches HomeWizard, Tuya, ESPresense, the FP2 - not just Shellys), authoritative (the controller knows the bridged VLAN; a Shelly self-report can be true and still wrong), and needs no per-device credentials or reachability.",
+    "implementation": "Extend the existing minimal unifi-exporter (memory unifi-exporter-archived - already polls /stat/health every 60 s) to also emit unifi_client_network_info{mac,name,network,essid,ap,bssid} and unifi_client_vlan_mismatch{mac,name,expected,actual}. Then a Prometheus rule IoTClientOffIoTVlan, severity=critical, routing to HA via the existing ha-critical webhook (memory alerts-to-ha-and-thanos) -> push notification.",
+    "rate_limit_safety": "One extra stat/sta call per 5 min. Memory unifi-v10-poller-breakage: 10.x rate-limits at 429 and unpoller crashed the UDM with BROAD scopes (SAVE_EVENTS/IDS/ANOMALIES). This is a single scoped endpoint. Do NOT use stat/event or stat/alarm - 404 in 10.x.",
+    "owners": "Iris (exporter scrape + allowlist) + Sibyl (rule, routing, dashboard)",
+    "risk_tier": "medium"
+  },
+  "R3_detection_SECONDARY": {
+    "title": "HA integration-health alert - highest value per unit of effort, and it would have fired on day one",
+    "gap": "This incident was ALREADY visible in HA for 4 days: a config entry stuck in setup_retry and an entity unavailable since 2026-09-04T01:01:47Z. Nothing alerted on either.",
+    "proposal": "Generic alert: any config entry not in state 'loaded' for > 15 min, OR any Shelly switch unavailable > 15 min. Would have fired ~01:17Z on 2026-09-04 instead of the user noticing on 2026-09-08.",
+    "owner": "Hestia",
+    "risk_tier": "low/medium",
+    "why_BOTH_are_needed": "R3 alone is NOT sufficient and this is the key insight. It only fired here by luck, because the IP happened to change and break HA. Had HA's zeroconf self-heal followed the device to 172.16.3.117 (which is exactly what memory shelly-iot-migration says it normally does), the light would have kept working perfectly on the TRUSTED LAN and nothing would EVER have alerted. The boundary would have been silently defeated indefinitely. R2 is the control that catches the security regression when the device still works."
+  },
+  "R4_security_escalation_for_argus": {
+    "finding": "The escape is a genuine privilege ESCALATION, not a lateral move. IoT->Internal is BLOCK but Internal->IoT is ALLOW on all ports; a device that escapes onto CLIENT-VLAN gains MORE reach, not less - HA at 172.16.2.237:8123, the cluster, the NAS.",
+    "aggravating": "auth_en=false on all 10 Shellys (open decision #3 in memory shelly-iot-migration) means unauthenticated relay control, and for 4 days that was exposed from the trusted LAN rather than from behind the IoT boundary.",
+    "recommend": "Argus review; and revisit the auth_en=false decision, which is independent of segmentation and arguably better value per unit of effort."
+  },
+  "R5_explicitly_NOT_proposed": {
+    "min_rssi": "NO change. Falsified with numbers (per-radio setting, disabled on both relevant APs). Memory aqara-fp2-wedge honoured - not silently reversed.",
+    "min_rate": "NO change. Falsified in the opposite direction (VDHIOT 9 Mbps is MORE permissive than VDHFEMFLEX 12 Mbps).",
+    "ap_coverage_change": "NO change. VDHIOT measured -65 dBm at the shed; there is no coverage deficit to fix.",
+    "shelly_roam_tuning": "NO change. roam.rssi_thr=-80 with the device at -81 for 4 days and a -65 BSSID in range unused - Shelly's roam did not fire at all. Tuning a mechanism that demonstrably does not work is not worth a change record.",
+    "band_steering": "Not applicable. VDHIOT is 2g-only and the clients are 2.4-only."
+  },
+  "R6_open_item_firmware_delta": {
+    "finding": "UniFi Network app is 10.6.101. Last version recorded in memory was 10.5.62 (2026-07-20), which already carried an unfinished changelog-delta review from 10.4.57.",
+    "gating": "Did NOT gate this change - zero UniFi writes were made and all reads behaved normally (rest/wlanconf, rest/setting, rest/user, stat/device, stat/sta all 200, no 429).",
+    "action": "Changelog-delta review 10.5.62 -> 10.6.101 is DUE before the next UDM WRITE. Use kiosk-verify/Playwright on community.ui.com, not WebFetch (memory research-render-release-pages)."
+  }
+}
