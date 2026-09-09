@@ -1,0 +1,30 @@
+ESPRESENSE FIRST CONTACT - CONFIRMED
+captured by Atlas 2026-09-09T15:51:22Z
+
+beacon id : iBeacon:22dc918a-da19-4a00-b296-fd34c71e3877-100-40004
+phone     : Galaxy S25 Ultra, HA Companion BLE Transmitter
+settings  : Advertise mode lowPower (1Hz), Transmitting power ultraLow, Measured power -59
+node      : ESPresense Kantoor 172.16.5.134, fw v4.0.6, max_distance raised 3.0 -> 8.0 by Atlas
+MAC seen  : 41c61c21bdf9 (randomised - which is exactly why the iBeacon UUID route was required;
+            a bare MAC would have been untrackable, per the IRK analysis in the original design)
+
+== 60s sample ==
+espresense/devices/iBeacon:22dc918a-da19-4a00-b296-fd34c71e3877-100-40004/kantoor {"mac":"41c61c21bdf9","id":"iBeacon:22dc918a-da19-4a00-b296-fd34c71e3877-100-40004","rssi@1m":-59,"rssi":-78.14,"rxAdj":0,"rssiVar":6.12,"distance":5.12,"var":1.12,"int":2437}
+espresense/devices/iBeacon:22dc918a-da19-4a00-b296-fd34c71e3877-100-40004/kantoor {"mac":"41c61c21bdf9","id":"iBeacon:22dc918a-da19-4a00-b296-fd34c71e3877-100-40004","rssi@1m":-59,"rssi":-78.12,"rxAdj":0,"rssiVar":5.36,"distance":5.11,"var":0.98,"int":2412}
+espresense/devices/iBeacon:22dc918a-da19-4a00-b296-fd34c71e3877-100-40004/kantoor {"mac":"41c61c21bdf9","id":"iBeacon:22dc918a-da19-4a00-b296-fd34c71e3877-100-40004","rssi@1m":-59,"rssi":-78.67,"rxAdj":0,"rssiVar":6.67,"distance":5.35,"var":1.33,"int":2413}
+espresense/devices/iBeacon:22dc918a-da19-4a00-b296-fd34c71e3877-100-40004/kantoor {"mac":"41c61c21bdf9","id":"iBeacon:22dc918a-da19-4a00-b296-fd34c71e3877-100-40004","rssi@1m":-59,"rssi":-79.40,"rxAdj":0,"rssiVar":8.84,"distance":5.70,"var":1.95,"int":2351}
+espresense/devices/iBeacon:22dc918a-da19-4a00-b296-fd34c71e3877-100-40004/kantoor {"mac":"41c61c21bdf9","id":"iBeacon:22dc918a-da19-4a00-b296-fd34c71e3877-100-40004","rssi@1m":-59,"rssi":-81.80,"rxAdj":0,"rssiVar":5.79,"distance":6.99,"var":1.40,"int":2287}
+espresense/devices/iBeacon:22dc918a-da19-4a00-b296-fd34c71e3877-100-40004/kantoor {"mac":"41c61c21bdf9","id":"iBeacon:22dc918a-da19-4a00-b296-fd34c71e3877-100-40004","rssi@1m":-59,"rssi":-81.89,"rxAdj":0,"rssiVar":5.76,"distance":7.04,"var":1.39,"int":2297}
+espresense/devices/iBeacon:22dc918a-da19-4a00-b296-fd34c71e3877-100-40004/kantoor {"mac":"41c61c21bdf9","id":"iBeacon:22dc918a-da19-4a00-b296-fd34c71e3877-100-40004","rssi@1m":-59,"rssi":-81.86,"rxAdj":0,"rssiVar":17.95,"distance":7.02,"var":11.31,"int":2307}
+espresense/devices/iBeacon:22dc918a-da19-4a00-b296-fd34c71e3877-100-40004/kantoor {"mac":"41c61c21bdf9","id":"iBeacon:22dc918a-da19-4a00-b296-fd34c71e3877-100-40004","rssi@1m":-59,"rssi":-81.86,"rxAdj":0,"rssiVar":17.95,"distance":7.02,"var":11.31,"int":2332}
+espresense/devices/iBeacon:22dc918a-da19-4a00-b296-fd34c71e3877-100-40004/kantoor {"mac":"41c61c21bdf9","id":"iBeacon:22dc918a-da19-4a00-b296-fd34c71e3877-100-40004","rssi@1m":-59,"rssi":-83.20,"rxAdj":0,"rssiVar":16.56,"distance":7.88,"var":12.81,"int":2330}
+
+== SUMMARY (n=9) ==
+  distance : min 5.11  max 7.88  mean 6.36 m
+  rssi     : min -83.2  max -78.1 dBm
+  var      : min 0.98  max 12.81
+  report rate: 9 msgs in 60s
+
+  ⚠️ EVERY ONE of these would have been DISCARDED at the original max_distance of 3.0 m.
+  ⚠️ ultraLow TX inflates apparent distance and variance. Room-level presence: reliable.
+     Distance as a meaningful number: not at this power.

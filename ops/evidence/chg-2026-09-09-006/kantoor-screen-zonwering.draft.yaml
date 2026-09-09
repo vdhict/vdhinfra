@@ -1,0 +1,145 @@
+# ============================================================================
+# chg-2026-09-09-006 — DRAFT, NOT INSTALLED
+# Kantoor sun-shading for cover.screen (the KANTOOR screen — see CMDB trap).
+#
+# Requires, created FIRST as UI helpers (config-flow, no restart needed):
+#   sensor.kantoor_zon_pv_15m   statistics: mean of sensor.evcc_pv_power, 15 min
+#   sensor.kantoor_zon_pv_45m   statistics: mean of sensor.evcc_pv_power, 45 min
+#   input_boolean.kantoor_screen_auto   (default on)
+#   input_boolean.kantoor_screen_auto_dicht  (default off) — set when THIS
+#       automation closed the screen. Rules 4 and 5 only re-open a screen that
+#       the automation itself closed, so a MANUAL close is never undone.
+# ============================================================================
+
+- id: '1757400001'
+  alias: Kantoor Screen - Zonwering
+  description: >-
+    Laat het kantoorscreen zakken bij felle zon op de zuidgevel en weer omhoog
+    als de zon van de gevel af is of het langdurig bewolkt wordt.
+    Stuurt op sensor.evcc_pv_power (buiten-proxy) plus zonnestand — NIET op de
+    lux in de kamer, want het screen verduistert die kamer met ~1000-2000 lx
+    en dat zou de motor laten pendelen.
+    WINDBEVEILIGING IS BEPERKT: de enige windbron is OpenWeatherMap
+    (stadsniveau, elke ~30 min, soms 2,5 uur oud, windvlagen 34% van de tijd
+    'unknown'). Die kan een valwind of rukwindfront NIET zien. Dit is GEEN
+    echte windbeveiliging; het is een grove terugtrekking bij aanhoudende wind.
+    Voor echte beveiliging is een lokale windmeter aan de gevel nodig.
+    Gevelrichting ~182 graden (zuid), afgeleid uit 7 dagen lux-envelope
+    (halfwaarde bij az 118 en az 247) en bevestigd door twee handmatige
+    sluitingen (az 157 en az 183) en een handmatige opening (az 246).
+  triggers:
+    - trigger: time_pattern
+      minutes: /5
+      id: tick
+    - trigger: numeric_state
+      entity_id: sensor.openweathermap_windsnelheid
+      above: 30
+      id: wind
+  conditions: []
+  actions:
+    - variables:
+        az: "{{ state_attr('sun.sun','azimuth') | float(-1) }}"
+        el: "{{ state_attr('sun.sun','elevation') | float(-90) }}"
+        pv15: "{{ states('sensor.kantoor_zon_pv_15m') | float(-1) }}"
+        pv45: "{{ states('sensor.kantoor_zon_pv_45m') | float(-1) }}"
+        wind: "{{ states('sensor.openweathermap_windsnelheid') | float(-1) }}"
+        wind_age: >-
+          {{ (now() - states.sensor.openweathermap_windsnelheid.last_updated).total_seconds() / 60 }}
+        gust: "{{ states('sensor.openweathermap_windvlaag_snelheid') | float(0) }}"
+        bezet: "{{ is_state('binary_sensor.kantoor_bezet','on') }}"
+        auto: "{{ is_state('input_boolean.kantoor_screen_auto','on') }}"
+        cur: "{{ states('cover.screen') }}"
+        since: >-
+          {{ (now() - states.cover.screen.last_changed).total_seconds() / 60 }}
+        in_beam: "{{ el > 12 and 120 <= az <= 245 }}"
+        at_edge: "{{ az > 245 and el > 8 }}"
+        wind_stale: "{{ wind < 0 or wind_age > 180 }}"
+        wind_bad: "{{ wind >= 30 or gust >= 45 }}"
+        wind_marginal: "{{ wind >= 25 or gust >= 40 or wind_stale }}"
+        auto_dicht: "{{ is_state('input_boolean.kantoor_screen_auto_dicht','on') }}"
+
+    # ---- 1. WIND RETRACT — unconditional, ignores the auto/override switch ----
+    - if:
+        - condition: template
+          value_template: "{{ (wind_bad or wind_stale) and cur != 'open' }}"
+      then:
+        - action: cover.open_cover
+          target: {entity_id: cover.screen}
+        - action: logbook.log
+          data:
+            name: Kantoor Screen
+            message: >-
+              Windterugtrekking: wind {{ wind }} km/h, vlaag {{ gust }} km/h
+              (OpenWeatherMap, {{ wind_age | round(0) }} min oud){{
+              ', WINDDATA VEROUDERD/ONTBREEKT' if wind_stale else '' }}.
+            entity_id: cover.screen
+        - action: input_boolean.turn_off
+          target: {entity_id: input_boolean.kantoor_screen_auto_dicht}
+        - stop: "wind retract done"
+
+    # ---- everything below only when automatic mode is on ----
+    - if:
+        - condition: template
+          value_template: "{{ not auto }}"
+      then:
+        - stop: "auto mode off"
+
+    # ---- 2. minimum re-command interval (also absorbs a manual move) ----
+    - if:
+        - condition: template
+          value_template: "{{ since < 45 }}"
+      then:
+        - stop: "moved {{ since | round(0) }} min ago, holding off"
+
+    # ---- 3. CLOSE: strong sun on the facade ----
+    - if:
+        - condition: template
+          value_template: >-
+            {{ in_beam and pv15 >= 1800 and not wind_marginal and cur == 'open' }}
+      then:
+        - action: cover.close_cover
+          target: {entity_id: cover.screen}
+        - action: input_boolean.turn_on
+          target: {entity_id: input_boolean.kantoor_screen_auto_dicht}
+        - stop: "closed for sun"
+
+    # ---- 4. OPEN: sustained dull AND he is in the room to notice ----
+    - if:
+        - condition: template
+          value_template: >-
+            {{ in_beam and pv45 <= 700 and bezet and cur == 'closed' and auto_dicht }}
+      then:
+        - action: cover.open_cover
+          target: {entity_id: cover.screen}
+        - action: input_boolean.turn_off
+          target: {entity_id: input_boolean.kantoor_screen_auto_dicht}
+        - stop: "opened, sun gone and room occupied"
+
+    # ---- 5. OPEN once when the sun leaves the facade ----
+    #      az>245 is the empirical falling half-max edge of the lux envelope,
+    #      and matches the user's own manual open at az 246 on 2026-09-09.
+    #      el>8 keeps this from firing when there is too little daylight left
+    #      to be worth a motor cycle: from mid-Oct to end-Feb the sun sets
+    #      before az 245, so this rule simply does not fire and the screen
+    #      stays down until the existing sunset-30 automation. That is
+    #      intended, not a bug.
+    - if:
+        - condition: template
+          value_template: "{{ at_edge and cur == 'closed' and auto_dicht }}"
+      then:
+        - action: cover.open_cover
+          target: {entity_id: cover.screen}
+        - action: input_boolean.turn_off
+          target: {entity_id: input_boolean.kantoor_screen_auto_dicht}
+        - stop: "opened, sun off the facade"
+
+    # ---- 6. nightly reset so the 'closed by automation' flag never leaks ----
+    - if:
+        - condition: template
+          value_template: "{{ el <= 0 and auto_dicht }}"
+      then:
+        - action: input_boolean.turn_off
+          target: {entity_id: input_boolean.kantoor_screen_auto_dicht}
+        - stop: "night reset"
+  mode: single
+  max_exceeded: silent
