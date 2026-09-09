@@ -1,0 +1,7 @@
+automation.kantoor_adaptieve_verlichting       off  last_changed=2026-09-09T13:05:15.646960+00:00
+automation.kantoor_ochtend_klimaat             on   last_changed=2026-09-07T14:34:41.496104+00:00
+automation.verlichting_schuur                  on   last_changed=2026-09-08T15:14:28.597617+00:00
+=== AFTER reload ===
+automation.kantoor_adaptieve_verlichting       off  last_changed=2026-09-09T15:02:28.048150+00:00
+automation.kantoor_ochtend_klimaat             on   last_changed=2026-09-07T14:34:41.496104+00:00
+automation.verlichting_schuur                  on   last_changed=2026-09-08T15:14:28.597617+00:00

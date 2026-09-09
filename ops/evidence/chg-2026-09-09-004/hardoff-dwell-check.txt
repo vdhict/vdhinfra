@@ -1,0 +1,21 @@
+Does the hard-off valve need an explicit 15-min dwell, or does the 10-min
+moving average already supply 'sustained'?  (numeric_state conditions do
+not support for:, so this decides whether the design is implementable as-is.)
+
+kappa    hard_dwell   calls    on/off  
+0.73     0            14       9       
+0.73     900          9        3       
+1.1      0            15       9       
+1.1      900          11       5       
+2.0      0            15       9       
+2.0      900          11       5       
+
+max smoothed ambient reached on 2026-09-09: 1991 lux
+-> the 1500 valve FIRES on this day.
+
+
+IMPLEMENTABLE FORM: hard-off = numeric_state trigger above 1500 for 00:15:00
+kappa    calls    on/off     transitions
+0.73     9        3          07:59:23 on, 10:20:00 off, 10:50:00 on
+1.1      10       3          07:59:23 on, 10:20:00 off, 10:50:00 on
+2.0      10       3          07:59:23 on, 10:20:00 off, 10:50:00 on
