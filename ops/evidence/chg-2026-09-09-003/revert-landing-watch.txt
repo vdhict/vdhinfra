@@ -1,0 +1,8 @@
+watch started 2026-09-09T13:03:29Z — expecting wake ~15:00:06Z
+13:03:30  p40=50 p42=600  node=asleep
+13:04:01  p40=50 p42=600  node=asleep
+13:04:31  p40=50 p42=600  node=asleep
+13:05:02  p40=50 p42=600  node=asleep
+13:05:33  p40=50 p42=600  node=asleep
+13:06:03  p40=50 p42=600  node=asleep
+13:06:34  p40=50 p42=600  node=asleep

@@ -1,0 +1,1552 @@
+{
+ "172.16.4.20": {
+  "Shelly.GetDeviceInfo": {
+   "name": null,
+   "id": "shelly1pmminig3-34b7da933074",
+   "mac": "34B7DA933074",
+   "slot": 0,
+   "model": "S3SW-001P8EU",
+   "gen": 3,
+   "fw_id": "20260710-101127/2.0.0-g87fbfa4",
+   "ver": "2.0.0",
+   "app": "Mini1PMG3",
+   "auth_en": false,
+   "auth_domain": null,
+   "matter": false,
+   "provision": "complete",
+   "enhanced_security": false
+  },
+  "WiFi.GetConfig": {
+   "ap": {
+    "ssid": "Shelly1PMMiniG3-34B7DA933074",
+    "is_open": true,
+    "enable": false,
+    "range_extender": {
+     "enable": false
+    }
+   },
+   "sta": {
+    "ssid": "VDHIOT",
+    "is_open": false,
+    "enable": true,
+    "ipv4mode": "dhcp",
+    "ip": null,
+    "netmask": null,
+    "gw": null,
+    "nameserver": null
+   },
+   "sta1": {
+    "ssid": "VDHFEMFLEX",
+    "is_open": false,
+    "enable": false,
+    "ipv4mode": "dhcp",
+    "ip": null,
+    "netmask": null,
+    "gw": null,
+    "nameserver": null
+   },
+   "roam": {
+    "rssi_thr": -80,
+    "interval": 60
+   }
+  },
+  "WiFi.GetStatus": {
+   "sta_ip": "172.16.4.20",
+   "status": "got ip",
+   "ssid": "VDHIOT",
+   "channel": 6,
+   "rssi": -68,
+   "bssid": "6a:d7:9a:3d:ac:53",
+   "sta_ip6": [
+    "fe80::36b7:daff:fe93:3074"
+   ]
+  },
+  "Cloud.GetConfig": {
+   "enable": false,
+   "server": "shelly-142-eu.shelly.cloud:6022/jrpc"
+  },
+  "Cloud.GetStatus": {
+   "connected": false
+  },
+  "Sys.GetConfig": {
+   "device": {
+    "name": null,
+    "mac": "34B7DA933074",
+    "fw_id": "20260710-101127/2.0.0-g87fbfa4",
+    "discoverable": true,
+    "eco_mode": false,
+    "tls_check_cert_validity_time": true,
+    "enhanced_security": false
+   },
+   "location": {
+    "tz": "Europe/Amsterdam",
+    "lat": 51.8507,
+    "lon": 4.5433
+   },
+   "debug": {
+    "level": 2,
+    "file_level": null,
+    "mqtt": {
+     "enable": false
+    },
+    "websocket": {
+     "enable": false
+    },
+    "file_log": {
+     "enable": false
+    },
+    "udp": {
+     "addr": null
+    }
+   },
+   "ui_data": {},
+   "rpc_udp": {
+    "dst_addr": null,
+    "listen_port": null
+   },
+   "sntp": {
+    "server": "time.cloudflare.com"
+   },
+   "cfg_rev": 25
+  },
+  "Sys.GetStatus": {
+   "mac": "34B7DA933074",
+   "restart_required": true,
+   "time": "14:56",
+   "unixtime": 1788958579,
+   "last_sync_ts": 1788957222,
+   "uptime": 4327925,
+   "ram_size": 274316,
+   "ram_free": 142604,
+   "ram_min_free": 85940,
+   "fs_size": 917504,
+   "fs_free": 442368,
+   "cfg_rev": 25,
+   "kvs_rev": 0,
+   "schedule_rev": 0,
+   "webhook_rev": 0,
+   "btrelay_rev": 0,
+   "bthc_rev": 2,
+   "available_updates": {
+    "beta": {
+     "version": "2.0.1-beta1"
+    }
+   },
+   "reset_reason": 3,
+   "utc_offset": 7200
+  },
+  "MQTT.GetConfig": {
+   "enable": false,
+   "server": null,
+   "client_id": "shelly1pmminig3-34b7da933074",
+   "user": null,
+   "ssl_ca": null,
+   "topic_prefix": "shelly1pmminig3-34b7da933074",
+   "rpc_ntf": true,
+   "status_ntf": false,
+   "use_client_cert": false,
+   "enable_rpc": true,
+   "enable_control": true
+  },
+  "Ws.GetConfig": {
+   "enable": false,
+   "server": null,
+   "ssl_ca": "ca.pem"
+  }
+ },
+ "172.16.4.21": {
+  "Shelly.GetDeviceInfo": {
+   "name": null,
+   "id": "shelly1pmminig3-34b7da907df0",
+   "mac": "34B7DA907DF0",
+   "slot": 0,
+   "model": "S3SW-001P8EU",
+   "gen": 3,
+   "fw_id": "20260710-101127/2.0.0-g87fbfa4",
+   "ver": "2.0.0",
+   "app": "Mini1PMG3",
+   "auth_en": false,
+   "auth_domain": null,
+   "matter": false,
+   "provision": "complete",
+   "enhanced_security": false
+  },
+  "WiFi.GetConfig": {
+   "ap": {
+    "ssid": "Shelly1PMMiniG3-34B7DA907DF0",
+    "is_open": true,
+    "enable": false,
+    "range_extender": {
+     "enable": false
+    }
+   },
+   "sta": {
+    "ssid": "VDHIOT",
+    "is_open": false,
+    "enable": true,
+    "ipv4mode": "dhcp",
+    "ip": null,
+    "netmask": null,
+    "gw": null,
+    "nameserver": null
+   },
+   "sta1": {
+    "ssid": "VDHFEMFLEX",
+    "is_open": false,
+    "enable": false,
+    "ipv4mode": "dhcp",
+    "ip": null,
+    "netmask": null,
+    "gw": null,
+    "nameserver": null
+   },
+   "roam": {
+    "rssi_thr": -80,
+    "interval": 60
+   }
+  },
+  "WiFi.GetStatus": {
+   "sta_ip": "172.16.4.21",
+   "status": "got ip",
+   "ssid": "VDHIOT",
+   "channel": 6,
+   "rssi": -54,
+   "bssid": "6a:d7:9a:3d:ac:53",
+   "sta_ip6": [
+    "fe80::36b7:daff:fe90:7df0"
+   ]
+  },
+  "Cloud.GetConfig": {
+   "enable": false,
+   "server": "shelly-142-eu.shelly.cloud:6022/jrpc"
+  },
+  "Cloud.GetStatus": {
+   "connected": false
+  },
+  "Sys.GetConfig": {
+   "device": {
+    "name": null,
+    "mac": "34B7DA907DF0",
+    "fw_id": "20260710-101127/2.0.0-g87fbfa4",
+    "discoverable": true,
+    "eco_mode": false,
+    "tls_check_cert_validity_time": true,
+    "enhanced_security": false
+   },
+   "location": {
+    "tz": "Europe/Amsterdam",
+    "lat": 51.8507,
+    "lon": 4.5433
+   },
+   "debug": {
+    "level": 2,
+    "file_level": null,
+    "mqtt": {
+     "enable": false
+    },
+    "websocket": {
+     "enable": false
+    },
+    "file_log": {
+     "enable": false
+    },
+    "udp": {
+     "addr": null
+    }
+   },
+   "ui_data": {},
+   "rpc_udp": {
+    "dst_addr": null,
+    "listen_port": null
+   },
+   "sntp": {
+    "server": "time.cloudflare.com"
+   },
+   "cfg_rev": 25
+  },
+  "Sys.GetStatus": {
+   "mac": "34B7DA907DF0",
+   "restart_required": true,
+   "time": "14:56",
+   "unixtime": 1788958580,
+   "last_sync_ts": 1788958449,
+   "uptime": 3596292,
+   "ram_size": 274340,
+   "ram_free": 143084,
+   "ram_min_free": 111952,
+   "fs_size": 917504,
+   "fs_free": 434176,
+   "cfg_rev": 25,
+   "kvs_rev": 0,
+   "schedule_rev": 1,
+   "webhook_rev": 0,
+   "btrelay_rev": 0,
+   "bthc_rev": 0,
+   "available_updates": {
+    "beta": {
+     "version": "2.0.1-beta1"
+    }
+   },
+   "reset_reason": 3,
+   "utc_offset": 7200
+  },
+  "MQTT.GetConfig": {
+   "enable": false,
+   "server": null,
+   "client_id": "shelly1pmminig3-34b7da907df0",
+   "user": null,
+   "ssl_ca": null,
+   "topic_prefix": "shelly1pmminig3-34b7da907df0",
+   "rpc_ntf": true,
+   "status_ntf": false,
+   "use_client_cert": false,
+   "enable_rpc": true,
+   "enable_control": true
+  },
+  "Ws.GetConfig": {
+   "enable": false,
+   "server": null,
+   "ssl_ca": "ca.pem"
+  }
+ },
+ "172.16.4.22": {
+  "Shelly.GetDeviceInfo": {
+   "name": null,
+   "id": "shelly1pmminig3-34b7da8ba988",
+   "mac": "34B7DA8BA988",
+   "slot": 0,
+   "model": "S3SW-001P8EU",
+   "gen": 3,
+   "fw_id": "20260710-101127/2.0.0-g87fbfa4",
+   "ver": "2.0.0",
+   "app": "Mini1PMG3",
+   "auth_en": false,
+   "auth_domain": null,
+   "matter": false,
+   "provision": "complete",
+   "enhanced_security": false
+  },
+  "WiFi.GetConfig": {
+   "ap": {
+    "ssid": "Shelly1PMMiniG3-34B7DA8BA988",
+    "is_open": true,
+    "enable": false,
+    "range_extender": {
+     "enable": false
+    }
+   },
+   "sta": {
+    "ssid": "VDHIOT",
+    "is_open": false,
+    "enable": true,
+    "ipv4mode": "dhcp",
+    "ip": null,
+    "netmask": null,
+    "gw": null,
+    "nameserver": null
+   },
+   "sta1": {
+    "ssid": "VDHFEMFLEX",
+    "is_open": false,
+    "enable": false,
+    "ipv4mode": "dhcp",
+    "ip": null,
+    "netmask": null,
+    "gw": null,
+    "nameserver": null
+   },
+   "roam": {
+    "rssi_thr": -80,
+    "interval": 60
+   }
+  },
+  "WiFi.GetStatus": {
+   "sta_ip": "172.16.4.22",
+   "status": "got ip",
+   "ssid": "VDHIOT",
+   "channel": 6,
+   "rssi": -57,
+   "bssid": "8e:78:48:c8:65:45",
+   "sta_ip6": [
+    "fe80::36b7:daff:fe8b:a988"
+   ]
+  },
+  "Cloud.GetConfig": {
+   "enable": false,
+   "server": "shelly-142-eu.shelly.cloud:6022/jrpc"
+  },
+  "Cloud.GetStatus": {
+   "connected": false
+  },
+  "Sys.GetConfig": {
+   "device": {
+    "name": null,
+    "mac": "34B7DA8BA988",
+    "fw_id": "20260710-101127/2.0.0-g87fbfa4",
+    "discoverable": true,
+    "eco_mode": false,
+    "tls_check_cert_validity_time": true,
+    "enhanced_security": false
+   },
+   "location": {
+    "tz": "Europe/Amsterdam",
+    "lat": 51.8622,
+    "lon": 4.5025
+   },
+   "debug": {
+    "level": 2,
+    "file_level": null,
+    "mqtt": {
+     "enable": false
+    },
+    "websocket": {
+     "enable": false
+    },
+    "file_log": {
+     "enable": false
+    },
+    "udp": {
+     "addr": null
+    }
+   },
+   "ui_data": {},
+   "rpc_udp": {
+    "dst_addr": null,
+    "listen_port": null
+   },
+   "sntp": {
+    "server": "time.cloudflare.com"
+   },
+   "cfg_rev": 24
+  },
+  "Sys.GetStatus": {
+   "mac": "34B7DA8BA988",
+   "restart_required": true,
+   "time": "14:56",
+   "unixtime": 1788958581,
+   "last_sync_ts": 1788956904,
+   "uptime": 3596303,
+   "ram_size": 274304,
+   "ram_free": 141444,
+   "ram_min_free": 109648,
+   "fs_size": 917504,
+   "fs_free": 434176,
+   "cfg_rev": 24,
+   "kvs_rev": 0,
+   "schedule_rev": 1,
+   "webhook_rev": 0,
+   "btrelay_rev": 0,
+   "bthc_rev": 0,
+   "available_updates": {
+    "beta": {
+     "version": "2.0.1-beta1"
+    }
+   },
+   "reset_reason": 3,
+   "utc_offset": 7200
+  },
+  "MQTT.GetConfig": {
+   "enable": false,
+   "server": null,
+   "client_id": "shelly1pmminig3-34b7da8ba988",
+   "user": null,
+   "ssl_ca": null,
+   "topic_prefix": "shelly1pmminig3-34b7da8ba988",
+   "rpc_ntf": true,
+   "status_ntf": false,
+   "use_client_cert": false,
+   "enable_rpc": true,
+   "enable_control": true
+  },
+  "Ws.GetConfig": {
+   "enable": false,
+   "server": null,
+   "ssl_ca": "ca.pem"
+  }
+ },
+ "172.16.4.23": {
+  "Shelly.GetDeviceInfo": {
+   "name": null,
+   "id": "shelly1pmminig3-34b7da8ff20c",
+   "mac": "34B7DA8FF20C",
+   "slot": 0,
+   "model": "S3SW-001P8EU",
+   "gen": 3,
+   "fw_id": "20260710-101127/2.0.0-g87fbfa4",
+   "ver": "2.0.0",
+   "app": "Mini1PMG3",
+   "auth_en": false,
+   "auth_domain": null,
+   "matter": false,
+   "provision": "complete",
+   "enhanced_security": false
+  },
+  "WiFi.GetConfig": {
+   "ap": {
+    "ssid": "Shelly1PMMiniG3-34B7DA8FF20C",
+    "is_open": true,
+    "enable": false,
+    "range_extender": {
+     "enable": false
+    }
+   },
+   "sta": {
+    "ssid": "VDHIOT",
+    "is_open": false,
+    "enable": true,
+    "ipv4mode": "dhcp",
+    "ip": null,
+    "netmask": null,
+    "gw": null,
+    "nameserver": null
+   },
+   "sta1": {
+    "ssid": "VDHFEMFLEX",
+    "is_open": false,
+    "enable": false,
+    "ipv4mode": "dhcp",
+    "ip": null,
+    "netmask": null,
+    "gw": null,
+    "nameserver": null
+   },
+   "roam": {
+    "rssi_thr": -80,
+    "interval": 60
+   }
+  },
+  "WiFi.GetStatus": {
+   "sta_ip": "172.16.4.23",
+   "status": "got ip",
+   "ssid": "VDHIOT",
+   "channel": 6,
+   "rssi": -64,
+   "bssid": "8a:2a:a8:d4:07:8a",
+   "sta_ip6": [
+    "fe80::36b7:daff:fe8f:f20c"
+   ]
+  },
+  "Cloud.GetConfig": {
+   "enable": false,
+   "server": "shelly-142-eu.shelly.cloud:6022/jrpc"
+  },
+  "Cloud.GetStatus": {
+   "connected": false
+  },
+  "Sys.GetConfig": {
+   "device": {
+    "name": null,
+    "mac": "34B7DA8FF20C",
+    "fw_id": "20260710-101127/2.0.0-g87fbfa4",
+    "discoverable": true,
+    "eco_mode": false,
+    "tls_check_cert_validity_time": true,
+    "enhanced_security": false
+   },
+   "location": {
+    "tz": "Europe/Amsterdam",
+    "lat": 51.8507,
+    "lon": 4.5433
+   },
+   "debug": {
+    "level": 2,
+    "file_level": null,
+    "mqtt": {
+     "enable": false
+    },
+    "websocket": {
+     "enable": false
+    },
+    "file_log": {
+     "enable": false
+    },
+    "udp": {
+     "addr": null
+    }
+   },
+   "ui_data": {},
+   "rpc_udp": {
+    "dst_addr": null,
+    "listen_port": null
+   },
+   "sntp": {
+    "server": "time.cloudflare.com"
+   },
+   "cfg_rev": 25
+  },
+  "Sys.GetStatus": {
+   "mac": "34B7DA8FF20C",
+   "restart_required": true,
+   "time": "14:56",
+   "unixtime": 1788958587,
+   "last_sync_ts": 1788958336,
+   "uptime": 4978751,
+   "ram_size": 274264,
+   "ram_free": 138916,
+   "ram_min_free": 104868,
+   "fs_size": 917504,
+   "fs_free": 434176,
+   "cfg_rev": 25,
+   "kvs_rev": 0,
+   "schedule_rev": 1,
+   "webhook_rev": 0,
+   "btrelay_rev": 0,
+   "bthc_rev": 0,
+   "available_updates": {
+    "beta": {
+     "version": "2.0.1-beta1"
+    }
+   },
+   "reset_reason": 3,
+   "utc_offset": 7200
+  },
+  "MQTT.GetConfig": {
+   "enable": false,
+   "server": null,
+   "client_id": "shelly1pmminig3-34b7da8ff20c",
+   "user": null,
+   "ssl_ca": null,
+   "topic_prefix": "shelly1pmminig3-34b7da8ff20c",
+   "rpc_ntf": true,
+   "status_ntf": false,
+   "use_client_cert": false,
+   "enable_rpc": true,
+   "enable_control": true
+  },
+  "Ws.GetConfig": {
+   "enable": false,
+   "server": null,
+   "ssl_ca": "ca.pem"
+  }
+ },
+ "172.16.4.24": {
+  "Shelly.GetDeviceInfo": {
+   "name": null,
+   "id": "shelly1pmminig3-5432045f2cc4",
+   "mac": "5432045F2CC4",
+   "slot": 0,
+   "model": "S3SW-001P8EU",
+   "gen": 3,
+   "fw_id": "20260710-101127/2.0.0-g87fbfa4",
+   "ver": "2.0.0",
+   "app": "Mini1PMG3",
+   "auth_en": false,
+   "auth_domain": null,
+   "matter": false,
+   "provision": "complete",
+   "enhanced_security": false
+  },
+  "WiFi.GetConfig": {
+   "ap": {
+    "ssid": "Shelly1PMMiniG3-5432045F2CC4",
+    "is_open": true,
+    "enable": false,
+    "range_extender": {
+     "enable": false
+    }
+   },
+   "sta": {
+    "ssid": "VDHIOT",
+    "is_open": false,
+    "enable": true,
+    "ipv4mode": "dhcp",
+    "ip": null,
+    "netmask": null,
+    "gw": null,
+    "nameserver": null
+   },
+   "sta1": {
+    "ssid": "VDHFEMFLEX",
+    "is_open": false,
+    "enable": false,
+    "ipv4mode": "dhcp",
+    "ip": null,
+    "netmask": null,
+    "gw": null,
+    "nameserver": null
+   },
+   "roam": {
+    "rssi_thr": -80,
+    "interval": 60
+   }
+  },
+  "WiFi.GetStatus": {
+   "sta_ip": "172.16.4.24",
+   "status": "got ip",
+   "ssid": "VDHIOT",
+   "channel": 6,
+   "rssi": -63,
+   "bssid": "6a:d7:9a:3d:ac:53",
+   "sta_ip6": [
+    "fe80::5632:4ff:fe5f:2cc4"
+   ]
+  },
+  "Cloud.GetConfig": {
+   "enable": false,
+   "server": "shelly-142-eu.shelly.cloud:6022/jrpc"
+  },
+  "Cloud.GetStatus": {
+   "connected": false
+  },
+  "Sys.GetConfig": {
+   "device": {
+    "name": null,
+    "mac": "5432045F2CC4",
+    "fw_id": "20260710-101127/2.0.0-g87fbfa4",
+    "discoverable": true,
+    "eco_mode": false,
+    "tls_check_cert_validity_time": true,
+    "enhanced_security": false
+   },
+   "location": {
+    "tz": "Europe/Amsterdam",
+    "lat": 51.8507,
+    "lon": 4.5433
+   },
+   "debug": {
+    "level": 2,
+    "file_level": null,
+    "mqtt": {
+     "enable": false
+    },
+    "websocket": {
+     "enable": false
+    },
+    "file_log": {
+     "enable": false
+    },
+    "udp": {
+     "addr": null
+    }
+   },
+   "ui_data": {},
+   "rpc_udp": {
+    "dst_addr": null,
+    "listen_port": null
+   },
+   "sntp": {
+    "server": "time.cloudflare.com"
+   },
+   "cfg_rev": 24
+  },
+  "Sys.GetStatus": {
+   "mac": "5432045F2CC4",
+   "restart_required": true,
+   "time": "14:56",
+   "unixtime": 1788958589,
+   "last_sync_ts": 1788958331,
+   "uptime": 3596321,
+   "ram_size": 274624,
+   "ram_free": 146448,
+   "ram_min_free": 111664,
+   "fs_size": 917504,
+   "fs_free": 434176,
+   "cfg_rev": 24,
+   "kvs_rev": 0,
+   "schedule_rev": 1,
+   "webhook_rev": 0,
+   "btrelay_rev": 0,
+   "bthc_rev": 0,
+   "available_updates": {
+    "beta": {
+     "version": "2.0.1-beta1"
+    }
+   },
+   "reset_reason": 3,
+   "utc_offset": 7200
+  },
+  "MQTT.GetConfig": {
+   "enable": false,
+   "server": null,
+   "client_id": "shelly1pmminig3-5432045f2cc4",
+   "user": null,
+   "ssl_ca": null,
+   "topic_prefix": "shelly1pmminig3-5432045f2cc4",
+   "rpc_ntf": true,
+   "status_ntf": false,
+   "use_client_cert": false,
+   "enable_rpc": true,
+   "enable_control": true
+  },
+  "Ws.GetConfig": {
+   "enable": false,
+   "server": null,
+   "ssl_ca": "ca.pem"
+  }
+ },
+ "172.16.4.25": {
+  "Shelly.GetDeviceInfo": {
+   "name": null,
+   "id": "shelly1pmminig3-34b7da8fdc60",
+   "mac": "34B7DA8FDC60",
+   "slot": 1,
+   "model": "S3SW-001P8EU",
+   "gen": 3,
+   "fw_id": "20260710-101127/2.0.0-g87fbfa4",
+   "ver": "2.0.0",
+   "app": "Mini1PMG3",
+   "auth_en": false,
+   "auth_domain": null,
+   "matter": false,
+   "provision": "complete",
+   "enhanced_security": false
+  },
+  "WiFi.GetConfig": {
+   "ap": {
+    "ssid": "Shelly1PMMiniG3-34B7DA8FDC60",
+    "is_open": true,
+    "enable": false,
+    "range_extender": {
+     "enable": false
+    }
+   },
+   "sta": {
+    "ssid": "VDHIOT",
+    "is_open": false,
+    "enable": true,
+    "ipv4mode": "dhcp",
+    "ip": null,
+    "netmask": null,
+    "gw": null,
+    "nameserver": null
+   },
+   "sta1": {
+    "ssid": "VDHFEMFLEX",
+    "is_open": false,
+    "enable": false,
+    "ipv4mode": "dhcp",
+    "ip": null,
+    "netmask": null,
+    "gw": null,
+    "nameserver": null
+   },
+   "roam": {
+    "rssi_thr": -80,
+    "interval": 60
+   }
+  },
+  "WiFi.GetStatus": {
+   "sta_ip": "172.16.4.25",
+   "status": "got ip",
+   "ssid": "VDHIOT",
+   "channel": 6,
+   "rssi": -75,
+   "bssid": "8e:78:48:c8:65:45",
+   "sta_ip6": [
+    "fe80::36b7:daff:fe8f:dc60"
+   ]
+  },
+  "Cloud.GetConfig": {
+   "enable": false,
+   "server": "shelly-142-eu.shelly.cloud:6022/jrpc"
+  },
+  "Cloud.GetStatus": {
+   "connected": false
+  },
+  "Sys.GetConfig": {
+   "device": {
+    "name": null,
+    "mac": "34B7DA8FDC60",
+    "fw_id": "20260710-101127/2.0.0-g87fbfa4",
+    "discoverable": true,
+    "eco_mode": false,
+    "tls_check_cert_validity_time": true,
+    "enhanced_security": false
+   },
+   "location": {
+    "tz": "Europe/Amsterdam",
+    "lat": 51.8526,
+    "lon": 4.4939
+   },
+   "debug": {
+    "level": 2,
+    "file_level": null,
+    "mqtt": {
+     "enable": false
+    },
+    "websocket": {
+     "enable": false
+    },
+    "file_log": {
+     "enable": false
+    },
+    "udp": {
+     "addr": null
+    }
+   },
+   "ui_data": {},
+   "rpc_udp": {
+    "dst_addr": null,
+    "listen_port": null
+   },
+   "sntp": {
+    "server": "time.cloudflare.com"
+   },
+   "cfg_rev": 21
+  },
+  "Sys.GetStatus": {
+   "mac": "34B7DA8FDC60",
+   "restart_required": true,
+   "time": "14:56",
+   "unixtime": 1788958595,
+   "last_sync_ts": 1788957318,
+   "uptime": 4327760,
+   "ram_size": 274604,
+   "ram_free": 145452,
+   "ram_min_free": 107684,
+   "fs_size": 917504,
+   "fs_free": 434176,
+   "cfg_rev": 21,
+   "kvs_rev": 0,
+   "schedule_rev": 1,
+   "webhook_rev": 0,
+   "btrelay_rev": 0,
+   "bthc_rev": 0,
+   "available_updates": {
+    "beta": {
+     "version": "2.0.1-beta1"
+    }
+   },
+   "reset_reason": 3,
+   "utc_offset": 7200
+  },
+  "MQTT.GetConfig": {
+   "enable": false,
+   "server": null,
+   "client_id": "shelly1pmminig3-34b7da8fdc60",
+   "user": null,
+   "ssl_ca": null,
+   "topic_prefix": "shelly1pmminig3-34b7da8fdc60",
+   "rpc_ntf": true,
+   "status_ntf": false,
+   "use_client_cert": false,
+   "enable_rpc": true,
+   "enable_control": true
+  },
+  "Ws.GetConfig": {
+   "enable": false,
+   "server": null,
+   "ssl_ca": "ca.pem"
+  }
+ },
+ "172.16.4.26": {
+  "Shelly.GetDeviceInfo": {
+   "name": null,
+   "id": "shelly1pmminig3-34b7da921c8c",
+   "mac": "34B7DA921C8C",
+   "slot": 0,
+   "model": "S3SW-001P8EU",
+   "gen": 3,
+   "fw_id": "20260710-101127/2.0.0-g87fbfa4",
+   "ver": "2.0.0",
+   "app": "Mini1PMG3",
+   "auth_en": false,
+   "auth_domain": null,
+   "matter": false,
+   "provision": "complete",
+   "enhanced_security": false
+  },
+  "WiFi.GetConfig": {
+   "ap": {
+    "ssid": "Shelly1PMMiniG3-34B7DA921C8C",
+    "is_open": true,
+    "enable": false,
+    "range_extender": {
+     "enable": false
+    }
+   },
+   "sta": {
+    "ssid": "VDHIOT",
+    "is_open": false,
+    "enable": true,
+    "ipv4mode": "dhcp",
+    "ip": null,
+    "netmask": null,
+    "gw": null,
+    "nameserver": null
+   },
+   "sta1": {
+    "ssid": "VDHFEMFLEX",
+    "is_open": false,
+    "enable": false,
+    "ipv4mode": "dhcp",
+    "ip": null,
+    "netmask": null,
+    "gw": null,
+    "nameserver": null
+   },
+   "roam": {
+    "rssi_thr": -80,
+    "interval": 60
+   }
+  },
+  "WiFi.GetStatus": {
+   "sta_ip": "172.16.4.26",
+   "status": "got ip",
+   "ssid": "VDHIOT",
+   "channel": 6,
+   "rssi": -66,
+   "bssid": "8e:78:48:c8:65:45",
+   "sta_ip6": [
+    "fe80::36b7:daff:fe92:1c8c"
+   ]
+  },
+  "Cloud.GetConfig": {
+   "enable": false,
+   "server": "shelly-142-eu.shelly.cloud:6022/jrpc"
+  },
+  "Cloud.GetStatus": {
+   "connected": false
+  },
+  "Sys.GetConfig": {
+   "device": {
+    "name": null,
+    "mac": "34B7DA921C8C",
+    "fw_id": "20260710-101127/2.0.0-g87fbfa4",
+    "discoverable": true,
+    "eco_mode": false,
+    "tls_check_cert_validity_time": true,
+    "enhanced_security": false
+   },
+   "location": {
+    "tz": "Europe/Amsterdam",
+    "lat": 51.8622,
+    "lon": 4.5025
+   },
+   "debug": {
+    "level": 2,
+    "file_level": null,
+    "mqtt": {
+     "enable": false
+    },
+    "websocket": {
+     "enable": false
+    },
+    "file_log": {
+     "enable": false
+    },
+    "udp": {
+     "addr": null
+    }
+   },
+   "ui_data": {},
+   "rpc_udp": {
+    "dst_addr": null,
+    "listen_port": null
+   },
+   "sntp": {
+    "server": "time.cloudflare.com"
+   },
+   "cfg_rev": 23
+  },
+  "Sys.GetStatus": {
+   "mac": "34B7DA921C8C",
+   "restart_required": true,
+   "time": "14:56",
+   "unixtime": 1788958596,
+   "last_sync_ts": 1788958252,
+   "uptime": 3596299,
+   "ram_size": 274608,
+   "ram_free": 145648,
+   "ram_min_free": 113580,
+   "fs_size": 917504,
+   "fs_free": 434176,
+   "cfg_rev": 23,
+   "kvs_rev": 0,
+   "schedule_rev": 1,
+   "webhook_rev": 0,
+   "btrelay_rev": 0,
+   "bthc_rev": 0,
+   "available_updates": {
+    "beta": {
+     "version": "2.0.1-beta1"
+    }
+   },
+   "reset_reason": 3,
+   "utc_offset": 7200
+  },
+  "MQTT.GetConfig": {
+   "enable": false,
+   "server": null,
+   "client_id": "shelly1pmminig3-34b7da921c8c",
+   "user": null,
+   "ssl_ca": null,
+   "topic_prefix": "shelly1pmminig3-34b7da921c8c",
+   "rpc_ntf": true,
+   "status_ntf": false,
+   "use_client_cert": false,
+   "enable_rpc": true,
+   "enable_control": true
+  },
+  "Ws.GetConfig": {
+   "enable": false,
+   "server": null,
+   "ssl_ca": "ca.pem"
+  }
+ },
+ "172.16.4.27": {
+  "Shelly.GetDeviceInfo": {
+   "name": null,
+   "id": "shelly1pmminig3-34b7da926e64",
+   "mac": "34B7DA926E64",
+   "slot": 1,
+   "model": "S3SW-001P8EU",
+   "gen": 3,
+   "fw_id": "20260710-101127/2.0.0-g87fbfa4",
+   "ver": "2.0.0",
+   "app": "Mini1PMG3",
+   "auth_en": false,
+   "auth_domain": null,
+   "matter": false,
+   "provision": "complete",
+   "enhanced_security": false
+  },
+  "WiFi.GetConfig": {
+   "ap": {
+    "ssid": "Shelly1PMMiniG3-34B7DA926E64",
+    "is_open": true,
+    "enable": false,
+    "range_extender": {
+     "enable": false
+    }
+   },
+   "sta": {
+    "ssid": "VDHIOT",
+    "is_open": false,
+    "enable": true,
+    "ipv4mode": "dhcp",
+    "ip": null,
+    "netmask": null,
+    "gw": null,
+    "nameserver": null
+   },
+   "sta1": {
+    "ssid": "VDHFEMFLEX",
+    "is_open": false,
+    "enable": false,
+    "ipv4mode": "dhcp",
+    "ip": null,
+    "netmask": null,
+    "gw": null,
+    "nameserver": null
+   },
+   "roam": {
+    "rssi_thr": -80,
+    "interval": 60
+   }
+  },
+  "WiFi.GetStatus": {
+   "sta_ip": "172.16.4.27",
+   "status": "got ip",
+   "ssid": "VDHIOT",
+   "channel": 6,
+   "rssi": -68,
+   "bssid": "8e:78:48:c8:65:45",
+   "sta_ip6": [
+    "fe80::36b7:daff:fe92:6e64"
+   ]
+  },
+  "Cloud.GetConfig": {
+   "enable": false,
+   "server": "shelly-142-eu.shelly.cloud:6022/jrpc"
+  },
+  "Cloud.GetStatus": {
+   "connected": false
+  },
+  "Sys.GetConfig": {
+   "device": {
+    "name": null,
+    "mac": "34B7DA926E64",
+    "fw_id": "20260710-101127/2.0.0-g87fbfa4",
+    "discoverable": true,
+    "eco_mode": false,
+    "tls_check_cert_validity_time": true,
+    "enhanced_security": false
+   },
+   "location": {
+    "tz": "Europe/Amsterdam",
+    "lat": 51.8507,
+    "lon": 4.5433
+   },
+   "debug": {
+    "level": 2,
+    "file_level": null,
+    "mqtt": {
+     "enable": false
+    },
+    "websocket": {
+     "enable": false
+    },
+    "file_log": {
+     "enable": false
+    },
+    "udp": {
+     "addr": null
+    }
+   },
+   "ui_data": {},
+   "rpc_udp": {
+    "dst_addr": null,
+    "listen_port": null
+   },
+   "sntp": {
+    "server": "time.cloudflare.com"
+   },
+   "cfg_rev": 24
+  },
+  "Sys.GetStatus": {
+   "mac": "34B7DA926E64",
+   "restart_required": true,
+   "time": "14:56",
+   "unixtime": 1788958600,
+   "last_sync_ts": 1788957979,
+   "uptime": 4373981,
+   "ram_size": 274584,
+   "ram_free": 145148,
+   "ram_min_free": 105724,
+   "fs_size": 917504,
+   "fs_free": 434176,
+   "cfg_rev": 24,
+   "kvs_rev": 0,
+   "schedule_rev": 1,
+   "webhook_rev": 0,
+   "btrelay_rev": 0,
+   "bthc_rev": 0,
+   "available_updates": {
+    "beta": {
+     "version": "2.0.1-beta1"
+    }
+   },
+   "reset_reason": 3,
+   "utc_offset": 7200
+  },
+  "MQTT.GetConfig": {
+   "enable": false,
+   "server": null,
+   "client_id": "shelly1pmminig3-34b7da926e64",
+   "user": null,
+   "ssl_ca": null,
+   "topic_prefix": "shelly1pmminig3-34b7da926e64",
+   "rpc_ntf": true,
+   "status_ntf": false,
+   "use_client_cert": false,
+   "enable_rpc": true,
+   "enable_control": true
+  },
+  "Ws.GetConfig": {
+   "enable": false,
+   "server": null,
+   "ssl_ca": "ca.pem"
+  }
+ },
+ "172.16.4.28": {
+  "Shelly.GetDeviceInfo": {
+   "name": null,
+   "id": "shelly1pmminig3-34b7da8bb31c",
+   "mac": "34B7DA8BB31C",
+   "slot": 0,
+   "model": "S3SW-001P8EU",
+   "gen": 3,
+   "fw_id": "20260710-101127/2.0.0-g87fbfa4",
+   "ver": "2.0.0",
+   "app": "Mini1PMG3",
+   "auth_en": false,
+   "auth_domain": null,
+   "matter": false,
+   "provision": "complete",
+   "enhanced_security": false
+  },
+  "WiFi.GetConfig": {
+   "ap": {
+    "ssid": "Shelly1PMMiniG3-34B7DA8BB31C",
+    "is_open": true,
+    "enable": false,
+    "range_extender": {
+     "enable": false
+    }
+   },
+   "sta": {
+    "ssid": "VDHIOT",
+    "is_open": false,
+    "enable": true,
+    "ipv4mode": "dhcp",
+    "ip": null,
+    "netmask": null,
+    "gw": null,
+    "nameserver": null
+   },
+   "sta1": {
+    "ssid": "VDHFEMFLEX",
+    "is_open": false,
+    "enable": false,
+    "ipv4mode": "dhcp",
+    "ip": null,
+    "netmask": null,
+    "gw": null,
+    "nameserver": null
+   },
+   "roam": {
+    "rssi_thr": -80,
+    "interval": 60
+   }
+  },
+  "WiFi.GetStatus": {
+   "sta_ip": "172.16.4.28",
+   "status": "got ip",
+   "ssid": "VDHIOT",
+   "channel": 6,
+   "rssi": -67,
+   "bssid": "8e:78:48:c8:65:45",
+   "sta_ip6": [
+    "fe80::36b7:daff:fe8b:b31c"
+   ]
+  },
+  "Cloud.GetConfig": {
+   "enable": false,
+   "server": "shelly-142-eu.shelly.cloud:6022/jrpc"
+  },
+  "Cloud.GetStatus": {
+   "connected": false
+  },
+  "Sys.GetConfig": {
+   "device": {
+    "name": null,
+    "mac": "34B7DA8BB31C",
+    "fw_id": "20260710-101127/2.0.0-g87fbfa4",
+    "discoverable": true,
+    "eco_mode": false,
+    "tls_check_cert_validity_time": true,
+    "enhanced_security": false
+   },
+   "location": {
+    "tz": "Europe/Amsterdam",
+    "lat": 51.8507,
+    "lon": 4.5433
+   },
+   "debug": {
+    "level": 2,
+    "file_level": null,
+    "mqtt": {
+     "enable": false
+    },
+    "websocket": {
+     "enable": false
+    },
+    "file_log": {
+     "enable": false
+    },
+    "udp": {
+     "addr": null
+    }
+   },
+   "ui_data": {},
+   "rpc_udp": {
+    "dst_addr": null,
+    "listen_port": null
+   },
+   "sntp": {
+    "server": "time.cloudflare.com"
+   },
+   "cfg_rev": 25
+  },
+  "Sys.GetStatus": {
+   "mac": "34B7DA8BB31C",
+   "restart_required": true,
+   "time": "14:56",
+   "unixtime": 1788958605,
+   "last_sync_ts": 1788956929,
+   "uptime": 4678668,
+   "ram_size": 274628,
+   "ram_free": 146504,
+   "ram_min_free": 103008,
+   "fs_size": 917504,
+   "fs_free": 434176,
+   "cfg_rev": 25,
+   "kvs_rev": 0,
+   "schedule_rev": 1,
+   "webhook_rev": 0,
+   "btrelay_rev": 0,
+   "bthc_rev": 0,
+   "available_updates": {
+    "beta": {
+     "version": "2.0.1-beta1"
+    }
+   },
+   "reset_reason": 3,
+   "utc_offset": 7200
+  },
+  "MQTT.GetConfig": {
+   "enable": false,
+   "server": null,
+   "client_id": "shelly1pmminig3-34b7da8bb31c",
+   "user": null,
+   "ssl_ca": null,
+   "topic_prefix": "shelly1pmminig3-34b7da8bb31c",
+   "rpc_ntf": true,
+   "status_ntf": false,
+   "use_client_cert": false,
+   "enable_rpc": true,
+   "enable_control": true
+  },
+  "Ws.GetConfig": {
+   "enable": false,
+   "server": null,
+   "ssl_ca": "ca.pem"
+  }
+ },
+ "172.16.4.29": {
+  "Shelly.GetDeviceInfo": {
+   "name": null,
+   "id": "shelly1pmminig3-34b7da909a14",
+   "mac": "34B7DA909A14",
+   "slot": 0,
+   "model": "S3SW-001P8EU",
+   "gen": 3,
+   "fw_id": "20260710-101127/2.0.0-g87fbfa4",
+   "ver": "2.0.0",
+   "app": "Mini1PMG3",
+   "auth_en": false,
+   "auth_domain": null,
+   "matter": false,
+   "provision": "complete",
+   "enhanced_security": false
+  },
+  "WiFi.GetConfig": {
+   "ap": {
+    "ssid": "Shelly1PMMiniG3-34B7DA909A14",
+    "is_open": true,
+    "enable": false,
+    "range_extender": {
+     "enable": false
+    }
+   },
+   "sta": {
+    "ssid": "VDHIOT",
+    "is_open": false,
+    "enable": true,
+    "ipv4mode": "dhcp",
+    "ip": null,
+    "netmask": null,
+    "gw": null,
+    "nameserver": null
+   },
+   "sta1": {
+    "ssid": "VDHFEMFLEX",
+    "is_open": false,
+    "enable": false,
+    "ipv4mode": "dhcp",
+    "ip": null,
+    "netmask": null,
+    "gw": null,
+    "nameserver": null
+   },
+   "roam": {
+    "rssi_thr": -80,
+    "interval": 60
+   }
+  },
+  "WiFi.GetStatus": {
+   "sta_ip": "172.16.4.29",
+   "status": "got ip",
+   "ssid": "VDHIOT",
+   "channel": 6,
+   "rssi": -71,
+   "bssid": "82:8a:20:8d:56:e5",
+   "sta_ip6": [
+    "fe80::36b7:daff:fe90:9a14"
+   ]
+  },
+  "Cloud.GetConfig": {
+   "enable": false,
+   "server": "shelly-142-eu.shelly.cloud:6022/jrpc"
+  },
+  "Cloud.GetStatus": {
+   "connected": false
+  },
+  "Sys.GetConfig": {
+   "device": {
+    "name": null,
+    "mac": "34B7DA909A14",
+    "fw_id": "20260710-101127/2.0.0-g87fbfa4",
+    "discoverable": true,
+    "eco_mode": false,
+    "tls_check_cert_validity_time": true,
+    "enhanced_security": false
+   },
+   "location": {
+    "tz": "Europe/Amsterdam",
+    "lat": 51.8622,
+    "lon": 4.5025
+   },
+   "debug": {
+    "level": 2,
+    "file_level": null,
+    "mqtt": {
+     "enable": false
+    },
+    "websocket": {
+     "enable": false
+    },
+    "file_log": {
+     "enable": false
+    },
+    "udp": {
+     "addr": null
+    }
+   },
+   "ui_data": {},
+   "rpc_udp": {
+    "dst_addr": null,
+    "listen_port": null
+   },
+   "sntp": {
+    "server": "time.cloudflare.com"
+   },
+   "cfg_rev": 25
+  },
+  "Sys.GetStatus": {
+   "mac": "34B7DA909A14",
+   "restart_required": true,
+   "time": "14:56",
+   "unixtime": 1788958615,
+   "last_sync_ts": 1788957416,
+   "uptime": 4719562,
+   "ram_size": 274644,
+   "ram_free": 145148,
+   "ram_min_free": 105664,
+   "fs_size": 917504,
+   "fs_free": 434176,
+   "cfg_rev": 25,
+   "kvs_rev": 0,
+   "schedule_rev": 1,
+   "webhook_rev": 0,
+   "btrelay_rev": 0,
+   "bthc_rev": 0,
+   "available_updates": {
+    "beta": {
+     "version": "2.0.1-beta1"
+    }
+   },
+   "reset_reason": 3,
+   "utc_offset": 7200
+  },
+  "MQTT.GetConfig": {
+   "enable": false,
+   "server": null,
+   "client_id": "shelly1pmminig3-34b7da909a14",
+   "user": null,
+   "ssl_ca": null,
+   "topic_prefix": "shelly1pmminig3-34b7da909a14",
+   "rpc_ntf": true,
+   "status_ntf": false,
+   "use_client_cert": false,
+   "enable_rpc": true,
+   "enable_control": true
+  },
+  "Ws.GetConfig": {
+   "enable": false,
+   "server": null,
+   "ssl_ca": "ca.pem"
+  }
+ }
+}
