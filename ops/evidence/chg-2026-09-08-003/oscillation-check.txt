@@ -1,0 +1,4 @@
+=== T7 OSCILLATION CHECK 2026-09-08T16:00:08Z ===
+automation last_triggered = 2026-09-08T16:00:00.393064+00:00
+light.kantoor = on brightness=148 pct=58 last_changed=2026-09-08T15:52:57.553598+00:00
+^ if last_changed is STILL 15:52:57 then the tick ran and deliberately did NOTHING = deadband held = no oscillation

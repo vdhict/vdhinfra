@@ -1,0 +1,101 @@
+- id: '1734200001012'
+  alias: Kantoor Adaptieve Verlichting
+  description: Pas kantoorverlichting aan op basis van omgevingslicht tijdens werkuren
+  triggers:
+  - trigger: state
+    entity_id: sensor.multisensor_illuminance
+  conditions:
+  - condition: time
+    after: 08:30:00
+    before: '17:00:00'
+    weekday:
+    - mon
+    - tue
+    - wed
+    - thu
+    - fri
+  - condition: state
+    entity_id: person.sander_van_der_heijden
+    state: home
+  - condition: state
+    entity_id: device_tracker.vdhws01
+    state:
+    - home
+  actions:
+  - choose:
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.multisensor_illuminance
+        below: 50
+      sequence:
+      - action: light.turn_on
+        target:
+          entity_id:
+          - light.kantoor
+        data:
+          brightness_pct: 100
+          transition: 5
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.multisensor_illuminance
+        above: 49
+        below: 100
+      sequence:
+      - action: light.turn_on
+        target:
+          entity_id:
+          - light.kantoor
+        data:
+          brightness_pct: 80
+          transition: 5
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.multisensor_illuminance
+        above: 99
+        below: 200
+      sequence:
+      - action: light.turn_on
+        target:
+          entity_id:
+          - light.kantoor
+        data:
+          brightness_pct: 60
+          transition: 5
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.multisensor_illuminance
+        above: 199
+        below: 300
+      sequence:
+      - action: light.turn_on
+        target:
+          entity_id:
+          - light.kantoor
+        data:
+          brightness_pct: 40
+          transition: 5
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.multisensor_illuminance
+        above: 299
+        below: 400
+      sequence:
+      - action: light.turn_on
+        target:
+          entity_id:
+          - light.kantoor
+        data:
+          brightness_pct: 20
+          transition: 5
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.multisensor_illuminance
+        above: 399
+      sequence:
+      - action: light.turn_off
+        target:
+          entity_id:
+          - light.kantoor
+        data:
+          transition: 5
+  mode: single
