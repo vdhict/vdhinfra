@@ -13,8 +13,8 @@ WHAT THIS ESTABLISHES
 
 1. INTENT, in the user's own hands. He shaded at 13:48 local with the sun high and
    azimuth ~203 deg (S/SSW), and un-shaded at 17:29 local with elevation ~24 deg.
-   That is a direct statement of when he wants the screen down and when he does not.
-   ⚠️ ONE DAY, TWO EVENTS. Useful as a constraint, not sufficient as a facade model.
+   A direct statement of when he wants the screen down and when he does not.
+   ⚠️ ONE DAY, TWO EVENTS. A constraint, not a facade model.
 
 2. THE PHYSICAL REMOTE IS VISIBLE TO HA. The 11:48 close came from the remote and HA
    recorded it, with the `event` attribute updating. Manual-intervention detection is
