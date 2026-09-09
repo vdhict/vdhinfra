@@ -1,0 +1,367 @@
+--- /Users/sheijden/Code/homelab-migration/vdhinfra/ops/evidence/chg-2026-09-09-008/automations.yaml.before	2026-09-09 22:26:10
++++ /Users/sheijden/Code/homelab-migration/vdhinfra/ops/evidence/chg-2026-09-09-008/automations.after	2026-09-09 22:38:36
+@@ -672,11 +672,141 @@
+ 
+     KAPOTTE SENSOR: bij unknown/unavailable doet deze automation NIETS. | default(0) vangt die
+     strings NIET af, daarom | float(-1) plus een expliciete stop als eerste tak.
++
++    ── WIJZIGING 2026-09-09 (chg-2026-09-09-008) — LEES DIT ────────────────────────
++
++    DRIE DEFECTEN GEREPAREERD, ALLE DRIE LIVE WAARGENOMEN OP 2026-09-09 (tijden lokaal, CEST):
++
++    D1. DE AAN-TAK STOND ONDER DE 300 s GRENDEL. Waargenomen:
++          20:39:45.752  ruwe PIR AAN   (er loopt iemand binnen)
++          20:39:54.361  lamp AAN       (met de hand, geen enkele trace van deze automation)
++          20:40:01.452  lamp UIT       (deze automation, afwezigheidstak, 7,1 s later)
++          20:40:30.753  bezet AAN      (precies 45,0 s na de PIR — de delay_on)
++          20:44:13.158  lamp AAN       (Atlas greep met de hand in, op 62%)
++        Vier minuten en elf seconden donker bij 197 lux gedempt. De grendel weigerde te
++        herstellen omdat de automation 29 s eerder zélf naar light.kantoor had geschreven.
++        Zonder handmatig ingrijpen was het tot de tick van 20:50 donker gebleven.
++
++    D2. DE AFWEZIGHEIDSTAK SCHAKELDE UIT TERWIJL DE RUWE PIR AL AAN STOND. Op het moment
++        van de uit-actie (20:40:01) stond binary_sensor.multisensor_motion_detection al
++        15,7 SECONDEN op 'on'. De automation deed het licht uit in een kamer waarvan de
++        bewegingsmelder op dat moment actief aanwezigheid meldde. Dit is het echte defect;
++        alleen deze grendel-reparatie was niet genoeg geweest.
++
++    D3. GEEN BESEF VAN 'IEMAND HEEFT DIT NET ZELF GEDAAN'. Zie de eigenaarschap-vlag hieronder.
++
++    WAT ER IS VERANDERD:
++
++    1. SNELHEID. Nieuwe trigger 'pir' op de RUWE binary_sensor.multisensor_motion_detection.
++       De delay_on van 45 s op binary_sensor.kantoor_bezet is BEWUST NIET AANGERAAKT: die is
++       in chg-2026-08-30-005 ronde 2 gekalibreerd op de meetcliff van de FGMS-001 (eigen
++       reset ~30 s) om 'bleef' van 'liep door' te scheiden, en het klimaatpaar hangt eraan.
++       Verkorten zou de airco op doorloopjes laten aanslaan. De ruwe PIR is effectief direct.
++
++    2. DE AAN-TAK STAAT NU BOVEN DE GRENDEL, als eerste functionele tak. Dat is exact het
++       principe dat hierboven al voor tak 1 en de veiligheidsklep is opgeschreven: 'Een
++       veiligheidsvoorziening mag nooit onderdrukt kunnen worden door een snelheidsbegrenzer.'
++       Licht teruggeven aan een BEZETTE, DONKERE kamer hoort in die categorie.
++       GEEN NIEUW KLAPPERRISICO: de enige snelle uit-paden zijn de afwezigheidstak (eist
++       bezet 10 min off ÉN ruwe PIR off ÉN eigenaarschap) en de felklep (eist 15 min
++       aanhoudend >1500 lux). Een ongelimiteerde aan-tak kan tegen geen van beide pingpongen.
++
++    3. RUWE-PIR-GRENDEL OP DE AFWEZIGHEIDSTAKKEN. Die eisen nu óók dat de ruwe PIR 'off' is.
++       Natuurkundige onderbouwing: staat de ruwe PIR nú aan, dan IS er iemand, wat de
++       gedempte template ook zegt. GEEN nieuw 'stuck-on' risico: kantoor_bezet is uit
++       diezelfde PIR afgeleid, dus een blijvend hoge PIR zet bezet al op 'on' en blokkeert
++       de afwezigheidstak vandaag al.
++
++    4. EIGENAARSCHAP-VLAG input_boolean.kantoor_lamp_door_automatisering, dezelfde inversie
++       als kantoor_screen_auto_dicht bij het screen.
++         AAN  = deze automation heeft de lamp aangedaan en mag hem dus ook uitdoen.
++         UIT  = de lamp is uit, óf iemand anders heeft hem aangedaan → afblijven.
++       De vlag wordt gezet VÓÓR de eigen light.turn_on (volgorde is functioneel: anders
++       bestaat er een venster waarin de eigen actie er extern uitziet). Een aparte kleine
++       automation 'Kantoor Lamp Eigenaarschap' wist de vlag zodra de lamp 10 s onafgebroken
++       uit is — die 10 s is er tegen het Hue-groepsartefact dat hierboven is beschreven
++       (de groep meldt zichzelf midden in een fade van 5 s heel even opnieuw als 'on').
++
++    5. DE VLAG REMT ALLEEN DE UIT-BESLISSING. Bewuste beperking. De helderheidsregeling
++       loopt gewoon door op een met de hand aangezette lamp, want adaptief dimmen is juist
++       de functie die de gebruiker wil; zou de vlag ook dat blokkeren, dan legt één
++       handmatige druk op de knop de regeling de hele dag stil. De felklep negeert de vlag
++       eveneens: die eist 15 minuten aanhoudend fel licht en kan dus onmogelijk seconden na
++       een menselijke handeling vuren — en dát was de klacht.
++
++    6. DOORLOOPGEDRAG, EXPLICIET. Nieuwe trigger 'pir_uit' (ruwe PIR 3 min off) zodat de
++       afwezigheidstak niet op de tick van /10 hoeft te wachten.
++         Kort bezoek (<45 s, bezet latcht nooit): lamp ~1 s aan, ~3,5-4 min later uit.
++           Dat is de aanvaarde prijs van onmiddellijk licht en veel beter dan de tot 10
++           minuten die een pure /10 tick zou geven.
++         Langer bezoek (>=45 s, bezet latcht wél): bezet houdt 15 min vast plus 10 min
++           dwell, dus lamp ~25 min na vertrek uit. DAT IS BESTAAND GEDRAG van de gedeelde
++           gedempte sensor en is hier NIET veranderd (delay_off is gedeeld met klimaat).
++
++    7. De aan-tak gebruikt transition 1 in plaats van 5. 'Bijna direct' hoort ook visueel
++       direct te zijn; bijstellen en uitschakelen houden transition 5.
++
++    AFBREEKCRITERIUM VERVANGEN. Het oude luidde '>=15 min bezet onder 400 lux met de lamp
++    uit'. Dat kon STRUCTUREEL NOOIT VUREN: de enige periodieke trigger is time_pattern /10,
++    dus de maximaal waarneembare blootstelling tussen twee evaluaties is ~9,5 min. Het nieuwe
++    criterium meet de tijd-tot-herstel: als na een PIR-flank off->on met de lamp uit en
++    ambient<1200 de lamp niet binnen 30 s aan staat, is dit fout.
++
++    D4. DE REGELAAR OVERRULEDE OOK EEN HANDMATIGE UIT-ACTIE — ONTDEKT TIJDENS DEZE WIJZIGING,
++        NIET GEMELD IN DE OPDRACHT. Waargenomen op 2026-09-09:
++          22:25:17  lamp UIT (met de hand; de gebruiker zat op dat moment in het kantoor,
++                    binary_sensor.kantoor_bezet stond onafgebroken 'on' sinds 21:15:41)
++          ~22:29    automation.kantoor_adaptieve_verlichting werd UITGEZET
++        Om 22:31 was de live toestand: bezet=on, lamp=off, ambient=0, doel=100%,
++        mag_sturen=True. Met de automation aan zou de lamp bij de eerstvolgende trigger dus
++        op 100% zijn gesprongen, boven op iemand die het licht net bewust had uitgedaan.
++        De meest waarschijnlijke lezing is dat de gebruiker de automation daarom heeft
++        uitgezet. Hard te bewijzen is dat niet: recorder.exclude bevat het hele domein
++        'automation', dus er is geen historie van deze entiteit.
++
++        BELANGRIJK: de hierboven beschreven hoisting maakt dit ERGER, niet beter. Vóór deze
++        wijziging ving de 300 s grendel de terugschakeling nog op (sinds_cmd was 283 s op de
++        tick van 22:30, dus GESMOORD tot 22:40). Met de aan-tak boven de grendel zou de lamp
++        binnen ~1 s terugkomen, en óók nog op elke PIR-flank. Een reparatie van de aan-kant
++        die de uit-kant stukmaakt is geen reparatie.
++
++    DAAROM IS HET EIGENAARSCHAP SYMMETRISCH GEMAAKT. Tweede vlag:
++    input_boolean.kantoor_lamp_handmatig_uit = 'iemand heeft deze lamp met de hand
++    uitgedaan tijdens deze aanwezigheidssessie — niet opnieuw aandoen.'
++
++      ZETTEN: de regelaar wist zijn eigen eigenaarschapsvlag VLAK VOOR elk eigen
++        light.turn_off (afwezigheidstak én felklep). Gaat de lamp daarna uit terwijl de
++        eigenaarschapsvlag NOG STEEDS aan staat, dan heeft de regelaar die uit-actie dus
++        niet gegeven en was het iemand anders -> handmatig_uit gaat aan.
++        Dit is dezelfde inversie als de aan-kant, alleen omgekeerd, en hij vraagt geen
++        enkele kennis van HA-context of user_id (een Hue-wandschakelaar of de Hue-app
++        levert helemaal geen HA-context, dus daar kun je niet op bouwen).
++      WISSEN: zodra het kantoor 10 minuten onafgebroken leeg is. Dat is de natuurlijke
++        grens van een aanwezigheidssessie: wie weggaat en terugkomt, krijgt gewoon weer
++        licht. Wie blijft zitten, houdt zijn donkere kamer.
++
++    MOOIE BIJVANGST: automation 1734200001009 'Kantoor Einde Werkdag - Lichten Uit' doet het
++    licht uit als het werkstation na 17:00 vijf minuten offline is. Die uit-actie komt niet
++    van de regelaar, dus hij zet nu handmatig_uit aan en de regelaar laat het licht uit —
++    ook als de gebruiker nog door de kamer loopt. Zonder deze vlag zou de ruwe PIR dat
++    einde-werkdag-commando binnen een seconde ongedaan hebben gemaakt.
+   triggers:
+   - trigger: state
+     entity_id: sensor.kantoor_lux_gedempt
+     id: lux
+   - trigger: state
++    entity_id: binary_sensor.multisensor_motion_detection
++    to: 'on'
++    id: pir
++  - trigger: state
++    entity_id: binary_sensor.multisensor_motion_detection
++    to: 'off'
++    for:
++      hours: 0
++      minutes: 3
++      seconds: 0
++    id: pir_uit
++  - trigger: state
+     entity_id: binary_sensor.kantoor_bezet
+     to: 'on'
+     id: bezet_aan
+@@ -717,6 +847,9 @@
+       sinds_cmd: '{% if states.light.kantoor %}{{ (as_timestamp(now()) - as_timestamp(states.light.kantoor.last_updated))
+         | int(9999) }}{% else %}9999{% endif %}'
+       mag_sturen: '{{ sinds_cmd | int(9999) >= min_interval }}'
++      pir_aan: '{{ is_state(''binary_sensor.multisensor_motion_detection'',''on'') }}'
++      auto_eigenaar: '{{ is_state(''input_boolean.kantoor_lamp_door_automatisering'',''on'') }}'
++      handmatig_uit: '{{ is_state(''input_boolean.kantoor_lamp_handmatig_uit'',''on'') }}'
+   - choose:
+     - alias: Lichtsensor onbruikbaar - bewust niets doen
+       conditions:
+@@ -724,19 +857,60 @@
+         value_template: '{{ lux < 0 }}'
+       sequence:
+       - stop: Gedempte lux unknown/unavailable - niets doen
+-    - alias: Kantoor 10 min onbezet - lamp uit
++    - alias: Aanwezig en de lamp is uit - onmiddellijk aan (STAAT BEWUST BOVEN DE GRENDEL)
++      conditions:
++      - condition: or
++        conditions:
++        - condition: state
++          entity_id: binary_sensor.multisensor_motion_detection
++          state: 'on'
++        - condition: state
++          entity_id: binary_sensor.kantoor_bezet
++          state: 'on'
++      - condition: state
++        entity_id: light.kantoor
++        state: 'off'
++      - condition: template
++        value_template: '{{ ambient < fel_terug }}'
++      - condition: template
++        value_template: '{{ not handmatig_uit }}'
++      sequence:
++      - action: input_boolean.turn_on
++        target:
++          entity_id: input_boolean.kantoor_lamp_door_automatisering
++      - action: light.turn_on
++        target:
++          entity_id: light.kantoor
++        data:
++          brightness_pct: '{{ target }}'
++          transition: 1
++      - action: logbook.log
++        data:
++          name: Kantoor Adaptief
++          message: aan op {{ target }}% (trigger {{ trigger.id | default('?') }}, ambient {{ ambient }}
++            lux, pir {{ pir_aan }}, sinds_cmd {{ sinds_cmd }} s)
++          entity_id: light.kantoor
++    - alias: Kantoor 10 min onbezet, PIR stil en de lamp is van ons - lamp uit
+       conditions:
+       - condition: state
+         entity_id: binary_sensor.kantoor_bezet
+         state: 'off'
+         for:
+           minutes: 10
++      - condition: state
++        entity_id: binary_sensor.multisensor_motion_detection
++        state: 'off'
++      - condition: template
++        value_template: '{{ auto_eigenaar }}'
+       sequence:
+       - if:
+         - condition: state
+           entity_id: light.kantoor
+           state: 'on'
+         then:
++        - action: input_boolean.turn_off
++          target:
++            entity_id: input_boolean.kantoor_lamp_door_automatisering
+         - action: light.turn_off
+           target:
+             entity_id: light.kantoor
+@@ -748,13 +922,48 @@
+             message: uit wegens afwezigheid (trigger {{ trigger.id | default('?') }}, ambient {{ ambient
+               }})
+             entity_id: light.kantoor
+-    - alias: Kantoor onbezet maar dwell nog niet verstreken - niets doen
++    - alias: Onbezet of de lamp is niet van ons - met rust laten
+       conditions:
+       - condition: state
+         entity_id: binary_sensor.kantoor_bezet
+         state: 'off'
++      - condition: state
++        entity_id: binary_sensor.multisensor_motion_detection
++        state: 'off'
+       sequence:
+-      - stop: Onbezet maar binnen de 10 minuten dwell
++      - if:
++        - condition: template
++          value_template: '{{ is_state(''light.kantoor'',''on'') and not auto_eigenaar }}'
++        - condition: state
++          entity_id: binary_sensor.kantoor_bezet
++          state: 'off'
++          for:
++            minutes: 10
++        then:
++        - action: logbook.log
++          data:
++            name: Kantoor Adaptief
++            message: 'MET RUST GELATEN: kantoor is onbezet maar deze lamp is niet door de automatisering
++              aangezet, dus hij blijft branden (trigger {{ trigger.id | default(''?'') }})'
++            entity_id: light.kantoor
++      - if:
++        - condition: state
++          entity_id: binary_sensor.kantoor_bezet
++          state: 'off'
++          for:
++            minutes: 10
++        - condition: template
++          value_template: '{{ handmatig_uit }}'
++        then:
++        - action: input_boolean.turn_off
++          target:
++            entity_id: input_boolean.kantoor_lamp_handmatig_uit
++        - action: logbook.log
++          data:
++            name: Kantoor Adaptief
++            message: handmatig-uit vlag gewist - kantoor is 10 min leeg, nieuwe aanwezigheidssessie
++            entity_id: light.kantoor
++      - stop: Onbezet - binnen de dwell, of de lamp is niet van de automatisering
+     - alias: Aanhoudend fel daglicht - lamp echt uit (veiligheidsklep)
+       conditions:
+       - condition: trigger
+@@ -763,6 +972,9 @@
+         entity_id: light.kantoor
+         state: 'on'
+       sequence:
++      - action: input_boolean.turn_off
++        target:
++          entity_id: input_boolean.kantoor_lamp_door_automatisering
+       - action: light.turn_off
+         target:
+           entity_id: light.kantoor
+@@ -791,26 +1003,6 @@
+               {{ sinds_cmd }} s, ambient {{ ambient }} lux, br_now {{ br_now }}% -> doel {{ target }}%'
+             entity_id: light.kantoor
+       - stop: Minimum stuurinterval van 300 s nog niet verstreken
+-    - alias: Lamp uit en het is niet meer fel - aan op curvewaarde
+-      conditions:
+-      - condition: state
+-        entity_id: light.kantoor
+-        state: 'off'
+-      - condition: template
+-        value_template: '{{ ambient < fel_terug }}'
+-      sequence:
+-      - action: light.turn_on
+-        target:
+-          entity_id: light.kantoor
+-        data:
+-          brightness_pct: '{{ target }}'
+-          transition: 5
+-      - action: logbook.log
+-        data:
+-          name: Kantoor Adaptief
+-          message: aan op {{ target }}% (trigger {{ trigger.id | default('?') }}, ambient {{ ambient }}
+-            lux)
+-          entity_id: light.kantoor
+     - alias: Lamp aan en meer dan 15 punten van het doel - bijstellen
+       conditions:
+       - condition: state
+@@ -831,6 +1023,62 @@
+           message: bijgesteld {{ br_now }}% -> {{ target }}% (trigger {{ trigger.id | default('?') }},
+             ambient {{ ambient }} lux)
+           entity_id: light.kantoor
++  mode: single
++  max_exceeded: silent
++- id: '1757450000001'
++  alias: Kantoor Lamp Eigenaarschap
++  description: |-
++    Onderhoudt input_boolean.kantoor_lamp_door_automatisering, de eigenaarschap-vlag van
++    light.kantoor. Toegevoegd in chg-2026-09-09-008.
++
++    BETEKENIS VAN DE VLAG:
++      AAN  = 'Kantoor Adaptieve Verlichting' heeft de lamp zelf aangezet en mag hem dus ook
++             weer uitzetten bij afwezigheid.
++      UIT  = de lamp is uit, OF iemand anders heeft hem aangezet (Hue-app, wandschakelaar,
++             dashboard, een andere automation) -> de adaptieve automation laat hem met rust.
++
++    WAAROM DIT EEN APARTE AUTOMATION IS: de adaptieve automation draait mode:single. Zou je
++    deze light.kantoor-trigger daar toevoegen, dan zou een lopende run de eigen lampcommando's
++    laten vallen en zou de vlag scheef kunnen komen te staan. Los houden maakt het gedrag
++    onafhankelijk van de looptijd van de regelaar.
++
++    ZETTEN doet de regelaar zelf, VLAK VOOR zijn eigen light.turn_on. Die volgorde is
++    functioneel: zou hij de vlag erna zetten, dan bestaat er een kort venster waarin zijn
++    eigen actie er extern uitziet.
++
++    WISSEN gebeurt hier, en pas als de lamp 10 SECONDEN onafgebroken uit is. Die 10 s is geen
++    smaak maar een tegenmaatregel: de Hue-groep meldt zichzelf tijdens een fade van 5 s heel
++    even opnieuw als 'on' (waargenomen 08:32:40.711 uit -> 08:32:41.723 aan -> 08:32:55.678
++    uit). Zonder de hold zou zo'n artefact de vlag kunnen wissen terwijl de lamp juist
++    aanging, en dan zou de regelaar zijn eigen lamp nooit meer mogen uitzetten.
++  triggers:
++  - trigger: state
++    entity_id: light.kantoor
++    to: 'off'
++    for:
++      hours: 0
++      minutes: 0
++      seconds: 10
++    id: lamp_uit
++  conditions: []
++  actions:
++  - if:
++    - condition: state
++      entity_id: input_boolean.kantoor_lamp_door_automatisering
++      state: 'on'
++    then:
++    - action: input_boolean.turn_on
++      target:
++        entity_id: input_boolean.kantoor_lamp_handmatig_uit
++    - action: input_boolean.turn_off
++      target:
++        entity_id: input_boolean.kantoor_lamp_door_automatisering
++    - action: logbook.log
++      data:
++        name: Kantoor Adaptief
++        message: 'HANDMATIG UIT: de lamp ging uit zonder dat de regelaar dat commandeerde. Niet
++          opnieuw aandoen tot het kantoor 10 min leeg is geweest.'
++        entity_id: light.kantoor
+   mode: single
+   max_exceeded: silent
+ - id: '1734200001009'

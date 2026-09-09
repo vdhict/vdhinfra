@@ -1,0 +1,51 @@
+chg-2026-09-09-008 — independent verification of the reported defects
+Hestia, 2026-09-09. All times LOCAL (CEST = UTC+2). Atlas quoted UTC.
+
+D1/D2 — THE 20:39 INCIDENT (recorder history, light.kantoor + presence)
+  20:39:45.752142  binary_sensor.multisensor_motion_detection  on    <- person enters
+  20:39:54.361845  light.kantoor                                on    <- MANUAL actor (+8.6 s)
+  20:40:01.452046  light.kantoor                                off   <- AUTOMATION (+7.09 s)
+  20:40:30.753249  binary_sensor.kantoor_bezet                  on    <- exactly 45.001 s after PIR
+  20:40:36.752980  binary_sensor.multisensor_motion_detection  off   <- 51 s PIR episode
+  20:44:13.158092  light.kantoor                                on    <- Atlas rescues by hand, 62%
+  20:55:36.754078  binary_sensor.kantoor_bezet                  off   <- exactly 15 min after PIR off
+
+  => Dark for 4 m 11 s while lux_gedempt = 197.
+  => AT THE MOMENT OF THE AUTO-OFF THE RAW PIR HAD BEEN 'on' FOR 15.70 SECONDS.
+     This is stronger than the brief stated. A raw-PIR guard on the absence branch
+     prevents this incident on its own, independent of the interlock fix.
+  => delay_on = 45.0 s and delay_off = 15 min confirmed empirically. NOT touched.
+  => Curve check: ambient 197 -> 100*(1-197/600)**1.2 = 62%. Atlas independently chose
+     62% by hand. The curve was already right; only the branch ORDER was wrong.
+
+D4 — NEW DEFECT, FOUND BY HESTIA, NOT IN THE BRIEF
+  22:25:17.220931  light.kantoor  off   <- by hand, user PRESENT
+                   (binary_sensor.kantoor_bezet continuously 'on' since 21:15:41)
+  ~22:26-22:29     automation.kantoor_adaptieve_verlichting turned OFF
+
+  Live template render at 22:31 (HA /api/template, zero side effects):
+     lux=0.0 br_now=0 ambient=0 TARGET=100% sinds_cmd=559s mag_sturen=True
+     bezet=on pir=off lamp=off
+  => With the automation enabled, the next trigger would have driven the lamp to 100%
+     on a user who had just deliberately switched it off.
+  => The hoisting requested in the brief makes this WORSE: before it, the 300 s interlock
+     still absorbed the relight (sinds_cmd was 283 s at the 22:30 tick -> GESMOORD until
+     22:40). With turn-on above the interlock it returns in ~1 s, and on every PIR edge.
+  => Fixed by making the ownership inversion SYMMETRIC (input_boolean.kantoor_lamp_handmatig_uit).
+
+WHO DISABLED THE AUTOMATION — CONTROLLED EXPERIMENT
+  recorder.exclude.domains includes 'automation', so there is NO history for this entity
+  and the 22:29:45 automation.reload overwrote its context. Attribution by timestamp alone
+  was therefore impossible. Tested instead by repeating the exact operation set:
+     snapshot 53 automation states -> kubectl cp -> homeassistant.check_config
+       -> automation.reload -> snapshot again
+     RESULT: diff = EMPTY. Zero automations changed enabled-state.
+  => My tooling is exonerated. The earlier flip had an external cause; the most consistent
+     reading is that the user disabled it himself right after switching the lamp off at
+     22:25:17 — i.e. D4 is not hypothetical, he was actively fighting it.
+
+STATE LEFT BEHIND
+  automation.kantoor_adaptieve_verlichting = off  (LEFT AS FOUND - deliberately not re-enabled)
+  automation.kantoor_lamp_eigenaarschap    = on
+  input_boolean.kantoor_lamp_door_automatisering = off
+  input_boolean.kantoor_lamp_handmatig_uit       = off

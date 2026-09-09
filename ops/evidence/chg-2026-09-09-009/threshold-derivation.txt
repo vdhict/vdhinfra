@@ -1,0 +1,47 @@
+chg-2026-09-09-009 - sizing the brandpad light_level threshold from the real distribution
+Hestia 2026-09-09. n=1769 samples, 08-30 22:18 .. 09-09 22:14 local, sensor.brandpad_licht attribute light_level.
+Hue mapping: lux = 10**((light_level-1)/10000), i.e. light_level is ALREADY a log10 scale.
+
+STEP 1 - the daylight floor. Lowest light_level ever seen with the sun above 10 deg:
+   1351 samples; five lowest = 17866 (61 lx), 19369 (86 lx), 20606 (115 lx), 20838 (121 lx), 21404 (138 lx)
+   => nothing below 17866 (61.2 lux) has EVER occurred in daylight in this window.
+
+STEP 2 - the arming requirement. Value at the evening crossing, per day, for a candidate T:
+   crossing light_level values: [14703, 14855, 15145, 15145, 15794, 15913, 16029, 16252, 16464, 16666]
+   => to catch dusk on the FIRST sample we must sit above ~15913.
+
+STEP 3 - the separating band is [15913, 17866]. Because light_level is log-scaled, the
+   arithmetic midpoint IS the geometric mean in lux:  T = (15913+17866)/2 = 16889.5
+   CHOSEN THRESHOLD  T = 16890   (= 48.9 lux)
+   margin to the darkest daylight sample ever: 17866/16890 -> 1.25x in lux (61.2 -> 48.9)
+
+STEP 4 - validation of T=16890 against the whole record:
+   sun above 10 deg (a dull afternoon)  1351 samples, 0 would fire
+   sun above 4 deg                      1511 samples, 5 would fire (max elev 5.6 deg)
+
+STEP 5 - arming time per evening, current threshold vs proposed:
+   date         NOW (light_level < 55)       PROPOSED (< 16890)
+   2026-08-30   never armed                  never armed
+   2026-08-31   21:01 (elev  -5.1)           20:36 (elev  -1.5)
+   2026-09-01   22:45 (elev -19.0)           20:33 (elev  -1.4)
+   2026-09-02   20:58 (elev  -5.5)           20:23 (elev  -0.3)
+   2026-09-03   21:23 (elev  -9.3)           20:22 (elev  -0.5)
+   2026-09-04   20:54 (elev  -5.5)           20:09 (elev  +1.2)
+   2026-09-05   23:46 (elev -26.3)           20:21 (elev  -1.0)
+   2026-09-06   23:01 (elev -22.5)           20:16 (elev  -0.6)
+   2026-09-07   20:43 (elev  -5.0)           20:13 (elev  -0.5)
+   2026-09-08   20:58 (elev  -7.5)           19:31 (elev  +5.6)
+   2026-09-09   22:14 (elev -18.2)           20:09 (elev  -0.6)
+
+   NOTE: on 4 of the 10 evenings the CURRENT threshold did not arm until after 22:00
+   (22:45, 23:46, 23:01, 22:14) - the path light was effectively dead for the whole
+   evening, not merely late. That is worse than the '~30 min after sunset' in the brief.
+
+STEP 6 - reporting cadence (the responsiveness floor):
+   most common gaps: [(299, 1546), (300, 82), (298, 29), (599, 12)]
+   => MEDIAN 299-300 s = 5 MINUTES, not the ~15 min assumed in the brief.
+   The long gaps (up to 10 h) are deep night, when light_level is pinned at 0 and the
+   state object stops changing, so the recorder writes no rows. Not a sensor dropout.
+   => NO device parameter change is needed or recommended. 5 min is adequate for a
+      threshold that now arms near sunset, and per chg-2026-09-09-003 a device
+      reconfiguration belongs in its own change anyway.

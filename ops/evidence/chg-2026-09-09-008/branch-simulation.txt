@@ -1,0 +1,15 @@
+    scenario                                                  branch chosen                                       meaning
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+[OK] D4 REGRESSION GUARD: user present, lamp switched off by hand(geen tak - automation doet niets)                  lamp stays off - CORRECT
+[OK]   counterfactual: same state WITHOUT the flag            Aanwezig en de lamp is uit - onmiddellijk aan (STAAT BEWUST BOVEN DE GRENDEL)would blast 100% - the bug
+[OK] D1/D2 THE 20:39 INCIDENT replayed (manual ON, PIR live)  Te kort na de vorige stuuractie - niets doen (anti-klapper grendel)lamp stays ON - fixed
+[OK]   same but flag says lamp IS ours                        Te kort na de vorige stuuractie - niets doen (anti-klapper grendel)PIR guard blocks absence-off
+[OK] HEADLINE near-instant: walks in, lamp off, interlock HOT 29sAanwezig en de lamp is uit - onmiddellijk aan (STAAT BEWUST BOVEN DE GRENDEL)turn-on beats the interlock
+[OK] absence-off still works (lamp ours, empty 12 min, PIR quiet)Kantoor 10 min onbezet, PIR stil en de lamp is van ons - lamp uitoff path intact
+[OK] absence-off must NOT fire on a lamp that is not ours     Onbezet of de lamp is niet van ons - met rust laten human's lamp survives
+[OK] session reset: empty 12 min clears handmatig_uit         Onbezet of de lamp is niet van ons - met rust laten flag cleared
+[OK] bright daylight, occupied, lamp off                      (geen tak - automation doet niets)                  stays off, fel hysteresis
+[OK] broken sensor must be caught FIRST                       Lichtsensor onbruikbaar - bewust niets doen         fail-safe
+[OK] fel valve still fires above the interlock                Aanhoudend fel daglicht - lamp echt uit (veiligheidsklep)valve not rate-limited
+
+ALL 11 SCENARIOS BEHAVE AS DESIGNED
