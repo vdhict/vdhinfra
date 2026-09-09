@@ -1,0 +1,50 @@
+BRANDPAD "gangpad lights don't come on any more" — DIAGNOSIS
+by Atlas, 2026-09-09. Conclusion: NOTHING IS BROKEN. The threshold is wrong.
+
+== THE AUTOMATION WORKS — proven end to end, not inferred ==
+automation.gangverlichting_brandpad (1736714303570), state on.
+Triggered with skip_condition:false (conditions ENFORCED) at 20:08:00.189Z:
+  20:08:01.308Z  light.brandpad ON at brightness 255 (100%)   = 1.1s response
+  20:13:01.349Z  light.brandpad OFF                            = exactly 5m00s
+  automation current=0 afterwards, clean completion.
+The whole chain — trigger, condition, turn_on, 5-min delay, turn_off — is intact.
+
+== THE SENSOR WORKS — no degradation ==
+binary_sensor.brandpad_beweging daily ON counts:
+  09-03: 19   09-04: 17   09-05: 16   09-06: 16   09-07: 12   09-08: 16   09-09: 10
+Steady. (09-09 is a partial day.) sensor.brandpad_licht ranged 0..42788 today,
+so the light sensor is alive and not stuck.
+
+== THE ACTUAL CAUSE: the condition is "darker than ~1 lux" ==
+condition: numeric_state, sensor.brandpad_licht, attribute light_level, below 55.
+
+Hue scale: light_level = 10000*log10(lux) + 1, so lux = 10^((level-1)/10000).
+  level    55  ->  ~1.01 lux   <- THE THRESHOLD. Near-total darkness.
+  level  7221  ->  ~5.3  lux
+  level 16464  ->  ~44   lux
+  level 42788  ->  ~19000 lux
+
+This evening (sunset 18:10:36Z = 20:10 local):
+  17:00:00Z (19:00)  32092
+  18:09:27Z (20:09)  16464    ~44 lux — sunset, still blocked
+  18:24:25Z (20:24)   7221    ~5 lux  — DARK TO A HUMAN, still blocked
+  18:39:24Z (20:39)      0    armed at last, 29 MIN AFTER SUNSET
+
+So anyone crossing the path at dusk gets no light. It looks dark to them and
+reads 7221 to the sensor. As evenings draw in this will feel increasingly
+broken while behaving exactly as written.
+
+Today's nine motion events were ALL in daylight — 08:17, 08:19, 08:30, 09:23,
+10:06, 15:59, 17:25, 17:25, 18:54 local — the last one 76 min before the
+automation could arm. That is why it had not fired today.
+
+== SECONDARY CONSTRAINT ==
+sensor.brandpad_licht reports only every ~15 min, so it stepped 7221 -> 0 with
+nothing between. There is no gradual arming; the threshold crossing is quantised
+to a quarter of an hour. Any new threshold inherits that floor.
+
+== NOT DONE DELIBERATELY ==
+No threshold was changed and no device parameter touched. Sizing handed to
+ha-engineer to derive from the real distribution, per the lesson from
+chg-2026-09-09-003 (a threshold fitted on the wrong instrument, and a device
+parameter changed inside an unrelated change).
