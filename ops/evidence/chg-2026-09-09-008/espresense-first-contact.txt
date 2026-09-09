@@ -1,0 +1,20 @@
+ESPRESENSE ONBOARDING - watching for first contact from the S25 Ultra
+started by Atlas 2026-09-09T15:47:21Z
+max_distance raised 3.0 -> 8.0 at 15:35Z so a pocketed phone is not clipped.
+Watching for: (a) sensor.galaxy_s25_ultra_ble_transmitter appearing in HA,
+              (b) any iBeacon device id showing up on the espresense MQTT tree.
+
+15:48:21Z *** BLE TRANSMITTER SENSOR APPEARED: sensor.galaxy_s25_ultra_ble_transmitter=Stopped
+  attributes: {"Advertise mode":"lowPower","Measured power":-59,"Supports transmitter":true,"Transmitting power":"ultraLow","id":"22dc918a-da19-4a00-b296-fd34c71e3877_100_40004","options":["Transmitting","Bluetooth is turned off","Stopped","Unable to transmit"],"device_class":"enum","icon":"mdi:bluetooth-off","friendly_name":"Galaxy S25 Ultra BLE transmitter"}
+watcher ended 2026-09-09T15:48:21Z
+
+=== ROUND 2: waiting for Transmit to be switched on ===
+beacon identity read from HA (no user transcription needed):
+  UUID  = 22dc918a-da19-4a00-b296-fd34c71e3877
+  major = 100   minor = 40004
+  expected espresense id = iBeacon:22dc918a-da19-4a00-b296-fd34c71e3877-100-40004
+NOTE: Transmitting power is ultraLow (user picked it over the suggested Low). Weakest setting.
+
+15:48:56Z *** TRANSMITTING ***
+state at exit: Transmitting
+watcher ended 2026-09-09T15:48:56Z
