@@ -1,0 +1,59 @@
+chg-2026-09-09-009 — test results. Hestia, 2026-09-09. Times LOCAL (CEST).
+
+T1  DEPLOYED VALUE READ BACK FROM HA (not from disk)  ................ PASS
+    GET /api/config/automation/config/1736714303570
+      conditions: [{"condition":"numeric_state","entity_id":"sensor.brandpad_licht",
+                    "attribute":"light_level","below":16890}]
+      triggers  : state binary_sensor.brandpad_beweging off->on   (unchanged)
+      actions   : light.turn_on, delay, light.turn_off            (unchanged)
+    Only the scalar moved. Machinery untouched, as scoped.
+
+T2  CONDITION BOUNDARY PROOF (HA /api/template)  ..................... PASS
+    light_level      0 =    0.00 lux -> arms=True
+    light_level     55 =    1.01 lux -> arms=True   (the OLD threshold)
+    light_level  14703 =   29.53 lux -> arms=True
+    light_level  15913 =   39.01 lux -> arms=True   <- highest evening crossing we must catch
+    light_level  16889 =   48.84 lux -> arms=True
+    light_level  16890 =   48.85 lux -> arms=False  <- boundary; 'below' is strict
+    light_level  17866 =   61.16 lux -> arms=False  <- darkest daylight reading ever recorded
+    light_level  20000 =   99.98 lux -> arms=False
+    light_level  33000 = 1994.80 lux -> arms=False
+    Comparison direction correct; every one of the 10 observed evening crossings arms;
+    the empirical daylight floor does not.
+
+T3  LIVE END-TO-END, ONE SHOT, REAL CONDITION ENFORCED  .............. PASS
+    automation.trigger with skip_condition=false, so the real numeric_state condition was
+    evaluated against the real sensor with the new threshold in place.
+      22:42:19.572103  automation.gangverlichting_brandpad last_triggered
+      22:42:20.802027  light.brandpad -> on
+      => 1.23 s end to end.
+    Triggered ONCE only, per the brief's instruction not to light the path repeatedly.
+    (An unrelated real motion event had already lit and released the path earlier the same
+     evening: light.brandpad off at 22:32:36 after its own 5-minute delay.)
+
+T5  ISOLATION  ....................................................... PASS
+    Structural diff over all 53 automations: exactly 1 changed (1736714303570), 0 added,
+    0 removed. md5 chain f44f762eddf658459c04dd722073bb9d -> c0b71760cacf2c8555a0ad31d25e5c89,
+    and the pre-write hash matched expectation, so no concurrent writer.
+
+T4  THE DECISIVE DUSK TEST  .......................................... NOT YET RUN
+    HONEST LIMITATION, STATED RATHER THAN PAPERED OVER: tonight light_level is 0, which is
+    below BOTH the old (55) and the new (16890) threshold. Tonight therefore CANNOT
+    distinguish them. T3 proves the machinery and the deployment; it does not prove the
+    band. The band is supported by T2 plus the 10-day historical analysis, which is
+    evidence but not a live end-to-end test.
+
+    The test that actually proves the change is a walk on the brandpad at dusk tomorrow
+    (2026-09-10) between roughly 20:05 and 20:35 local, while light_level sits in the
+    55..16890 band. Sunset 2026-09-10 is 20:08 local.
+
+    NO USER ACTION IS REQUIRED: this can be verified from recorder history the following
+    morning by checking for a binary_sensor.brandpad_beweging off->on event in that window
+    and whether light.brandpad followed within ~2 s. Recommend the change stay OPEN until
+    that observation exists.
+
+T3b CYCLE COMPLETION (no residue left on the path)  .................. PASS
+      22:42:20.802027  light.brandpad -> on  (100%)
+      22:47:21.015223  light.brandpad -> off
+    5 m 00.2 s, matching the automation's 5-minute delay exactly. The test lit the path
+    once and released it by itself.

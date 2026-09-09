@@ -1,0 +1,27 @@
+--- /Users/sheijden/Code/homelab-migration/vdhinfra/ops/evidence/chg-2026-09-09-009/automations.before	2026-09-09 22:41:38
++++ /Users/sheijden/Code/homelab-migration/vdhinfra/ops/evidence/chg-2026-09-09-009/automations.after	2026-09-09 22:45:08
+@@ -1297,7 +1297,23 @@
+   - condition: numeric_state
+     entity_id: sensor.brandpad_licht
+     attribute: light_level
+-    below: 55
++    # chg-2026-09-09-009: was 55. Hue light_level is a log10 scale
++    # (lux = 10**((light_level-1)/10000)), so 55 meant 1.01 LUX - near total darkness.
++    # Measured over 1769 samples / 10 days: with 55 the automation armed between 20:43 and
++    # 23:46, and on 4 of 10 evenings not until after 22:00 - the path light was dead for the
++    # whole evening, not merely late.
++    # 16890 = 48.9 lux, derived from the two empirical edges, not picked for roundness:
++    #   lowest light_level EVER seen with the sun above 10 deg .. 17866 (61.2 lux)
++    #   highest value we must still arm at (evening crossings) .. 15913
++    #   light_level is already log-scaled, so the midpoint of [15913,17866] is the
++    #   geometric mean in lux -> 16889.5 -> 16890.
++    # Validation: 0 of 1351 daylight samples (sun >10 deg) would fire. Arms 19:31-20:36,
++    # within ~10 min of sunset, on all 10 evenings.
++    # Deliberately NO sun-elevation condition: elevation is a proxy, illuminance is the
++    # thing we care about, and gating on elevation would refuse light during a black
++    # thunderstorm at 15:00. Elevation was the diagnostic used to size this number.
++    # Sensor cadence measured at 5 min (modal gap 299 s), NOT the 15 min previously assumed.
++    below: 16890
+   actions:
+   - action: light.turn_on
+     target:
