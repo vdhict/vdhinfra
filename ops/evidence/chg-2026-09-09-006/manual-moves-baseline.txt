@@ -1,0 +1,34 @@
+KANTOOR SCREEN — user-initiated moves, 2026-09-09
+captured by Atlas 15:30:17Z. The user flagged the 15:29 move himself, explicitly
+as a reference point.
+
+  05:00:00.080506Z  open    automation 1734200001010 (the miswired "Keuken" one), 07:00 local
+  11:48:12.421992Z  closed  USER, MANUAL, via the PHYSICAL REMOTE, 13:48 local
+  15:29:18.999539Z  open    USER, MANUAL, via HOME ASSISTANT, 17:29 local
+
+state at capture: open · event=09190645ba24e2050182 · assumed_state=true
+                  supported_features=11 · current_position=null
+
+WHAT THIS ESTABLISHES
+
+1. INTENT, in the user's own hands. He shaded at 13:48 local with the sun high and
+   azimuth ~203 deg (S/SSW), and un-shaded at 17:29 local with elevation ~24 deg.
+   That is a direct statement of when he wants the screen down and when he does not.
+   ⚠️ ONE DAY, TWO EVENTS. Useful as a constraint, not sufficient as a facade model.
+
+2. THE PHYSICAL REMOTE IS VISIBLE TO HA. The 11:48 close came from the remote and HA
+   recorded it, with the `event` attribute updating. Manual-intervention detection is
+   therefore feasible on this cover, which makes a genuine override design possible.
+
+3. ⚠️ BUT `event` CHANGES ON BOTH PATHS — HA's own commands and the remote's alike. An
+   override keyed on "event changed" would fire on the automation's own commands. Same
+   trap as the lamp's last_updated interlock (chg-2026-09-09-004), where a foreign write
+   could swallow the safety valve.
+   THE DISCRIMINATOR IS CONTEXT: an automation-originated service call carries
+   context.parent_id and a trigger; a manual or remote change has parent_id=null and
+   user_id=null. Themis used exactly this to prove the natural 08:30 run in
+   chg-2026-09-09-004. To be confirmed against these three events before any override
+   design relies on it.
+
+4. assumed_state=true does NOT mean HA is blind on cover.screen — it observes RF. That
+   reassurance does NOT transfer to cover.screen_2, which has never received an event.
