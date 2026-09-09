@@ -1,0 +1,169 @@
+{
+ "172.16.4.21": {
+  "set_result": {
+   "restart_required": true
+  },
+  "sta1_enable": false,
+  "sta1_ssid": "VDHFEMFLEX",
+  "sta_ssid": "VDHIOT",
+  "sta_enable": true,
+  "sta_is_open": false,
+  "ap_enable": false,
+  "cloud_enable": false,
+  "cfg_rev_pre": 24,
+  "cfg_rev_post": 25,
+  "roam": {
+   "rssi_thr": -80,
+   "interval": 60
+  },
+  "sta_ipv4mode": "dhcp"
+ },
+ "172.16.4.22": {
+  "set_result": {
+   "restart_required": true
+  },
+  "sta1_enable": false,
+  "sta1_ssid": "VDHFEMFLEX",
+  "sta_ssid": "VDHIOT",
+  "sta_enable": true,
+  "sta_is_open": false,
+  "ap_enable": false,
+  "cloud_enable": false,
+  "cfg_rev_pre": 23,
+  "cfg_rev_post": 24,
+  "roam": {
+   "rssi_thr": -80,
+   "interval": 60
+  },
+  "sta_ipv4mode": "dhcp"
+ },
+ "172.16.4.23": {
+  "set_result": {
+   "restart_required": true
+  },
+  "sta1_enable": false,
+  "sta1_ssid": "VDHFEMFLEX",
+  "sta_ssid": "VDHIOT",
+  "sta_enable": true,
+  "sta_is_open": false,
+  "ap_enable": false,
+  "cloud_enable": false,
+  "cfg_rev_pre": 24,
+  "cfg_rev_post": 25,
+  "roam": {
+   "rssi_thr": -80,
+   "interval": 60
+  },
+  "sta_ipv4mode": "dhcp"
+ },
+ "172.16.4.24": {
+  "set_result": {
+   "restart_required": true
+  },
+  "sta1_enable": false,
+  "sta1_ssid": "VDHFEMFLEX",
+  "sta_ssid": "VDHIOT",
+  "sta_enable": true,
+  "sta_is_open": null,
+  "ap_enable": false,
+  "cloud_enable": false,
+  "cfg_rev_pre": 23,
+  "cfg_rev_post": 24,
+  "roam": {
+   "rssi_thr": -80,
+   "interval": 60
+  },
+  "sta_ipv4mode": null,
+  "note": "initial readback timed out (device slow ~4.7s); write had in fact applied; re-verified here"
+ },
+ "172.16.4.25": {
+  "set_result": {
+   "restart_required": true
+  },
+  "sta1_enable": false,
+  "sta1_ssid": "VDHFEMFLEX",
+  "sta_ssid": "VDHIOT",
+  "sta_enable": true,
+  "sta_is_open": false,
+  "ap_enable": false,
+  "cloud_enable": false,
+  "cfg_rev_pre": 20,
+  "cfg_rev_post": 21,
+  "roam": {
+   "rssi_thr": -80,
+   "interval": 60
+  }
+ },
+ "172.16.4.26": {
+  "set_result": {
+   "restart_required": true
+  },
+  "sta1_enable": false,
+  "sta1_ssid": "VDHFEMFLEX",
+  "sta_ssid": "VDHIOT",
+  "sta_enable": true,
+  "sta_is_open": false,
+  "ap_enable": false,
+  "cloud_enable": false,
+  "cfg_rev_pre": 22,
+  "cfg_rev_post": 23,
+  "roam": {
+   "rssi_thr": -80,
+   "interval": 60
+  }
+ },
+ "172.16.4.27": {
+  "set_result": {
+   "restart_required": true
+  },
+  "sta1_enable": false,
+  "sta1_ssid": "VDHFEMFLEX",
+  "sta_ssid": "VDHIOT",
+  "sta_enable": true,
+  "sta_is_open": false,
+  "ap_enable": false,
+  "cloud_enable": false,
+  "cfg_rev_pre": 23,
+  "cfg_rev_post": 24,
+  "roam": {
+   "rssi_thr": -80,
+   "interval": 60
+  }
+ },
+ "172.16.4.28": {
+  "set_result": {
+   "restart_required": true
+  },
+  "sta1_enable": false,
+  "sta1_ssid": "VDHFEMFLEX",
+  "sta_ssid": "VDHIOT",
+  "sta_enable": true,
+  "sta_is_open": false,
+  "ap_enable": false,
+  "cloud_enable": false,
+  "cfg_rev_pre": 24,
+  "cfg_rev_post": 25,
+  "roam": {
+   "rssi_thr": -80,
+   "interval": 60
+  }
+ },
+ "172.16.4.29": {
+  "set_result": {
+   "restart_required": true
+  },
+  "sta1_enable": false,
+  "sta1_ssid": "VDHFEMFLEX",
+  "sta_ssid": "VDHIOT",
+  "sta_enable": true,
+  "sta_is_open": false,
+  "ap_enable": false,
+  "cloud_enable": false,
+  "cfg_rev_pre": 24,
+  "cfg_rev_post": 25,
+  "roam": {
+   "rssi_thr": -80,
+   "interval": 60
+  }
+ }
+}

@@ -1,0 +1,53 @@
+NOTICE TO THEMIS — sensor.multisensor_illuminance cadence was altered MID-QA
+Written by: Hestia (ha-engineer)     2026-09-09T13:03Z
+Re: chg-2026-09-09-003 (Kantoor Fibaro param 40/42), which touches an INPUT to the
+automation you are currently QA-ing.
+
+Deliberately filed as an evidence FILE and not as an ops event: `ops change event`
+sets status = <event name> unconditionally (ops/ops line 158), so posting a note to
+chg-2026-09-08-003 would have overwritten your qa_failed status. Flagged to Atlas
+as an ops tooling gap.
+
+WHAT HAPPENED
+  12:57:30Z  I queued param 40: 200 -> 50 lux and param 42: 3600 -> 600 s on
+             device d51c68cc84d57a7924e665c9ab4ff991 (node 24, area kantoor).
+  12:59:43Z  Both LANDED on the device (confirmed by read-back, not by the
+             service call succeeding).
+  13:00:22Z  Atlas issued a STOP on the strength of your findings. Revert to
+             200 / 3600 queued immediately.
+  ~15:00Z    Revert expected to land. The node is a sleeping battery device with a
+             measured wake interval of ~7250 s; it woke at 12:59:16Z and slept at
+             12:59:19Z, so the queue cannot flush again until the next wake.
+
+WHAT THIS MEANS FOR YOUR REVIEW
+  There is a CONTAMINATED WINDOW in the sensor.multisensor_illuminance stream:
+
+      2026-09-09T12:59:43Z  ..  approximately 2026-09-09T15:00Z
+
+  Inside that window the sensor reports on a 50-lux delta and a 600-second
+  heartbeat instead of 200 lux / 3600 s. Any replay, cadence census or
+  hunting-frequency count you run across that window will see an artificially
+  elevated report rate that is MY DOING and is not representative of the
+  configuration the automation was shipped against.
+
+  Everything BEFORE 12:59:43Z is clean and reflects 200 / 3600. Your 184-reports-
+  in-13-hours census and your 17-service-calls-in-4.9-hours replay both predate the
+  write, so they are UNAFFECTED and your qa_failed conclusion stands on clean data.
+
+  Recommendation: exclude 12:59:43Z-15:00Z from any further measurement, or re-run
+  after the revert read-back confirms 200 / 3600.
+
+WHAT WAS *NOT* TOUCHED
+  No /config file was written. automations.yaml is byte-unchanged. Automation
+  1734200001012 is unmodified and still enabled. No HA restart, no reload.
+  The only change anywhere was two integers on the Z-Wave node, now being reverted.
+
+YOUR FINDING IS ACCEPTED
+  I re-verified the hunting myself from the light.kantoor logbook rather than
+  taking it on trust: 9 on/off transitions between 08:13:38Z and 11:48:33Z today.
+  Confirmed. My premise for chg-2026-09-09-003 was wrong — my original 20-sample
+  census landed on two calm overcast days (09-07/09-08 ran at ~1 report/hour, the
+  pure heartbeat) and I generalised it to all weather. On bright variable days
+  daylight itself swings 400-2839 lux and breaches the 200-lux delta constantly.
+  My stability proof modelled self-feedback only and was therefore answering the
+  wrong question; the loop is driven by INPUT NOISE crossing the 600-lux clamp.
