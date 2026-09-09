@@ -1,0 +1,17 @@
+Occupied minutes in window: 261
+MAE = mean |simulated - ideal| brightness, occupied minutes only.
+dark&unlit = occupied minutes where it was genuinely dim (<400 lux) but lamp OFF  <-- user complains
+
+OLD (shipped)                      calls=17   MAE=  7.1 pts  dark&unlit=  0 min  bright&lit=  2 min  travel=394
+NEW W=600 DEAD=10 MININT=300       calls=10   MAE= 13.1 pts  dark&unlit= 32 min  bright&lit=  5 min  travel=213
+NEW W=600 DEAD=20 MININT=300       calls=8    MAE= 13.2 pts  dark&unlit= 32 min  bright&lit=  5 min  travel=194
+NEW W=600 DEAD=30 MININT=300       calls=7    MAE= 13.4 pts  dark&unlit= 32 min  bright&lit=  5 min  travel=166
+NEW W=900 DEAD=10 MININT=300       calls=5    MAE= 14.3 pts  dark&unlit= 49 min  bright&lit=  0 min  travel=73
+NEW W=900 DEAD=20 MININT=300       calls=4    MAE= 14.9 pts  dark&unlit= 49 min  bright&lit=  0 min  travel=74
+NEW W=900 DEAD=30 MININT=300       calls=4    MAE= 14.9 pts  dark&unlit= 49 min  bright&lit=  0 min  travel=74
+NEW W=1200 DEAD=10 MININT=300      calls=5    MAE= 14.3 pts  dark&unlit= 49 min  bright&lit=  0 min  travel=72
+NEW W=1200 DEAD=20 MININT=300      calls=4    MAE= 14.8 pts  dark&unlit= 49 min  bright&lit=  0 min  travel=72
+NEW W=1200 DEAD=30 MININT=300      calls=4    MAE= 14.8 pts  dark&unlit= 49 min  bright&lit=  0 min  travel=72
+NEW W=1800 DEAD=10 MININT=300      calls=1    MAE= 18.6 pts  dark&unlit= 65 min  bright&lit=  0 min  travel=0
+NEW W=1800 DEAD=20 MININT=300      calls=1    MAE= 18.6 pts  dark&unlit= 65 min  bright&lit=  0 min  travel=0
+NEW W=1800 DEAD=30 MININT=300      calls=1    MAE= 18.6 pts  dark&unlit= 65 min  bright&lit=  0 min  travel=0

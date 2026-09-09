@@ -1,0 +1,43 @@
+TRUE AMBIENT (lamp contribution removed, 15-min centred mean) during OCCUPIED minutes
+This is the signal an ideal controller is trying to follow.
+
+ time   ambient  ideal_state
+  08:00     850   OFF     
+  08:10     764   OFF     
+  08:17     595   on 10%     <=== genuine transition
+  08:20     544   on 10%  
+  08:27     616   OFF        <=== genuine transition
+  08:30     688   OFF     
+  08:40    1325   OFF     
+  08:50    1366   OFF     
+  09:00     812   OFF     
+  09:10     901   OFF     
+  09:20     966   OFF     
+  09:30     622   OFF     
+  09:31     590   on 10%     <=== genuine transition
+  09:40     363   on 33%  
+  09:50     312   on 41%  
+  10:00     165   on 68%  
+  10:46     656   OFF        <=== genuine transition
+  10:50    1181   OFF     
+  11:00    1499   OFF     
+  11:10     626   OFF     
+  11:11     593   on 10%     <=== genuine transition
+  11:20     450   on 19%  
+  11:22     690   OFF        <=== genuine transition
+  11:30    1406   OFF     
+  11:40    1555   OFF     
+  11:50     868   OFF     
+  11:53     489   on 13%     <=== genuine transition
+  12:00      75   on 85%  
+  12:10      94   on 82%  
+  12:20     128   on 75%  
+  12:30     100   on 80%  
+  12:40     183   on 65%  
+  12:50     249   on 52%  
+
+IDEAL on/off transitions during occupancy: 7
+OLD (shipped) actual transitions: 9  -> excess = 2
+
+ambient range during occupancy: 75 .. 1618 lux
+fraction of occupied time genuinely below 600 lux (lamp SHOULD be on): 48%

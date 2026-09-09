@@ -1,0 +1,18 @@
+LUX STREAM 2026-09-09 00:00 -> 12:59:43Z (clean, pre-param-change)
+numeric samples: 183
+
+CONSECUTIVE |delta lux|: n=182 min=0 p50=440 p90=801 max=1504
+CONSECUTIVE gaps(s):     p50=17 p90=462 max=3639
+
+DAYLIGHT 07:00-13:00 only: n=172  |delta| p50=443 p90=809 max=1504
+  lux range 155 .. 2839
+  peak-to-peak within   60s window: p50=950 p90=1362 max=1607 (n=82)
+  peak-to-peak within  300s window: p50=1401 p90=1767 max=2172 (n=141)
+  peak-to-peak within  600s window: p50=1616 p90=2153 max=2260 (n=150)
+  peak-to-peak within  900s window: p50=1721 p90=2172 max=2387 (n=159)
+
+GATE CROSSINGS on RAW lux, daylight window:
+  off>= 600 / on< 550 : 12 crossings
+  off>= 700 / on< 500 : 10 crossings
+  off>= 900 / on< 450 :  6 crossings
+  off>=1000 / on< 400 :  6 crossings

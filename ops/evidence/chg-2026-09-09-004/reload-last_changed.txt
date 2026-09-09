@@ -5,3 +5,6 @@ automation.verlichting_schuur                  on   last_changed=2026-09-08T15:1
 automation.kantoor_adaptieve_verlichting       off  last_changed=2026-09-09T15:02:28.048150+00:00
 automation.kantoor_ochtend_klimaat             on   last_changed=2026-09-07T14:34:41.496104+00:00
 automation.verlichting_schuur                  on   last_changed=2026-09-08T15:14:28.597617+00:00
+reorder fix reload
+BEFORE target: off 2026-09-09T15:02:28.048150+00:00 control: 2026-09-08T15:14:28.597617+00:00
+AFTER  target: off 2026-09-09T15:17:17.139085+00:00 control: 2026-09-08T15:14:28.597617+00:00

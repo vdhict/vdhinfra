@@ -1,0 +1,9 @@
+BLE TRANSMIT POWER: ultraLow -> Low, before/after
+watcher started by Atlas 2026-09-09T15:57:02Z
+
+BEFORE (ultraLow), 30s sample at 16:0xZ:
+  distance 3.03-3.91 m (mean 3.42) | rssi -75 to -72 dBm | var 0.00-0.97
+
+15:57:02Z *** TX POWER CHANGED: ultraLow -> low ***
+final tx power: low
+watcher ended 2026-09-09T15:57:02Z

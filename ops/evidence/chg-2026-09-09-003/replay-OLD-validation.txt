@@ -1,0 +1,36 @@
+REPLAY OF THE SHIPPED (OLD) LOGIC vs REALITY — 2026-09-09 00:00-12:59:43Z
+
+predicted service calls: 17   predicted on/off transitions: 9
+
+predicted transitions          | real logbook transitions
+----------------------------------------------------------------
+  08:13:36 on                  | 08:13:38 on         delta=1.3s
+  08:32:39 off                 | 08:32:40 off        delta=1.2s
+  09:31:05 on                  | 08:32:41 on          <-- MISMATCH
+  10:02:28 off                 | 08:32:55 off         <-- MISMATCH
+  10:41:05 on                  | 09:31:06 on          <-- MISMATCH
+  10:50:00 off                 | 10:02:29 off         <-- MISMATCH
+  11:11:23 on                  | 10:41:06 on          <-- MISMATCH
+  11:25:44 off                 | 10:50:01 off         <-- MISMATCH
+  11:48:32 on                  | 11:11:24 on          <-- MISMATCH
+                               | 11:25:45 off      
+                               | 11:48:33 on       
+
+all predicted service calls (time, action, brightness_pct, trigger):
+   08:13:36  on    10%  (lux)
+   08:32:39  off    -%  (lux)
+   09:31:05  on    28%  (lux)
+   09:54:41  on    68%  (lux)
+   10:02:28  off    -%  (bezet)
+   10:41:05  on    16%  (bezet)
+   10:50:00  off    -%  (lux)
+   11:11:23  on    19%  (lux)
+   11:14:58  on    56%  (lux)
+   11:21:29  on    18%  (lux)
+   11:25:44  off    -%  (lux)
+   11:48:32  on    31%  (lux)
+   11:50:06  on    73%  (lux)
+   12:16:44  on    35%  (lux)
+   12:18:54  on    70%  (lux)
+   12:43:26  on    27%  (lux)
+   12:49:42  on    62%  (lux)

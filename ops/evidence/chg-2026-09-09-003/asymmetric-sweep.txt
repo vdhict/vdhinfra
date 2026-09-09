@@ -1,0 +1,24 @@
+OLD (shipped)                                  calls=17  MAE=  7.1 dark&unlit=  0 bright&lit=  2 travel=394
+
+NEW W=600 OFF>=700 dwell_off=600 dwell_on=0    calls=15  MAE= 11.5 dark&unlit= 12 bright&lit=  4 travel=225
+NEW W=600 OFF>=800 dwell_off=600 dwell_on=0    calls=13  MAE= 11.5 dark&unlit= 12 bright&lit=  4 travel=225
+NEW W=600 OFF>=700 dwell_off=600 dwell_on=120  calls=12  MAE= 14.7 dark&unlit= 32 bright&lit=  5 travel=217
+NEW W=600 OFF>=800 dwell_off=600 dwell_on=120  calls=10  MAE= 14.7 dark&unlit= 32 bright&lit=  5 travel=217
+NEW W=600 OFF>=700 dwell_off=900 dwell_on=0    calls=13  MAE= 12.3 dark&unlit= 12 bright&lit=  4 travel=225
+NEW W=600 OFF>=800 dwell_off=900 dwell_on=0    calls=13  MAE= 12.3 dark&unlit= 12 bright&lit=  4 travel=225
+NEW W=600 OFF>=700 dwell_off=900 dwell_on=120  calls=10  MAE= 14.9 dark&unlit= 32 bright&lit=  5 travel=217
+NEW W=600 OFF>=800 dwell_off=900 dwell_on=120  calls=10  MAE= 14.9 dark&unlit= 32 bright&lit=  5 travel=217
+NEW W=900 OFF>=700 dwell_off=600 dwell_on=0    calls=16  MAE= 13.7 dark&unlit= 12 bright&lit=  5 travel=245
+NEW W=900 OFF>=800 dwell_off=600 dwell_on=0    calls=16  MAE= 13.8 dark&unlit= 12 bright&lit=  5 travel=245
+NEW W=900 OFF>=700 dwell_off=600 dwell_on=120  calls=11  MAE= 13.6 dark&unlit= 32 bright&lit=  5 travel=191
+NEW W=900 OFF>=800 dwell_off=600 dwell_on=120  calls=11  MAE= 13.7 dark&unlit= 32 bright&lit=  5 travel=191
+NEW W=900 OFF>=700 dwell_off=900 dwell_on=0    calls=16  MAE= 14.0 dark&unlit= 12 bright&lit=  5 travel=245
+NEW W=900 OFF>=800 dwell_off=900 dwell_on=0    calls=16  MAE= 14.0 dark&unlit= 12 bright&lit=  5 travel=245
+NEW W=900 OFF>=700 dwell_off=900 dwell_on=120  calls=11  MAE= 13.8 dark&unlit= 32 bright&lit=  5 travel=191
+NEW W=900 OFF>=800 dwell_off=900 dwell_on=120  calls=11  MAE= 13.9 dark&unlit= 32 bright&lit=  5 travel=191
+
+BEST (dark&unlit, MAE, calls):
+   dark&unlit=12 MAE=11.5 calls=13 -> W=600 OFF>=800 dwell_off=600 dwell_on=0
+   dark&unlit=12 MAE=11.5 calls=15 -> W=600 OFF>=700 dwell_off=600 dwell_on=0
+   dark&unlit=12 MAE=12.3 calls=13 -> W=600 OFF>=700 dwell_off=900 dwell_on=0
+   dark&unlit=12 MAE=12.3 calls=13 -> W=600 OFF>=800 dwell_off=900 dwell_on=0
