@@ -18,3 +18,5 @@ TIME       LAMP   BRIGHT  BEZET  DAMPED  NOTE
 15:51:17Z  on     117     on     288     
 15:56:17Z  on     117     on     315     
 16:01:18Z  on     69      on     562     CHANGED (gap 2401s)
+16:06:18Z  on     26      on     641     CHANGED (gap 300s)
+16:11:18Z  on     26      on     641     

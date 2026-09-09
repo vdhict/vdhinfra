@@ -1,0 +1,13 @@
+=== resolved variables ===
+dwell_s = None
+down_n = None
+down_text = None
+
+=== ACTUAL PAYLOAD SENT TO PHONE ===
+service: notify.mobile_app_galaxy_s25_ultra
+title: Shelly relais onbereikbaar (1/10)
+message:
+- Verlichting Schuur (172.16.4.20) - 0 s, wifi verbonden, maar HA krijgt geen verbinding
+
+Deze relais schakelen Sonos-netvoeding en de schuurverlichting. Ze zijn single-path (alleen VDHIOT, geen sta1, geen AP-fallback): staat er 'wifi NIET verbonden', dan is fysieke toegang tot het apparaat nodig.
+data: {"tag": "shelly_unavailable", "channel": "Shelly", "importance": "high", "priority": "high", "ttl": 0}

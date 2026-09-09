@@ -1,0 +1,188 @@
+- id: shelly_relais_onbereikbaar
+  alias: 'Shelly: relais onbereikbaar (single-path bewaking)'
+  description: 'Bewaakt de 10 Shelly 1PM Mini Gen3 relais (9x Sonos-netvoeding + Verlichting
+    Schuur). Sinds chg-2026-09-09-001 zijn alle 10 SINGLE-PATH: alleen sta=VDHIOT, sta1
+    uit, eigen AP uit. Een relais dat VDHIOT niet meer kan joinen heeft GEEN fallback en
+    GEEN rescue-AP meer en vereist FYSIEKE toegang. Zonder deze bewaking wordt zo''n uitval
+    pas opgemerkt als iemand hoort dat een kamer stil is - in chg-2026-09-08-001 duurde dat
+    4 dagen. Gekozen signaal is de switch-entiteit (platform shelly) en NIET de device_tracker
+    (platform unifi): de switch meet exact wat we willen weten, namelijk of HA de outbound
+    websocket naar de Shelly op TCP/80 nog heeft (devices zijn local_push, Ws.enable false),
+    terwijl de unifi-tracker alleen AP-associatie meet en dus zowel vals-negatief (wel
+    geassocieerd, toch onbereikbaar) als vals-positief (unifi-integratie down = 10 valse
+    meldingen) kan zijn. De tracker wordt wel als CONTEXT in het bericht gebruikt om te
+    onderscheiden of een fysieke gang naar het apparaat nodig is. Dwell 827 s is gemeten,
+    niet gekozen: 1196 goedaardige unavailable-episodes over 8 dagen (02-09 t/m 09-09) gaven
+    mediaan 1,5 s, p99 94 s, p99.9 186 s en max 392 s; 827 = 392 x (392/186) en levert 0
+    valse meldingen op die dataset (bij 300 s zou het er 1 zijn, bij 120 s negen). Ref
+    De namen in het bericht komen uit de LIVE friendly_name (de statische lijst is alleen fallback): de plugstickers klopten niet, switch.sonos_eetkamer en switch.sonos_keuken zijn in werkelijkheid de twee helften van het Keuken-stereopaar, en een hardgecodeerde naam zou iemand naar de verkeerde kamer sturen. Ref chg-2026-09-09-007, inc-2026-09-09-002.'
+  mode: single
+  max_exceeded: silent
+  triggers:
+  - trigger: state
+    entity_id:
+    - switch.sonos_keuken
+    - switch.sonos_achtertuin
+    - switch.verlichting_schuur
+    - switch.sonos_bartafel
+    - switch.sonos_surround_rechtsachter
+    - switch.sonos_arc_ultra
+    - switch.sonos_surround_linksachter
+    - switch.sonos_play_1
+    - switch.sonos_eetkamer
+    - switch.sonos_sub
+    to: unavailable
+    for: '00:13:47'
+    id: dwell
+  - trigger: time_pattern
+    minutes: '37'
+    id: sweep
+  - trigger: event
+    event_type: shelly_watchdog_test
+    id: test
+  variables:
+    dwell_s: '{{ (trigger.event.data.dwell | default(827)) if (trigger is not none and trigger.id
+      == ''test'') else 827 }}'
+    shelly_map:
+      switch.sonos_keuken: ['Sonos Keuken stereopaar (1 van 2)', '172.16.4.21', 'device_tracker.shelly1pmminig3_34b7da907df0']
+      switch.sonos_achtertuin: ['Sonos Achtertuin', '172.16.4.23', 'device_tracker.shelly1pmminig3_34b7da8ff20c']
+      switch.verlichting_schuur: ['Verlichting Schuur', '172.16.4.20', 'device_tracker.shelly1pmminig3_34b7da933074']
+      switch.sonos_bartafel: ['Sonos Bartafel', '172.16.4.29', 'device_tracker.shelly1pmminig3_34b7da909a14']
+      switch.sonos_surround_rechtsachter: ['Sonos Surround Rechtsachter', '172.16.4.22', 'device_tracker.shelly1pmminig3_34b7da8ba988']
+      switch.sonos_arc_ultra: ['Sonos Arc Ultra', '172.16.4.26', 'device_tracker.shelly1pmminig3_34b7da921c8c']
+      switch.sonos_surround_linksachter: ['Sonos Surround Linksachter', '172.16.4.24', 'device_tracker.shelly1pmminig3_5432045f2cc4']
+      switch.sonos_play_1: ['Sonos Play:1', '172.16.4.25', 'device_tracker.shelly1pmminig3_34b7da8fdc60']
+      switch.sonos_eetkamer: ['Sonos Keuken stereopaar (2 van 2)', '172.16.4.28', 'device_tracker.shelly1pmminig3_34b7da8bb31c']
+      switch.sonos_sub: ['Sonos Sub', '172.16.4.27', 'device_tracker.shelly1pmminig3_34b7da926e64']
+    down_n: '{% set d = dwell_s | int(827) %}{% set ns = namespace(n=0) %}{%- for e in shelly_map
+      -%}{%- if states(e) == ''unavailable'' and states[e] is not none and (now() - states[e].last_changed).total_seconds()
+      > d -%}{%- set ns.n = ns.n + 1 -%}{%- endif -%}{%- endfor -%}{{ ns.n }}'
+    down_text: '{% set d = dwell_s | int(827) %}{% set ns = namespace(l=[]) %}{%- for e in
+      shelly_map -%}{%- if states(e) == ''unavailable'' and states[e] is not none -%}{%- set
+      age = (now() - states[e].last_changed).total_seconds() -%}{%- if age > d -%}{%- set agei
+      = age | int -%}{%-
+      set w = states(shelly_map[e][2]) -%}{%- set wt = ''wifi NIET verbonden -> fysieke toegang
+      nodig'' if w == ''not_home'' else (''wifi verbonden, maar HA krijgt geen verbinding''
+      if w == ''home'' else ''wifi onbekend'') -%}{%- set dur = (agei ~ '' s'') if agei < 120
+      else (((agei // 60) ~ '' min'') if agei < 7200 else ((agei // 3600) ~ '' uur'')) -%}{%-
+      set nm = state_attr(e, ''friendly_name'') or shelly_map[e][0] -%}{%- set ns.l = ns.l + [''- '' ~ nm ~ '' ('' ~ shelly_map[e][1] ~ '') - '' ~
+      dur ~ '', '' ~ wt] -%}{%- endif -%}{%- endif -%}{%- endfor -%}{{ ns.l | join(''\n'')
+      }}'
+  conditions:
+  - alias: HA draait zelf langer dan de dwell (na een herstart lijkt een restored:true entiteit
+      onbereikbaar - daar mag niet op gemeld worden)
+    condition: template
+    value_template: '{% set u = states(''sensor.uptime'') | as_datetime %}{{ u is none or (now()
+      - u).total_seconds() > 827 }}'
+  - alias: Minstens 1 van de 10 Shelly-relais is langer dan de dwell onbereikbaar
+    condition: template
+    value_template: '{{ (down_n | int(0)) > 0 }}'
+  actions:
+  - alias: Push naar de telefoon (continue_on_error omdat een hernoemde notify-service de
+      hele automation zou afbreken - inc-2026-07-23-001)
+    action: notify.mobile_app_galaxy_s25_ultra
+    continue_on_error: true
+    data:
+      title: Shelly relais onbereikbaar ({{ down_n }}/10)
+      message: '{{ down_text }}
+
+
+        Deze relais schakelen Sonos-netvoeding en de schuurverlichting. Ze zijn single-path
+        (alleen VDHIOT, geen sta1, geen AP-fallback): staat er ''wifi NIET verbonden'', dan
+        is fysieke toegang tot het apparaat nodig.'
+      data:
+        tag: shelly_unavailable
+        channel: Shelly
+        importance: high
+        priority: high
+        ttl: 0
+  - alias: Tweede kanaal, onafhankelijk van de mobile_app-integratie
+    action: persistent_notification.create
+    continue_on_error: true
+    data:
+      notification_id: shelly_unavailable
+      title: Shelly relais onbereikbaar ({{ down_n }}/10)
+      message: '{{ down_text }}
+
+
+        Single-path sinds chg-2026-09-09-001: geen sta1 en geen rescue-AP meer. ''wifi NIET
+        verbonden'' = fysieke toegang nodig. Ref chg-2026-09-09-007.'
+  - alias: Logboekregel zodat de uitval ook achteraf terug te vinden is
+    action: logbook.log
+    continue_on_error: true
+    data:
+      name: Shelly bewaking
+      message: '{{ down_n }} van de 10 Shelly-relais langer dan {{ dwell_s }} s onbereikbaar'
+  - alias: Fan-in demper. Bij een netwerkstoring vallen alle 10 tegelijk uit; mode single +
+      max_exceeded silent + deze delay maken daar 1 melding van in plaats van 10, en zorgen
+      daarna voor herhaling ongeveer elke 6 uur zolang de storing duurt (de sweep-trigger pikt
+      het weer op).
+    delay: '06:00:00'
+- id: shelly_relais_hersteld
+  alias: 'Shelly: relais weer bereikbaar'
+  description: 'Tegenhanger van shelly_relais_onbereikbaar. Meldt herstel zodat niemand voor
+    niets naar de schuur of achter een Sonos-speaker loopt, en ruimt de persistent notification
+    op zodra alle 10 weer bereikbaar zijn. Meldt alleen als de storing langer duurde dan de
+    dwell (827 s), zodat de honderden korte blips - Bartafel alleen al 657 in 8 dagen - nooit
+    een melding geven. Ref chg-2026-09-09-007.'
+  mode: single
+  max_exceeded: silent
+  triggers:
+  - trigger: state
+    entity_id:
+    - switch.sonos_keuken
+    - switch.sonos_achtertuin
+    - switch.verlichting_schuur
+    - switch.sonos_bartafel
+    - switch.sonos_surround_rechtsachter
+    - switch.sonos_arc_ultra
+    - switch.sonos_surround_linksachter
+    - switch.sonos_play_1
+    - switch.sonos_eetkamer
+    - switch.sonos_sub
+    from: unavailable
+    id: hersteld
+  conditions:
+  - alias: Alleen een echte bruikbare eindtoestand telt als herstel
+    condition: template
+    value_template: '{{ trigger.to_state is not none and trigger.to_state.state not in [''unavailable'',
+      ''unknown'', ''none''] }}'
+  - alias: HA draait zelf langer dan de dwell (geen herstelmeldingen door een HA-herstart)
+    condition: template
+    value_template: '{% set u = states(''sensor.uptime'') | as_datetime %}{{ u is none or (now()
+      - u).total_seconds() > 827 }}'
+  - alias: De storing duurde langer dan de dwell, dus er is ook een alarm voor verstuurd
+    condition: template
+    value_template: '{{ (as_timestamp(trigger.to_state.last_changed) - as_timestamp(trigger.from_state.last_changed))
+      > 827 }}'
+  variables:
+    still_down: '{% set ns = namespace(n=0) %}{%- for e in [''switch.sonos_keuken'', ''switch.sonos_achtertuin'',
+      ''switch.verlichting_schuur'', ''switch.sonos_bartafel'', ''switch.sonos_surround_rechtsachter'',
+      ''switch.sonos_arc_ultra'', ''switch.sonos_surround_linksachter'', ''switch.sonos_play_1'',
+      ''switch.sonos_eetkamer'', ''switch.sonos_sub''] -%}{%- if states(e) == ''unavailable''
+      -%}{%- set ns.n = ns.n + 1 -%}{%- endif -%}{%- endfor -%}{{ ns.n }}'
+  actions:
+  - action: notify.mobile_app_galaxy_s25_ultra
+    continue_on_error: true
+    data:
+      title: Shelly relais weer bereikbaar
+      message: '{{ trigger.to_state.attributes.friendly_name }} is weer bereikbaar na {{ (((as_timestamp(trigger.to_state.last_changed)
+        - as_timestamp(trigger.from_state.last_changed)) / 60) | round(0)) | int }} min. Nog
+        {{ still_down }} van de 10 onbereikbaar.'
+      data:
+        tag: shelly_unavailable
+        channel: Shelly
+        priority: high
+        ttl: 0
+  - choose:
+    - alias: Alles weer op - meldingsballon opruimen
+      conditions:
+      - condition: template
+        value_template: '{{ (still_down | int(99)) == 0 }}'
+      sequence:
+      - action: persistent_notification.dismiss
+        continue_on_error: true
+        data:
+          notification_id: shelly_unavailable
+  - alias: Bij massaherstel niet 10 losse meldingen sturen
+    delay: '00:03:00'
