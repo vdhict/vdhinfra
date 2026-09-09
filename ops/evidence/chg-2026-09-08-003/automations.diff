@@ -1,0 +1,339 @@
+--- /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/2ac34ba5-b5fe-4aff-880a-a3a46c85be6f/scratchpad/automations.new.yaml	2026-09-08 17:09:31
++++ /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/2ac34ba5-b5fe-4aff-880a-a3a46c85be6f/scratchpad/automations.v3.yaml	2026-09-08 17:47:21
+@@ -592,105 +592,255 @@
+   mode: single
+ - id: '1734200001012'
+   alias: Kantoor Adaptieve Verlichting
+-  description: Pas kantoorverlichting aan op basis van omgevingslicht tijdens werkuren
++  description: 'Regelt light.kantoor traploos op het gemeten omgevingslicht, zolang het kantoor bezet
++    is.
++
++
++    WAT HET DOET: brightness volgt een vloeiende curve op de omgevingslux, geen trappetjes.
++
++    De curve is B = 100 * (1 - A/600) ** 1.2, met A de geschatte OMGEVINGSlux en B de
++
++    brightness in procent. IJkpunten van de gebruiker en wat de curve geeft: 0 lux -> 100%
++
++    (gevraagd 100), 50 -> 90 (90), 150 -> 71 (70), 250 -> 52 (50), 400 -> 27 (25), 600 -> uit.
++
++    Maximale afwijking 2,4 procentpunt over het hele bereik. Boven 600 lux gaat de lamp uit,
++
++    onder 550 lux weer aan - die 50 lux verschil is bewuste hysterese zodat de lamp niet gaat
++
++    klapperen precies op de grens. Als de lamp aan is, is de ondergrens 10%: de ruwe curve geeft
++
++    vlak onder 600 lux belachelijke waarden onder 1% en Hue is dan niet van uit te onderscheiden.
++
++
++    WAAROM DIT NIET GAAT OSCILLEREN - LEES DIT VOOR JE IETS WIJZIGT: de lamp verhoogt zelf de
++
++    gemeten lux. Als je de curve rechtstreeks op de GEMETEN lux zou loslaten krijg je een
++
++    rondpompende lus: lamp aan -> meer lux -> dimmen -> minder lux -> feller -> enzovoort.
++
++    Daarom rekent deze automation NIET met de gemeten lux maar met de geschatte omgevingslux
++
++    A = max(0, gemeten_lux - k * huidige_brightness_pct). De eigen bijdrage van de lamp wordt er
++
++    dus af getrokken, waardoor het setpoint niet meebeweegt met wat de lamp doet. k staat op
++
++    0.6 lux per procent brightness. Gemeten op 2026-09-08: lamp uit gaf 145 lux (14:45:21), lamp op 100%
++    gaf 218 lux (15:45:43). Dat is een ONDERGRENS van 0,73 lux per procent, want het omgevingslicht liep
++    in dat uur terug. De echte bijdrage ligt vermoedelijk rond 1,1. Onafhankelijke bovengrens: 0 -> 100%
++    gaf GEEN drempelmelding terwijl parameter 40 op 200 lux staat, dus de lampbijdrage is minder dan 200
++    lux oftewel k kleiner dan 2,0. Met k=0,6 en die bandbreedte is de lusversterking 0,2 * |werkelijk
++    - 0,6|, maximaal 0,28 - ruim onder 1, dus de lus trekt altijd samen naar een vaste waarde. Simulatie
++    bevestigt convergentie binnen 2 a 4 stappen.
++
++    k is BEWUST te laag gekozen. Onderschatten van k laat een kleine NEGATIEVE terugkoppeling
++
++    staan (gedempt, loopt netjes naar een eindwaarde). Overschatten zou POSITIEVE terugkoppeling
++
++    geven en de lamp naar 100% laten weglopen. Verhoog k dus nooit boven de gemeten waarde.
++
++    De maximale hellingshoek van de curve is 0,2 procent per lux (bij A=0), dus de lusversterking
++
++    is 0,2 * (werkelijke_bijdrage - k). Die blijft ruim onder 1.
++
++    Bovenop dat alles zit een DODEBAND van 10 procentpunt: de lamp wordt alleen opnieuw
++
++    aangestuurd als het nieuwe doel minstens 10 punten van de huidige brightness afligt. Dat maakt
++
++    een eventuele restslinger onmogelijk. Verklein de dodeband niet zonder opnieuw na te denken
++
++    over de lus.
++
++
++    AANWEZIGHEID: de enige poort is binary_sensor.kantoor_bezet. Er zit BEWUST geen tijdvenster,
++
++    geen weekdagconditie en geen device_tracker meer in - de gebruiker wil dat dit ook ''s avonds
++
++    en in het weekend werkt. De debounce (45 s aan, 15 min uit) zit in die template binary sensor
++
++    in configuration.yaml, niet hier; daarom staat er geen extra for: op de trigger.
++
++    Gaat kantoor_bezet uit, dan gaat de lamp uit. Zonder die tak zou de lamp eindeloos blijven
++
++    branden in een leeg kantoor, want de oude automation die dat deed (1734200001009 Einde
++
++    Werkdag) is dood.
++
++
++    TRAAGHEID - BELANGRIJKE BEPERKING: de bron is een Fibaro FGMS-001 op batterij die slaapt.
++
++    Config parameter 40 (Illuminance Report Threshold) staat op 200 lux en parameter 42
++
++    (Illuminance Report Interval) op 3600 s. De sensor meldt dus alleen uit zichzelf als de
++
++    lichtsterkte meer dan 200 lux verspringt, plus een verplicht bericht per uur. Gemeten over
++
++    24 h: 20 monsters, mediane tussentijd 3617 s. In het regelbereik van 0 tot 600 lux levert een
++
++    drempel van 200 lux vrijwel geen tussentijdse meldingen op. Een wolk voor de zon wordt dus
++
++    pas bij het volgende uurbericht gezien. Dat is een eigenschap van het APPARAAT, niet van deze
++
++    automation. Wil je het sneller: zet parameter 40 lager (bijvoorbeeld 50 lux) en parameter 42
++
++    korter (bijvoorbeeld 600 s) op device d51c68cc84d57a7924e665c9ab4ff991 - dat kost batterij en
++
++    is bewust NIET in deze wijziging meegenomen. Deze automation wordt daar vanzelf beter van en
++
++    hoeft er niet voor aangepast te worden.
++
++    Als tegenwicht triggert hij ook op kantoor_bezet en op een tijdpatroon van 10 minuten, zodat
++
++    binnenlopen in een donker kantoor meteen werkt met de laatst bekende lux.
++
++
++    FOCUS MODE: 1734200001003 (dimmen naar 50%) is op dit moment inert, want die hangt aan
++
++    device_tracker.vdhws01 == home en dat staat sinds 2026-08-30 permanent op not_home.
++
++    1734200001004 (herstellen naar 100%) is dat NIET en kan wel degelijk vuren. Deze automation
++
++    kent geen Focus Mode. Zet Focus Mode de lamp op een waarde die meer dan 10 punten van het
++
++    adaptieve doel afligt, dan trekt deze automation hem bij het eerstvolgende luxbericht of
++
++    tijdpatroon terug naar de curve - adaptief wint dus binnen 10 minuten. Wil je Focus Mode weer
++
++    in gebruik nemen, geef beide dan een gedeelde input_boolean als override en laat deze
++
++    automation daarop conditioneren. Dat is bewust NIET hier gebouwd.
++
++
++    HANDBEDIENING: er is geen override. Zet je de lamp met de hand op iets dat meer dan 10 punten
++
++    van het doel afwijkt, dan wordt dat binnen 10 minuten teruggedraaid. Dat volgt uit de wens
++
++    "continu meeregelen" maar het is wel een scherpe rand; dezelfde input_boolean hierboven zou
++
++    hem oplossen.
++
++
++    KLEUR: bewust alleen brightness. Er wordt nooit color_temp of xy meegestuurd, dus de lamp
++
++    houdt zijn eigen kleurtemperatuur. light.kantoor kan 2202-6535 K en xy; die mogelijkheid is
++
++    niet gebruikt maar ook niet geblokkeerd - een kleurlaag kan later in dezelfde actie worden
++
++    toegevoegd.
++
++
++    KAPOTTE SENSOR: staat de lux op unknown of unavailable, dan doet deze automation NIETS. Let
++
++    op: | default(0) vangt de string ''unknown'' NIET af, daarom staat er | float(-1) en een
++
++    expliciete stop. Zonder die tak zou een dode sensor gelezen worden als pikdonker en de lamp
++
++    op 100% zetten.
++
++
++    HISTORIE: tot 2026-09-08 stond hier een trappenladder van zes drempels van 0 tot 400 lux, met
++
++    condities op werkdagen 08:30-17:00 en op device_tracker.vdhws01 == home. Die vlieger ging niet
++
++    meer op: vdhws01 is op 2026-08-30 opnieuw geinstalleerd met Linux zonder HA-agent en staat
++
++    sindsdien permanent not_home, en de sensor blijkt tot 2900 lux te lopen in plaats van 400. De
++
++    automation stond uit en had nog nooit gevuurd (last_triggered was leeg). Volledig herbouwd in
++
++    chg-2026-09-08-003.
++
++    '
+   triggers:
+   - trigger: state
+     entity_id: sensor.multisensor_illuminance
+-  conditions:
+-  - condition: time
+-    after: 08:30:00
+-    before: '17:00:00'
+-    weekday:
+-    - mon
+-    - tue
+-    - wed
+-    - thu
+-    - fri
+-  - condition: state
+-    entity_id: person.sander_van_der_heijden
+-    state: home
+-  - condition: state
+-    entity_id: device_tracker.vdhws01
+-    state:
+-    - home
++    id: lux
++  - trigger: state
++    entity_id: binary_sensor.kantoor_bezet
++    to: 'on'
++    id: bezet_aan
++  - trigger: state
++    entity_id: binary_sensor.kantoor_bezet
++    from: 'on'
++    to: 'off'
++    id: bezet_uit
++  - trigger: time_pattern
++    minutes: /10
++    id: tick
++  conditions: []
+   actions:
++  - variables:
++      k: 0.6
++      lux: '{{ states(''sensor.multisensor_illuminance'') | float(-1) }}'
++      br_now: '{% if is_state(''light.kantoor'',''on'') %}{{ ((state_attr(''light.kantoor'',''brightness'')
++        | float(0)) / 2.55) | round(0) | int }}{% else %}0{% endif %}'
++      ambient: '{{ [ [ lux - k * br_now, 0 ] | max, 600 ] | min | round(0) }}'
++      curve: '{{ (100 * (1 - ambient / 600) ** 1.2) | round(0) }}'
++      target: '{{ [ curve, 10 ] | max | int }}'
++      aan_houden: '{{ ambient < (600 if is_state(''light.kantoor'',''on'') else 550) }}'
+   - choose:
+-    - conditions:
+-      - condition: numeric_state
+-        entity_id: sensor.multisensor_illuminance
+-        below: 50
++    - alias: Lux onbruikbaar - lamp met rust laten
++      conditions:
++      - condition: template
++        value_template: '{{ lux < 0 }}'
+       sequence:
+-      - action: light.turn_on
+-        target:
+-          entity_id:
+-          - light.kantoor
+-        data:
+-          brightness_pct: 100
+-          transition: 5
+-    - conditions:
+-      - condition: numeric_state
+-        entity_id: sensor.multisensor_illuminance
+-        above: 49
+-        below: 100
++      - stop: Lichtsensor unknown/unavailable - bewust niets doen
++    - alias: Kantoor niet bezet - lamp uit
++      conditions:
++      - condition: state
++        entity_id: binary_sensor.kantoor_bezet
++        state: 'off'
+       sequence:
+-      - action: light.turn_on
+-        target:
+-          entity_id:
+-          - light.kantoor
+-        data:
+-          brightness_pct: 80
+-          transition: 5
+-    - conditions:
+-      - condition: numeric_state
+-        entity_id: sensor.multisensor_illuminance
+-        above: 99
+-        below: 200
++      - if:
++        - condition: state
++          entity_id: light.kantoor
++          state: 'on'
++        then:
++        - action: light.turn_off
++          target:
++            entity_id: light.kantoor
++          data:
++            transition: 5
++    - alias: 'Genoeg daglicht - lamp uit (hysterese: uit boven 600, aan onder 550)'
++      conditions:
++      - condition: template
++        value_template: '{{ not aan_houden }}'
+       sequence:
++      - if:
++        - condition: state
++          entity_id: light.kantoor
++          state: 'on'
++        then:
++        - action: light.turn_off
++          target:
++            entity_id: light.kantoor
++          data:
++            transition: 5
++    - alias: Donker en lamp staat uit - aan op curvewaarde
++      conditions:
++      - condition: state
++        entity_id: light.kantoor
++        state: 'off'
++      sequence:
+       - action: light.turn_on
+         target:
+-          entity_id:
+-          - light.kantoor
++          entity_id: light.kantoor
+         data:
+-          brightness_pct: 60
++          brightness_pct: '{{ target }}'
+           transition: 5
+-    - conditions:
+-      - condition: numeric_state
+-        entity_id: sensor.multisensor_illuminance
+-        above: 199
+-        below: 300
++    - alias: Lamp aan en meer dan 10 punten van het doel - bijstellen
++      conditions:
++      - condition: template
++        value_template: '{{ (target - br_now) | abs >= 10 }}'
+       sequence:
+       - action: light.turn_on
+         target:
+-          entity_id:
+-          - light.kantoor
++          entity_id: light.kantoor
+         data:
+-          brightness_pct: 40
+-          transition: 5
+-    - conditions:
+-      - condition: numeric_state
+-        entity_id: sensor.multisensor_illuminance
+-        above: 299
+-        below: 400
+-      sequence:
+-      - action: light.turn_on
+-        target:
+-          entity_id:
+-          - light.kantoor
+-        data:
+-          brightness_pct: 20
+-          transition: 5
+-    - conditions:
+-      - condition: numeric_state
+-        entity_id: sensor.multisensor_illuminance
+-        above: 399
+-      sequence:
+-      - action: light.turn_off
+-        target:
+-          entity_id:
+-          - light.kantoor
+-        data:
++          brightness_pct: '{{ target }}'
+           transition: 5
+   mode: single
++  max_exceeded: silent
+ - id: '1734200001009'
+   alias: Kantoor Einde Werkdag - Lichten Uit
+   description: Zet kantoorverlichting uit wanneer werkstation offline gaat na 17:00 op werkdagen

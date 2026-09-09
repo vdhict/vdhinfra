@@ -1,0 +1,32 @@
+=== CALIBRATION step 1: baseline (lamp OFF) 2026-09-08T15:15:33Z ===
+sensor.multisensor_illuminance = 145.0  brightness=-  last_changed=2026-09-08T14:45:21.627995+00:00
+light.kantoor = off  brightness=-  last_changed=2026-09-07T14:55:27.561435+00:00
+binary_sensor.kantoor_bezet = on  brightness=-  last_changed=2026-09-08T13:41:22.569217+00:00
+=== CALIBRATION step 2: lamp -> 100% 2026-09-08T15:15:46Z ===
+turn_on 100% issued
+light.kantoor = on  brightness=255  pct=100
+-- polling sensor.multisensor_illuminance for a new report (baseline 145 @14:45:21) --
+  t+15s  lux=145.0  last_changed=2026-09-08T14:45:21.627995+00:00
+  t+30s  lux=145.0  last_changed=2026-09-08T14:45:21.627995+00:00
+  t+45s  lux=145.0  last_changed=2026-09-08T14:45:21.627995+00:00
+  t+60s  lux=145.0  last_changed=2026-09-08T14:45:21.627995+00:00
+  t+75s  lux=145.0  last_changed=2026-09-08T14:45:21.627995+00:00
+  t+90s  lux=145.0  last_changed=2026-09-08T14:45:21.627995+00:00
+  t+105s  lux=145.0  last_changed=2026-09-08T14:45:21.627995+00:00
+  t+120s  lux=145.0  last_changed=2026-09-08T14:45:21.627995+00:00
+  t+135s  lux=145.0  last_changed=2026-09-08T14:45:21.627995+00:00
+  t+150s  lux=145.0  last_changed=2026-09-08T14:45:21.627995+00:00
+  t+165s  lux=145.0  last_changed=2026-09-08T14:45:21.627995+00:00
+  t+180s  lux=145.0  last_changed=2026-09-08T14:45:21.627995+00:00
+  t+195s  lux=145.0  last_changed=2026-09-08T14:45:21.627995+00:00
+  t+210s  lux=145.0  last_changed=2026-09-08T14:45:21.627995+00:00
+  t+225s  lux=145.0  last_changed=2026-09-08T14:45:21.627995+00:00
+  t+240s  lux=145.0  last_changed=2026-09-08T14:45:21.627995+00:00
+  t+255s  lux=145.0  last_changed=2026-09-08T14:45:21.627995+00:00
+  t+270s  lux=145.0  last_changed=2026-09-08T14:45:21.627995+00:00
+  t+285s  lux=145.0  last_changed=2026-09-08T14:45:21.627995+00:00
+  t+300s  lux=145.0  last_changed=2026-09-08T14:45:21.627995+00:00
+  t+315s  lux=145.0  last_changed=2026-09-08T14:45:21.627995+00:00
+  t+330s  lux=145.0  last_changed=2026-09-08T14:45:21.627995+00:00
+  t+345s  lux=145.0  last_changed=2026-09-08T14:45:21.627995+00:00
+  t+360s  lux=145.0  last_changed=2026-09-08T14:45:21.627995+00:00

@@ -1,0 +1,27 @@
+- id: '1743483971322'
+  alias: Verlichting Schuur
+  description: Verlichting in de schuur aanzetten bij beweging en laag lichtniveau. Uitzetten wanneer
+    er 5 min geen beweging is gedetecteerd
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.multisensor_motion_detection
+    from: 'off'
+    to: 'on'
+  conditions:
+  - condition: numeric_state
+    entity_id: sensor.multisensor_illuminance
+    below: 100
+  actions:
+  - action: switch.turn_on
+    target:
+      entity_id: switch.verlichting_schuur
+  - wait_for_trigger:
+    - entity_id: binary_sensor.multisensor_motion_detection
+      to: 'off'
+      for: 00:05:00
+      trigger: state
+  - action: switch.turn_off
+    target:
+      entity_id: switch.verlichting_schuur
+  mode: restart

@@ -1,0 +1,28 @@
+chg-2026-09-08-002 P1 — REAL PHYSICAL MOTION, end-to-end
+captured by Atlas 2026-09-09T12:46Z. This is the link Hestia explicitly could NOT
+verify ("I can't produce physical motion in the shed"). It occurred naturally.
+
+THREE complete cycles, user entering the shed on the morning of 2026-09-09:
+
+  SCHUUR PIR on          switch on             latency    PIR off        switch off        delay
+  06:08:33.527408Z       06:08:33.636378Z      109 ms     06:09:43.012   06:14:43.101550   5m00.089s
+  06:29:36.972582Z       06:29:37.665467Z      693 ms     06:30:17.781   06:35:17.837860   5m00.056s
+  07:20:34.719570Z       07:20:35.401880Z      682 ms     07:21:45.704   07:26:45.805407   5m00.101s
+
+Entities read SEPARATELY (not via minimal_response, which strips entity_id):
+  binary_sensor.multisensor_motion_detection_2  = the SCHUUR Fibaro FGMS-001 (device area=schuur)
+  switch.verlichting_schuur                     = the Shelly at 172.16.4.20
+
+WHAT THIS PROVES
+1. TRIGGER  — the schuur PIR now drives the schuur light. Sub-second latency, 3/3.
+2. OFF PATH — the switch goes off exactly 5m00s after the SCHUUR PIR clears. This is the
+   THIRD broken reference Hestia found on her own (the wait_for_trigger in the actions also
+   named the kantoor PIR). Under the old wiring the light would have stayed on until the
+   OFFICE had been still for 5 minutes. The off timing is keyed to the shed, so that fix is
+   proven too.
+3. CONDITION — shed lux at the time was well under the `below: 100` gate (66 lux at 12:44Z,
+   24h p50 = 20). The light fired on every one of the three motion events.
+4. The Shelly restored in chg-2026-09-08-001 is switching real load reliably a day later.
+
+RESIDUAL: none for this change. The user-confirmation walk Hestia asked for is superseded —
+he did it unprompted three times and the telemetry recorded it.

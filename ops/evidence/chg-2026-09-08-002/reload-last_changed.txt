@@ -1,0 +1,8 @@
+=== T3 BASELINE last_changed ===
+automation.verlichting_schuur state=on last_changed=2026-09-07T14:34:41.497972+00:00
+automation.kantoor_ochtend_klimaat state=on last_changed=2026-09-07T14:34:41.496104+00:00
+automation.kantoor_raam_open_klimaat_uit state=on last_changed=2026-09-07T14:34:41.499071+00:00
+=== T3 AFTER last_changed ===
+automation.verlichting_schuur state=on last_changed=2026-09-08T15:10:48.559498+00:00
+automation.kantoor_ochtend_klimaat state=on last_changed=2026-09-07T14:34:41.496104+00:00
+automation.kantoor_raam_open_klimaat_uit state=on last_changed=2026-09-07T14:34:41.499071+00:00

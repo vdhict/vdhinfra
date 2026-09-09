@@ -1,0 +1,10 @@
+=== T6 END-TO-END, ORGANIC TRIGGER (real motion, real presence) 2026-09-08T15:53:21Z ===
+sensor.multisensor_illuminance = 218.0  brightness=-  pct=-  last_changed=2026-09-08T15:45:43.481785+00:00
+binary_sensor.kantoor_bezet = on  brightness=-  pct=-  last_changed=2026-09-08T15:52:56.316060+00:00
+light.kantoor = on  brightness=148  pct=58  last_changed=2026-09-08T15:52:57.553598+00:00
+PREDICTED: lamp was OFF so br_now=0 -> ambient=218 -> curve=100*(1-218/600)^1.2 = 58 -> expect lamp ON at 58%
+
+-- individual Hue members (did the physical lamps follow?) --
+light.spot_rechtsachter = on br=148 pct=58
+light.hue_play_links = on br=148 pct=58
+light.spot_linksvoor_2 = on br=148 pct=58
