@@ -20,3 +20,35 @@ TIME       LAMP   BRIGHT  BEZET  DAMPED  NOTE
 16:01:18Z  on     69      on     562     CHANGED (gap 2401s)
 16:06:18Z  on     26      on     641     CHANGED (gap 300s)
 16:11:18Z  on     26      on     641     
+16:16:18Z  on     26      on     641     
+16:21:18Z  on     26      on     641     
+16:26:18Z  on     26      on     641     
+16:31:18Z  on     26      on     641     
+16:36:18Z  on     128     on     351     CHANGED (gap 1800s)
+16:41:18Z  on     128     off    583     
+16:46:18Z  on     128     off    668     
+16:51:18Z  off    -       off    796     CHANGED (gap 900s)
+16:56:19Z  off    -       off    780     
+17:01:19Z  off    -       off    780     
+17:06:19Z  off    -       off    780     
+17:11:19Z  off    -       off    595     
+17:16:19Z  off    -       off    595     
+17:21:19Z  off    -       off    595     
+17:26:19Z  off    -       off    595     
+17:31:19Z  off    -       off    595     
+17:36:19Z  off    -       off    595     
+17:41:19Z  off    -       off    595     
+17:46:20Z  off    -       off    595     
+17:51:20Z  off    -       off    595     
+17:56:20Z  on     26      on     595     CHANGED (gap 3902s)
+18:01:20Z  on     26      on     595     
+18:06:20Z  on     26      on     595     
+18:11:20Z  on     255     on     197     CHANGED (gap 900s)
+18:16:20Z  on     255     on     197     
+18:21:20Z  on     186     on     197     CHANGED (gap 600s)
+18:26:20Z  on     186     off    197     
+18:31:20Z  on     186     off    197     
+18:36:20Z  off    -       off    197     CHANGED (gap 900s)
+
+violations flagged: 0
+monitor ended 2026-09-09T18:41:20Z
