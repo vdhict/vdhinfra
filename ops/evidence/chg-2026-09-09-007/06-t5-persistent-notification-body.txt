@@ -1,0 +1,6 @@
+TITLE: Shelly relais onbereikbaar (1/10)
+---MESSAGE---
+- Verlichting Schuur (172.16.4.20) - 0 s, wifi verbonden, maar HA krijgt geen verbinding
+
+Single-path sinds chg-2026-09-09-001: geen sta1 en geen rescue-AP meer. 'wifi NIET verbonden' = fysieke toegang nodig. Ref chg-2026-09-09-007.
+---END---
