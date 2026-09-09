@@ -1,0 +1,24 @@
+OLD (shipped)                                        calls=17  off=4  MAE=  7.1 dark&unlit=  0 travel=394
+
+NEW W=600 dwell_off=600 minint=300 dead=15           calls=13  off=4  MAE= 11.5 dark&unlit= 12 travel=225
+NEW W=600 dwell_off=600 minint=300 dead=20           calls=13  off=4  MAE= 11.4 dark&unlit= 12 travel=233
+NEW W=600 dwell_off=600 minint=600 dead=15           calls=13  off=4  MAE= 11.3 dark&unlit= 12 travel=243
+NEW W=600 dwell_off=600 minint=600 dead=20           calls=13  off=4  MAE= 11.4 dark&unlit= 12 travel=243
+NEW W=600 dwell_off=900 minint=300 dead=15           calls=13  off=4  MAE= 12.3 dark&unlit= 12 travel=225
+NEW W=600 dwell_off=900 minint=300 dead=20           calls=13  off=4  MAE= 12.1 dark&unlit= 12 travel=233
+NEW W=600 dwell_off=900 minint=600 dead=15           calls=13  off=4  MAE= 11.8 dark&unlit= 12 travel=243
+NEW W=600 dwell_off=900 minint=600 dead=20           calls=13  off=4  MAE= 11.9 dark&unlit= 12 travel=243
+NEW W=900 dwell_off=600 minint=300 dead=15           calls=16  off=4  MAE= 13.8 dark&unlit= 12 travel=245
+NEW W=900 dwell_off=600 minint=300 dead=20           calls=14  off=4  MAE= 14.6 dark&unlit= 12 travel=216
+NEW W=900 dwell_off=600 minint=600 dead=15           calls=14  off=4  MAE= 13.2 dark&unlit= 12 travel=191
+NEW W=900 dwell_off=600 minint=600 dead=20           calls=12  off=4  MAE= 14.1 dark&unlit= 12 travel=162
+NEW W=900 dwell_off=900 minint=300 dead=15           calls=16  off=4  MAE= 14.0 dark&unlit= 12 travel=245
+NEW W=900 dwell_off=900 minint=300 dead=20           calls=14  off=4  MAE= 14.9 dark&unlit= 12 travel=216
+NEW W=900 dwell_off=900 minint=600 dead=15           calls=14  off=4  MAE= 13.5 dark&unlit= 12 travel=191
+NEW W=900 dwell_off=900 minint=600 dead=20           calls=12  off=4  MAE= 14.4 dark&unlit= 12 travel=162
+
+BEST (dark&unlit, MAE, calls):
+   dark&unlit=12 MAE=11.3 calls=13 -> W=600 dwell_off=600 minint=600 dead=15
+   dark&unlit=12 MAE=11.4 calls=13 -> W=600 dwell_off=600 minint=300 dead=20
+   dark&unlit=12 MAE=11.4 calls=13 -> W=600 dwell_off=600 minint=600 dead=20
+   dark&unlit=12 MAE=11.5 calls=13 -> W=600 dwell_off=600 minint=300 dead=15

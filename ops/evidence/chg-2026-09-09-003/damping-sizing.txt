@@ -1,0 +1,28 @@
+SIZING THE FILTER AND THE GATE — real 2026-09-09 stream, 07:00-13:00Z
+raw daylight samples: 172, range 155-2839 lux
+
+ON/OFF GATE CROSSINGS, no dwell (each flip = a visible on or off):
+gate                       raw  MA300  MA600  MA900
+off>=600 / on<550           12     12     12     12
+off>=700 / on<500           10     10     10      8
+off>=800 / on<400            6      6      6      6
+off>=900 / on<450            6      6      6      6
+off>=1000 / on<400           6      6      6      6
+
+ADDING A DWELL (`for:`) — MA600 with off>=900 / on<450:
+   dwell   0s -> 6 crossings
+   dwell 120s -> 6 crossings
+   dwell 300s -> 6 crossings
+   dwell 600s -> 4 crossings
+
+ADDING A DWELL — MA600 with off>=800 / on<400:
+   dwell   0s -> 6 crossings
+   dwell 120s -> 6 crossings
+   dwell 300s -> 4 crossings
+   dwell 600s -> 4 crossings
+
+SMOOTHED SIGNAL EXCURSION (how much room a hysteresis band needs):
+  raw    range   155- 2839   peak-to-peak in 600s: p50=1616 p90=2153
+  MA300  range   155- 2460   peak-to-peak in 600s: p50= 638 p90=1286
+  MA600  range   155- 1991   peak-to-peak in 600s: p50= 391 p90=1134
+  MA900  range   155- 1595   peak-to-peak in 600s: p50= 290 p90= 782

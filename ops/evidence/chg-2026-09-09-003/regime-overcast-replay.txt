@@ -1,0 +1,14 @@
+REGIME: OVERCAST / CALM DAY  (2026-09-07 00:00 -> 2026-09-08 15:00Z)
+lux samples: 59 over 38.8 h
+inter-sample gaps: median 3616 s  (param 42 heartbeat = 3600 s)
+consecutive |delta lux|: median 108  p90 366  max 824
+lux range: 0 .. 2304
+
+CONTRAST WITH 2026-09-09 (broken cloud): median step 440 lux, range 155-2839.
+This day's median step is 108 lux -> the SAME automation sees a completely different input.
+
+samples while occupied: 26
+  ambient while occupied: 145 .. 2304 lux
+  IDEAL on/off transitions this regime: 5
+  -> under the NEW design (no daylight off, 10%% floor) daylight-driven transitions = 0 by construction;
+     brightness would ride the curve between 10% and 72%.

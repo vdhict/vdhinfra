@@ -1,0 +1,31 @@
+IDEAL controller on this day: 7 on/off transitions, MAE 0 by definition.
+
+OLD (shipped)                                calls=17  on/off=9   MAE=  7.1 dark&unlit=  0
+A: no hard-off, floor 10%%, W=600            calls=10  on/off=3   MAE= 12.3 dark&unlit=  0
+B: hard-off >=1000 sustained 15min           calls=13  on/off=7   MAE= 12.1 dark&unlit=  6
+B: hard-off >=1200 sustained 15min           calls=11  on/off=5   MAE= 12.5 dark&unlit=  6
+B: hard-off >=1500 sustained 15min           calls=10  on/off=3   MAE= 12.3 dark&unlit=  0
+C: gate 800/600 dwell_off=600 (earlier best) calls=13  on/off=9   MAE= 11.5 dark&unlit= 12
+
+=== DESIGN A+ (floor 10%%, hard-off >=1500 lux sustained 15 min) ===
+ kappa=0.73  calls=9   on/off=3   MAE(when lamp should be lit)=12.0 pts  dark&unlit=0
+ kappa=1.1   calls=10  on/off=3   MAE(when lamp should be lit)=12.1 pts  dark&unlit=0
+ kappa=2.0   calls=10  on/off=3   MAE(when lamp should be lit)=13.1 pts  dark&unlit=0
+ OLD  same metric: MAE(when lamp should be lit)=11.3 pts
+
+ transitions in design A+ (kappa=1.1):
+   07:59:23  on
+   10:20:00  off
+   10:41:05  on
+
+ all service calls:
+   07:59:23 on  10% (bezet)
+   09:40:00 on  28% (tick)
+   10:00:00 on  54% (tick)
+   10:20:00 off  -  (tick)
+   10:41:05 on  10% (bezet)
+   11:20:00 on  34% (tick)
+   11:27:22 on  18% (lux)
+   12:00:00 on  83% (tick)
+   12:18:54 on  67% (lux)
+   12:49:42 on  39% (lux)

@@ -25,7 +25,7 @@ were not ours — see the exogenous-artefact note below.
 | **IDEAL controller, ORIGINAL policy** (perfect, noise-free, off above 600 lux) | n/a | **7** | 7 | 0 | 0 by definition |
 | **OLD (shipped)** | 17 | 9 | 7 | 0 | 11.3 pts |
 | **IDEAL controller, NEW policy** (10% floor, off only >1500 sustained / absence) | n/a | **0** | 0 | 0 | 0 by definition |
-| **NEW (this change)** | **10** | **3** | **0** | **0** | 12.1 pts |
+| **NEW (this change)** | **10** | **3** | **1 turn-ON, 0 turn-OFF** | **0** | 12.1 pts |
 
 Read the ideal rows first. Against zero, OLD's 9 transitions look like a disaster.
 Against what is **achievable**, OLD's excess was only **2** — the day genuinely
@@ -52,10 +52,18 @@ rather than assumed:
 
 The result does not depend on which kappa is true.
 
-## The 3 remaining transitions are all presence, none daylight
-`07:59:23 on` (arrival) · `10:20:00 off` (real 10:02:28 departure + the new 10-min
-dwell) · `10:50:00 on` (real 10:41:05 return, delayed 9 min because the room was
-still >1200 lux — correct behaviour, not a fault).
+## The 3 remaining transitions — corrected classification
+`07:59:23 on` (arrival, presence) · `10:20:00 off` (real 10:02:28 departure + the
+new 10-min dwell, presence) · `10:50:00 on` (**daylight**).
+
+**Correction.** I originally wrote that all three were presence-driven. change-qa's
+independent re-implementation classifies the third as daylight-driven and she is
+right: presence returned at 10:41:05, but the lamp deliberately waited until ambient
+fell below 1200 lux, so the proximate cause of the turn-ON was the daylight level,
+not the return. The conclusion is unchanged and arguably stronger — there are **zero
+daylight-driven turn-OFFs**, and the single daylight transition is a turn-ON, i.e.
+the lamp doing its job rather than flapping. But "all three were presence" was
+imprecise and is withdrawn.
 
 ## Honest limits of this replay
 - The recorded lux contains the OLD lamp's own contribution. To replay a different
@@ -66,5 +74,39 @@ still >1200 lux — correct behaviour, not a fault).
   history, so the 1500-lux hard-off valve is exercised in **simulation only**. It has
   never fired against real data. This change must not be closed as if that regime were tested.
 
+### Closing condition for the clear-sky regime — WITH A NEGATIVE ARM
+
+**Entry condition (the regime was actually reached):** `sensor.kantoor_lux_gedempt`
+stays above 1500 for 15 continuous minutes while `binary_sensor.kantoor_bezet` is on.
+
+| entry condition | logbook line | verdict |
+|---|---|---|
+| not met | — | regime not reached. Still REGIME-INCOMPLETE. Keep waiting. Not a pass. |
+| met | exactly one `VEILIGHEIDSKLEP:` line, no chatter | **PASS** — regime closed |
+| met | **no** line | **FAILED VALVE TEST** — not "unlucky weather". Raise it. |
+| met | more than one line / chatter | **FAIL** — valve is oscillating |
+
+The negative arm is the point. Without it a *swallowed* valve is indistinguishable
+from a regime that never occurred, and the change would sit open looking merely
+unlucky with the weather while actually being broken. Record `sinds_cmd` at the valve
+instant — the valve log line now carries it, and the interlock's refusal path emits a
+`GESMOORD` line (only when the refusal was consequential), so a swallow is visible
+rather than silent.
+
 ## Reproduce it
-`ops/evidence/chg-2026-09-09-003/replay.py` + `luxlib.py`, fixtures in the same directory.
+
+Both scripts live in `ops/evidence/chg-2026-09-09-003/` with the fixtures.
+
+| to reproduce | run | expect |
+|---|---|---|
+| the OLD/shipped baseline (engine validation) | `python3 replay.py` | 17 calls, 9 transitions, worst delta 1.3 s, `VERDICT: PASS` |
+| the **installed** 10%-floor design | `python3 newlogic.py` | kappa 0.73 → 9/3/0, 1.1 → 10/3/0, 2.0 → 10/3/0 |
+
+**Do not cite `replay.py`'s `replay_new()`.** It models an INTERMEDIATE gate design
+(OFF=800 / ON=400 / dwell) that was explored and then **rejected** — it left the user
+unlit for 12–65 minutes. It is not what shipped, and the file now says so at the top.
+The shipped design is modelled by `newlogic.py`, written by change-qa/Themis by
+re-implementing the installed YAML branch-by-branch — an independent implementation,
+which is why it is the better citation. It reproduces this table exactly, and
+independently confirms the dwell finding (remove the dwell → 15 calls, 9 transitions,
+11 dark-and-unlit minutes).

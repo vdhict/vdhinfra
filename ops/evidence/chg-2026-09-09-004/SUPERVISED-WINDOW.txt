@@ -1,0 +1,20 @@
+SUPERVISED ENABLEMENT WINDOW - chg-2026-09-09-004
+enabled by Atlas 2026-09-09T15:20:32Z (17:20 CEST Wed). Preconditions discharged:
+  1004 disabled (Atlas), fel-above-interlock reorder shipped (Hestia, verified in HA parser).
+Start state: bezet=on, damped 288, raw 265, lamp 117=46%, sun elev 25.0 (dusk regime incoming).
+Enable produced NO command - target ~51% vs 46% inside the 15-pt deadband. Correct quiet start.
+
+ABORT CRITERIA (Themis): >=2 daylight transitions in any 60min; two commands <300s apart;
+  >=15min occupied under 400 lux with lamp off; 100% for >5min above 600 lux;
+  any transition with no logbook line; or the user says it is annoying.
+
+TIME       LAMP   BRIGHT  BEZET  DAMPED  NOTE
+15:21:17Z  on     117     on     288     
+15:26:17Z  on     117     on     288     
+15:31:17Z  on     117     on     288     
+15:36:17Z  on     117     on     288     
+15:41:17Z  on     117     on     288     
+15:46:17Z  on     117     on     288     
+15:51:17Z  on     117     on     288     
+15:56:17Z  on     117     on     315     
+16:01:18Z  on     69      on     562     CHANGED (gap 2401s)

@@ -1,0 +1,47 @@
+Occupied minutes: 261.  Goal: dark&unlit ~0, MAE near OLD's 7.1, calls well under 17.
+
+OLD (shipped)                            calls=17  off=4  MAE=  7.1 dark&unlit=  0 bright&lit=  2 travel=394
+
+NEW OFF>=700 ON<500 W=600 dwell=300      calls=8   off=2  MAE= 13.2 dark&unlit= 32 bright&lit=  5 travel=194
+NEW OFF>=700 ON<500 W=600 dwell=600      calls=5   off=1  MAE= 12.1 dark&unlit= 32 bright&lit=  0 travel=100
+NEW OFF>=700 ON<500 W=900 dwell=300      calls=8   off=2  MAE= 15.3 dark&unlit= 49 bright&lit=  6 travel=149
+NEW OFF>=700 ON<500 W=900 dwell=600      calls=4   off=1  MAE= 15.0 dark&unlit= 52 bright&lit=  0 travel=57
+NEW OFF>=700 ON<550 W=600 dwell=300      calls=8   off=2  MAE= 13.2 dark&unlit= 32 bright&lit=  5 travel=194
+NEW OFF>=700 ON<550 W=600 dwell=600      calls=5   off=1  MAE= 12.1 dark&unlit= 32 bright&lit=  0 travel=100
+NEW OFF>=700 ON<550 W=900 dwell=300      calls=8   off=2  MAE= 13.4 dark&unlit= 42 bright&lit=  5 travel=149
+NEW OFF>=700 ON<550 W=900 dwell=600      calls=5   off=1  MAE= 12.4 dark&unlit= 42 bright&lit=  0 travel=73
+NEW OFF>=700 ON<600 W=600 dwell=300      calls=10  off=3  MAE= 13.6 dark&unlit= 32 bright&lit=  5 travel=217
+NEW OFF>=700 ON<600 W=600 dwell=600      calls=7   off=2  MAE= 12.6 dark&unlit= 32 bright&lit=  0 travel=123
+NEW OFF>=700 ON<600 W=900 dwell=300      calls=9   off=2  MAE= 12.1 dark&unlit= 32 bright&lit=  5 travel=168
+NEW OFF>=700 ON<600 W=900 dwell=600      calls=6   off=1  MAE= 11.1 dark&unlit= 32 bright&lit=  0 travel=88
+NEW OFF>=800 ON<500 W=600 dwell=300      calls=8   off=2  MAE= 13.2 dark&unlit= 32 bright&lit=  5 travel=194
+NEW OFF>=800 ON<500 W=600 dwell=600      calls=5   off=1  MAE= 12.1 dark&unlit= 32 bright&lit=  0 travel=100
+NEW OFF>=800 ON<500 W=900 dwell=300      calls=8   off=2  MAE= 15.3 dark&unlit= 49 bright&lit=  6 travel=149
+NEW OFF>=800 ON<500 W=900 dwell=600      calls=4   off=1  MAE= 15.0 dark&unlit= 52 bright&lit=  0 travel=57
+NEW OFF>=800 ON<550 W=600 dwell=300      calls=8   off=2  MAE= 13.2 dark&unlit= 32 bright&lit=  5 travel=194
+NEW OFF>=800 ON<550 W=600 dwell=600      calls=5   off=1  MAE= 12.1 dark&unlit= 32 bright&lit=  0 travel=100
+NEW OFF>=800 ON<550 W=900 dwell=300      calls=8   off=2  MAE= 13.4 dark&unlit= 42 bright&lit=  5 travel=149
+NEW OFF>=800 ON<550 W=900 dwell=600      calls=5   off=1  MAE= 12.4 dark&unlit= 42 bright&lit=  0 travel=73
+NEW OFF>=800 ON<600 W=600 dwell=300      calls=10  off=3  MAE= 13.7 dark&unlit= 32 bright&lit=  5 travel=217
+NEW OFF>=800 ON<600 W=600 dwell=600      calls=7   off=2  MAE= 13.2 dark&unlit= 32 bright&lit=  0 travel=123
+NEW OFF>=800 ON<600 W=900 dwell=300      calls=9   off=2  MAE= 12.1 dark&unlit= 32 bright&lit=  5 travel=168
+NEW OFF>=800 ON<600 W=900 dwell=600      calls=6   off=1  MAE= 11.1 dark&unlit= 32 bright&lit=  0 travel=88
+NEW OFF>=900 ON<500 W=600 dwell=300      calls=8   off=2  MAE= 13.2 dark&unlit= 32 bright&lit=  5 travel=194
+NEW OFF>=900 ON<500 W=600 dwell=600      calls=5   off=1  MAE= 12.1 dark&unlit= 32 bright&lit=  0 travel=100
+NEW OFF>=900 ON<500 W=900 dwell=300      calls=8   off=2  MAE= 15.3 dark&unlit= 49 bright&lit=  6 travel=149
+NEW OFF>=900 ON<500 W=900 dwell=600      calls=4   off=1  MAE= 15.0 dark&unlit= 52 bright&lit=  0 travel=57
+NEW OFF>=900 ON<550 W=600 dwell=300      calls=8   off=2  MAE= 13.2 dark&unlit= 32 bright&lit=  5 travel=194
+NEW OFF>=900 ON<550 W=600 dwell=600      calls=5   off=1  MAE= 12.1 dark&unlit= 32 bright&lit=  0 travel=100
+NEW OFF>=900 ON<550 W=900 dwell=300      calls=8   off=2  MAE= 13.4 dark&unlit= 42 bright&lit=  5 travel=149
+NEW OFF>=900 ON<550 W=900 dwell=600      calls=5   off=1  MAE= 12.4 dark&unlit= 42 bright&lit=  0 travel=73
+NEW OFF>=900 ON<600 W=600 dwell=300      calls=10  off=3  MAE= 14.2 dark&unlit= 32 bright&lit=  5 travel=217
+NEW OFF>=900 ON<600 W=600 dwell=600      calls=7   off=2  MAE= 13.2 dark&unlit= 32 bright&lit=  0 travel=123
+NEW OFF>=900 ON<600 W=900 dwell=300      calls=9   off=2  MAE= 12.1 dark&unlit= 32 bright&lit=  5 travel=168
+NEW OFF>=900 ON<600 W=900 dwell=600      calls=6   off=1  MAE= 11.1 dark&unlit= 32 bright&lit=  0 travel=88
+
+BEST (dark&unlit, then MAE, then calls):
+   dark&unlit=32 MAE=11.1 calls=6  ->  OFF>=700 ON<600 W=900 dwell=600
+   dark&unlit=32 MAE=11.1 calls=6  ->  OFF>=800 ON<600 W=900 dwell=600
+   dark&unlit=32 MAE=11.1 calls=6  ->  OFF>=900 ON<600 W=900 dwell=600
+   dark&unlit=32 MAE=12.1 calls=5  ->  OFF>=700 ON<500 W=600 dwell=600
+   dark&unlit=32 MAE=12.1 calls=5  ->  OFF>=700 ON<550 W=600 dwell=600
