@@ -1,0 +1,62 @@
+{
+ "172.16.4.21": {
+  "entity": "switch.sonos_keuken",
+  "device": "Sonos Keuken",
+  "mac": "34b7da907df0",
+  "entry": "01JGRPZTE4048M69S7QRVZNFP8"
+ },
+ "172.16.4.23": {
+  "entity": "switch.sonos_achtertuin",
+  "device": "Sonos Achtertuin",
+  "mac": "34b7da8ff20c",
+  "entry": "01JGXXED42YD78FSY6E95VWNCE"
+ },
+ "172.16.4.20": {
+  "entity": "switch.verlichting_schuur",
+  "device": "Verlichting Schuur",
+  "mac": "34b7da933074",
+  "entry": "01JQKSQFN7ZQMG9793BQD2FNDD"
+ },
+ "172.16.4.29": {
+  "entity": "switch.sonos_bartafel",
+  "device": "Sonos Bartafel",
+  "mac": "34b7da909a14",
+  "entry": "01JGRTQC94N6364TQRSVVJPP85"
+ },
+ "172.16.4.22": {
+  "entity": "switch.sonos_surround_rechtsachter",
+  "device": "Sonos Surround Rechtsachter",
+  "mac": "34b7da8ba988",
+  "entry": "01JE4BHCWQ2683E3KVVZAHXJ75"
+ },
+ "172.16.4.26": {
+  "entity": "switch.sonos_arc_ultra",
+  "device": "Sonos Arc Ultra",
+  "mac": "34b7da921c8c",
+  "entry": "01JGXTBPQJE8ZB8C30E22JMQ3S"
+ },
+ "172.16.4.24": {
+  "entity": "switch.sonos_surround_linksachter",
+  "device": "Sonos Surround Linksachter",
+  "mac": "5432045f2cc4",
+  "entry": "01JE4D4WM5E8BB7BWVGZ9JYR6G"
+ },
+ "172.16.4.25": {
+  "entity": "switch.sonos_play_1",
+  "device": "Sonos Play:1",
+  "mac": "34b7da8fdc60",
+  "entry": "01K3DNTHZSWSS8BMSVAGRYSEGC"
+ },
+ "172.16.4.28": {
+  "entity": "switch.sonos_eetkamer",
+  "device": "Sonos Eetkamer",
+  "mac": "34b7da8bb31c",
+  "entry": "01JGRPFG4FNQBHDSJSF4NKMW57"
+ },
+ "172.16.4.27": {
+  "entity": "switch.sonos_sub",
+  "device": "Sonos Sub",
+  "mac": "34b7da926e64",
+  "entry": "01JGRQN685VYK6XPBCV9P865JT"
+ }
+}

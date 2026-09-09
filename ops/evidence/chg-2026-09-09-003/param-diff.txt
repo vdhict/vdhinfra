@@ -1,0 +1,5 @@
+PARAMS CHANGED (before -> after):
+  param 40: 200 -> 50
+  param 42: 3600 -> 600
+total params compared: 30  changed: 2
+p40 after = 50  p42 after = 600
