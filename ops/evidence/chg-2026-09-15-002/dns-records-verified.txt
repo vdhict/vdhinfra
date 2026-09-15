@@ -1,0 +1,262 @@
+================================================================================
+chg-2026-09-15-002 — EVIDENCE
+Add two internal A records to the UDM Pro static-DNS table
+  chat.lan.vdh-ict.nl  A  172.16.2.200
+  api.lan.vdh-ict.nl   A  172.16.2.200
+Executed by: udm-engineer (Iris)   Date: 2026-09-15 (CEST)
+Controller:  172.16.2.1  UniFi Network application 10.6.106
+Lock:        net.dns.unifi-static (pre-acquired by Atlas, reason chg-2026-09-15-002)
+NOTE: API key redacted everywhere. Shown as $K, read from
+      /Users/sheijden/Code/homelab-migration/config/unifi-api-key at runtime.
+NOTE: no raw full-table API dump is stored here. Only the two new rows, aggregate
+      counts, and a salted-free field fingerprint hash of the untouched rows.
+================================================================================
+
+--------------------------------------------------------------------------------
+0. PRE-STATE  (re-confirmed by Iris immediately before the first write)
+--------------------------------------------------------------------------------
+$ curl -sk -H "X-API-KEY: $K" https://172.16.2.1/proxy/network/integration/v1/info
+{"applicationVersion":"10.6.106"}
+
+$ curl -sk -H "X-API-KEY: $K" https://172.16.2.1/proxy/network/v2/api/site/default/static-dns | jq 'length'
+72
+
+$ ... | jq -r '[.[].record_type]|group_by(.)|map({(.[0]):length})|add'
+{
+  "A": 37,
+  "CNAME": 1,
+  "TXT": 34
+}
+  -> zero AAAA rows present before the change.
+
+$ ... | jq -r '.[]|select(.key|test("\\*|lan\\.vdh-ict\\.nl"))|.key'
+(no output)
+  -> no wildcard record, and no pre-existing *.lan.vdh-ict.nl record.
+
+Fingerprint of all 72 pre-existing rows
+(fields: _id,key,record_type,value,enabled,ttl,port,priority,weight; sorted by _id):
+  rows   = 72
+  sha256 = 2d2a5c0c2dfe0441c65a9ca35ac000e1e23e14216e9422927f184dd31b31c2eb
+
+PRE-STATE dig (from LAN host 172.16.2.201, resolver 172.16.2.1):
+  chat.lan.vdh-ict.nl                A     -> []
+  api.lan.vdh-ict.nl                 A     -> []
+  chat.lan.vdh-ict.nl                AAAA  -> []
+  grafana.bluejungle.net             A     -> [172.16.2.241]
+  cloudnas.vdh-ict.nl                A     -> [172.16.2.246]
+  nas.vdh.lan                        A     -> [172.16.2.246]
+  tour.bluejungle.net                A     -> [172.16.2.241]
+
+--------------------------------------------------------------------------------
+1. WRITE 1 of 2 — chat.lan.vdh-ict.nl   (A only; NO AAAA was ever sent)
+--------------------------------------------------------------------------------
+$ curl -sk -X POST -H "X-API-KEY: $K" -H "Content-Type: application/json" \
+    -d '{"key":"chat.lan.vdh-ict.nl","value":"172.16.2.200","record_type":"A","enabled":true}' \
+    https://172.16.2.1/proxy/network/v2/api/site/default/static-dns
+
+{"_id":"6aa8e376a800f2a66d1055ce","enabled":true,"key":"chat.lan.vdh-ict.nl","port":0,"priority":0,"record_type":"A","ttl":0,"value":"172.16.2.200","weight":0}
+HTTP=200 t=0.101217
+
+CONSOLE HEALTH CHECK AFTER WRITE 1 (the 2026-05-13 AAAA incident took the console down):
+$ curl -sk -H "X-API-KEY: $K" https://172.16.2.1/proxy/network/integration/v1/info
+{"applicationVersion":"10.6.106"}  HTTP=200
+$ curl -sk -o /dev/null -w 'udm root: http=%{http_code} t=%{time_total}\n' https://172.16.2.1/
+udm root: http=200 t=0.010618
+  -> console responsive. Safe to proceed to write 2.
+
+INTERMEDIATE TABLE STATE AFTER WRITE 1:
+  count = 73
+  record_type histogram = {"A": 38, "CNAME": 1, "TXT": 34}   (still zero AAAA)
+$ dig +short @172.16.2.1 chat.lan.vdh-ict.nl A
+172.16.2.200
+
+--------------------------------------------------------------------------------
+2. WRITE 2 of 2 — api.lan.vdh-ict.nl   (A only; NO AAAA was ever sent)
+--------------------------------------------------------------------------------
+$ curl -sk -X POST -H "X-API-KEY: $K" -H "Content-Type: application/json" \
+    -d '{"key":"api.lan.vdh-ict.nl","value":"172.16.2.200","record_type":"A","enabled":true}' \
+    https://172.16.2.1/proxy/network/v2/api/site/default/static-dns
+
+{"_id":"6aa8e3a3a800f2a66d10573d","enabled":true,"key":"api.lan.vdh-ict.nl","port":0,"priority":0,"record_type":"A","ttl":0,"value":"172.16.2.200","weight":0}
+HTTP=200 t=0.065100
+
+================================================================================
+TEST PLAN RESULTS — 11 / 11 PASS
+================================================================================
+
+########## POSITIVE ##########
+
+--- TEST 1: dig +short @172.16.2.1 chat.lan.vdh-ict.nl A == 172.16.2.200      PASS
+chat.lan.vdh-ict.nl                A     -> [172.16.2.200]
+
+--- TEST 2: dig +short @172.16.2.1 api.lan.vdh-ict.nl A == 172.16.2.200       PASS
+api.lan.vdh-ict.nl                 A     -> [172.16.2.200]
+
+--- TEST 3: GET-after-POST, both rows stored with record_type A / correct
+            value / enabled true                                              PASS
+$ curl -sk -H "X-API-KEY: $K" https://172.16.2.1/proxy/network/v2/api/site/default/static-dns \
+    | jq '[.[]|select(.key=="chat.lan.vdh-ict.nl" or .key=="api.lan.vdh-ict.nl")]|sort_by(.key)'
+[
+  {
+    "_id": "6aa8e3a3a800f2a66d10573d",
+    "enabled": true,
+    "key": "api.lan.vdh-ict.nl",
+    "port": 0,
+    "priority": 0,
+    "record_type": "A",
+    "ttl": 0,
+    "value": "172.16.2.200",
+    "weight": 0
+  },
+  {
+    "_id": "6aa8e376a800f2a66d1055ce",
+    "enabled": true,
+    "key": "chat.lan.vdh-ict.nl",
+    "port": 0,
+    "priority": 0,
+    "record_type": "A",
+    "ttl": 0,
+    "value": "172.16.2.200",
+    "weight": 0
+  }
+]
+
+  TEST 3b — SENT vs STORED, field by field (UniFi silently drops fields):
+  [chat.lan.vdh-ict.nl]
+    key          sent=chat.lan.vdh-ict.nl    stored=chat.lan.vdh-ict.nl    MATCH
+    value        sent=172.16.2.200           stored=172.16.2.200           MATCH
+    record_type  sent=A                      stored=A                      MATCH
+    enabled      sent=true                   stored=true                   MATCH
+    server-added defaults: {"_id":"6aa8e376a800f2a66d1055ce","ttl":0,"port":0,"priority":0,"weight":0}
+    fields sent but dropped: (none)
+  [api.lan.vdh-ict.nl]
+    key          sent=api.lan.vdh-ict.nl     stored=api.lan.vdh-ict.nl     MATCH
+    value        sent=172.16.2.200           stored=172.16.2.200           MATCH
+    record_type  sent=A                      stored=A                      MATCH
+    enabled      sent=true                   stored=true                   MATCH
+    server-added defaults: {"_id":"6aa8e3a3a800f2a66d10573d","ttl":0,"port":0,"priority":0,"weight":0}
+    fields sent but dropped: (none)
+
+  => ZERO fields dropped. The only additions are server-side defaults
+     (_id, and ttl/port/priority/weight all defaulted to 0), which is the
+     same shape every other A row in this table carries.
+
+########## NEGATIVE — proof nothing else broke ##########
+
+--- TEST 4: grafana.bluejungle.net A still == 172.16.2.241                    PASS
+grafana.bluejungle.net             A     -> [172.16.2.241]
+
+--- TEST 5: cloudnas.vdh-ict.nl A still == 172.16.2.246                       PASS
+            (resolves via PUBLIC DNS, not a local row -> proves the parent
+             zone vdh-ict.nl was not shadowed by the new lan. subdomain)
+cloudnas.vdh-ict.nl                A     -> [172.16.2.246]
+
+--- TEST 6: nas.vdh.lan A still == 172.16.2.246                               PASS
+nas.vdh.lan                        A     -> [172.16.2.246]
+
+--- TEST 7: tour.bluejungle.net A still == 172.16.2.241                       PASS
+tour.bluejungle.net                A     -> [172.16.2.241]
+
+--- TEST 8: entry count == 74, and no other row mutated                       PASS
+count=74                                        (72 pre + 2 new)
+
+  TEST 8b — byte-identical fingerprint of the 72 pre-existing rows:
+  rows excluding the 2 new: 72
+  pre  sha256: 2d2a5c0c2dfe0441c65a9ca35ac000e1e23e14216e9422927f184dd31b31c2eb
+  post sha256: 2d2a5c0c2dfe0441c65a9ca35ac000e1e23e14216e9422927f184dd31b31c2eb
+  RESULT: IDENTICAL - zero pre-existing rows mutated
+  (diff of the two fingerprint sets returned no differences. The external-dns
+   owned rows and their k8s.unifi.* TXT registry entries were not touched,
+   not reordered in content, and not re-saved.)
+
+--- TEST 9: no AAAA record anywhere in the table                              PASS
+record_type histogram: {"A":39,"CNAME":1,"TXT":34}
+AAAA rows: 0
+  (37 A pre -> 39 A post = exactly +2. No AAAA was ever POSTed at any point.)
+
+--- TEST 10: UDM console responsive after EACH write                          PASS
+  AFTER WRITE 1:
+    {"applicationVersion":"10.6.106"}  HTTP=200
+    udm root: http=200 t=0.010618
+  AFTER WRITE 2:
+    {"applicationVersion":"10.6.106"}  HTTP=200
+    udm root: http=200 t=0.010575
+  -> applicationVersion returned both times. No crash, no 502/503, no watchdog
+     restart. Sub-11ms response both times.
+
+--- TEST 11: chat.lan.vdh-ict.nl AAAA returns empty                           PASS
+chat.lan.vdh-ict.nl                AAAA  -> []
+api.lan.vdh-ict.nl                 AAAA  -> []
+  (api. checked too, same result. No accidental AAAA, and no upstream AAAA
+   leak for these names.)
+
+================================================================================
+ADDITIONAL END-TO-END TRAFFIC PROOF (beyond the required 11)
+================================================================================
+Requirement: a real packet must traverse the new config and land where intended.
+Nothing listens on 172.16.2.200:443 yet, so HTTPS cannot be the proof. However
+tcp/22 IS open on the Mac Studio, which lets a real TCP session be carried
+end-to-end by the new names:
+
+$ nc -w 4 chat.lan.vdh-ict.nl 22 </dev/null | head -1
+  chat.lan.vdh-ict.nl    -> SSH-2.0-OpenSSH_10.3
+$ nc -w 4 api.lan.vdh-ict.nl 22 </dev/null | head -1
+  api.lan.vdh-ict.nl     -> SSH-2.0-OpenSSH_10.3
+$ nc -w 4 172.16.2.200 22 </dev/null | head -1      # control, by IP
+  172.16.2.200           -> SSH-2.0-OpenSSH_10.3
+
+  => Both new names carry a real TCP session to the Mac Studio and return the
+     Studio's own SSH banner, byte-identical to the by-IP control. Name ->
+     UDM resolver -> 172.16.2.200 -> TCP handshake -> application payload
+     from the intended host. This is a genuine end-to-end path proof, not a
+     config read-back.
+
+The expected-inert HTTPS path, confirmed inert as predicted:
+$ curl -sv https://chat.lan.vdh-ict.nl/
+*   Trying 172.16.2.200:443...
+* connect to 172.16.2.200 port 443 from 172.16.2.201 port 52765 failed: Connection refused
+* Failed to connect to chat.lan.vdh-ict.nl port 443 after 1006 ms: Couldn't connect to server
+  -> Connection REFUSED (RST), not timeout. The name resolved correctly and the
+     SYN reached the Studio; there is simply no listener on 443 yet. This is the
+     documented expected state, not a failure.
+
+$ ping -c 2 172.16.2.200
+2 packets transmitted, 2 packets received, 0.0% packet loss
+round-trip min/avg/max/stddev = 0.618/0.783/0.949/0.165 ms
+
+Port state on 172.16.2.200 at execution time:
+  tcp/443 closed
+  tcp/80  closed
+  tcp/22  OPEN     <-- DELTA vs the planned event, which recorded 22 as closed.
+                       See "Surprises" below.
+
+================================================================================
+SURPRISES / DELTAS TO FLAG
+================================================================================
+1. tcp/22 on 172.16.2.200 is OPEN. The planned event (2026-09-15T03:05:06Z)
+   recorded "443/80/22 all closed". Remote Login appears to have been enabled on
+   the Mac Studio between planning and execution. This does not affect the DNS
+   change and it is what made a real end-to-end traffic proof possible, but it is
+   a posture change on a CLIENT-VLAN host that Argus may want to look at.
+   Iris did NOT change anything on the Studio.
+
+2. Controller version is 10.6.106. MEMORY.md still points at
+   reference_unifi_10_6_101 (10.6.101). Atlas confirmed 10.6.106 live today, so
+   the bump is known, but no reference_unifi_10_6_106 memory exists yet and no
+   changelog review was performed for the 101 -> 106 delta (this agent has no
+   web-fetch capability). Mitigation applied: the static-dns GET/POST schema was
+   verified empirically to be unchanged (identical 9-field row shape, POST echoes
+   the created row, GET-after-POST diff clean). Recommend Atlas records the
+   reference memory per the udmcontrol firmware checklist.
+
+3. Nothing else surprising. No rate-limiting (no 429) was encountered; both
+   writes returned in ~0.1 s.
+
+================================================================================
+ROLLBACK (not exercised — recorded for completeness)
+================================================================================
+DELETE https://172.16.2.1/proxy/network/v2/api/site/default/static-dns/<_id>
+  chat.lan.vdh-ict.nl  _id = 6aa8e376a800f2a66d1055ce
+  api.lan.vdh-ict.nl   _id = 6aa8e3a3a800f2a66d10573d
+Table returns to 72 entries. Records are inert either way.
+================================================================================

@@ -788,6 +788,42 @@ components:
     sla_tier: family-critical
     health_source: ceph://daemon/mds.ceph-filesystem-b
 
+  # ── Macs (agent hosts + household AI platform) ───────────────────────
+  # Added 2026-09-15 under chg-2026-09-15-004 after Argus found (SEC-03) that
+  # 172.16.2.200 had no CMDB entry at all while DNS records were being pointed
+  # at it. CLAUDE.md requires the entry before the work; this is a late fix.
+  hw.mac.mini:
+    type: physical-host
+    owner_agent: infra-ops
+    description: "Mac mini (Mac16,10, M4), macOS 26.6.2 build 25G83. Hostname vdhmini01 / 'Sanders-Mini', 172.16.2.201, wired CLIENT-VLAN sw_port 2, MAC 1c:f6:4c:42:d3:3a, DHCP reservation. 24x7 agent host and Sander's primary Claude Code workstation - Atlas and the myPKA agents all run here as uid 501 sheijden. Holds config/age.key (0600) and config/unifi-api-key (0644)."
+    depends_on: [net.udm]
+    sensitive: true
+    tier: 1
+    group: agent-hosts
+    sla_tier: family-important
+    location: "Main Equipment Room"
+    physical_link_to: []
+  hw.mac.studio:
+    type: physical-host
+    owner_agent: infra-ops
+    description: "Mac Studio, hostname vdhllmsrv01, 172.16.2.200, wired CLIENT-VLAN sw_port 24, MAC 9c:76:0e:3b:bc:08 (Apple OUI), DHCP reservation. Household AI platform host for local models, operated by the myPKA agent team, NOT by Atlas. 64 GB RAM is reported by myPKA, not verified by us. Port posture is managed by myPKA and has changed unannounced: tcp/22 observed closed 03:05Z, open 06:2xZ, closed again 06:4xZ, with uptime 6.2d spanning all three - live administrative action, not reboots."
+    depends_on: [net.udm, net.dns.unifi-static]
+    sensitive: true
+    tier: 3
+    group: agent-hosts
+    sla_tier: household-convenience
+    location: "Main Equipment Room"
+    physical_link_to: []
+  net.dns.lan_vdh_ict_nl:
+    type: network-config
+    owner_agent: udm-engineer
+    description: "The lan.vdh-ict.nl namespace. LOCAL-ONLY today: chat. and api. are UDM static-dns A records to 172.16.2.200 (chg-2026-09-15-002). The parent vdh-ict.nl is DNSSEC-signed (DS 39809 8 2 A4D8...), so DoH/DoT clients that bypass the UDM get a cryptographically PROVEN NXDOMAIN for these names - verified against Cloudflare and Google DoH, Status 3 AD=true. Plain-DNS clients resolve normally because the UDM intercepts port 53. Sander intends to delegate this subzone to deSEC for ACME DNS-01 TXT records only, no public A records. Shadowing is exact-name only, so _acme-challenge.* is forwarded upstream and DNS-01 propagation checks work."
+    depends_on: [net.dns.unifi-static, net.udm]
+    sensitive: false
+    tier: 3
+    group: dns
+    sla_tier: household-convenience
+
   # ── Physical OSD drives ───────────────────────────────────────────────
   # Verified via `ceph device ls` + `ceph osd metadata` from rook-ceph-tools, 2026-09-15.
   # The three original PNY consumer SATA SSDs (wear 73/76/91%) were REPLACED on
