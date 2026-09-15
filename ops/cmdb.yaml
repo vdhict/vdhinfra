@@ -632,10 +632,27 @@ components:
   storage.synology_nas:
     type: external-device
     owner_agent: k8s-engineer
-    description: Synology NAS at 172.16.2.246, NFS exports for media
+    description: >-
+      VDHNAS01 - Synology DS1618+ at 172.16.2.246. DSM 7.3.2-86009 Update 4
+      (terminal DSM version for this model), 32 GB RAM, Atom C3538, serial
+      1860QFR563VF7. 6x Seagate IronWolf ST8000VN0022 8TB in pool reuse_1,
+      plus 2x Samsung 970 EVO 250GB NVMe cache on an M2D18 card in PCI slot 1.
+      volume_1 is BTRFS, 38.38 TB total, 26.26 TB used (68.4%). 22 shared
+      folders; 7 of them NFS-exported. Hosts the MinIO backing store
+      (/volume1/minio, 1 TiB RWX PVC) and therefore every VolSync restic repo
+      and CNPG barman backup the cluster makes.
+      WARNING (inc-2026-09-15-005, audited 2026-09-15): this NAS has NO backup
+      of itself by any mechanism - Hyper Backup has zero tasks, C2/Hybrid Share
+      is empty, Snapshot Replication is not installed, and there are zero Btrfs
+      snapshots on any share. Cluster data survives via the MinIO->Azure mirror;
+      nothing else on the box does.
     depends_on: [net.udm]
-    sensitive: false
+    sensitive: true
+    tier: 1
+    group: block-storage
+    sla_tier: family-critical
     location: "Main Equipment Room"
+    runbook: docs/runbooks/disaster-recovery.md
   db.cnpg.postgres:
     type: k8s-app
     owner_agent: k8s-engineer
