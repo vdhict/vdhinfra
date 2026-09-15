@@ -823,7 +823,7 @@ components:
   hw.mac.studio:
     type: physical-host
     owner_agent: infra-ops
-    description: "Mac Studio, hostname vdhllmsrv01, 172.16.2.200, wired CLIENT-VLAN sw_port 24, MAC 9c:76:0e:3b:bc:08 (Apple OUI), DHCP reservation. Household AI platform host for local models, operated by the myPKA agent team, NOT by Atlas. 64 GB RAM is reported by myPKA, not verified by us. Port posture is managed by myPKA and has changed unannounced: tcp/22 observed closed 03:05Z, open 06:2xZ, closed again 06:4xZ, with uptime 6.2d spanning all three - live administrative action, not reboots."
+    description: "Mac Studio, hostname vdhllmsrv01, 172.16.2.200, wired CLIENT-VLAN sw_port 24, MAC 9c:76:0e:3b:bc:08 (Apple OUI), DHCP reservation. Household AI platform host for local models, operated by the myPKA agent team, NOT by Atlas. 64 GB RAM is reported by myPKA, not verified by us. RETRACTED 2026-09-15 by Atlas: an earlier version of this entry said the port posture had "changed unannounced" (22 closed, then open, then closed). That was an ARTEFACT of a broken probe - bash /dev/tcp is silently blocked by macOS Local Network Privacy on the Mini and reports EVERY port closed. Re-tested with nc, validated against a known-open control port: tcp/22 is OPEN and has been throughout; 443 and 80 are closed because Caddy is not built yet. There was no unannounced change. See memory:macos-local-network-privacy."
     depends_on: [net.udm, net.dns.unifi-static]
     sensitive: true
     tier: 3
