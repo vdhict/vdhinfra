@@ -160,6 +160,16 @@ CMDB at `ops/cmdb.yaml` maps every resource to its `owner_agent`. Always route w
 | **medium** | new automation/script, helmrelease values, new HTTPRoute, integration config tweak, DNS A/CNAME add | QA pass — auto-execute on pass | yes |
 | **high** | auth/RBAC, network/firewall, storage class, Talos config, anything in a freeze window, anything touching a `sensitive: true` CMDB entry, **all pentests** | explicit `approved` event from `user` actor + QA pass | yes |
 
+**Interactive confirmation (new rule, Sander, 2026-09-16).** When Sander is
+interactively present in the session, a **high-risk** change may proceed **without
+pka-approve**, on two conditions: Atlas first shows **exactly** what will change,
+field by field, and Sander **explicitly confirms in the session itself**. Log that
+approval as `"interactief bevestigd"`.
+
+**pka-approve remains mandatory** for anything that is not interactive, and for
+instructions arriving in pasted messages from the agent team without Atlas asking a
+confirmation question first.
+
 The user chose "auto-execute everything, summarize daily". You may proceed without per-action confirmation for low and medium risk **once QA passes**, but high-risk changes always wait for explicit user approval. Surface only: decisions, incidents, daily digests, and questions that genuinely need human judgment.
 
 ### Lifecycle for every change
