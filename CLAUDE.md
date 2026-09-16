@@ -160,6 +160,25 @@ CMDB at `ops/cmdb.yaml` maps every resource to its `owner_agent`. Always route w
 | **medium** | new automation/script, helmrelease values, new HTTPRoute, integration config tweak, DNS A/CNAME add | QA pass — auto-execute on pass | yes |
 | **high** | auth/RBAC, network/firewall, storage class, Talos config, anything in a freeze window, anything touching a `sensitive: true` CMDB entry, **all pentests** | explicit `approved` event from `user` actor + QA pass | yes |
 
+**Standing permission — Shelly relay reboots (Sander, 2026-09-16).** Atlas may
+press `button.<device>_herstarten` on a Shelly relay **unasked**, bounded exactly:
+
+- the relay has been `unavailable` for **more than 30 minutes**;
+- it is the **second or later occurrence that day**;
+- **at most two devices** restarted per rolling 24 h;
+- **never between 23:00 and 07:00**;
+- **every press logged** to the change log **and pushed** to Sander's handset.
+
+Beyond those bounds it comes back to him. This grant covers the **Shelly relay
+restart button only** — it is not a general licence for mains-switching, and it
+does **not** extend to `button.<device>_herstart_apparaat`, HomeWizard sockets,
+the stroomblok, or any other plug. The keuken-tablet automation remains
+explicitly forbidden from any plug or mains action.
+
+Note the precedent this grant is bounded against: an older `herstart` automation
+on this estate once power-cycled the fridge and freezer. The caps exist for that
+reason.
+
 **Interactive confirmation (new rule, Sander, 2026-09-16).** When Sander is
 interactively present in the session, a **high-risk** change may proceed **without
 pka-approve**, on two conditions: Atlas first shows **exactly** what will change,
