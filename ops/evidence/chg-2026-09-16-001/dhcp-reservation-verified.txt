@@ -1,0 +1,41 @@
+chg-2026-09-16-001 — DHCP reservation for the keuken Pixel Tablet
+Executed by Atlas 2026-09-16, after Sander's in-session confirmation ("ja").
+Approval method: interactief bevestigd (CLAUDE.md rule added the same evening).
+
+WRITE
+  PUT /proxy/network/api/s/default/rest/user/6a0459004b8fede42d5b28bd
+  {"name":"Pixel-Tablet-Keuken","use_fixedip":true,
+   "fixed_ip":"172.16.3.106","network_id":"5e9afa144edb2e02cf522ef5"}
+  response meta: {"rc":"ok"}
+
+POS1 read-back, field by field — all four MATCH, nothing dropped
+  name         sent Pixel-Tablet-Keuken        stored Pixel-Tablet-Keuken
+  use_fixedip  sent True                       stored True
+  fixed_ip     sent 172.16.3.106               stored 172.16.3.106
+  network_id   sent 5e9afa144edb2e02cf522ef5   stored 5e9afa144edb2e02cf522ef5
+POS2 fields UniFi silently dropped: NONE
+POS3 preserved untouched: mac 24:95:2f:86:0e:04, hostname Pixel-Tablet, is_guest False
+POS4 tablet still reachable: http://172.16.3.106:2323 -> HTTP 200 in 0.24s; nc :2323 OPEN
+
+NEG1 reservations 35 -> 36 (+1 exactly)                                  PASS
+NEG2 static-dns table 74 -> 74, unchanged                                PASS
+NEG3 associated clients 121 -> 127 (normal evening variation)            PASS
+NEG4 UDM console responsive after the write: {"applicationVersion":"10.6.106"}  PASS
+
+NEG1b — "5 other client objects altered": FALSE ALARM, my test was wrong.
+  A control of two rest/user reads 20 s apart with NO write in between showed
+  objects differing on their own. The drifting fields are exactly:
+      last_uplink_mac, last_uplink_name
+  i.e. roaming telemetry. NO config field (name, use_fixedip, fixed_ip,
+  network_id, mac, hostname, is_guest, blocked, noted, usergroup_id) drifts.
+  My comparison hashed whole objects including volatile fields, so it read
+  normal client roaming as tampering. Test design fault, not a side effect.
+  The correct comparison is config-fields-only.
+
+ROLLBACK (not exercised)
+  PUT the same _id with use_fixedip false. The tablet returns to a dynamic
+  lease from 172.16.3.1-254. It held .106 dynamically for 32 h before this
+  change, so the practical effect of a rollback is nil.
+
+NOT TOUCHED: static-DNS, firewall/zones, VLANs, other reservations, APs,
+radios, and the tablet itself.
