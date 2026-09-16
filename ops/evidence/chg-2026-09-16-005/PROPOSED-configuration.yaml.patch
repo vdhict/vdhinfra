@@ -1,0 +1,84 @@
+# PROPOSED addition to /config/configuration.yaml — chg-2026-09-16-005
+# NOT APPLIED. Staged for Argus (security review) + Themis (QA).
+# Rev 2 — 2026-09-17, applies Argus conditions C1/C2/C3/C4 + finding sec-005-07.
+# Goes at the end of the existing top-level `rest:` block, as a third resource
+# alongside the two kube-prometheus WAN-bandwidth resources already there.
+#
+# ⚠️ OPERATING CONSTRAINT — NO DEBUG LOGGING WHILE THIS IS LIVE (sec-005-02).
+#   Do NOT add a `logger:` entry setting any of these to debug:
+#     - fullykiosk                        (the LIBRARY python-fullykiosk 0.0.15 — NOTE: no underscore.
+#                                          `fully_kiosk` WITH an underscore is the HA
+#                                          integration and is the SAFE one; blocking it
+#                                          achieves nothing and blocks the wrong thing.)
+#     - homeassistant.components.rest
+#     - default:
+#   python-fullykiosk 0.0.15 __init__.py:216 does
+#   `_LOGGER.debug("Parameters: %s", params)` and renders the Fully Remote Admin
+#   password VERBATIM into the log record. rest/data.py:88 would additionally
+#   dump the whole deviceInfo body (SSID + BSSID, both in upstream's
+#   DEVICE_INFO_TO_REDACT). /api/error_log is served to ANY authenticated HA
+#   user, and the log file also sits on the /config PVC.
+#   If tablet debugging is ever needed, scope it to
+#   `homeassistant.components.fully_kiosk` — the HA-side integration, which is
+#   clean — and NEVER to `fullykiosk`, the library. If debug was ever enabled on
+#   the library, rotate the Fully Remote Admin password afterwards.
+#   Pre-existing footgun (the integration is already installed), but this change
+#   makes "turn on debug to troubleshoot the tablet" a credential-disclosure act.
+
+  # ── Keuken Pixel Tablet — Fully Kiosk app-starttijd ─────────────────────
+  # chg-2026-09-16-005. De fully_kiosk integratie levert 9 sensoren en
+  # lastAppStart zit er NIET bij (geverifieerd in
+  # site-packages/homeassistant/components/fully_kiosk/sensor.py op HA 2026.9:
+  # batteryLevel, batteryTemperature, currentPage, screenOrientation,
+  # foregroundApp, internalStorageFreeSpace, internalStorageTotalSpace,
+  # ramFreeMemory, ramTotalMemory). Automation 1740400003 heeft die waarde nodig
+  # om te zien of een browser-herstart echt effect had, en om te melden als de
+  # app langer dan 26 uur draait.
+  #
+  # ALLEEN-LEZEN: deze resource stuurt uitsluitend cmd=deviceInfo. Er gaat nooit
+  # een commando naar het tablet via deze weg.
+  #
+  # scan_interval is 60, niet 30 (Argus C4). Het wachtwoord staat in de
+  # query-string over plain HTTP; 60 s halveert het aantal keer dat het per dag
+  # over CLIENT-VLAN gaat. R1 wacht 5 minuten (= 5 polls) en R4 wordt door een
+  # /30-minuten time_pattern geëvalueerd, dus geen van beide eisen breekt.
+  #
+  # Het IP staat hier hard. Als het tablet verhuist moet dit mee. Iris heeft in
+  # chg-2026-09-16-001 een DHCP-reservering op 172.16.3.106 gezet, dus dat hoort
+  # niet meer te gebeuren. 172.16.3.106 ligt in CLIENT-VLAN (172.16.2.0/23 loopt
+  # van 172.16.2.0 t/m 172.16.3.255), Internal zone — dezelfde zone als de
+  # node-IP's van HA. Het verkeer is intra-subnet en raakt geen enkele
+  # zone-grens; de IoT->Internal BLOCK-policy zit NIET in dit pad.
+  - resource: http://172.16.3.106:2323/
+    scan_interval: 60
+    timeout: 10
+    params:
+      cmd: deviceInfo
+      type: json
+      password: !secret fully_keuken_password
+    sensor:
+      - name: "Keuken Tablet App Start"
+        unique_id: keuken_tablet_app_start
+        device_class: timestamp
+        icon: mdi:restart
+        # De parse zit IN de availability-check (sec-005-07): als Fully ooit een
+        # ander tijdformaat teruggeeft geeft as_datetime None en zou
+        # .isoformat() een harde template-fout gooien. Zo degradeert de sensor
+        # netjes naar 'unavailable' in plaats van te loggen en te blijven falen.
+        availability: >-
+          {{ value_json.lastAppStart is defined
+             and value_json.lastAppStart
+             and (value_json.lastAppStart | as_datetime) is not none }}
+        value_template: >-
+          {{ (value_json.lastAppStart | as_datetime).isoformat() }}
+
+# NOTE (Argus C3): the second sensor "Keuken Tablet Start URL"
+# (sensor.keuken_tablet_start_url) has been DROPPED from this patch. It
+# duplicated sensor.pixel_tablet_huidige_pagina byte-for-byte, served neither R1
+# nor R4, is in upstream's fully_kiosk DEVICE_INFO_TO_REDACT, and was not in
+# recorder.exclude. Least functionality: no requirement, no entity.
+
+# PROPOSED addition to /config/secrets.yaml (gitignored, untracked — verified):
+#   fully_keuken_password: <the Fully Remote Admin password for config entry
+#                           01KJ8K7P2QTBFZ7KQ83QTY4F6A, identical to the value
+#                           already stored in /config/.storage/core.config_entries>

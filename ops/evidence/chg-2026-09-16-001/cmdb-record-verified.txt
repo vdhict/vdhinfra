@@ -1,0 +1,49 @@
+chg-2026-09-16-001 — CMDB record of the DHCP reservation (Iris, 2026-09-17)
+Documentation only. NO UDM/UniFi/Cloudflare write was made for this step;
+every network fact below was read from already-committed evidence files.
+
+FILE: ops/cmdb.yaml
+  md5 before 1339161c0ffd18b12e39fe1b7d852517
+  yaml.safe_load: OK (parsed clean after the edit)
+  entries 112 -> 113
+  added:   net.dhcp.reservations      (new class entry, owner udm-engineer)
+  changed: ha.kiosk.pixel_tablet      (MERGE only, see below)
+  removed: none
+  other 111 entries byte-identical
+
+MERGE PROOF for ha.kiosk.pixel_tablet (Hestia rewrote this entry 2026-09-16)
+  old description 3180 chars, new 3823 chars
+  the first 3054 chars of the OLD description are a verbatim prefix of the NEW
+  one -> none of Hestia's HA-side prose was altered or dropped.
+  The only text replaced is the 126-char placeholder she left for me:
+    "NOTE: network-side facts (DHCP reservation, AP association) are Iris
+     territory via chg-2026-09-16-001 - merge, do not replace."
+  depends_on extended [ha.pod, net.udm] -> [ha.pod, net.udm, net.dhcp.reservations]
+
+NEW ENTRY net.dhcp.reservations — facts recorded, with their source
+  mac 24:95:2f:86:0e:04, fixed_ip 172.16.3.106, name Pixel-Tablet-Keuken,
+  network_id 5e9afa144edb2e02cf522ef5 (CLIENT-VLAN), client _id
+  6a0459004b8fede42d5b28bd, reservations 35 -> 36
+      source: ops/evidence/chg-2026-09-16-001/dhcp-reservation-verified.txt
+  AP association AP06 - Keuken 68:d7:9a:4d:ac:52, radio rai0 5GHz ch132,
+  signal -54 dBm, essid VDHFEMFLEX, network CLIENT-VLAN, is_wired false
+      source: ops/evidence/chg-2026-09-08-001/stat-sta-raw.json (2026-09-08)
+
+CORRECTION 1 — VLAN. Any statement that this tablet is on IOT-VLAN is WRONG.
+  172.16.2.0/23 spans 172.16.2.0-172.16.3.255, so 172.16.3.106 is CLIENT-VLAN,
+  Internal zone. IOT-VLAN is 172.16.4.0/23 vlan 250. Independently confirmed by
+  the client object's own network_id/network fields in the 09-08 capture.
+
+CORRECTION 2 — duration. The chg-2026-09-16-001 rollback note says the tablet
+  held .106 dynamically "for 32 h". The 2026-09-08 capture already shows
+  24:95:2f:86:0e:04 at 172.16.3.106, assoc_time 2026-09-03T19:23:20Z
+  (uptime 388413 s = 4.5 d unbroken at capture time). The address had been
+  stable ~9 days, not 32 h. Makes the rollback even more clearly a no-op and
+  corroborates the nine-night watchdog outage window.
+
+PROCESS GAP, recorded not hidden: chg-2026-09-16-001 is risk=high and its event
+  trail is requested -> planned -> approved(user, interactief bevestigd) ->
+  executed. There is NO qa_passed event. Approval came from Sander in-session,
+  which CLAUDE.md permits in place of pka-approve, but it does not replace the
+  Themis gate. Flagged to Atlas at close; a retrospective Themis review of the
+  record is the open item.

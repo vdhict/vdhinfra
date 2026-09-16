@@ -60,3 +60,5 @@ Thumbs.db
 # Python bytecode (from local script testing)
 __pycache__/
 *.pyc
+ops/evidence/**/*.RAW.png
+ops/evidence/chg-2026-09-16-003/tablet-after-browser-restart.png
