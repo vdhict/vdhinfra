@@ -221,6 +221,79 @@ components:
     group: core-network
     sla_tier: family-critical
     health_source: unifi://wlanconf/minrate_ng
+  net.dhcp.reservations:
+    type: network-config
+    owner_agent: udm-engineer
+    description: >-
+      Fixed-IP DHCP reservations on the UDM Pro Max. This is the CLASS entry for
+      reservations as a whole; before 2026-09-17 no CMDB entry held them and
+      network-side reservation facts had nowhere to live. UniFi does NOT model a
+      reservation as its own object: it is the client ("user") object with
+      use_fixedip true, so a reservation and a client record are the same row.
+      READ path GET /proxy/network/api/s/default/rest/user (legacy private API,
+      integration X-API-KEY, site literal "default"). WRITE path PUT
+      /proxy/network/api/s/default/rest/user/<_id> with the four fields name,
+      use_fixedip, fixed_ip, network_id. Read back via the same GET and diff
+      field-by-field; GET rest/device 404s but GET rest/user does work, unlike
+      the device endpoint. Count 36 reservations as of 2026-09-16 (35 before
+      chg-2026-09-16-001). Per /udmcontrol, DHCP scope, lease and reservation
+      changes are a "confirm with the user first" operation, hence sensitive
+      true and the high-risk classification on chg-2026-09-16-001.
+      ADDRESSING, and this has been got wrong once already - CLIENT-VLAN is
+      172.16.2.0/23, which spans 172.16.2.0 THROUGH 172.16.3.255, networkconf
+      _id 5e9afa144edb2e02cf522ef5, Internal firewall zone, DHCP pool
+      172.16.3.1-254. A 172.16.3.x address is therefore CLIENT-VLAN and
+      Internal, NOT a separate segment and NOT IOT-VLAN; IOT-VLAN is
+      172.16.4.0/23 vlan 250 with pool 172.16.5.1-254 (see net.vlan.iot). An
+      earlier Atlas brief described the keuken tablet at 172.16.3.106 as being
+      on IOT-VLAN; that was wrong and is corrected here. Authority for which
+      VLAN a client is on is network_id, never the essid (see net.wifi.vdhiot
+      for why).
+      DOCUMENTED RESERVATION 1 of 36, "Pixel-Tablet-Keuken", added by
+      chg-2026-09-16-001 on 2026-09-16 - hardware MAC 24:95:2f:86:0e:04 (OUI
+      Google, Inc.), fixed_ip 172.16.3.106, network_id 5e9afa144edb2e02cf522ef5
+      = CLIENT-VLAN, UniFi client object _id 6a0459004b8fede42d5b28bd, UniFi
+      hostname Pixel-Tablet, is_guest false. Wireless, associated to AP06 -
+      Keuken (net.ap.keuken, MAC 68:d7:9a:4d:ac:52) on the 5GHz radio rai0,
+      channel 132, signal -54 dBm, SSID VDHFEMFLEX. The device is
+      ha.kiosk.pixel_tablet - HA-side facts live there, this entry is the
+      network-side record.
+      WHY THE RESERVATION EXISTS - the tablet stopped using its randomised WiFi
+      MAC ba:15:b7:cf:ec:34 and fell back to its hardware MAC
+      24:95:2f:86:0e:04. To the DHCP server that is a different client, so it
+      took a fresh lease at 172.16.3.106 while the Home Assistant Fully Kiosk
+      config entry stayed pinned to the old 172.16.3.17. All 33 fully_kiosk
+      entities went unavailable and the nightly browser-restart watchdog failed
+      silently for nine nights before anyone noticed. A reservation is the
+      durable fix here specifically BECAUSE the hardware MAC is stable - under
+      MAC randomisation a reservation keys on an address that changes and would
+      not have held. The HA-side DHCP self-heal cannot substitute: Fully 1.61.2
+      on this Android returns an empty Mac, so the device registry has
+      connections=[] and the dhcp discovery matcher can never fire.
+      CORRECTION to chg-2026-09-16-001 rollback wording - it says the tablet
+      held .106 dynamically "for 32 h" before the change. Primary evidence
+      contradicts that: ops/evidence/chg-2026-09-08-001/stat-sta-raw.json
+      captured on 2026-09-08 already shows mac 24:95:2f:86:0e:04 at ip
+      172.16.3.106 on CLIENT-VLAN, associated since 2026-09-03T19:23Z. So the
+      address had been stable for roughly nine days, not 32 hours. This makes
+      the rollback (set use_fixedip false) even more clearly a no-op in
+      practice, and it independently corroborates the nine-night outage window.
+      Evidence - ops/evidence/chg-2026-09-16-001/dhcp-reservation-verified.txt
+      (GET-after-PUT, four fields matching, zero dropped, reservations 35 to 36,
+      static-dns table unchanged at 74) and
+      ops/evidence/chg-2026-09-08-001/stat-sta-raw.json (AP association, VLAN,
+      radio). Changes - chg-2026-09-16-001 (reservation, executed by Atlas with
+      the process deviation disclosed in the record), chg-2026-09-16-002
+      (Hestia, HA config-entry re-point).
+      The other 35 reservations are NOT yet individually documented; add them
+      here as they are touched rather than bulk-importing unverified rows.
+    depends_on: [net.udm, net.vlan.iot]
+    sensitive: true
+    tier: 2
+    group: core-network
+    sla_tier: family-important
+    location: site-wide
+    health_source: unifi://rest/user?use_fixedip
   net.vlan.iot:
     type: network-segment
     owner_agent: udm-engineer
@@ -424,7 +497,7 @@ components:
   ha.config.configuration_yaml:
     type: ha-config-file
     owner_agent: ha-engineer
-    description: "/config/configuration.yaml in the PVC. Auth providers, http config, includes, and the `template:` block. http.trusted_proxies MUST keep 172.16.2.0/23 (node CIDR) or the multi-step login flow breaks. Holds the Kantoor template entities: binary_sensor.kantoor_bezet and sensor.kantoor_effectieve_temperatuur. chg-2026-08-30-005 replaced the long-standing FP2_ID literal placeholder in kantoor_bezet (the office FP2 was never paired, so the sensor could only ever read 'off' and the occupancy climate pair was permanently dormant) with the real Kantoor Z-Wave motion sensor binary_sensor.multisensor_motion_detection. ⚠ THREE devices share the friendly name 'Multisensor' - only the UNSUFFIXED entity is Kantoor (_2 = Schuur, _3 = no area); same trap applies to sensor.multisensor_air_temperature/_illuminance. The state expression iterates a `sources` list so an ESPresense term can be OR'd in later by appending one entity_id. delay_on 45s / delay_off 15min (chg-2026-08-30-005 round 2 changed delay_on from the original 2min to 45s; the inline comment in configuration.yaml records why). Always POST /api/config/core/check_config BEFORE restarting after editing this file."
+    description: "/config/configuration.yaml in the PVC. Auth providers, http config, includes, and the `template:` block. http.trusted_proxies MUST keep 172.16.2.0/23 (node CIDR) or the multi-step login flow breaks. Holds the Kantoor template entities: binary_sensor.kantoor_bezet and sensor.kantoor_effectieve_temperatuur. chg-2026-08-30-005 replaced the long-standing FP2_ID literal placeholder in kantoor_bezet (the office FP2 was never paired, so the sensor could only ever read 'off' and the occupancy climate pair was permanently dormant) with the real Kantoor Z-Wave motion sensor binary_sensor.multisensor_motion_detection. ⚠ THREE devices share the friendly name 'Multisensor' - only the UNSUFFIXED entity is Kantoor (_2 = Schuur, _3 = no area); same trap applies to sensor.multisensor_air_temperature/_illuminance. The state expression iterates a `sources` list so an ESPresense term can be OR'd in later by appending one entity_id. delay_on 45s / delay_off 15min (chg-2026-08-30-005 round 2 changed delay_on from the original 2min to 45s; the inline comment in configuration.yaml records why). Always POST /api/config/core/check_config BEFORE restarting after editing this file. NO DEBUG LOGGING CONSTRAINT (Argus sec-005-02, chg-2026-09-16-005): once the rest: resource that polls the keuken tablet Fully deviceInfo API is live, this file must NEVER gain a logger: entry setting fullykiosk (the python-fullykiosk LIBRARY), homeassistant.components.rest, or default: to debug. python-fullykiosk 0.0.15 __init__.py:216 does _LOGGER.debug('Parameters: %s', params) and renders the Fully Remote Admin password VERBATIM; rest/data.py:88 would additionally dump the deviceInfo body including SSID and BSSID (both in upstream DEVICE_INFO_TO_REDACT). /api/error_log is served to ANY authenticated HA user and the log file sits on the /config PVC. If tablet debugging is ever needed, scope it to homeassistant.components.fully_kiosk (HA-side, clean) and never to fullykiosk (library-side, leaks). If library debug was ever enabled, rotate the Fully password. There is no logger: block in /config today - keep it that way."
     depends_on: [ha.pod]
     sensitive: true
     runbook: ops/evidence/chg-2026-08-30-005-kantoor-bezet-motion.txt
@@ -553,6 +626,12 @@ components:
     description: "Naar bed / go-to-bed script (chg-2026-07-20-009, script.naar_bed): off all 11 ground-floor social-zone lights + TV off + pause indoor Sonos (woonkamer/woonkamer_platenspeler/keuken/bar_2) + activate scene.hal_nachtlampje & scene.overloop_nachtlampje. No trigger wired yet (callable from dashboard/Assist/physical)."
     depends_on: [ha.pod]
     sensitive: false
+  ha.automation.keuken_tablet_watchdog:
+    type: ha-automation
+    owner_agent: ha-engineer
+    description: "Keuken tablet browser-watchdog (chg-2026-09-16-003, id 1740400003, entity automation.keuken_tablet_nachtelijke_herstart — the entity_id keeps the OLD name because the automation is registered under unique_id 1740400003, only the alias changed to 'Keuken Tablet - Nachtelijke herstart en bewaking'). Replaces a 4-line automation that blind-pressed button.pixel_tablet_herstart_browser and therefore failed SILENTLY for nine nights once that button went unavailable. mode queued max 10, 8 triggers, 7 choose branches: 03:55 reset the restart budget; 04:00 guarded restart (availability check -> push 'nachtelijke herstart kon niet' and STOP; cap check; log; increment; press; wait up to 5 min for the app-start time to move -> else push 'herstart zonder effect'); 04:10 load start URL; button unavailable >30 min -> ONE push, latched; button back -> clear latch; /30 min app-start older than 26 h -> ONE push, latched; current page != start URL for >30 min within 07:00-22:00 -> reload start URL. ⚠️ HARD CONSTRAINT from Sander: NEVER any plug, switch, mains or device-reboot action. It must never touch switch.*, HomeWizard, or button.pixel_tablet_herstart_apparaat. Only button.pixel_tablet_herstart_browser and button.pixel_tablet_start_url_laden. Mechanically re-verify this on every edit. ⚠️ WHERE THE CAP OF 3 IS ENFORCED (corrected 2026-09-17, chg-2026-09-16-003 remediation): the number 3 lives in the AUTOMATION, not in the counter. automations.yaml declares variable max_herstarts: 3 and branch [2] evaluates the guard 'states(counter.keuken_tablet_herstarts) | int(0) >= max_herstarts' -> log 'herstart GEBLOKKEERD' + one latched push + stop. counter.keuken_tablet_herstarts itself has maximum: 99 — it is a TALLY, not the limit. This is deliberate and is the safer design: a counter clamped at maximum: 3 would silently no-op further increments while the guard kept letting presses through, so the tally would under-report the real number of restarts. With maximum: 99 the tally stays truthful and a single guard decides. The counter carries restore: true so the tally survives an HA restart — deliberately NOT a template, which would reset to 0 on every restart and make the window meaningless. To change the limit, edit max_herstarts in automations.yaml; changing the counter's maximum does nothing. The window is a FIXED 03:55-03:55, not a true rolling 24 h; Sander asked for 'per 24 h' and this deviation is unconfirmed. ⚠️ ALL logbook.log calls must target counter./button./input_boolean. entities, NEVER automation.* — configuration.yaml sets recorder.exclude.domains [automation, updater], so automation-scoped logbook lines are DISCARDED by the recorder and requirement R8 silently breaks. Proven empirically 2026-09-16 and it bit this very change mid-flight. ⚠️ References sensor.keuken_tablet_app_start, which DOES NOT EXIST YET — the fully_kiosk integration ships 9 sensors and lastAppStart is not one of them. Pending chg-2026-09-16-005 (rest sensor, blocked on an Argus security review because it needs the Fully password in secrets.yaml). Until then the automation degrades honestly: it restarts but logs 'NIET te verifieren' instead of claiming success, and the 26 h rule stays silent. No edit needed when that lands. ⚠️ The R5 page-drift trigger fires only on a false->true edge, so a failed start-URL press is NOT retried until the page returns and drifts again — deliberate, it cannot become a reload loop. TEST HOOK: POST /api/events/keuken_tablet_test_herstart runs exactly the 04:00 branch; a test deliberately counts against the cap. Helpers: counter.keuken_tablet_herstarts, input_boolean.keuken_tablet_knop_offline_gemeld / _appstart_oud_gemeld / _cap_gemeld, all declared in configuration.yaml."
+    depends_on: [ha.pod, ha.kiosk.pixel_tablet, ha.config.automations_yaml, ha.config.configuration_yaml]
+    sensitive: false
   ha.config.automations_yaml:
     type: ha-config-file
     owner_agent: ha-engineer
@@ -586,8 +665,8 @@ components:
   ha.kiosk.pixel_tablet:
     type: external-device
     owner_agent: ha-engineer
-    description: Pixel Tablet running Fully Kiosk Browser, kitchen dashboard. IP 172.16.3.17.
-    depends_on: [ha.pod, net.udm]
+    description: "Pixel Tablet running Fully Kiosk Browser 1.61.2-play, kitchen dashboard, start URL https://keuken.bluejungle.net/dashboard-keuken/keuken. ⚠️ IP IS 172.16.3.106, NOT 172.16.3.17 — corrected chg-2026-09-16-002. The tablet stopped using a randomised WiFi MAC (ba:15:b7:cf:ec:34) and fell back to its hardware MAC 24:95:2f:86:0e:04, took a new DHCP lease, and the HA fully_kiosk config entry 01KJ8K7P2QTBFZ7KQ83QTY4F6A stayed pinned to the old address. All 33 fully_kiosk entities sat unavailable from 2026-09-08 and the nightly browser restart failed silently for nine nights. Re-pointed via the supported config-flow reconfigure (supports_reconfigure=true), NOT a .storage edit — no HA restart needed. ⚠️ entry.data.mac is STILL the stale ba:15:... and that is DELIBERATE: the reconfigure schema is only {host,password,ssl,verify_ssl} so no supported flow can write it, and it is functionally inert anyway — its only consumer is async_step_dhcp, which needs a device-registry CONNECTION_NETWORK_MAC that entity.py can only set from the LIVE deviceInfo Mac field, and Fully 1.61.2 on this Android returns Mac as an EMPTY STRING. core.device_registry confirms connections=[] for this device. The DHCP self-heal is structurally dead here; the durable fix is the DHCP reservation (chg-2026-09-16-001, Iris). ⚠️ sensor.pixel_tablet_voorgrond_app reads unavailable — this is a TRANSIENT SETUP-TIME RACE, not a device or Android limitation. CORRECTED 2026-09-17 (chg-2026-09-16-002 remediation, found by Themis, re-verified by Hestia): an earlier version of this entry claimed foregroundApp was absent from the deviceInfo payload on modern Android. That is FALSE — a live deviceInfo probe returns foregroundApp = 'de.ozerov.fully', and all 9 keys the integration maps to sensors are present. The real cause is in homeassistant/components/fully_kiosk/sensor.py async_setup_entry, which builds entities ONLY for keys present in coordinator.data at setup time ('for description in SENSORS if description.key in coordinator.data'). The key was missing from the coordinator payload at the instant of the 21:22 reload on 2026-09-16, so no entity object was ever constructed; the entity-registry row survives and therefore reports unavailable. Cosmetic only: diagnostic category, referenced by neither automation 1740400003 nor the keuken dashboard. Fix is a plain config-entry reload (01KJ8K7P2QTBFZ7KQ83QTY4F6A) at a moment when the key is present — DEFERRED by Atlas past the 04:00 watchdog test run, deliberately not done. Do NOT re-document this as a permanent limitation without re-probing the device first. ⚠️ On-device auto-recovery is ALL OFF (timeToRestartUnresponsiveWebview 0, reloadEachSeconds 0, reloadPageFailure 0, reloadOnScreenOn/Internet/WifiOn/ScreensaverStop all false), so HA-side watchdog automation 1740400003 is the ONLY recovery mechanism. kioskMode currently reads False. Fully Remote Admin password lives in .storage/core.config_entries; deviceInfo needs it, there is no anonymous read. deviceID / config-entry unique_id = 4c6446d0-a9251baf. NETWORK-SIDE FACTS, filled in by Iris 2026-09-17, full record in net.dhcp.reservations: hardware MAC 24:95:2f:86:0e:04, DHCP reservation 172.16.3.106 named Pixel-Tablet-Keuken (chg-2026-09-16-001, UniFi client object _id 6a0459004b8fede42d5b28bd), on CLIENT-VLAN networkconf 5e9afa144edb2e02cf522ef5 in the Internal firewall zone. CORRECTION: 172.16.2.0/23 spans 172.16.2.0-172.16.3.255, so 172.16.3.106 is CLIENT-VLAN, NOT IOT-VLAN (which is 172.16.4.0/23); any earlier brief saying IOT-VLAN is wrong. Wireless via AP06 - Keuken (net.ap.keuken, 68:d7:9a:4d:ac:52), 5GHz radio rai0 ch132, signal -54 dBm, SSID VDHFEMFLEX. The stale randomised MAC was ba:15:b7:cf:ec:34. The IP is now pinned at the DHCP layer, so the stale entry.data.mac above stays inert and harmless. ⚠️ VLAN, CORRECTED 2026-09-17: 172.16.3.106 is on CLIENT-VLAN, Internal zone - NOT on IOT-VLAN. 172.16.2.0/23 spans 172.16.2.0-172.16.3.255, and IOT-VLAN is vlan 250 / 172.16.4.1/23 (DHCP 172.16.5.1-254). The tablet is therefore in the SAME zone as HA hostNetwork node IPs 172.16.2.81/82/83; HA->tablet is intra-subnet, crosses no zone pair, and the enforced IoT->Internal BLOCK policy is NOT in that path. Do not propose moving this tablet behind the IoT boundary: the kiosk must reach HA at keuken.bluejungle.net, which WOULD then be an IoT->Internal flow and would be blocked. Accepted-by-design (Argus, chg-2026-09-16-005). ⚠️ NO DEBUG LOGGING ON THE FULLY LIBRARY (Argus sec-005-02): never set fullykiosk, homeassistant.components.rest or default: to debug in configuration.yaml while troubleshooting this tablet - python-fullykiosk 0.0.15 __init__.py:216 logs the Fully Remote Admin password VERBATIM at debug level, and /api/error_log is readable by any authenticated HA user. Use homeassistant.components.fully_kiosk instead (HA-side, clean). If library debug was ever enabled, rotate the Fully password."
+    depends_on: [ha.pod, net.udm, net.dhcp.reservations]
     sensitive: false
   ha.kiosk.thinksmartview:
     type: external-device
