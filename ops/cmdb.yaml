@@ -662,6 +662,34 @@ components:
     description: .storage/auth — user accounts and refresh tokens. NEVER edit while HA running.
     depends_on: [ha.pod]
     sensitive: true
+  ha.integration.flightradar24:
+    type: ha-integration
+    owner_agent: ha-engineer
+    description: >-
+      Flightradar24 (HACS custom component AlexandrErohin v2.2.0), configured
+      2026-09-17 via chg-2026-09-17-002. Config entry 01M2QBRXPME7K3Z1J95WY1NW5A,
+      anonymous (no FR24 subscription; username/password are Optional in the config
+      flow). Home coords, radius 1000 m - the radius is METRES and 1000 is the
+      integration default, chosen deliberately so the area feed is inert; this was
+      set up for per-flight tracking, not area tracking. scan_interval 20 s.
+      WARNING - it registers NO services at all. add/remove tracking are TEXT
+      entities (text.flightradar24_add_to_track / _remove_from_track), not a
+      flightradar24.add_track service. Anything written against a flightradar24.*
+      service call will silently never run. Atlas made exactly that mistake on
+      2026-09-17; Hestia caught it.
+      Events available - flightradar24_tracked_took_off / _tracked_landed /
+      _tracked_left_gate / _tracked_arrived_gate. Per-flight time fields live in
+      api/flight.py - time_scheduled_departure/arrival, time_estimated_departure/
+      arrival, time_real_arrival.
+      KNOWN LIMITATION, proven 2026-09-17 - time_estimated_arrival can go STALE
+      rather than update. At 14:03 it still read 14:03:58 while the aircraft was
+      49 nm out at 16000 ft; real arrival was ~14:18. A frozen field and a correct
+      field are indistinguishable to a threshold trigger, so any ETA-change alert
+      built on it needs a staleness guard or its silence is ambiguous.
+      First use - temporary HV5022 watcher (chg-2026-09-17-003), since closed and
+      self-removed. Integration is left configured and idle, additional_tracked 0.
+    depends_on: [ha.pod]
+    sensitive: false
   ha.kiosk.pixel_tablet:
     type: external-device
     owner_agent: ha-engineer
