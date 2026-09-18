@@ -1,0 +1,12 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./ocirepository.yaml
+  - ./helmrelease.yaml
+  - ./externalsecret.yaml
+  - ./volsync.yaml
+# NOTE: components/volsync is deliberately NOT used here. See the header of
+# volsync.yaml for why (the shared component hardcodes a bucket that is
+# mirrored off-site to Azure).

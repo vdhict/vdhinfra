@@ -1,0 +1,201 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd-community/flux2-schemas/main/helmrelease-helm-v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: forgejo
+spec:
+  interval: 30m
+  maxHistory: 2
+  chartRef:
+    kind: OCIRepository
+    name: forgejo
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    image:
+      # Chart default is rootless: true and the chart's image helper appends
+      # the "-rootless" suffix itself, so tag stays bare and digest is set
+      # separately. Resolved image:
+      #   code.forgejo.org/forgejo/forgejo:15.0.9-rootless@sha256:caf1bc...
+      # Digest verified against the registry as a multi-arch index with a
+      # linux/amd64 child.
+      tag: 15.0.9
+      digest: sha256:caf1bca332f95cdcf124227a4bfa3b49bbbfbbc8a5e4a97406921cb581165413
+
+    # Single replica. Forgejo is not safe to run multi-replica against an
+    # RWO volume, and the chart's own strategy default is Recreate.
+    replicaCount: 1
+
+    test:
+      # The chart's test-connection hook Pod runs `busybox:latest` - an
+      # unpinned, non-digest tag, which this repo pins everywhere else.
+      # Flux does not run Helm tests unless spec.test.enable is set, so the
+      # hook would never execute, but disabling it keeps an unpinned :latest
+      # reference out of the release manifest entirely.
+      enabled: false
+
+    service:
+      http:
+        type: ClusterIP
+        port: 3000
+      ssh:
+        # ── SEAM FOR P4 (Iris, high risk, NOT authored here) ──────────────
+        # To expose git-over-SSH, change type to LoadBalancer and add:
+        #   annotations:
+        #     lbipam.cilium.io/ips: "172.16.2.x"
+        #     external-dns-unifi.bluejungle.net/hostname: forge.${SECRET_DOMAIN}
+        # The address must be proven free ON THE NETWORK first: the Cilium
+        # l2-pool is 172.16.2.0/23, which spans 172.16.2.0-172.16.3.255 and
+        # overlaps the CLIENT-VLAN DHCP range, so "no k8s Service uses it"
+        # is NOT sufficient. The devtools ResourceQuota allows exactly one
+        # LoadBalancer in this namespace.
+        type: ClusterIP
+        port: 22
+
+    # ── SEAM FOR P4 ──────────────────────────────────────────────────────
+    # Left disabled. Iris either flips this on with parentRefs pointing at
+    # envoy-internal/https, or drops a standalone HTTPRoute alongside.
+    # Either way no values restructuring is needed, because ROOT_URL and
+    # DOMAIN below are already pinned explicitly.
+    httpRoute:
+      enabled: false
+
+    persistence:
+      enabled: true
+      create: true
+      claimName: forgejo-data
+      size: 50Gi
+      accessModes:
+        - ReadWriteOnce
+      storageClass: rook-ceph-block
+      annotations:
+        # Chart default, kept deliberately: an uninstall or a Flux prune
+        # must not take the git object store with it.
+        helm.sh/resource-policy: keep
+
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        # Memory only. No CPU limit - git gc and clone bursts are exactly
+        # the workload CFS throttling hurts. See the devtools ResourceQuota.
+        memory: 2Gi
+
+    gitea:
+      admin:
+        # Bootstrap admin, needed to get in before P5 (Authelia OIDC) exists.
+        # PREREQUISITE BEFORE LANDING: a 1Password item named "forgejo" with
+        # fields FORGEJO_ADMIN_USER and FORGEJO_ADMIN_PASS. Without it the
+        # ExternalSecret stays NotReady and this HelmRelease never goes Ready.
+        existingSecret: forgejo-admin-secret
+        email: admin@${SECRET_DOMAIN}
+        # keepUpdated would re-sync the password from the secret on every
+        # pod start, silently reverting a password changed in the UI.
+        # initialOnlyNoReset sets it once at creation and then leaves it be.
+        passwordMode: initialOnlyNoReset
+
+      metrics:
+        # ── SEAM FOR P6 (chg-2026-09-18-004) ─────────────────────────────
+        # The chart ships its own ServiceMonitor template; P6 flips these
+        # two flags rather than authoring a second ServiceMonitor, which
+        # would double-scrape.
+        enabled: false
+        serviceMonitor:
+          enabled: false
+
+      # ── SEAM FOR P5 (Argus + Authelia OIDC, NOT authored here) ─────────
+      # P5 appends a single entry here with `existingSecret:` pointing at a
+      # 1Password-backed secret and `autoDiscoverUrl` on Authelia. No other
+      # values change is required.
+      oauth: []
+
+      # The DB password never appears in app.ini as plaintext in Git. The
+      # chart's init-app-ini container runs config_environment.sh, which
+      # folds FORGEJO__<section>__<key> env vars into app.ini at start-up.
+      additionalConfigFromEnvs:
+        - name: FORGEJO__database__PASSWD
+          valueFrom:
+            secretKeyRef:
+              # Generated and owned by CNPG for the forge-pg cluster's app
+              # role. Nothing to rotate by hand, and no postgres-init
+              # initContainer is needed because forge-pg is dedicated and
+              # bootstraps the forgejo DB and owner itself.
+              name: forge-pg-app
+              key: password
+
+      config:
+        APP_NAME: "VDH Forge"
+        RUN_MODE: prod
+
+        database:
+          DB_TYPE: postgres
+          HOST: forge-pg-rw.devtools.svc.cluster.local:5432
+          NAME: forgejo
+          USER: forgejo
+          SSL_MODE: require
+
+        server:
+          # Pinned NOW, before P4 exists. If these were left to the chart's
+          # defaulting they would be derived from httpRoute.hostnames, so
+          # turning the route on later would silently change Forgejo's idea
+          # of its own URL - which breaks clone URLs and OIDC redirect URIs.
+          DOMAIN: forge.${SECRET_DOMAIN}
+          ROOT_URL: https://forge.${SECRET_DOMAIN}
+          PROTOCOL: http
+          HTTP_PORT: 3000
+          SSH_DOMAIN: forge.${SECRET_DOMAIN}
+          SSH_PORT: 22
+          SSH_LISTEN_PORT: 2222
+          LFS_START_SERVER: true
+          OFFLINE_MODE: true
+
+        service:
+          # This forge holds client repositories. Self-registration off,
+          # no open sign-up, and new repos private by default.
+          DISABLE_REGISTRATION: true
+          REQUIRE_SIGNIN_VIEW: true
+          DEFAULT_KEEP_EMAIL_PRIVATE: true
+          DEFAULT_ALLOW_CREATE_ORGANIZATION: false
+
+        repository:
+          DEFAULT_PRIVATE: private
+          DEFAULT_PUSH_CREATE_PRIVATE: true
+
+        mirror:
+          # No user of this forge may create a PUSH mirror, i.e. may not
+          # configure a client repository to replicate itself to an external
+          # host. Off-site copying of client repos is explicitly NOT covered
+          # by chg-2026-09-15-003 and the default is NO, so the feature that
+          # would do it is off at the server.
+          #
+          # PULL mirrors are left enabled - they bring code IN, which is a
+          # legitimate way to onboard an existing repository.
+          DISABLE_NEW_PUSH: true
+
+        security:
+          INSTALL_LOCK: true
+
+        # Single replica on one PVC, so in-process memory/level backends are
+        # correct here and there is no Redis/Valkey to run.
+        session:
+          PROVIDER: db
+        cache:
+          ADAPTER: memory
+        queue:
+          TYPE: level
+
+        log:
+          LEVEL: Info
+
+        actions:
+          # ── SEAM FOR P7 (Studio runner) ────────────────────────────────
+          # Enabled so the runner can register later without a Forgejo
+          # restart. No runner is registered by this change, so nothing runs.
+          ENABLED: true
