@@ -487,6 +487,51 @@ components:
     sla_tier: ops-only
     health_source: none:tooling-not-runtime
 
+  # ── Self-hosted forge (devtools) ─────────────────────────────────────
+  # Programme chg-2026-09-15-003. AUTHORED on branch chore/ops-thanos-decom
+  # 2026-09-18; NOT yet merged to main, so none of this is live. Flux only
+  # reconciles refs/heads/main.
+  k8s.ns.devtools:
+    type: k8s-namespace
+    owner_agent: k8s-engineer
+    description: "devtools namespace holding the self-hosted Forgejo forge. Carries a ResourceQuota that caps services.loadbalancers at 1 and services.nodeports at 0 - the LB cap is a deliberate guard because the Cilium l2-pool 172.16.2.0/23 overlaps the CLIENT-VLAN DHCP range. Quota deliberately omits limits.cpu so the paired LimitRange never forces a CPU limit onto a git server."
+    depends_on: [k8s.cluster]
+    sensitive: false
+    tier: 4
+    group: devtools
+    sla_tier: ops-only
+    health_source: k8s://namespace/devtools
+  k8s.devtools.forge-pg:
+    type: k8s-app
+    owner_agent: k8s-engineer
+    description: "CNPG PostgreSQL 16 cluster (2 instances) backing Forgejo. Deliberately SEPARATE from postgres16 so client-repo data and CI-reachable credentials never share an instance with the household's authelia/home_assistant/grafana/lldap databases. Barman backups go to s3://forge-backups/ NOT s3://cnpg-backups/ - the latter is rclone-mirrored to Azure nightly and this DB holds client repo metadata, which chg-2026-09-15-003 explicitly does not permit off-site. Known gap: barman is gzip, not encrypted; MinIO has no KMS so SSE-S3 is unavailable. postgres16 has the same gap."
+    depends_on: [k8s.ns.devtools, k8s.storage.rook-ceph, k8s.secrets.external-secrets]
+    sensitive: true
+    tier: 5
+    group: devtools
+    sla_tier: ops-only
+    health_source: k8s://cluster/devtools/forge-pg
+  k8s.devtools.forgejo:
+    type: k8s-app
+    owner_agent: k8s-engineer
+    description: "Forgejo git forge (chart 17.1.7 / app 15.0.9). HOLDS CLIENT REPOSITORIES. VolSync restic target is s3://forge-volsync/ NOT s3://volsync/ - the shared components/volsync would have mirrored the git object store to Azure. [mirror] DISABLE_NEW_PUSH=true stops a user replicating a repo to an external host. server DOMAIN/ROOT_URL are pinned explicitly so enabling the P4 HTTPRoute cannot silently change the forge's own URL. CONSEQUENCE OF THE NO-OFFSITE RULE: the forge has no off-site backup at all."
+    depends_on: [k8s.devtools.forge-pg, k8s.storage.rook-ceph, k8s.secrets.external-secrets]
+    sensitive: true
+    tier: 5
+    group: devtools
+    sla_tier: ops-only
+    health_source: k8s://hr/devtools/forgejo
+  k8s.devtools.forge-monitoring:
+    type: k8s-app
+    owner_agent: k8s-engineer
+    description: "Forge observability: chart-provided ServiceMonitor, a blackbox Probe against the in-cluster Service (deliberately not the public hostname, so it does not depend on P4), and the forge-backups PrometheusRule. Alert expressions were verified against live Prometheus; note that CNPG's last-available-backup metric reads 0 on replicas and VolSync's app namespace label is obj_namespace, not namespace."
+    depends_on: [k8s.devtools.forgejo, k8s.devtools.forge-pg]
+    sensitive: false
+    tier: 5
+    group: devtools
+    sla_tier: ops-only
+    health_source: prometheus://ALERTS{component=~"forge.*"}
+
   # ── Home Assistant + automations ─────────────────────────────────────
   ha.pod:
     type: k8s-app
