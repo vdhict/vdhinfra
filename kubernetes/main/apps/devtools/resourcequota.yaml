@@ -1,0 +1,49 @@
+---
+# Quota for the self-hosted forge (Forgejo + its CNPG cluster + CI runner).
+#
+# Sizing is derived from measured cluster headroom, not guessed:
+#   workers      3 x 7950m CPU / ~60GiB allocatable, currently 49-66% CPU
+#                and 22-51% memory requested
+#   ceph         3.00TB raw, 230GB used; ceph-blockpool replica=3
+#                => ~920GiB usable free
+#
+# Programme footprint at full build (P1-P7):
+#   forgejo   100m / 512Mi     forge-pg  2 x 200m / 1Gi
+#   volsync mover ~50m         actions runner (P7) ~2000m / 4Gi
+#   => ~2.6 cores. 4 leaves room for P7 without a follow-up quota edit.
+#
+# NOTE: `namespace:` is set explicitly on this object and on the LimitRange.
+# They are applied by the cluster-apps Kustomization, which sets no
+# targetNamespace, so an object without an explicit namespace would land in
+# `default`.
+#
+# DELIBERATELY ABSENT: limits.cpu. Quoting it would force a CPU limit onto
+# every container via the LimitRange, and CFS throttling is exactly wrong for
+# a git server (clone bursts, `git gc`, CI jobs). Memory is the resource that
+# actually harms the node, so limits.memory IS quoted.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: devtools
+  namespace: devtools
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.memory: 16Gi
+    pods: "20"
+    persistentvolumeclaims: "20"
+    # Peak concurrent claim is larger than steady state because VolSync
+    # clones the source PVC for the mover:
+    #   forgejo-data 50Gi + volsync snapshot clone 50Gi + cache 5Gi
+    #   + forge-pg 2 x 20Gi = 165Gi, plus headroom for a CNPG rejoin.
+    requests.storage: 400Gi
+    # Hard guard for P4. The Cilium l2-pool is 172.16.2.0/23, which spans
+    # 172.16.2.0-172.16.3.255 and therefore OVERLAPS the CLIENT-VLAN DHCP
+    # range where real household devices live. Capping devtools at exactly
+    # one LoadBalancer means this namespace can claim the single approved
+    # SSH address and nothing more.
+    services.loadbalancers: "1"
+    # devtools must never expose a NodePort. Everything goes through the
+    # gateway or the one approved LoadBalancer.
+    services.nodeports: "0"

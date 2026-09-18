@@ -1,0 +1,17 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+#
+# Namespace-level resource list for `devtools` (the self-hosted forge).
+#
+# This file IS the wiring into the cluster root: cluster-apps points at
+# ./kubernetes/main/apps, which has no kustomization.yaml of its own, so
+# kustomize-controller generates one by scanning that directory. Its scan
+# adds any subdirectory that CONTAINS a kustomization.yaml as a resource and
+# does not descend into it. That is how the other 14 namespaces are picked
+# up too - none of them are listed anywhere above apps/.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./namespace.yaml
+  - ./resourcequota.yaml
+  - ./limitrange.yaml
