@@ -1,0 +1,29 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app forge-pg
+  namespace: flux-system
+spec:
+  targetNamespace: devtools
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  dependsOn:
+    # cloudnative-pg 1.29.0 runs cluster-scoped (OPERATOR_NAMESPACE is empty
+    # and clusterrolebinding/cloudnative-pg exists), so it already reconciles
+    # Clusters in any namespace. No operator change is needed for devtools.
+    - name: cloudnative-pg
+    - name: external-secrets-stores
+    - name: rook-ceph-cluster
+  path: ./kubernetes/main/apps/devtools/forge-pg/app
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: true
+  interval: 30m
+  retryInterval: 1m
+  timeout: 15m
