@@ -25,3 +25,29 @@ spec:
   interval: 30m
   retryInterval: 1m
   timeout: 15m
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app forgejo-monitoring
+  namespace: flux-system
+spec:
+  targetNamespace: devtools
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  dependsOn:
+    # Ordered after the app so the Probe never points at a Service that does
+    # not exist yet. forge-pg is already a transitive dependency via forgejo.
+    - name: forgejo
+  path: ./kubernetes/main/apps/devtools/forgejo/monitoring
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: true
+  interval: 30m
+  retryInterval: 1m
+  timeout: 5m

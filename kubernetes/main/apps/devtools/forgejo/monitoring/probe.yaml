@@ -1,0 +1,37 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/probe_v1.json
+#
+# Probes Forgejo's health endpoint through blackbox-exporter.
+#
+# Target is the IN-CLUSTER Service, deliberately, not the public hostname.
+# That keeps P6 independent of P4: this works before any HTTPRoute or DNS
+# record exists, and keeps working afterwards. An external probe against
+# forge.${SECRET_DOMAIN} belongs with P4, which owns that path.
+#
+# The service name forgejo-http and port 3000 are not assumed - they were
+# read out of an actual `helm template` render of the pinned chart.
+#
+# Lives in devtools rather than observability because the live Prometheus
+# has probeNamespaceSelector: {} (verified), i.e. it discovers Probes in
+# every namespace.
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: forgejo-http
+  labels:
+    app.kubernetes.io/name: forgejo
+spec:
+  jobName: blackbox-http
+  prober:
+    url: blackbox-exporter.observability.svc.cluster.local:9115
+    path: /probe
+  module: http_2xx
+  interval: 60s
+  scrapeTimeout: 10s
+  targets:
+    staticConfig:
+      static:
+        - http://forgejo-http.devtools.svc.cluster.local:3000/api/healthz
+      labels:
+        target_friendly: forgejo
+        target_role: git-forge
