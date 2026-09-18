@@ -102,13 +102,15 @@ spec:
         passwordMode: initialOnlyNoReset
 
       metrics:
-        # ── SEAM FOR P6 (chg-2026-09-18-004) ─────────────────────────────
-        # The chart ships its own ServiceMonitor template; P6 flips these
-        # two flags rather than authoring a second ServiceMonitor, which
-        # would double-scrape.
-        enabled: false
+        # Enabled by P6 (chg-2026-09-18-004). The chart ships its own
+        # ServiceMonitor template, so these two flags are used rather than
+        # authoring a second ServiceMonitor, which would double-scrape.
+        # The live Prometheus has serviceMonitorSelector and
+        # serviceMonitorNamespaceSelector both {} (verified), so a
+        # ServiceMonitor in devtools is discovered without extra labels.
+        enabled: true
         serviceMonitor:
-          enabled: false
+          enabled: true
 
       # ── SEAM FOR P5 (Argus + Authelia OIDC, NOT authored here) ─────────
       # P5 appends a single entry here with `existingSecret:` pointing at a

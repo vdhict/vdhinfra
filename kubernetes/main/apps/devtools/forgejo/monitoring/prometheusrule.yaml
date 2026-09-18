@@ -1,0 +1,168 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/prometheusrule_v1.json
+#
+# Backup-health alerting for the forge. Every expression below was run
+# against LIVE Prometheus before being written here, using the existing
+# postgres16 cluster and the existing mealie ReplicationSource as stand-ins.
+# Three corrections came out of that and are recorded inline, because an
+# alert on a metric that does not exist (or that is always true) is worse
+# than no alert at all.
+#
+# NOTE ON AVAILABILITY: there is deliberately no "ForgejoDown" rule here.
+# blackbox-exporter already ships a GENERIC rule, BlackboxProbeFailure
+# (probe_success == 0 for 3m), which picks up every Probe target
+# automatically - including the one added by this change. A forge-specific
+# copy would simply double-notify on the same condition.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: forge-backups
+  labels:
+    app.kubernetes.io/name: forgejo
+    prometheus: k8s
+    role: alert-rules
+spec:
+  groups:
+    - name: forge.backup
+      interval: 5m
+      rules:
+        - alert: ForgePostgresBackupStale
+          # CORRECTION 1 (found by querying, not by reading docs):
+          # cnpg_collector_last_available_backup_timestamp reports 0 on the
+          # REPLICAS and the real timestamp only on the primary. Measured on
+          # postgres16: pod-1 = 0, pod-2 = 1789699309, pod-3 = 0. A naive
+          # `time() - metric > threshold` would therefore have fired forever
+          # on two of the three pods. `max by (namespace)` takes the
+          # primary's value. If no backup has ever run, every series is 0,
+          # max is 0, and the alert correctly fires.
+          #
+          # 36h, not 24h: the ScheduledBackup is daily, so 24h alerts on
+          # every slightly-late run. Sanity-checked against live data -
+          # postgres16 read 63546s (17.6h) mid-cycle.
+          expr: |-
+            time() - max by (namespace) (
+              cnpg_collector_last_available_backup_timestamp{namespace="devtools"}
+            ) > 129600
+          for: 30m
+          labels:
+            severity: warning
+            component: forge-pg
+          annotations:
+            summary: "forge-pg has no successful backup in over 36h"
+            description: |
+              The last available barman backup for forge-pg is more than 36
+              hours old. The forge database holds Forgejo's issues, pull
+              requests, user accounts and SSH public keys.
+
+              This is the ONLY backup of that data that leaves Ceph - and it
+              stays on-prem by design (bucket forge-backups is deliberately
+              excluded from the Azure offsite mirror), so there is no second
+              copy to fall back on.
+
+              Check: kubectl -n devtools get backup
+                     kubectl -n devtools get cluster forge-pg -o yaml | grep -A3 lastSuccessfulBackup
+
+        - alert: ForgePostgresBackupFailing
+          expr: |-
+            max by (namespace) (
+              cnpg_collector_last_failed_backup_timestamp{namespace="devtools"}
+            ) > max by (namespace) (
+              cnpg_collector_last_available_backup_timestamp{namespace="devtools"}
+            )
+          for: 30m
+          labels:
+            severity: warning
+            component: forge-pg
+          annotations:
+            summary: "forge-pg's most recent backup attempt FAILED"
+            description: |
+              The last failed backup for forge-pg is more recent than the
+              last successful one, so the newest attempt did not complete.
+
+        - alert: ForgePostgresWalArchiveFailing
+          # Mirrors the LastFailedArchiveTime rule postgres16 already has,
+          # scoped to devtools. max by() for the same primary/replica reason
+          # as above. Verified cnpg_pg_stat_archiver_last_failed_time exists
+          # and is exported on the primary only.
+          expr: |-
+            (
+              max by (namespace) (cnpg_pg_stat_archiver_last_failed_time{namespace="devtools"})
+              -
+              max by (namespace) (cnpg_pg_stat_archiver_last_archived_time{namespace="devtools"})
+            ) > 1
+          for: 15m
+          labels:
+            severity: warning
+            component: forge-pg
+          annotations:
+            summary: "forge-pg WAL archiving to MinIO is failing"
+            description: |
+              WAL archiving is failing, so point-in-time recovery for the
+              forge is broken even if the nightly base backup still works.
+
+        - alert: ForgejoVolsyncBackupOutOfSync
+          # CORRECTION 2: the VolSync metric labels are not what you would
+          # guess. `namespace` is "storage" (where the operator runs), NOT
+          # the application's namespace - the app namespace is `obj_namespace`
+          # and the ReplicationSource name is `obj_name`. Matching on
+          # `namespace` here would have silently matched nothing.
+          expr: |-
+            volsync_volume_out_of_sync{obj_name="forgejo", obj_namespace="devtools"} == 1
+          for: 2h
+          labels:
+            severity: warning
+            component: forgejo
+          annotations:
+            summary: "Forgejo VolSync backup has been out of sync for 2h"
+            description: |
+              VolSync reports the forgejo data PVC as out of sync. That PVC
+              is the git object store - the repositories themselves.
+
+              Restic repo: s3://forge-volsync/forgejo on in-cluster MinIO.
+              This is intentionally NOT mirrored off-site, so it is the only
+              copy outside Ceph.
+
+        - alert: ForgejoVolsyncNoRecentSync
+          # CORRECTION 3: VolSync exposes NO last-sync-timestamp metric. The
+          # available series are volsync_volume_out_of_sync,
+          # volsync_missed_intervals_total and volsync_sync_duration_seconds.
+          # So staleness is measured as "no sync COMPLETED in 3h" via the
+          # histogram count. Calibrated on live data: the hourly mealie
+          # source returns 3.008 for increase(...[3h]), so < 1 is a safe
+          # floor for an hourly schedule.
+          expr: |-
+            increase(
+              volsync_sync_duration_seconds_count{obj_name="forgejo", obj_namespace="devtools"}[3h]
+            ) < 1
+          for: 30m
+          labels:
+            severity: warning
+            component: forgejo
+          annotations:
+            summary: "No Forgejo VolSync backup has completed in 3h"
+            description: |
+              The forgejo ReplicationSource runs hourly but has not completed
+              a sync in three hours. VolSync may still report the volume as
+              in-sync, so this catches the case the out-of-sync gauge misses.
+
+        - alert: ForgeBackupMonitoringMissing
+          # The estate has been bitten before by alerts that were silently
+          # always-absent (memory: bootstrap-orphan-monitoring). These two
+          # series vanish if the ReplicationSource or the CNPG PodMonitor is
+          # removed - at which point every other rule in this group goes
+          # quiet and looks healthy. This is the guard against that.
+          expr: |-
+            absent(cnpg_collector_last_available_backup_timestamp{namespace="devtools"})
+            or
+            absent(volsync_volume_out_of_sync{obj_name="forgejo", obj_namespace="devtools"})
+          for: 1h
+          labels:
+            severity: warning
+            component: forge
+          annotations:
+            summary: "Forge backup metrics have disappeared from Prometheus"
+            description: |
+              Either forge-pg's CNPG metrics or the forgejo ReplicationSource
+              metrics stopped being scraped. The other rules in this group
+              depend on those series, so they are now silently unable to
+              fire. Treat this as "backups are unmonitored", not as noise.
