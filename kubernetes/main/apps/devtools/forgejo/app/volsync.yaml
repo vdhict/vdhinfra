@@ -1,0 +1,111 @@
+---
+# ─────────────────────────────────────────────────────────────────────────
+# WHY THIS IS NOT ../../../../components/volsync
+#
+# The shared component hardcodes:
+#     RESTIC_REPOSITORY: s3:http://minio...:9000/volsync/${APP}
+#
+# The "volsync" bucket IS one of the two buckets that
+# storage/minio-offsite-mirror rclone-syncs to Azure Blob every night at
+# 04:30 (`for bucket in cnpg-backups volsync`). Using the component would
+# therefore ship restic snapshots of the Forgejo data PVC - the actual git
+# object store for CLIENT REPOSITORIES - off-site to Azure.
+#
+# restic IS AES-256 encrypted, so the content would be protected. But it
+# would still be an off-site COPY of client repos, and chg-2026-09-15-003
+# says in as many words that off-site copying of client repos is NOT
+# covered and the default remains NO. That is the user's decision to make,
+# not a side effect of reusing a component.
+#
+# Secondary reason: the component exposes no moverResources, and under the
+# devtools ResourceQuota every pod needs requests. Authoring locally lets
+# the mover's resources be stated explicitly instead of inherited from a
+# LimitRange default.
+#
+# "forge-volsync" is NOT in the mirror's bucket loop, so this stays
+# on-prem. restic creates its own bucket on init, so no manual `mc mb`.
+#
+# CONSEQUENCE, stated plainly: the forge then has NO off-site backup at
+# all. A fire that takes the rack also takes the Synology and the forge.
+# If that is not acceptable, the answer is a separate decision about an
+# encrypted off-site path - not quietly adding this bucket to the loop.
+#
+# An alternative was considered and rejected for now: parameterising the
+# shared component as ${VOLSYNC_BUCKET:=volsync}, which renders
+# byte-identical for the seven apps already using it. Rejected because
+# VolSync is the backup path for Home Assistant, zigbee2mqtt, zwave-js-ui,
+# node-red, esphome, mealie and radarr, and editing it was not in scope
+# for this change. It remains a clean follow-up if preferred.
+# ─────────────────────────────────────────────────────────────────────────
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: forgejo-volsync
+spec:
+  refreshInterval: 12h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword-connect
+  target:
+    name: forgejo-volsync-secret
+    template:
+      engineVersion: v2
+      data:
+        # Same MinIO endpoint and the same shared repo password as every
+        # other app, so cross-repo restores still work - only the BUCKET
+        # differs, and that difference is the whole point.
+        RESTIC_REPOSITORY: s3:http://minio.storage.svc.cluster.local:9000/forge-volsync/forgejo
+        RESTIC_PASSWORD: "{{ .VOLSYNC_REPO_PASSWORD }}"
+        AWS_ACCESS_KEY_ID: "{{ .MINIO_ROOT_USER }}"
+        AWS_SECRET_ACCESS_KEY: "{{ .MINIO_ROOT_PASSWORD }}"
+  dataFrom:
+    - extract:
+        key: minio
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/volsync.backube/replicationsource_v1alpha1.json
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationSource
+metadata:
+  name: forgejo
+spec:
+  sourcePVC: forgejo-data
+  trigger:
+    # Hourly, matching every other ReplicationSource on the estate. :15 so
+    # the forge mover does not start in the same minute as the seven
+    # home-automation/media sources that all fire on the hour.
+    schedule: 15 * * * *
+  restic:
+    # Snapshot copyMethod: VolSync clones the PVC via a VolumeSnapshot and
+    # runs restic against the clone, so Forgejo keeps the live PVC mounted
+    # and git stays consistent for the duration of the backup.
+    copyMethod: Snapshot
+    accessModes:
+      - ReadWriteOnce
+    cacheAccessModes:
+      - ReadWriteOnce
+    cacheCapacity: 8Gi
+    cacheStorageClassName: openebs-hostpath
+    storageClassName: rook-ceph-block
+    volumeSnapshotClassName: csi-ceph-blockpool
+    moverSecurityContext:
+      # Matches the chart's podSecurityContext fsGroup (1000) and the
+      # rootless Forgejo image's uid/gid, so the mover can read the clone.
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+    # Stated explicitly rather than inherited from the devtools LimitRange:
+    # restic indexes a 50Gi repository and the namespace default limit
+    # (1Gi) is uncomfortably close for that.
+    moverResources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        memory: 2Gi
+    repository: forgejo-volsync-secret
+    retain:
+      hourly: 24
+      daily: 7
+      weekly: 5
+      monthly: 6
+    pruneIntervalDays: 7

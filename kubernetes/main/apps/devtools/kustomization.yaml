@@ -16,3 +16,4 @@ resources:
   - ./resourcequota.yaml
   - ./limitrange.yaml
   - ./forge-pg/install.yaml
+  - ./forgejo/install.yaml
