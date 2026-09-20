@@ -1,0 +1,34 @@
+---
+# Companion to the ResourceQuota. Once requests.cpu / requests.memory /
+# limits.memory are quoted, EVERY pod in the namespace must carry those
+# fields or admission fails. This supplies the defaults so that operator-
+# created pods (CNPG instance pods, VolSync mover pods, Helm test hooks)
+# are admitted without each controller having to be taught about the quota.
+#
+# Only defaultRequest (cpu, memory) and default (memory) are set. There is
+# deliberately no `max`/`min` for cpu and no default cpu *limit*: a
+# LimitRange `max` on a resource forces a limit onto every container, which
+# reintroduces the CFS throttling the quota avoids.
+#
+# The default memory limit is 1Gi rather than a tighter 512Mi because the
+# VolSync restic mover indexes a 50Gi repository and 512Mi is a plausible
+# OOM. Workloads that need more set their own limits explicitly (forgejo
+# 2Gi, forge-pg 1Gi).
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: devtools
+  namespace: devtools
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: 50m
+        memory: 128Mi
+      default:
+        memory: 1Gi
+    - type: PersistentVolumeClaim
+      min:
+        storage: 1Gi
+      max:
+        storage: 100Gi
