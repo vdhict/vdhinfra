@@ -1,0 +1,40 @@
+---
+# Caddy's internal root CA from the Mac Studio (172.16.2.200), used by
+# BackendTLSPolicy to VERIFY the Envoy -> Caddy leg rather than skipping
+# verification.
+#
+# This is a PUBLIC certificate, not a secret. It is committed deliberately.
+#
+# PROVENANCE - verified independently before committing, because it arrived
+# over a shared filesystem from an agent:
+#   file sha256   b5a5113b4e9fd3976e33941d4379f74de2d86129cfc1e08cccad19fce6edb414
+#   cert SHA-256  57:79:A1:CC:F9:B9:2F:31:0D:99:D2:EB:FF:14:4A:8D:1B:99:D7:08:
+#                 44:B6:11:22:42:B6:77:05:37:35:90:5E
+#   subject == issuer (self-signed root), CA:TRUE pathlen:1,
+#   Key Usage: Certificate Sign, CRL Sign
+#   valid 2026-09-21 -> 2036-07-30
+#   live: all three SNIs on 172.16.2.200:443 chain to this root,
+#         openssl verify return code 0
+#
+# WHY THE ROOT AND NOT A LEAF: Caddy's internal CA issues TWELVE-HOUR leaves
+# and renews them continuously. Pinning a leaf would break the route twice a
+# day. The root is valid for ten years.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/v1/configmap.json
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: caddy-studio-ca
+  namespace: network
+data:
+  ca.crt: |
+    -----BEGIN CERTIFICATE-----
+    MIIBpDCCAUmgAwIBAgIQA+td1G0/WItccXY1kpFpVjAKBggqhkjOPQQDAjAwMS4w
+    LAYDVQQDEyVDYWRkeSBMb2NhbCBBdXRob3JpdHkgLSAyMDI2IEVDQyBSb290MB4X
+    DTI2MDkyMTA5NTUwOVoXDTM2MDczMDA5NTUwOVowMDEuMCwGA1UEAxMlQ2FkZHkg
+    TG9jYWwgQXV0aG9yaXR5IC0gMjAyNiBFQ0MgUm9vdDBZMBMGByqGSM49AgEGCCqG
+    SM49AwEHA0IABDeK6QI4hWa5IWsc1vLbEranumCafTTCt3K6OxpA3ZW496ywg4HV
+    bslgKmKcMxX77p8Yu1lvfCjMudYUKMm35HejRTBDMA4GA1UdDwEB/wQEAwIBBjAS
+    BgNVHRMBAf8ECDAGAQH/AgEBMB0GA1UdDgQWBBQIRJ6ovmRLcVzffZ04l90HMLLk
+    VjAKBggqhkjOPQQDAgNJADBGAiEAyN1bVCaoJIyasvKe956sz5qJffUwDsfel5B2
+    4ExC1QQCIQC1UheTj+sdI5yIWE6jeIxhKqjA2G03mu2pcitoYkZVIA==
+    -----END CERTIFICATE-----
