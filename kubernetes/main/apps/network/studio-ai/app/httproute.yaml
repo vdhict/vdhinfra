@@ -12,7 +12,7 @@
 # successful upgrades observed on the listener. The keuken kiosk holds one
 # open through this same listener all day.
 #
-# The SSE case is NOT free — see backendtrafficpolicy.yaml.
+# ⚠️ THE `timeouts` BLOCK BELOW IS WHAT MAKES STREAMING WORK. Do not drop it.
 #
 # LITERAL HOSTNAMES, NOT ${SECRET_DOMAIN}, deliberately. Two reasons:
 #   1. synology-nas next door in this same namespace uses literals, and
@@ -50,3 +50,28 @@ spec:
       backendRefs:
         - name: studio-ai
           port: 443
+      # Envoy's per-route default timeout covers request -> COMPLETE response,
+      # which for Server-Sent Events is the ENTIRE stream. Measured TTFT on a
+      # cold 35B MoE load is 29.0 s and long generations run 2-6 minutes, so
+      # without this every answer the family asks for is cut off before the
+      # first token arrives.
+      #
+      # Route `timeout` is unset on all 21 existing routes on this listener, so
+      # the default applies to them. The in-estate proof that it truncates:
+      # media/plex sets timeouts.request/backendRequest to "0s" on both its
+      # rules, commented with a Plex reverse-proxy forum link, and that renders
+      # in the live envoy-external config as `timeout: 0s`. Someone here already
+      # hit this and had to disable it.
+      #
+      # Using the NATIVE Gateway API field rather than an Envoy Gateway
+      # BackendTrafficPolicy: it is proven in production on this pinned v1.3.0
+      # install (plex), it needs no vendor CRD, it is structurally incapable of
+      # binding to anything but this rule, and it keeps the app to five
+      # resources instead of six.
+      #
+      # 600s, deliberately NOT "0s" like plex: an unbounded timeout on a route
+      # a child's browser can reach is how a proxy worker gets wedged. 600s
+      # covers the 6-minute worst case with headroom.
+      timeouts:
+        request: 600s
+        backendRequest: 600s
