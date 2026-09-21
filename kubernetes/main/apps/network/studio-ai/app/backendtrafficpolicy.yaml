@@ -1,0 +1,34 @@
+---
+# ⚠️ THIS IS THE FILE THAT MAKES STREAMING WORK.
+#
+# Measured on the live gateway 2026-09-21: route `timeout` is UNSET on all 21
+# existing routes on envoy-internal, so Envoy's default applies. That default
+# covers request -> COMPLETE response, which for Server-Sent Events is the
+# entire stream. Measured TTFT on a cold 35B MoE load is 29.0 s and a long
+# generation runs 2-6 minutes, so without this policy every answer the family
+# asks for would be cut off before the first token arrives.
+#
+# `targetRefs` binds this to the studio-ai HTTPRoute ONLY. It does not touch
+# the shared https listener and does not affect the other 21 routes or any
+# other tenant on this gateway. That was the explicit design requirement.
+#
+# 600s = the 6-minute worst case plus headroom. Deliberately NOT unlimited:
+# an unbounded timeout on a route a child's browser can reach is how you wedge
+# a proxy worker.
+#
+# connectionIdleTimeout is left at Envoy's 300s stream_idle_timeout default,
+# which resets on every byte. Socket.IO pings every 25 s, well inside it.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/gateway.envoyproxy.io/backendtrafficpolicy_v1alpha1.json
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: studio-ai
+  namespace: network
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: studio-ai
+  timeout:
+    http:
+      requestTimeout: 600s
