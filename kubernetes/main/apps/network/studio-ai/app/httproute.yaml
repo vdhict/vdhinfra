@@ -1,0 +1,52 @@
+---
+# The household AI edge. Two names, one backend, one route.
+#
+# chat.bluejungle.net — Open WebUI (Socket.IO, long-lived websocket)
+# api.bluejungle.net  — OpenAI-compatible /v1 (SSE, 2-6 minute generations)
+#
+# envoy-internal ONLY. Never envoy-external, never the Cloudflare tunnel.
+#
+# WebSockets need no configuration here: Envoy Gateway adds
+# `upgrade_configs: [{upgrade_type: websocket}]` to every route on this
+# listener automatically — verified on all 21 existing routes, with 1740
+# successful upgrades observed on the listener. The keuken kiosk holds one
+# open through this same listener all day.
+#
+# The SSE case is NOT free — see backendtrafficpolicy.yaml.
+#
+# LITERAL HOSTNAMES, NOT ${SECRET_DOMAIN}, deliberately. Two reasons:
+#   1. synology-nas next door in this same namespace uses literals, and
+#      kubeconform validates them (the substitution token fails the Gateway
+#      API hostname pattern, so `just validate` reports a false positive).
+#   2. ${SECRET_DOMAIN} resolves from the `cluster-secrets` Secret, which is
+#      excluded from the kustomization, has EMPTY managedFields, and is the
+#      subject of OPEN incident inc-2026-09-15-006 (sev2: nothing recreates
+#      it on a rebuild). A family-facing route should not depend on it.
+#
+# DNS: external-dns-unifi watches gateway-httproute for bluejungle.net and
+# creates the LAN A records -> 172.16.2.241 (the gateway), not .200. No
+# annotation needed. A records only; never AAAA on the UDM (2026-05-13 crash).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/gateway.networking.k8s.io/httproute_v1.json
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: studio-ai
+  namespace: network
+spec:
+  hostnames:
+    - chat.bluejungle.net
+    - api.bluejungle.net
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: envoy-internal
+      namespace: network
+      sectionName: https
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: studio-ai
+          port: 443

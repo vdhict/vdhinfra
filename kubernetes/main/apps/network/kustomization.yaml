@@ -10,4 +10,5 @@ resources:
   - ./external-dns-cloudflare-internal/install.yaml
   - ./external-dns-cloudflare-external/install.yaml
   - ./external-dns-unifi/install.yaml
+  - ./studio-ai/install.yaml
   - ./synology-nas/install.yaml
