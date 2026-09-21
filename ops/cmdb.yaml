@@ -60,6 +60,39 @@ components:
     sla_tier: family-critical
     health_source: ha://switch.vdhngfw_power
     physical_link_to: []
+  net.edge.studio-ai:
+    type: k8s-route
+    owner_agent: infra-ops
+    description: >-
+      Household AI edge. chat.bluejungle.net and api.bluejungle.net published on
+      envoy-internal (172.16.2.241) to Caddy on the Mac Studio 172.16.2.200:443.
+      Landed 2026-09-21, chg-2026-09-21-002, approved by Sander.
+      ⚠️ TRUST BOUNDARY: authentication for api. is per-user bearer keys enforced
+      by CADDY on the Studio, which hw.mac.studio records as operated by the myPKA
+      agent team, NOT by Atlas. There is no SecurityPolicy on this route and the
+      gateway forwards everything. If that Caddy auth is ever dropped, nothing on
+      the cluster side notices — which is why the blackbox probe asserts 401
+      WITHOUT a key (valid_status_codes [401]); reusing http_2xx would pass on a
+      200, and a 200 is the regression.
+      ⚠️ DNS: the HTTPRoute carries external-dns.alpha.kubernetes.io/controller
+      none. That is the ONLY thing keeping these two names out of the public
+      Cloudflare zone — 22 other internal hostnames ARE published there as CNAMEs
+      to internal.bluejungle.net with registry TXTs naming their HTTPRoutes.
+      Removing the annotation silently republishes both names. external-dns-unifi
+      still writes the UDM A records because it runs a custom --annotation-prefix
+      and never sees the key.
+      ⚠️ TIMEOUT: timeouts.request 600s renders as timeout 600s AND
+      idle_timeout 3600s (EG v1.3 idleTimeout() returns max(1h, requestTimeout)).
+      Per-route, not listener-wide. Measured: a 142 s SSE stream completes;
+      Envoy P100 request time moved 16 s -> 150 s with zero timeouts.
+      ⚠️ Alt-Svc is stripped at route scope because Caddy advertises h3 and the
+      shared altsvc-clear-internal patch APPENDS rather than replaces. Verified
+      live: exactly one alt-svc header, value clear, zero h3.
+      Backend TLS is verified, not skipped, against Caddy's internal ROOT
+      (fingerprint 57:79:A1:CC:...:90:5E) — never a leaf, because Caddy issues
+      twelve-hour leaves.
+    depends_on: [k8s.gateway.envoy-internal, hw.mac.studio, svc.external-dns-unifi]
+    sensitive: false
   net.dns.cloudflare:
     type: external-service
     owner_agent: udm-engineer
@@ -987,7 +1020,7 @@ components:
       validated against a known-open control port: tcp/22 is OPEN and has been
       throughout; 443 and 80 are closed because Caddy is not built yet. There was no
       unannounced change. See memory:macos-local-network-privacy.
-    depends_on: [net.udm, net.dns.unifi-static]
+    depends_on: [net.udm, net.dns.unifi-static, k8s.gateway.envoy-internal]
     sensitive: true
     tier: 3
     group: agent-hosts
