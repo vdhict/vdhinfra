@@ -1,0 +1,38 @@
+---
+# Backend (Envoy -> Caddy) TLS, VERIFIED rather than insecureSkipVerify.
+#
+# Caddy uses `tls internal`, so its leaves are signed by a private CA that is
+# not in any system trust store — the opposite of the synology-nas case next
+# door, which can use `wellKnownCACertificates: System` because DSM holds a
+# real Let's Encrypt certificate. Here we supply the root explicitly.
+#
+# ⚠️ PIN THE ROOT, NEVER A LEAF. Caddy's internal CA issues TWELVE-HOUR
+# certificates and renews them continuously. A policy pinned to a leaf would
+# break the family's chat twice a day. The root is valid to 2036-07-30.
+#
+# `hostname` is BOTH the SNI Envoy sends and the name matched against the
+# presented certificate's SAN. It is deliberately NOT the public route
+# hostname: Envoy sends SNI `studio.bluejungle.net` while carrying Host
+# `chat.` or `api.`, and Caddy routes on Host. All three are site addresses
+# on the Studio; `studio.bluejungle.net` is the backend IDENTITY only and
+# serves nothing, so an upstream misconfiguration is visible rather than
+# silently served. Caddy's `strict_sni_host` is off, which is what makes the
+# split legal; it only matters with TLS client auth, which this leg does not use.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/gateway.networking.k8s.io/backendtlspolicy_v1alpha3.json
+apiVersion: gateway.networking.k8s.io/v1alpha3
+kind: BackendTLSPolicy
+metadata:
+  name: studio-ai
+  namespace: network
+spec:
+  targetRefs:
+    - group: ""
+      kind: Service
+      name: studio-ai
+      sectionName: https
+  validation:
+    hostname: studio.bluejungle.net
+    caCertificateRefs:
+      - group: ""
+        kind: ConfigMap
+        name: caddy-studio-ca
