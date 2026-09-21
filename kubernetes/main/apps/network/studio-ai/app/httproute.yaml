@@ -32,6 +32,32 @@ kind: HTTPRoute
 metadata:
   name: studio-ai
   namespace: network
+  annotations:
+    # ⚠️ KEEPS THESE TWO NAMES OUT OF THE PUBLIC CLOUDFLARE ZONE.
+    #
+    # Three external-dns instances watch gateway-httproute on bluejungle.net.
+    # Without this annotation, external-dns-cloudflare-internal publishes a
+    # PUBLIC CNAME for every internal hostname, pointing at
+    # internal.bluejungle.net (from the Gateway's own
+    # external-dns.alpha.kubernetes.io/target annotation), plus a
+    # world-readable registry TXT naming the HTTPRoute. Verified live:
+    #   nas / pgadmin / grafana .bluejungle.net -> CNAME internal.bluejungle.net
+    #   k8s.cname-nas... TXT -> "...external-dns/resource=httproute/network/synology-nas"
+    # The chain dead-ends only because internal.bluejungle.net itself has no
+    # record — one future A record there turns every internal name into a
+    # public name resolving into RFC1918.
+    #
+    # Landing this route without the annotation would add 4 public records
+    # advertising that this household runs an LLM API.
+    #
+    # WHY THE LAN RECORD STILL GETS WRITTEN: external-dns-unifi runs with
+    # --annotation-prefix=external-dns-unifi.bluejungle.net/, so it never sees
+    # this key and still creates the UDM A record -> 172.16.2.241. The
+    # Cloudflare instances use the default prefix and skip the route.
+    # Proven in production: home-assistant-kiosk carries this same annotation;
+    # keuken/kantoor.bluejungle.net are NXDOMAIN on Cloudflare and resolve to
+    # 172.16.2.241 on the UDM.
+    external-dns.alpha.kubernetes.io/controller: none
 spec:
   hostnames:
     - chat.bluejungle.net
@@ -47,6 +73,24 @@ spec:
         - path:
             type: PathPrefix
             value: /
+      filters:
+        # ⚠️ QUIC TRAP. Caddy emits `alt-svc: h3=":443"; ma=2592000` on every
+        # response. The estate's altsvc-clear-internal EnvoyPatchPolicy adds
+        # `Alt-Svc: clear` at RouteConfiguration scope WITHOUT append_action,
+        # and Envoy's default is APPEND_IF_EXISTS_OR_ADD — so both values
+        # would be sent. RFC 7838 §3 requires `clear` to be the only
+        # alt-value; browsers take the first valid alternative and would try
+        # QUIC to 172.16.2.241:443/udp, where envoy-internal has only TCP
+        # listeners. This estate already has a QUIC incident on record.
+        #
+        # studio-ai is the FIRST backend on envoy-internal that emits its own
+        # Alt-Svc, so that patch has never been exercised in append mode.
+        # Stripping it here is scoped to this route; fixing the shared policy's
+        # append_action is a separate change against the shared gateway.
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            remove:
+              - Alt-Svc
       backendRefs:
         - name: studio-ai
           port: 443
@@ -72,6 +116,23 @@ spec:
       # 600s, deliberately NOT "0s" like plex: an unbounded timeout on a route
       # a child's browser can reach is how a proxy worker gets wedged. 600s
       # covers the 6-minute worst case with headroom.
+      #
+      # ⚠️ WHAT THIS ACTUALLY RENDERS, which is NOT only what it says:
+      #   timeout: 600s   AND   idle_timeout: 3600s
+      # Envoy Gateway v1.3.0 internal/xds/translator/route.go idleTimeout()
+      # returns max(1 hour, requestTimeout) whenever ANY request timeout is
+      # set, so this route's idle ceiling becomes ONE HOUR rather than the
+      # listener's 300s HCM default. That is a 12x lift, on a SHARED listener,
+      # for streams that need zero backend work to stay open. EG v1.3 exposes
+      # no knob to lower it, and switching back to a BackendTrafficPolicy does
+      # not help — getEffectiveRequestTimeout reads both forms.
+      # Confirmed against live data: plex (request "0s") renders
+      # idle_timeout: 0s; routes with no Gateway API timeout render no
+      # idle_timeout at all. Accepted with an observational control rather
+      # than pretended away — see the change record.
+      #
+      # backendRequest is deliberately ABSENT: it only feeds PerTryTimeout,
+      # which Envoy Gateway builds only when a retry policy exists. This route
+      # has none, so setting it would be decorative.
       timeouts:
         request: 600s
-        backendRequest: 600s
