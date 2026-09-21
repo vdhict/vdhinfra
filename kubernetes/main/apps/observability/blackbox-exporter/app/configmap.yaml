@@ -34,3 +34,32 @@ data:
           valid_status_codes: [200, 204]
           fail_if_ssl: false
           fail_if_not_ssl: false
+      # INVERTED ASSERTION. Read this before reusing it.
+      #
+      # This module treats HTTP 401 as SUCCESS and everything else as failure.
+      # That is not a typo and it must not be "fixed" into http_2xx.
+      #
+      # api.bluejungle.net is an OpenAI-compatible LLM endpoint whose
+      # authentication is enforced by Caddy on the Mac Studio (172.16.2.200) —
+      # a config file that lives outside this repo and outside the change log,
+      # operated by the myPKA agent team. If that auth is ever dropped, nothing
+      # on our side would notice. The regression we are watching for is the
+      # endpoint answering an unauthenticated request SUCCESSFULLY.
+      #
+      # So probing it with http_2xx would be worse than not probing it at all:
+      # it would sit red while the endpoint is correctly locked down, and turn
+      # green at the exact moment it stops being. Measured on 2026-09-21 —
+      # http_2xx against https://api.bluejungle.net/v1/models returns
+      # probe_http_status_code 401, probe_success 0.
+      #
+      # fail_if_not_ssl: true additionally asserts the hop is TLS, so a
+      # downgrade to cleartext fails the probe even if the status matched.
+      http_401_unauthenticated:
+        prober: http
+        timeout: 5s
+        http:
+          preferred_ip_protocol: ip4
+          ip_protocol_fallback: false
+          method: GET
+          valid_status_codes: [401]
+          fail_if_not_ssl: true

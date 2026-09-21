@@ -26,3 +26,58 @@ spec:
       labels:
         target_friendly: slzb-06
         target_role: zigbee-coordinator
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/probe_v1.json
+#
+# Watches that the household AI edge still REFUSES unauthenticated callers.
+#
+# Uses module http_401_unauthenticated, which asserts 401 == success. See the
+# long note in configmap.yaml: reusing http_2xx here would pass on a 200, and a
+# 200 is precisely the regression this probe exists to catch.
+#
+# Probed through the GATEWAY by name (api.bluejungle.net → 172.16.2.241), not
+# direct to the Mac Studio at 172.16.2.200, so the assertion covers the whole
+# path the family's clients actually take — HTTPRoute, BackendTLSPolicy and
+# Caddy together. CoreDNS has a dedicated bluejungle.net:53 block forwarding to
+# the UDM, so the name resolves in-cluster; verified 2026-09-21 with
+# probe_http_ssl 1 and probe_http_version 2 from the running exporter.
+#
+# TARGET SET — two, deliberately, not Mack's five:
+#   /v1/models  the canonical OpenAI-compatible endpoint
+#   /api/tags   the native Ollama model list; this is the one that catches
+#               allowlist widening, which /v1/models alone would miss
+# Excluded and why:
+#   /api/pull   MUTATING. If auth were ever dropped, a probe hitting a
+#               model-download endpoint every 60s would be a monitor causing
+#               work on the Mac Studio. Monitoring must never mutate.
+#   /v1/../api/tags and /v1/models/../../api/tags
+#               Zero added signal for an UNAUTHENTICATED assertion. Measured
+#               2026-09-21: all five paths return an identical 401 today and
+#               all five would flip together if auth dropped. The path
+#               normalisation-parity question these were meant to answer can
+#               only be asked WITH a valid key — and putting a household LLM
+#               API key into the cluster to satisfy a monitoring probe would
+#               weaken the very posture this probe protects.
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: ai-edge-auth
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: blackbox-exporter
+spec:
+  jobName: blackbox-ai-edge-auth
+  prober:
+    url: blackbox-exporter.observability.svc.cluster.local:9115
+    path: /probe
+  module: http_401_unauthenticated
+  interval: 60s
+  scrapeTimeout: 10s
+  targets:
+    staticConfig:
+      static:
+        - https://api.bluejungle.net/v1/models
+        - https://api.bluejungle.net/api/tags
+      labels:
+        target_friendly: ai-edge
+        target_role: ai-edge-auth

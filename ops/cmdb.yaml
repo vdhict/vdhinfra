@@ -1276,6 +1276,39 @@ components:
     sensitive: true
     sla_tier: nice-to-have
     group: observability
+  obs.blackbox-exporter:
+    type: k8s-app
+    owner_agent: observability-engineer
+    description: >-
+      blackbox-exporter (observability ns) + its Probe CRs and PrometheusRule.
+      Modules: tcp_lan_5s, icmp_lan, http_2xx, and http_401_unauthenticated —
+      the last asserts 401-as-SUCCESS for the household AI edge, because a 200
+      there is the regression. Probes: slzb-tcp (Zigbee coordinator wedge
+      detector) and ai-edge-auth (api.bluejungle.net unauthenticated 401
+      assertion through envoy-internal). Do NOT "fix" the inverted module into
+      http_2xx; see the note in app/configmap.yaml.
+    depends_on: [obs.prometheus, k8s.gateway.envoy-internal, hw.mac.studio]
+    sensitive: false
+    tier: 5
+    group: observability
+    sla_tier: ops-only
+    health_source: k8s://deploy/observability/blackbox-exporter
+  obs.envoy-gateway-rules:
+    type: k8s-config
+    owner_agent: observability-engineer
+    description: >-
+      PrometheusRule group envoy-gateway.resource-pool — the estate's FIRST
+      alert coverage on the Envoy Gateway data plane (248 alerting rules existed
+      before it and none mentioned envoy). Compensating observational control
+      for the per-route 3600s idle_timeout EG v1.3 renders from the studio-ai
+      route's timeouts.request 600s. Lives in observability rather than beside
+      the gateway so it cannot break the gateway's own Flux reconcile.
+      fixed_heap_pressure is an integer PERCENT 0-100, not a ratio.
+    depends_on: [obs.prometheus, k8s.gateway.envoy-internal]
+    sensitive: false
+    tier: 5
+    group: observability
+    sla_tier: ops-only
   comms.presentation:
     type: static-web
     owner_agent: frontend-engineer
