@@ -16,6 +16,7 @@ resources:
   - ./nut-exporter/install.yaml
   - ./speedtest-exporter/install.yaml
   - ./blackbox-exporter/install.yaml
+  - ./envoy-gateway-rules/install.yaml
   - ./cluster-health/install.yaml
   - ./unifi-exporter/install.yaml
   - ./ceph-smart-exporter/install.yaml

@@ -1,0 +1,207 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/prometheusrule_v1.json
+#
+# FIRST alert coverage on the Envoy Gateway data plane. Before this file the
+# estate had 248 alerting rules and not one of them mentioned envoy — the only
+# net under the gateway was KubePodCrashLooping, which by definition fires
+# AFTER an OOMKill has already taken the family's traffic down with it.
+#
+# Why now: chg-2026-09-21-002 set `timeouts.request: 600s` on the studio-ai
+# HTTPRoute. Envoy Gateway v1.3 renders that as `timeout: 600s` AND
+# `idle_timeout: 3600s` (internal/xds/translator/route.go idleTimeout() floors
+# at one hour and only ever raises it). That ceiling is PER-ROUTE — the other
+# 21 routes keep the 300s HCM default — but streams on the AI route can hold a
+# connection for an hour with zero backend work. EG v1.3 exposes no knob to
+# lower it, so the compensating control is observational. This is it.
+#
+# ── UNITS: the one thing to get right ────────────────────────────────────────
+# `envoy_overload_envoy_resource_monitors_fixed_heap_pressure` is an INTEGER
+# PERCENT in 0..100. It is NOT a 0..1 ratio. Verified empirically rather than
+# assumed:
+#     envoy_server_memory_heap_size  = 31457280 B
+#     max_heap_size_bytes            = 858993459 B   (= 0.8 × the 1Gi limit)
+#     31457280 / 858993459           = 3.66%  →  gauge reads 3   ✓
+# Note it tracks memory_HEAP_SIZE, not memory_allocated (11.4 MB, which would
+# have made the gauge read 1). A threshold written as `> 0.9` in ratio form
+# would fire immediately and permanently at today's value of 3.
+#
+# ── Trigger points, read from the live pod bootstrap (not relayed) ───────────
+#   overload_manager.refresh_interval: 0.25s
+#   envoy.overload_actions.shrink_heap             threshold 0.95  → gauge 95
+#   envoy.overload_actions.stop_accepting_requests threshold 0.98  → gauge 98
+# stop_accepting_requests at gauge 98 means 841.8 MB of heap, i.e. 78.4% of the
+# 1Gi container limit — so Envoy starts shedding requests well before the
+# kernel OOMKills it. Both rungs below sit under 95 so we hear about it before
+# Envoy takes either self-defence action.
+#
+# ── Baselines (7d max_over_time, both envoy-internal replicas) ───────────────
+#   fixed_heap_pressure ............... 3   and 3
+#   downstream_rq_active (https-10443)  8   and 4
+#   studio-ai upstream_rq_active ...... 1   and 0   (route is <1 day old)
+# Scrape interval is 1m (podMonitor/network/envoy-proxy), so `for: 5m` is five
+# scrapes.
+#
+# ── Delivery reality, which is why the severities are what they are ──────────
+# Alertmanager's top-level receiver is "null" and its ONLY sub-route is
+# `severity = critical` → the ha-critical webhook → a push to the handset. A
+# `severity: warning` alert here therefore notifies NOBODY — it is visible in
+# the Alertmanager/Grafana UI and nowhere else, and the daily cluster-health
+# report does not query ALERTS either. So the two `critical` rungs are the ones
+# that actually have to beat the OOMKill, and the `warning` rungs are
+# diagnostic context for whoever is already looking. Do not "promote" a warning
+# to critical without deciding it is worth waking someone for.
+#
+# ── Why there is no gateway-name label ───────────────────────────────────────
+# There is no `gateway_envoyproxy_io_owning_gateway_name` on these series; the
+# podMonitor attaches only container/endpoint/instance/job/namespace/pod. The
+# `pod=~"envoy-network-envoy-internal-.*"` prefix is the only way to separate
+# internal from external, and it is stable: EG names pods
+# envoy-<namespace>-<gateway>-<hash>, so the hash moves but the prefix does not.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: envoy-gateway-rules
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: envoy-gateway.resource-pool
+      interval: 1m
+      rules:
+        # Q: "Is envoy-internal's heap creeping toward the level where Envoy
+        #     starts defending itself?"
+        # 75 is 25× the observed 7d maximum of 3 and sits 20 points below
+        # shrink_heap. Warning tier: UI-only, deliberately not a page.
+        - alert: EnvoyInternalHeapPressureElevated
+          expr: |
+            max by (pod) (
+              envoy_overload_envoy_resource_monitors_fixed_heap_pressure{
+                job="network/envoy-proxy", pod=~"envoy-network-envoy-internal-.*"}
+            ) >= 75
+          for: 15m
+          labels:
+            severity: warning
+            component: envoy-gateway
+            gateway: envoy-internal
+          annotations:
+            summary: "envoy-internal heap pressure {{ $value }}% on {{ $labels.pod }}"
+            description: |
+              fixed_heap pressure has been at or above 75% of the 858993459 B
+              trigger for 15 minutes (normal is 3%). Envoy will shrink_heap at
+              95% and stop accepting requests at 98%.
+              This is a heads-up, not an emergency — nothing is being dropped yet.
+              Look at: envoy_cluster_upstream_rq_active by envoy_cluster_name,
+              to see which route is holding streams.
+
+        # Q: "Is envoy-internal about to start refusing the family's requests?"
+        # 90 is the last rung before shrink_heap (95) and stop_accepting (98).
+        # Critical tier: this one pages, and it is the rule that has to fire
+        # before the OOMKill that KubePodCrashLooping would only notice after.
+        - alert: EnvoyInternalHeapPressureCritical
+          expr: |
+            max by (pod) (
+              envoy_overload_envoy_resource_monitors_fixed_heap_pressure{
+                job="network/envoy-proxy", pod=~"envoy-network-envoy-internal-.*"}
+            ) >= 90
+          for: 5m
+          labels:
+            severity: critical
+            component: envoy-gateway
+            gateway: envoy-internal
+          annotations:
+            summary: "envoy-internal heap pressure CRITICAL {{ $value }}% on {{ $labels.pod }}"
+            description: |
+              fixed_heap pressure {{ $value }}% — Envoy shrinks its heap at 95%
+              and stops accepting requests at 98%. Both envoy-internal replicas
+              currently run on the SAME node, so losing this pod is not
+              survivable by the second replica if the node is the problem.
+              This gateway serves the keuken kiosk, Home Assistant, Grafana,
+              zigbee2mqtt, zwave, evcc and pgadmin.
+              Triage: kubectl -n network top pod -l gateway.envoyproxy.io/owning-gateway-name=envoy-internal
+              then envoy_cluster_upstream_rq_active by envoy_cluster_name to find
+              the route holding streams.
+
+        # Q: "Is Envoy refusing requests RIGHT NOW?"
+        # The protective mechanism itself, firing. Harm is already happening, so
+        # for: 1m — one scrape of confirmation and no more.
+        - alert: EnvoyInternalOverloadShedding
+          expr: |
+            max by (pod) (
+              envoy_overload_envoy_overload_actions_stop_accepting_requests_active{
+                job="network/envoy-proxy", pod=~"envoy-network-envoy-internal-.*"}
+            ) > 0
+          for: 1m
+          labels:
+            severity: critical
+            component: envoy-gateway
+            gateway: envoy-internal
+          annotations:
+            summary: "envoy-internal is SHEDDING requests (overload action active) on {{ $labels.pod }}"
+            description: |
+              The stop_accepting_requests overload action is ACTIVE — Envoy has
+              crossed 98% of its 858993459 B heap trigger and is rejecting
+              incoming requests to save itself. The household is seeing failures
+              on the internal gateway right now.
+
+        # Q: "Is the AI route — the only one with the 3600s idle ceiling —
+        #     accumulating streams that never drain?"
+        # This is the SCOPED version of the resource-pool signal: it names the
+        # one route that can hold an hour-long idle stream, instead of watching
+        # all 22 routes at once. envoy_cluster_name is the EG-generated cluster
+        # for the studio-ai HTTPRoute rule 0 (both hostnames share it).
+        # 7d max is 1; a household LLM might see 3-4 concurrent chats, each
+        # 2-6 minutes. 12 sustained for 20m is a leak, not family use.
+        - alert: EnvoyInternalAiRouteStreamsStuck
+          expr: |
+            max by (pod) (
+              envoy_cluster_upstream_rq_active{
+                job="network/envoy-proxy",
+                envoy_cluster_name="httproute/network/studio-ai/rule/0"}
+            ) > 12
+          for: 20m
+          labels:
+            severity: warning
+            component: envoy-gateway
+            gateway: envoy-internal
+            route: studio-ai
+          annotations:
+            summary: "studio-ai route holding {{ $value }} in-flight streams for 20m"
+            description: |
+              The studio-ai route is the only route on envoy-internal with a
+              3600s idle_timeout (rendered by EG v1.3 from timeouts.request:
+              600s). Sustained in-flight requests well above household levels
+              suggests streams are accumulating rather than completing — each
+              one can sit for an hour before Envoy reaps it.
+              Check Caddy on the Mac Studio (172.16.2.200) is still draining
+              requests, and envoy_cluster_upstream_rq_timeout for this cluster.
+
+        # Q: "Is the shared listener saturating for any reason at all?"
+        # This is Argus's original signal and deliberately the WEAKEST rule in
+        # the file. downstream_rq_active counts every request on all 22 routes
+        # equally — a 2 ms request and a 3600 s idle stream both count as 1 —
+        # so it cannot tell you WHICH route is at fault and there is no
+        # principled threshold. It is kept only as a catch-all backstop at 100,
+        # which is ~12× the 7d observed peak of 8. The heap rules above are the
+        # ones that actually protect the household; if you are tuning, tune
+        # those and leave this one loose.
+        - alert: EnvoyInternalListenerRequestsSaturated
+          expr: |
+            sum by (pod) (
+              envoy_http_downstream_rq_active{
+                job="network/envoy-proxy",
+                envoy_http_conn_manager_prefix="https-10443",
+                pod=~"envoy-network-envoy-internal-.*"}
+            ) > 100
+          for: 20m
+          labels:
+            severity: warning
+            component: envoy-gateway
+            gateway: envoy-internal
+          annotations:
+            summary: "envoy-internal https listener holding {{ $value }} active requests"
+            description: |
+              Active requests on the https-10443 listener have been above 100
+              for 20 minutes (7d peak is 8). This is a backstop signal and does
+              not say which of the 22 routes is responsible — break it down with
+              envoy_cluster_upstream_rq_active by envoy_cluster_name.

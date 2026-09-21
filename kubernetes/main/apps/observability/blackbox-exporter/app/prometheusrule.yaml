@@ -45,3 +45,80 @@ spec:
               (health-z2m-watchdog CronJob) restarts the bridge for.
               If the watchdog is in DRY_RUN, restart manually:
               `kubectl -n home-automation rollout restart deploy/zigbee2mqtt`
+
+    # ── Household AI edge: does it still refuse unauthenticated callers? ──────
+    #
+    # Guards the ONE thing our change log cannot see. api.bluejungle.net's
+    # authentication lives in a Caddy config on the Mac Studio, operated by the
+    # myPKA agent team — outside this repo, outside ops/changes.jsonl. Nothing
+    # else in the estate would notice if it were dropped.
+    #
+    # WHY THESE ARE SPLIT BY STATUS CLASS RATHER THAN "alert on any non-401":
+    # the obvious rule `probe_success == 0` — or any rule that treats every
+    # non-401 alike — pages on a 503. And 503 is exactly what the gateway
+    # returns whenever the Mac Studio is asleep, rebooting, or Caddy is
+    # mid-build. That is a desktop machine and a normal daily event, so such a
+    # rule would page the household routinely and then be muted, taking the
+    # real security signal down with it.
+    #
+    # The failure modes were measured on 2026-09-21 rather than assumed:
+    #   auth working ........ probe_http_status_code 401
+    #   backend unhealthy ... probe_http_status_code 503  (chat, "building")
+    #   host unreachable .... probe_http_status_code 0
+    #   NXDOMAIN ............ probe_http_status_code 0
+    # so status class cleanly separates "security regression" from "the Studio
+    # is off", and the three buckets below do not overlap:
+    #   2xx/3xx  -> critical, pages          (served an unauthenticated request)
+    #   4xx!=401 -> warning                  (auth semantics changed)
+    #   5xx / 0  -> the generic BlackboxProbeFailure above, warning, no page
+    - name: blackbox-exporter.ai-edge-auth
+      interval: 1m
+      rules:
+        # Q: "Did the AI endpoint just answer someone who presented no key?"
+        # The regression, and the only rule here worth waking anyone for.
+        - alert: AiEdgeUnauthenticatedAccessPossible
+          expr: |
+            probe_http_status_code{job="blackbox-ai-edge-auth"} >= 200
+              and
+            probe_http_status_code{job="blackbox-ai-edge-auth"} < 400
+          for: 2m
+          labels:
+            severity: critical
+            component: blackbox-exporter
+            gateway: envoy-internal
+          annotations:
+            summary: "AI edge answered UNAUTHENTICATED request: HTTP {{ $value }} on {{ $labels.instance }}"
+            description: |
+              {{ $labels.instance }} returned {{ $value }} to a request carrying
+              NO API key. It must return 401. The household LLM API is reachable
+              from the whole internal LAN and is now, on this evidence, serving
+              anyone who asks.
+              Auth for this endpoint is enforced by Caddy on the Mac Studio
+              (172.16.2.200) — a config outside this repo. Check with the myPKA
+              agent team whether that config changed.
+              Confirm by hand:
+                curl -s -o /dev/null -w '%{http_code}\n' https://api.bluejungle.net/v1/models
+
+        # Q: "Did the rejection change shape — 403, 404, 429 instead of 401?"
+        # Not necessarily a breach, but the assertion this probe rests on is no
+        # longer true, so the probe has stopped meaning what it claims to mean.
+        - alert: AiEdgeAuthAssertionUnexpectedStatus
+          expr: |
+            probe_http_status_code{job="blackbox-ai-edge-auth"} >= 400
+              and
+            probe_http_status_code{job="blackbox-ai-edge-auth"} < 500
+              and
+            probe_http_status_code{job="blackbox-ai-edge-auth"} != 401
+          for: 15m
+          labels:
+            severity: warning
+            component: blackbox-exporter
+            gateway: envoy-internal
+          annotations:
+            summary: "AI edge returned {{ $value }} instead of 401 on {{ $labels.instance }}"
+            description: |
+              Still refusing the caller, so this is not an exposure — but the
+              refusal is no longer a 401 and the http_401_unauthenticated module
+              will read as failing. Either Caddy's rejection semantics changed,
+              or the route now lands somewhere other than the LLM API.
+              Re-check what the endpoint should assert before editing the module.

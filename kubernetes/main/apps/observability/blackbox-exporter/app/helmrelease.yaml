@@ -31,6 +31,20 @@ spec:
         seccompProfile: { type: RuntimeDefault }
     controllers:
       blackbox-exporter:
+        # WITHOUT THIS THE PROBE SILENTLY ASSERTS NOTHING.
+        # blackbox.yml is mounted with subPath (see persistence below), and
+        # Kubernetes never propagates ConfigMap updates into a subPath mount —
+        # the file in the container is frozen at pod creation. So editing
+        # blackbox-exporter-config alone changes the ConfigMap object and
+        # nothing else: the exporter keeps serving its 98-day-old config,
+        # answers `Unknown module` to any Probe naming a newly added module,
+        # and the scrape fails in a way that produces NO probe_success series
+        # at all — which means neither the module's own alerts nor the generic
+        # BlackboxProbeFailure can fire. An installed-looking, mute probe.
+        # stakater/reloader is already running in kube-system and 20 other apps
+        # in this repo use this annotation; blackbox-exporter was missing it.
+        annotations:
+          reloader.stakater.com/auto: "true"
         replicas: 1
         containers:
           app:
