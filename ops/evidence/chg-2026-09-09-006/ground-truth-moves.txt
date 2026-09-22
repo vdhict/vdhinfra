@@ -1,0 +1,50 @@
+cover.screen (= KANTOOR) every state change 2026-09-12..22 (recorder purges 09-09..09-11). Generated 2026-09-22 by ha-engineer.
+Classification method: automation domain is recorder-excluded, so no automation_triggered context exists in logbook.
+  SCHEDULE = timestamp matches a stored trace of 1734200001010/013/011 to the ms (traces cover 09-18..09-22) or the trigger
+             definition exactly (07:00:00 weekdays; ochtend_keuken_routine +1h weekends; sunset-30).
+  REMOTE   = logbook context_user_id null, no schedule trigger/trace at that time, rfxtrx `event` attr changed (RF packet).
+  HA UI    = context_user_id set. NONE in this window (logbook queried in 24h slices, every row context_user_id null).
+  09-12 06:39 and 09-13 05:36 weekend opens predate the stored traces: SCHEDULE by pattern, INFERRED not trace-proven.
+
+2026-09-12T06:39:35.687607+00:00  Sat 09-12 08:39  open    az 99.6 el 12.7  raw_pv=370 p15=248 p45=149 bezet=None  SCHEDULE 1734200001013 weekend (+1h after ochtend routine)
+2026-09-12T17:33:40.378018+00:00  Sat 09-12 19:33  closed  az271.6 el  3.8  raw_pv=32 p15=39 p45=88 bezet=off  SCHEDULE 1734200001011 sunset-30
+2026-09-13T05:36:16.528380+00:00  Sun 09-13 07:36  open    az 87.3 el  2.7  raw_pv=0 p15=0 p45=0 bezet=off  SCHEDULE 1734200001013 weekend (+1h after ochtend routine)
+2026-09-13T17:31:21.086035+00:00  Sun 09-13 19:31  closed  az270.9 el  3.8  raw_pv=48 p15=57 p45=55 bezet=off  SCHEDULE 1734200001011 sunset-30
+2026-09-14T05:00:00.081058+00:00  Mon 09-14 07:00  open    az 80.5 el -3.1  raw_pv=0 p15=0 p45=0 bezet=off  SCHEDULE 1734200001010 weekday 07:00
+2026-09-14T10:16:10.463381+00:00  Mon 09-14 12:16  closed  az153.6 el 38.6  raw_pv=2078 p15=960 p45=581 bezet=on  REMOTE (Sander)
+2026-09-15T05:00:00.081739+00:00  Tue 09-15 07:00  open    az 80.8 el -3.4  raw_pv=0 p15=0 p45=0 bezet=off  SCHEDULE 1734200001010 weekday 07:00
+2026-09-15T09:47:25.166312+00:00  Tue 09-15 11:47  closed  az145.3 el 36.0  raw_pv=2446 p15=2335 p45=2257 bezet=on  REMOTE (Sander)
+2026-09-15T14:30:54.131904+00:00  Tue 09-15 16:30  open    az231.8 el 29.2  raw_pv=631 p15=586 p45=503 bezet=off  REMOTE (Sander)
+2026-09-15T17:26:41.975997+00:00  Tue 09-15 19:26  closed  az269.7 el  3.8  raw_pv=84 p15=122 p45=196 bezet=off  SCHEDULE 1734200001011 sunset-30
+2026-09-16T05:00:00.081530+00:00  Wed 09-16 07:00  open    az 81.1 el -3.6  raw_pv=0 p15=0 p45=0 bezet=off  SCHEDULE 1734200001010 weekday 07:00
+2026-09-16T17:24:22.207993+00:00  Wed 09-16 19:24  closed  az269.1 el  3.8  raw_pv=12 p15=19 p45=82 bezet=off  SCHEDULE 1734200001011 sunset-30
+2026-09-16T21:32:47.505080+00:00  Wed 09-16 23:32  closed  az323.7 el-29.8  raw_pv=0 p15=0 p45=0 bezet=off  HA RESTART (state restored, last_changed re-stamped)
+2026-09-16T21:37:06.801230+00:00  Wed 09-16 23:37  closed  az324.8 el-30.2  raw_pv=0 p15=0 p45=0 bezet=off  HA RESTART (state restored, last_changed re-stamped)
+2026-09-17T05:00:00.382645+00:00  Thu 09-17 07:00  open    az 81.4 el -3.9  raw_pv=0 p15=0 p45=0 bezet=off  SCHEDULE 1734200001010 weekday 07:00
+2026-09-17T17:22:02.347015+00:00  Thu 09-17 19:22  closed  az268.4 el  3.8  raw_pv=20 p15=35 p45=96 bezet=off  SCHEDULE 1734200001011 sunset-30
+2026-09-18T05:00:00.381855+00:00  Fri 09-18 07:00  open    az 81.7 el -4.1  raw_pv=0 p15=0 p45=0 bezet=off  SCHEDULE 1734200001010 weekday 07:00
+2026-09-18T11:21:55.234031+00:00  Fri 09-18 13:21  closed  az175.4 el 39.8  raw_pv=2406 p15=2300 p45=1740 bezet=off  REMOTE (Sander)
+2026-09-19T07:18:43.955176+00:00  Sat 09-19 09:18  open    az109.9 el 16.7  raw_pv=317 p15=146 p45=90 bezet=off  SCHEDULE 1734200001013 weekend (+1h after ochtend routine)
+2026-09-19T17:17:22.440142+00:00  Sat 09-19 19:17  closed  az267.2 el  3.8  raw_pv=1 p15=8 p45=21 bezet=off  SCHEDULE 1734200001011 sunset-30
+2026-09-20T07:12:08.360132+00:00  Sun 09-20 09:12  open    az108.8 el 15.5  raw_pv=120 p15=134 p45=64 bezet=off  SCHEDULE 1734200001013 weekend (+1h after ochtend routine)
+2026-09-20T17:15:02.450543+00:00  Sun 09-20 19:15  closed  az266.5 el  3.8  raw_pv=46 p15=75 p45=148 bezet=off  SCHEDULE 1734200001011 sunset-30
+2026-09-21T05:00:00.382386+00:00  Mon 09-21 07:00  open    az 82.6 el -4.9  raw_pv=0 p15=0 p45=0 bezet=off  SCHEDULE 1734200001010 weekday 07:00
+2026-09-21T13:07:21.622629+00:00  Mon 09-21 15:07  closed  az208.6 el 35.2  raw_pv=2966 p15=2421 p45=2316 bezet=off  REMOTE (Sander)
+2026-09-21T13:45:27.115879+00:00  Mon 09-21 15:45  open    az219.4 el 31.9  raw_pv=549 p15=1421 p45=2301 bezet=on  REMOTE (Sander)
+2026-09-21T17:12:42.482437+00:00  Mon 09-21 19:12  closed  az265.9 el  3.8  raw_pv=62 p15=79 p45=180 bezet=off  SCHEDULE 1734200001011 sunset-30
+2026-09-22T05:00:00.382622+00:00  Tue 09-22 07:00  open    az 82.9 el -5.1  raw_pv=0 p15=0 p45=0 bezet=off  SCHEDULE 1734200001010 weekday 07:00
+2026-09-22T17:10:22.557411+00:00  Tue 09-22 19:10  closed  az265.3 el  3.8  raw_pv=8 p15=6 p45=22 bezet=off  SCHEDULE 1734200001011 sunset-30
+
+No-op schedule runs (trace exists, no state change because already closed): 09-14 sunset-30, 09-18 17:19:42Z sunset-30.
+
+V2 (mode A) vs Sander's hands:
+  09-14  Sander: close 12:16 az154 p15=960          v2: close 13:30 az177                            auto 74 min LATER; he closed on a 2078 W burst while p15 was 960 - no 15-min mean catches that without hunting
+  09-15  Sander: close 11:47 az145 p15=2335         v2: close 10:50 az130                            auto 57 min EARLIER; he was present from 10:12 and did not close
+  09-15  Sander: open 16:30 az232 p45=503           v2: open 16:40 az234 (R6 dull+occupied)          AGREES within 10 min
+  09-18  Sander: close 13:21 az175 p15=2300         v2: close 10:35 az127                            auto 2h46 EARLIER; he was present 11:02-12:55 with p15>=2000 and did not close
+  09-21  Sander: close 15:07 az209 p15=2421         v2: close 10:50 az132                            auto 4h17 EARLIER; he was present 09:11-12:17 and did not close
+  09-21  Sander: open 15:45 az219 p15=1421 p45=2301 v2: no open (sun still strong on the 45m mean); HOLD latches, no re-close v2 RESPECTS it; draft would re-close at 16:35
+
+Sander closed on 4 of 8 sunny days (none on 09-12/13/20 weekend, none on 09-16 although present 12:53-19:14).
+His closes span az 145-209 (2026-09-09 baseline: az 157, 183, ~203). The automation closes at az 127-133 on 4 of 8 days.
+At his 09-18 and 09-21 closes binary_sensor.kantoor_bezet was OFF (on 6 min later both times).

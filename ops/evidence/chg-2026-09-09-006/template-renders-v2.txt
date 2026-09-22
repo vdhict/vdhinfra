@@ -1,0 +1,116 @@
+### LIVE now
+  vars: az=289.21, el=-14.36, pv15=0.0, pv45=0.0, wind=3.708, wind_age=5.5992896666666665, gust=0.0, bezet=False, auto=False, auto_dicht=False, hold=False, cur=closed, since=122.01609501666667, in_beam=False, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=True] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 3 auto_off
+### NEG helper 15m+45m missing
+  vars: az=289.21, el=-14.36, pv15=-1.0, pv45=-1.0, wind=3.708, wind_age=5.603658033333334, gust=0.0, bezet=False, auto=False, auto_dicht=False, hold=False, cur=closed, since=122.02056516666667, in_beam=False, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=True] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 3 auto_off
+### NEG wind entity missing
+  vars: az=289.21, el=-14.36, pv15=0.0, pv45=0.0, wind=-1.0, wind_age=9999.0, gust=0.0, bezet=False, auto=False, auto_dicht=False, hold=False, cur=closed, since=122.02510649999999, in_beam=False, at_edge=False, wind_stale=True, wind_bad=False, wind_marginal=True
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=True] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 3 auto_off
+### NEG wind stale (+200 min on last_reported)
+  vars: az=289.21, el=-14.36, pv15=0.0, pv45=0.0, wind=3.708, wind_age=205.61294431666664, gust=0.0, bezet=False, auto=False, auto_dicht=False, hold=False, cur=closed, since=122.02996868333334, in_beam=False, at_edge=False, wind_stale=True, wind_bad=False, wind_marginal=True
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=True] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 3 auto_off
+### NEG gust entity missing
+  vars: az=289.21, el=-14.36, pv15=0.0, pv45=0.0, wind=3.708, wind_age=5.617503133333333, gust=0.0, bezet=False, auto=False, auto_dicht=False, hold=False, cur=closed, since=122.03460423333333, in_beam=False, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=True] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 3 auto_off
+### NEG cover.screen missing
+  vars: az=289.21, el=-14.36, pv15=0.0, pv45=0.0, wind=3.708, wind_age=5.6227574, gust=0.0, bezet=False, auto=False, auto_dicht=False, hold=False, cur=unknown, since=0.0, in_beam=False, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=True] [interlock=True] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 3 auto_off
+### NEG handmatig helper missing (pre-install state)
+  vars: az=289.21, el=-14.36, pv15=0.0, pv45=0.0, wind=3.708, wind_age=5.627532766666667, gust=0.0, bezet=False, auto=False, auto_dicht=False, hold=False, cur=closed, since=122.04470695, in_beam=False, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=True] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 3 auto_off
+### SCN sunny in beam, open -> expect 5 close
+  vars: az=180.0, el=35.0, pv15=2100.0, pv45=1500.0, wind=10.0, wind_age=8.0, gust=0.0, bezet=True, auto=True, auto_dicht=False, hold=False, cur=open, since=60.0, in_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=False] [interlock=False] [close=True] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 5 close
+### SCN sunny but pv15=1999 -> expect none
+  vars: az=180.0, el=35.0, pv15=1999.0, pv45=1500.0, wind=10.0, wind_age=8.0, gust=0.0, bezet=True, auto=True, auto_dicht=False, hold=False, cur=open, since=60.0, in_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): none -> run ends
+### SCN sunny but hold (manually re-opened) -> expect none
+  vars: az=180.0, el=35.0, pv15=2100.0, pv45=1500.0, wind=10.0, wind_age=8.0, gust=0.0, bezet=True, auto=True, auto_dicht=False, hold=True, cur=open, since=60.0, in_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): none -> run ends
+### SCN sunny, wind 38 -> expect none (marginal)
+  vars: az=180.0, el=35.0, pv15=2100.0, pv45=1500.0, wind=38.0, wind_age=8.0, gust=0.0, bezet=True, auto=True, auto_dicht=False, hold=False, cur=open, since=60.0, in_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=True
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): none -> run ends
+### SCN sunny, gust 50 -> expect none
+  vars: az=180.0, el=35.0, pv15=2100.0, pv45=1500.0, wind=10.0, wind_age=8.0, gust=50.0, bezet=True, auto=True, auto_dicht=False, hold=False, cur=open, since=60.0, in_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=True
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): none -> run ends
+### SCN sunny, since 30 -> expect 4 interlock
+  vars: az=180.0, el=35.0, pv15=2100.0, pv45=1500.0, wind=10.0, wind_age=8.0, gust=0.0, bezet=True, auto=True, auto_dicht=False, hold=False, cur=open, since=30.0, in_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=False] [interlock=True] [close=True] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 4 interlock
+### SCN auto off -> expect 3
+  vars: az=180.0, el=35.0, pv15=2100.0, pv45=1500.0, wind=10.0, wind_age=8.0, gust=0.0, bezet=True, auto=False, auto_dicht=False, hold=False, cur=open, since=60.0, in_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=True] [interlock=False] [close=True] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 3 auto_off
+### SCN ours closed, dull 650, occupied, since 90 -> expect none (dwell)
+  vars: az=180.0, el=35.0, pv15=400.0, pv45=650.0, wind=10.0, wind_age=8.0, gust=0.0, bezet=True, auto=True, auto_dicht=True, hold=False, cur=closed, since=90.0, in_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): none -> run ends
+### SCN ours closed, dull 650, occupied, since 125 -> expect 6
+  vars: az=180.0, el=35.0, pv15=400.0, pv45=650.0, wind=10.0, wind_age=8.0, gust=0.0, bezet=True, auto=True, auto_dicht=True, hold=False, cur=closed, since=125.0, in_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=False] [interlock=False] [close=False] [open_dull=True] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 6 open_dull
+### SCN ours closed, pv45 missing(-1), occupied -> expect none
+  vars: az=180.0, el=35.0, pv15=-1.0, pv45=-1.0, wind=10.0, wind_age=8.0, gust=0.0, bezet=True, auto=True, auto_dicht=True, hold=False, cur=closed, since=200.0, in_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): none -> run ends
+### SCN ours closed, az 250 el 15 -> expect 7
+  vars: az=250.0, el=15.0, pv15=2100.0, pv45=1500.0, wind=10.0, wind_age=8.0, gust=0.0, bezet=True, auto=True, auto_dicht=True, hold=False, cur=closed, since=200.0, in_beam=False, at_edge=True, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=True]
+  FIRST TRUE GUARD (terminates via stop): 7 open_edge
+### SCN user closed (not ours), az 250 -> expect none
+  vars: az=250.0, el=15.0, pv15=2100.0, pv45=1500.0, wind=10.0, wind_age=8.0, gust=0.0, bezet=True, auto=True, auto_dicht=False, hold=False, cur=closed, since=200.0, in_beam=False, at_edge=True, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): none -> run ends
+### SCN wind 46, closed by user -> expect 2
+  vars: az=180.0, el=35.0, pv15=2100.0, pv45=1500.0, wind=46.0, wind_age=8.0, gust=0.0, bezet=True, auto=True, auto_dicht=False, hold=False, cur=closed, since=60.0, in_beam=True, at_edge=False, wind_stale=False, wind_bad=True, wind_marginal=True
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=True] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 2 wind_retract
+### SCN gust 60, closed by schedule at dusk el 3 -> expect 2
+  vars: az=265.0, el=3.0, pv15=2100.0, pv45=1500.0, wind=10.0, wind_age=8.0, gust=60.0, bezet=True, auto=True, auto_dicht=False, hold=False, cur=closed, since=60.0, in_beam=False, at_edge=False, wind_stale=False, wind_bad=True, wind_marginal=True
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=True] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 2 wind_retract
+### SCN stale wind, closed by USER -> expect none
+  vars: az=180.0, el=35.0, pv15=2100.0, pv45=1500.0, wind=10.0, wind_age=200.0, gust=0.0, bezet=True, auto=True, auto_dicht=False, hold=False, cur=closed, since=60.0, in_beam=True, at_edge=False, wind_stale=True, wind_bad=False, wind_marginal=True
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): none -> run ends
+### SCN stale wind, closed by US -> expect 2
+  vars: az=180.0, el=35.0, pv15=2100.0, pv45=1500.0, wind=10.0, wind_age=200.0, gust=0.0, bezet=True, auto=True, auto_dicht=True, hold=False, cur=closed, since=60.0, in_beam=True, at_edge=False, wind_stale=True, wind_bad=False, wind_marginal=True
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=True] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 2 wind_retract
+### SCN dusk el 5, ours still flagged -> expect 1 reset
+  vars: az=262.0, el=5.0, pv15=2100.0, pv45=1500.0, wind=10.0, wind_age=8.0, gust=0.0, bezet=True, auto=True, auto_dicht=True, hold=False, cur=closed, since=60.0, in_beam=False, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=True] [wind_retract=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 1 evening_reset
+### SCN dusk el 5, stale wind, ours flagged -> expect 1 reset BEFORE 2
+  vars: az=262.0, el=5.0, pv15=2100.0, pv45=1500.0, wind=10.0, wind_age=300.0, gust=0.0, bezet=True, auto=True, auto_dicht=True, hold=False, cur=closed, since=60.0, in_beam=False, at_edge=False, wind_stale=True, wind_bad=False, wind_marginal=True
+  guards: [extern_open=False] [evening_reset=True] [wind_retract=True] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 1 evening_reset
+### SCN extern open of ours -> expect 0
+  vars: az=180.0, el=35.0, pv15=2100.0, pv45=1500.0, wind=10.0, wind_age=8.0, gust=0.0, bezet=True, auto=True, auto_dicht=True, hold=False, cur=open, since=0.0, in_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=True] [evening_reset=False] [wind_retract=False] [auto_off=False] [interlock=True] [close=True] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 0 extern_open
+### SCN extern open, not ours -> expect 0 (inner no-op, stop)
+  vars: az=180.0, el=35.0, pv15=2100.0, pv45=1500.0, wind=10.0, wind_age=8.0, gust=0.0, bezet=True, auto=True, auto_dicht=False, hold=False, cur=open, since=0.0, in_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=True] [evening_reset=False] [wind_retract=False] [auto_off=False] [interlock=True] [close=True] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 0 extern_open
+### SCN auto off + gust 65 + closed -> expect 2 (wind ignores auto)
+  vars: az=180.0, el=35.0, pv15=2100.0, pv45=1500.0, wind=10.0, wind_age=8.0, gust=65.0, bezet=True, auto=False, auto_dicht=False, hold=False, cur=closed, since=60.0, in_beam=True, at_edge=False, wind_stale=False, wind_bad=True, wind_marginal=True
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=True] [auto_off=True] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 2 wind_retract
+### SCN auto off + ours flagged at dusk -> expect 1 (reset not blocked by auto off)
+  vars: az=260.0, el=4.0, pv15=2100.0, pv45=1500.0, wind=10.0, wind_age=8.0, gust=0.0, bezet=True, auto=False, auto_dicht=True, hold=False, cur=closed, since=60.0, in_beam=False, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=True] [wind_retract=False] [auto_off=True] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 1 evening_reset

@@ -1,0 +1,65 @@
+chg-2026-09-09-006 v2 replay, generated 2026-09-22 by ha-engineer. Inputs: REAL recorder history of sensor.kantoor_zon_pv_15m/_45m
+(the helpers that will run), sensor.openweathermap_windsnelheid/_windvlaag_snelheid, binary_sensor.kantoor_bezet, cover.screen.
+Window 2026-09-12 00:00 .. 2026-09-22 24:00 local (recorder purge_keep_days=10 default: 09-09..09-11 are purged). 5-min ticks.
+Sun from sun.py (sun.sun is recorder-excluded); validated vs 5 measured sunset-30 trace times, error 0.04 deg.
+Mode A = schedule automations + policy only. Mode B = also Sander's 6 real manual moves injected at their real times.
+Wind staleness in v2 uses last_reported; the recorder has no last_reported history, so the replay assumes the observed ~10-min OWM poll (never stale). ASSUMED.
+
+=== DRAFT 09-09 (C1800 O700 dwell45, no hold, last_updated staleness) | mode A (policy only)
+    moves/day mean 1.82  max 4  zero-move days 2/11  days>2 2
+    2026-09-12 Sat 3  00:00 open   R1 wind            az331 el-30.1 p15=-1 p45=-1  10:30 closed R4 close           az124 el28.4 p15=1851 p45=1628  17:25 open   R6 edge            az245 el23.2 p15=288 p45=533
+    2026-09-13 Sun 2  13:55 closed R4 close           az186 el41.7 p15=1955 p45=1262  17:30 open   R6 edge            az246 el22.1 p15=233 p45=420
+    2026-09-14 Mon 2  13:20 closed R4 close           az174 el41.3 p15=1895 p45=1485  17:05 open   R5 dull+occupied   az240 el25.2 p15=455 p45=641
+    2026-09-15 Tue 2  10:35 closed R4 close           az126 el28.2 p15=1849 p45=1520  16:40 open   R5 dull+occupied   az234 el28.0 p15=846 p45=618
+    2026-09-16 Wed 4  11:00 closed R4 close           az133 el30.9 p15=2160 p45=1213  11:50 open   R5 dull+occupied   az146 el35.9 p15=1038 p45=661  13:00 closed R4 close           az168 el40.1 p15=2306 p45=1215  14:50 open   R5 dull+occupied   az204 el38.3 p15=371 p45=691
+    2026-09-17 Thu 0  
+    2026-09-18 Fri 2  10:25 closed R4 close           az124 el26.1 p15=1879 p45=1583  17:30 open   R6 edge            az245 el20.3 p15=1426 p45=1455
+    2026-09-19 Sat 0  
+    2026-09-20 Sun 2  12:05 closed R4 close           az152 el35.7 p15=1884 p45=1203  17:35 open   R6 edge            az246 el18.8 p15=672 p45=862
+    2026-09-21 Mon 2  10:45 closed R4 close           az130 el27.6 p15=1948 p45=1719  17:35 open   R6 edge            az246 el18.4 p15=1629 p45=1845
+    2026-09-22 Tue 1  23:50 open   R1 wind            az328 el-33.6 p15=0 p45=0
+
+=== DRAFT 09-09 (C1800 O700 dwell45, no hold, last_updated staleness) | mode B (with manual)
+    moves/day mean 1.64  max 4  zero-move days 3/11  days>2 3
+    2026-09-12 Sat 3  00:00 open   R1 wind            az331 el-30.1 p15=-1 p45=-1  10:30 closed R4 close           az124 el28.4 p15=1851 p45=1628  17:25 open   R6 edge            az245 el23.2 p15=288 p45=533
+    2026-09-13 Sun 2  13:55 closed R4 close           az186 el41.7 p15=1955 p45=1262  17:30 open   R6 edge            az246 el22.1 p15=233 p45=420
+    2026-09-14 Mon 0  
+    2026-09-15 Tue 1  10:35 closed R4 close           az126 el28.2 p15=1849 p45=1520
+    2026-09-16 Wed 4  11:00 closed R4 close           az133 el30.9 p15=2160 p45=1213  11:50 open   R5 dull+occupied   az146 el35.9 p15=1038 p45=661  13:00 closed R4 close           az168 el40.1 p15=2306 p45=1215  14:50 open   R5 dull+occupied   az204 el38.3 p15=371 p45=691
+    2026-09-17 Thu 0  
+    2026-09-18 Fri 2  10:25 closed R4 close           az124 el26.1 p15=1879 p45=1583  17:30 open   R6 edge            az245 el20.3 p15=1426 p45=1455
+    2026-09-19 Sat 0  
+    2026-09-20 Sun 2  12:05 closed R4 close           az152 el35.7 p15=1884 p45=1203  17:35 open   R6 edge            az246 el18.8 p15=672 p45=862
+    2026-09-21 Mon 3  10:45 closed R4 close           az130 el27.6 p15=1948 p45=1719  16:35 closed R4 close           az232 el26.4 p15=1966 p45=2024  17:35 open   R6 edge            az246 el18.4 p15=1629 p45=1845
+    2026-09-22 Tue 1  23:50 open   R1 wind            az328 el-33.6 p15=0 p45=0
+
+=== V2 (C2000 O700 R5dwell120 hold el<6-reset pv45>=0 last_reported) | mode A (policy only)
+    moves/day mean 1.45  max 2  zero-move days 3/11  days>2 0
+    2026-09-12 Sat 2  10:45 closed R5 close           az128 el30.3 p15=2042 p45=1842  17:25 open   R7 edge            az245 el23.2 p15=288 p45=533
+    2026-09-13 Sun 2  14:25 closed R5 close           az196 el40.8 p15=2381 p45=1691  17:30 open   R7 edge            az246 el22.1 p15=233 p45=420
+    2026-09-14 Mon 2  13:30 closed R5 close           az177 el41.4 p15=2326 p45=1693  17:05 open   R6 dull+occupied   az240 el25.2 p15=455 p45=641
+    2026-09-15 Tue 2  10:50 closed R5 close           az130 el30.0 p15=2040 p45=1712  16:40 open   R6 dull+occupied   az234 el28.0 p15=846 p45=618
+    2026-09-16 Wed 2  11:00 closed R5 close           az133 el30.9 p15=2160 p45=1213  14:50 open   R6 dull+occupied   az204 el38.3 p15=371 p45=691
+    2026-09-17 Thu 0  
+    2026-09-18 Fri 2  10:35 closed R5 close           az127 el27.3 p15=2019 p45=1746  17:30 open   R7 edge            az245 el20.3 p15=1426 p45=1455
+    2026-09-19 Sat 0  
+    2026-09-20 Sun 2  14:00 closed R5 close           az188 el38.9 p15=2211 p45=1275  17:35 open   R7 edge            az246 el18.8 p15=672 p45=862
+    2026-09-21 Mon 2  10:50 closed R5 close           az132 el28.2 p15=2092 p45=1794  17:35 open   R7 edge            az246 el18.4 p15=1629 p45=1845
+    2026-09-22 Tue 0  
+
+=== V2 (C2000 O700 R5dwell120 hold el<6-reset pv45>=0 last_reported) | mode B (with manual)
+    moves/day mean 1.09  max 2  zero-move days 4/11  days>2 0
+    2026-09-12 Sat 2  10:45 closed R5 close           az128 el30.3 p15=2042 p45=1842  17:25 open   R7 edge            az245 el23.2 p15=288 p45=533
+    2026-09-13 Sun 2  14:25 closed R5 close           az196 el40.8 p15=2381 p45=1691  17:30 open   R7 edge            az246 el22.1 p15=233 p45=420
+    2026-09-14 Mon 0  
+    2026-09-15 Tue 1  10:50 closed R5 close           az130 el30.0 p15=2040 p45=1712
+    2026-09-16 Wed 2  11:00 closed R5 close           az133 el30.9 p15=2160 p45=1213  14:50 open   R6 dull+occupied   az204 el38.3 p15=371 p45=691
+    2026-09-17 Thu 0  
+    2026-09-18 Fri 2  10:35 closed R5 close           az127 el27.3 p15=2019 p45=1746  17:30 open   R7 edge            az245 el20.3 p15=1426 p45=1455
+    2026-09-19 Sat 0  
+    2026-09-20 Sun 2  14:00 closed R5 close           az188 el38.9 p15=2211 p45=1275  17:35 open   R7 edge            az246 el18.8 p15=672 p45=862
+    2026-09-21 Mon 1  10:50 closed R5 close           az132 el28.2 p15=2092 p45=1794
+    2026-09-22 Tue 0  
+
+NOTE: DRAFT row on 2026-09-12 00:00 (R1 wind) is a replay-start artefact (no wind row before 03:34Z -> wind=-1). The DRAFT row 2026-09-22 23:50 is a
+PROJECTION of tonight's 0.0 km/h plateau (last_updated 18:46Z, +180 min), not a measured event; the value changed at 19:06:47Z (0.0 -> 3.708) so it will not occur tonight.

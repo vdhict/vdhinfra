@@ -1,0 +1,142 @@
+chg-2026-09-09-006 v2.2 renders, 2026-09-22, ha-engineer. Every template is POSTed to LIVE HA /api/template (HA 2026.9.0).
+Section 1 = LIVE STATE and entity-substitution negatives. Section 2 = SYNTHETIC INPUTS: the listed input variables are
+overridden with fixed values and pushed through the LIVE template engine; all derived variables (bezet, close_az_min, in_close_beam,
+in_beam, wind_*) are computed by HA from them. Section 2 is NOT live state.
+helpers_ok: input_boolean.kantoor_screen_handmatig does not exist yet (created at install), so live helpers_ok=False. Section 2
+therefore SUBSTITUTES input_boolean.kantoor_screen_auto (exists) for the handmatig id in helpers_ok only, emulating the post-install state,
+unless the case says otherwise. helpers_ok itself is still rendered by HA, never overridden.
+
+=== 1. LIVE STATE / entity-missing substitutions
+### LIVE now (handmatig not yet created -> helpers_ok False)
+  vars: az=292.6, el=-16.68, pv15=0.0, pv45=0.0, wind=3.708, wind_age=2.71886835, gust=0.0, bezet_raw=off, bezet=False, auto=False, auto_dicht=False, hold=False, helpers_ok=False, cur=closed, since=139.13633908333335, in_beam=False, close_az_min=120.0, in_close_beam=False, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [wind_retract=False] [evening_reset=False] [auto_off=True] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 3 auto_off
+### LIVE, presence entity MISSING
+  vars: az=292.6, el=-16.68, pv15=0.0, pv45=0.0, wind=3.708, wind_age=2.723750566666667, gust=0.0, bezet_raw=unknown, bezet=False, auto=False, auto_dicht=False, hold=False, helpers_ok=False, cur=closed, since=139.14141078333333, in_beam=False, close_az_min=145.0, in_close_beam=False, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [wind_retract=False] [evening_reset=False] [auto_off=True] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 3 auto_off
+
+=== 2. SYNTHETIC INPUTS through the live template engine (auto ON, sun on the facade unless stated)
+--- B1 presence fail-safe (bezet_raw overridden; close_az_min rendered by HA)
+### SYNTHETIC bezet_raw=off az130 -> expect 5 close
+  vars: az=130.0, el=28.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=8.0, gust=0.0, bezet_raw=off, bezet=False, auto=True, auto_dicht=False, hold=False, helpers_ok=True, cur=open, since=60.0, in_beam=True, close_az_min=120.0, in_close_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [wind_retract=False] [evening_reset=False] [auto_off=False] [interlock=False] [close=True] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 5 close
+### SYNTHETIC bezet_raw=off az150 -> expect 5 close
+  vars: az=150.0, el=34.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=8.0, gust=0.0, bezet_raw=off, bezet=False, auto=True, auto_dicht=False, hold=False, helpers_ok=True, cur=open, since=60.0, in_beam=True, close_az_min=120.0, in_close_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [wind_retract=False] [evening_reset=False] [auto_off=False] [interlock=False] [close=True] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 5 close
+### SYNTHETIC bezet_raw=on az130 -> expect none
+  vars: az=130.0, el=28.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=8.0, gust=0.0, bezet_raw=on, bezet=True, auto=True, auto_dicht=False, hold=False, helpers_ok=True, cur=open, since=60.0, in_beam=True, close_az_min=145.0, in_close_beam=False, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [wind_retract=False] [evening_reset=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): none -> run ends
+### SYNTHETIC bezet_raw=on az150 -> expect 5 close
+  vars: az=150.0, el=34.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=8.0, gust=0.0, bezet_raw=on, bezet=True, auto=True, auto_dicht=False, hold=False, helpers_ok=True, cur=open, since=60.0, in_beam=True, close_az_min=145.0, in_close_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [wind_retract=False] [evening_reset=False] [auto_off=False] [interlock=False] [close=True] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 5 close
+### SYNTHETIC bezet_raw=unavailable az130 -> expect none
+  vars: az=130.0, el=28.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=8.0, gust=0.0, bezet_raw=unavailable, bezet=False, auto=True, auto_dicht=False, hold=False, helpers_ok=True, cur=open, since=60.0, in_beam=True, close_az_min=145.0, in_close_beam=False, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [wind_retract=False] [evening_reset=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): none -> run ends
+### SYNTHETIC bezet_raw=unavailable az150 -> expect 5 close
+  vars: az=150.0, el=34.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=8.0, gust=0.0, bezet_raw=unavailable, bezet=False, auto=True, auto_dicht=False, hold=False, helpers_ok=True, cur=open, since=60.0, in_beam=True, close_az_min=145.0, in_close_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [wind_retract=False] [evening_reset=False] [auto_off=False] [interlock=False] [close=True] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 5 close
+### SYNTHETIC bezet_raw=unknown az130 -> expect none
+  vars: az=130.0, el=28.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=8.0, gust=0.0, bezet_raw=unknown, bezet=False, auto=True, auto_dicht=False, hold=False, helpers_ok=True, cur=open, since=60.0, in_beam=True, close_az_min=145.0, in_close_beam=False, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [wind_retract=False] [evening_reset=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): none -> run ends
+### SYNTHETIC bezet_raw=unknown az150 -> expect 5 close
+  vars: az=150.0, el=34.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=8.0, gust=0.0, bezet_raw=unknown, bezet=False, auto=True, auto_dicht=False, hold=False, helpers_ok=True, cur=open, since=60.0, in_beam=True, close_az_min=145.0, in_close_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [wind_retract=False] [evening_reset=False] [auto_off=False] [interlock=False] [close=True] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 5 close
+### SYNTHETIC presence ENTITY MISSING (substituted, rendered) az130 -> expect none
+  vars: az=130.0, el=28.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=8.0, gust=0.0, bezet_raw=unknown, bezet=False, auto=True, auto_dicht=False, hold=False, helpers_ok=True, cur=open, since=60.0, in_beam=True, close_az_min=145.0, in_close_beam=False, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [wind_retract=False] [evening_reset=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): none -> run ends
+### SYNTHETIC presence ENTITY MISSING (substituted, rendered) az150 -> expect 5 close
+  vars: az=150.0, el=34.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=8.0, gust=0.0, bezet_raw=unknown, bezet=False, auto=True, auto_dicht=False, hold=False, helpers_ok=True, cur=open, since=60.0, in_beam=True, close_az_min=145.0, in_close_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [wind_retract=False] [evening_reset=False] [auto_off=False] [interlock=False] [close=True] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 5 close
+### SYNTHETIC R6 bezet_raw=unavailable, ours closed, dull, since 130 -> expect none (unknown presence = no dull-open)
+  vars: az=130.0, el=28.0, pv15=500.0, pv45=600.0, wind=10.0, wind_age=8.0, gust=0.0, bezet_raw=unavailable, bezet=False, auto=True, auto_dicht=True, hold=False, helpers_ok=True, cur=closed, since=130.0, in_beam=True, close_az_min=145.0, in_close_beam=False, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [wind_retract=False] [evening_reset=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): none -> run ends
+### SYNTHETIC R6 bezet_raw=on, ours closed, dull, since 130 -> expect 6
+  vars: az=130.0, el=28.0, pv15=500.0, pv45=600.0, wind=10.0, wind_age=8.0, gust=0.0, bezet_raw=on, bezet=True, auto=True, auto_dicht=True, hold=False, helpers_ok=True, cur=closed, since=130.0, in_beam=True, close_az_min=145.0, in_close_beam=False, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [wind_retract=False] [evening_reset=False] [auto_off=False] [interlock=False] [close=False] [open_dull=True] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 6 open_dull
+--- A2 helpers must exist before a close
+### SYNTHETIC handmatig MISSING (real, live today), empty az150 bright -> expect none
+  vars: az=150.0, el=34.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=8.0, gust=0.0, bezet_raw=off, bezet=False, auto=True, auto_dicht=False, hold=False, helpers_ok=False, cur=open, since=60.0, in_beam=True, close_az_min=120.0, in_close_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [wind_retract=False] [evening_reset=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): none -> run ends
+### SYNTHETIC auto_dicht MISSING, handmatig emulated present, empty az150 bright -> expect none
+  vars: az=150.0, el=34.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=8.0, gust=0.0, bezet_raw=off, bezet=False, auto=True, auto_dicht=False, hold=False, helpers_ok=False, cur=open, since=60.0, in_beam=True, close_az_min=120.0, in_close_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [wind_retract=False] [evening_reset=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): none -> run ends
+### SYNTHETIC both present (emulated), empty az150 bright -> expect 5 close
+  vars: az=150.0, el=34.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=8.0, gust=0.0, bezet_raw=off, bezet=False, auto=True, auto_dicht=False, hold=False, helpers_ok=True, cur=open, since=60.0, in_beam=True, close_az_min=120.0, in_close_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [wind_retract=False] [evening_reset=False] [auto_off=False] [interlock=False] [close=True] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 5 close
+--- A1 wind retract before evening reset
+### SYNTHETIC dusk el5, ours flagged, REAL wind 46 -> expect 1 wind retract (not 2 reset)
+  vars: az=262.0, el=5.0, pv15=2100.0, pv45=1800.0, wind=46.0, wind_age=8.0, gust=0.0, bezet_raw=off, bezet=False, auto=True, auto_dicht=True, hold=False, helpers_ok=True, cur=closed, since=60.0, in_beam=False, close_az_min=120.0, in_close_beam=False, at_edge=False, wind_stale=False, wind_bad=True, wind_marginal=True
+  guards: [extern_open=False] [wind_retract=True] [evening_reset=True] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 1 wind_retract
+### SYNTHETIC dusk el5, ours flagged, gust 61 -> expect 1
+  vars: az=262.0, el=5.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=8.0, gust=61.0, bezet_raw=off, bezet=False, auto=True, auto_dicht=True, hold=False, helpers_ok=True, cur=closed, since=60.0, in_beam=False, close_az_min=120.0, in_close_beam=False, at_edge=False, wind_stale=False, wind_bad=True, wind_marginal=True
+  guards: [extern_open=False] [wind_retract=True] [evening_reset=True] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 1 wind_retract
+### SYNTHETIC dusk el5, ours flagged, STALE wind -> expect 2 reset (stale path needs el>=6)
+  vars: az=262.0, el=5.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=300.0, gust=0.0, bezet_raw=off, bezet=False, auto=True, auto_dicht=True, hold=False, helpers_ok=True, cur=closed, since=60.0, in_beam=False, close_az_min=120.0, in_close_beam=False, at_edge=False, wind_stale=True, wind_bad=False, wind_marginal=True
+  guards: [extern_open=False] [wind_retract=False] [evening_reset=True] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 2 evening_reset
+### SYNTHETIC day el30, ours closed, STALE wind -> expect 1
+  vars: az=180.0, el=30.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=300.0, gust=0.0, bezet_raw=on, bezet=True, auto=True, auto_dicht=True, hold=False, helpers_ok=True, cur=closed, since=200.0, in_beam=True, close_az_min=145.0, in_close_beam=True, at_edge=False, wind_stale=True, wind_bad=False, wind_marginal=True
+  guards: [extern_open=False] [wind_retract=True] [evening_reset=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 1 wind_retract
+### SYNTHETIC night el-20, schedule-closed, REAL wind 46 -> expect 1
+  vars: az=320.0, el=-20.0, pv15=2100.0, pv45=1800.0, wind=46.0, wind_age=8.0, gust=0.0, bezet_raw=off, bezet=False, auto=True, auto_dicht=False, hold=False, helpers_ok=True, cur=closed, since=60.0, in_beam=False, close_az_min=120.0, in_close_beam=False, at_edge=False, wind_stale=False, wind_bad=True, wind_marginal=True
+  guards: [extern_open=False] [wind_retract=True] [evening_reset=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 1 wind_retract
+### SYNTHETIC night el-20, schedule-closed, STALE -> expect none
+  vars: az=320.0, el=-20.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=300.0, gust=0.0, bezet_raw=off, bezet=False, auto=True, auto_dicht=False, hold=False, helpers_ok=True, cur=closed, since=60.0, in_beam=False, close_az_min=120.0, in_close_beam=False, at_edge=False, wind_stale=True, wind_bad=False, wind_marginal=True
+  guards: [extern_open=False] [wind_retract=False] [evening_reset=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): none -> run ends
+### SYNTHETIC auto OFF, ours closed, REAL wind 46 -> expect 1 (wind ignores auto)
+  vars: az=130.0, el=28.0, pv15=2100.0, pv45=1800.0, wind=46.0, wind_age=8.0, gust=0.0, bezet_raw=on, bezet=True, auto=False, auto_dicht=True, hold=False, helpers_ok=True, cur=closed, since=60.0, in_beam=True, close_az_min=145.0, in_close_beam=False, at_edge=False, wind_stale=False, wind_bad=True, wind_marginal=True
+  guards: [extern_open=False] [wind_retract=True] [evening_reset=False] [auto_off=True] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 1 wind_retract
+--- A5 negatives with auto ON and the sun on the facade (inputs rendered by HA from substituted MISSING entities)
+### SYNTHETIC pv helpers MISSING, empty az150, screen open -> expect none
+  vars: az=150.0, el=34.0, pv15=-1.0, pv45=-1.0, wind=10.0, wind_age=8.0, gust=0.0, bezet_raw=off, bezet=False, auto=True, auto_dicht=False, hold=False, helpers_ok=True, cur=open, since=60.0, in_beam=True, close_az_min=120.0, in_close_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [wind_retract=False] [evening_reset=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): none -> run ends
+### SYNTHETIC pv helpers MISSING, ours closed, occupied, since 130 -> expect none (no dull-open on -1)
+  vars: az=150.0, el=34.0, pv15=-1.0, pv45=-1.0, wind=10.0, wind_age=8.0, gust=0.0, bezet_raw=on, bezet=True, auto=True, auto_dicht=True, hold=False, helpers_ok=True, cur=closed, since=130.0, in_beam=True, close_az_min=145.0, in_close_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [wind_retract=False] [evening_reset=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): none -> run ends
+### SYNTHETIC wind entity MISSING, empty az150 bright, open -> expect none (deploy blocked)
+  vars: az=150.0, el=34.0, pv15=2100.0, pv45=1800.0, wind=-1.0, wind_age=9999.0, gust=0.0, bezet_raw=off, bezet=False, auto=True, auto_dicht=False, hold=False, helpers_ok=True, cur=open, since=60.0, in_beam=True, close_az_min=120.0, in_close_beam=True, at_edge=False, wind_stale=True, wind_bad=False, wind_marginal=True
+  guards: [extern_open=False] [wind_retract=False] [evening_reset=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): none -> run ends
+### SYNTHETIC wind entity MISSING, OURS closed, day -> expect 1 retract
+  vars: az=180.0, el=34.0, pv15=2100.0, pv45=1800.0, wind=-1.0, wind_age=9999.0, gust=0.0, bezet_raw=on, bezet=True, auto=True, auto_dicht=True, hold=False, helpers_ok=True, cur=closed, since=200.0, in_beam=True, close_az_min=145.0, in_close_beam=True, at_edge=False, wind_stale=True, wind_bad=False, wind_marginal=True
+  guards: [extern_open=False] [wind_retract=True] [evening_reset=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 1 wind_retract
+### SYNTHETIC gust entity MISSING, empty az150 bright -> expect 5 close (gust missing = no gust reported, mean wind is the backstop)
+  vars: az=150.0, el=34.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=8.0, gust=0.0, bezet_raw=off, bezet=False, auto=True, auto_dicht=False, hold=False, helpers_ok=True, cur=open, since=60.0, in_beam=True, close_az_min=120.0, in_close_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [wind_retract=False] [evening_reset=False] [auto_off=False] [interlock=False] [close=True] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 5 close
+### SYNTHETIC cover.screen MISSING, bright, empty -> expect 4 interlock (since 0), nothing moves
+  vars: az=150.0, el=34.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=8.0, gust=0.0, bezet_raw=off, bezet=False, auto=True, auto_dicht=False, hold=False, helpers_ok=True, cur=unknown, since=0.0, in_beam=True, close_az_min=120.0, in_close_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [wind_retract=False] [evening_reset=False] [auto_off=False] [interlock=True] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 4 interlock
+
+=== 3. B2 logbook.log message templates, rendered by LIVE HA with SYNTHETIC variables (bezet_raw=unavailable to show it survives verbatim)
+rule 1: Windterugtrekking: wind 12.3 km/h, vlaag 0.0 km/h (OpenWeatherMap, laatste melding 7 min geleden); az 151.2, el 34.6, bezet unavailable.
+rule 5: Dicht (zon op gevel): pv15 2104.0 W, pv45 1790.0 W, az 151.2, el 34.6, bezet unavailable, sinds vorige beweging 183 min, wind 12.3 km/h, vlaag 0.0 km/h.
+rule 6: Open (langdurig bewolkt, kantoor bezet): pv15 2104.0 W, pv45 1790.0 W, az 151.2, el 34.6, bezet unavailable, sinds vorige beweging 183 min, wind 12.3 km/h, vlaag 0.0 km/h.
+rule 7: Open (zon van de gevel): pv15 2104.0 W, pv45 1790.0 W, az 151.2, el 34.6, bezet unavailable, sinds vorige beweging 183 min, wind 12.3 km/h, vlaag 0.0 km/h.
+trace config: {'stored_traces': 300}

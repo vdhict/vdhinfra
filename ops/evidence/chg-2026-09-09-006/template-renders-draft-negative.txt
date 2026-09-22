@@ -1,0 +1,8 @@
+TPL: {{ (now() - states.sensor.openweathermap_windsnelheid_missing.last_updated).total_seconds() / 60 }}
+{"message":"Error rendering template: UndefinedError: 'None' has no attribute 'last_updated'"}
+TPL: {{ (now() - states.cover.screen_missing.last_changed).total_seconds() / 60 }}
+{"message":"Error rendering template: UndefinedError: 'None' has no attribute 'last_changed'"}
+TPL: {{ states('sensor.kantoor_zon_pv_45m_missing') | float(-1) <= 700 }}
+True
+TPL: {{ (now() - states.sensor.openweathermap_windsnelheid.last_updated).total_seconds()/60 }} vs reported {{ (now() - states.sensor.openweathermap_windsnelheid.last_reported).total_seconds()/60 }}
+5.985119883333334 vs reported 5.9851206

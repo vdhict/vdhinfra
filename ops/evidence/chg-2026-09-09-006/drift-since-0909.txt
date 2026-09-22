@@ -1,0 +1,43 @@
+chg-2026-09-09-006 — drift check 2026-09-22 (read-only), ha-engineer. MEASURED unless marked.
+
+automations.yaml
+  md5 2ba7086b21133111a4a02649de664ea1, 155048 bytes, mtime 2026-09-17 11:48:15 +0200 (file changed since 09-09 - other work, not cover).
+  cover.screen references: still exactly 3 (lines 108, 129, 142) = 1734200001010 / 1734200001013 / 1734200001011.
+  Miswired "Keuken Screen" trio UNCHANGED (aliases, triggers, target cover.screen). chg-2026-09-09-005 still status=requested (deferred).
+  Line 1082 mentions kantoor_screen_auto_dicht in PROSE only (lamp automation description) - not a functional reference.
+  id 1757400001: not present. automation.kantoor_screen_zonwering: entity registry get -> not_found (no orphan, no _2 suffix risk).
+
+Helpers (config-flow statistics, options unchanged: average_step, max_age 15/45 min, sampling 200/500, keep_last_sample, precision 0)
+  sensor.kantoor_zon_pv_15m  loaded, source_value_valid=true, age_coverage_ratio=0.97, buffer_usage_ratio=0.30
+  sensor.kantoor_zon_pv_45m  loaded, source_value_valid=true, age_coverage_ratio=0.99, buffer_usage_ratio=0.36
+  Only non-numeric samples in 11 days: 'unavailable' 15 s and 44 s during the 2026-09-16 21:32Z/21:36Z core restarts.
+  input_boolean.kantoor_screen_auto = off (unarmed, as left 09-09); input_boolean.kantoor_screen_auto_dicht = off.
+
+Wind (OpenWeatherMap, mode v3.0)
+  sensor.openweathermap_windsnelheid and _windvlaag_snelheid exist, unit km/h (both).
+  last_updated cadence: median 30 min, p90 60, max 270 - VALUE-CHANGE driven. last_reported advances every ~10 min
+  (live: lr 18:56:47Z vs lu 18:46:47Z; lr age 7 min at 19:13Z). The 09-09 "median 30 min between updates" measured value
+  changes, not polls. -> draft staleness was wrong-instrument too (fixed in v2, W1).
+  11 days: mean wind max 37.0 km/h (never >=38), gust non-numeric 53/119 (45%), gust max 55.5 (>=50: 10 rows, >=60: 0).
+  -> wind retract and block-deploy-by-mean were NOT exercised by real weather; block-deploy-by-gust was.
+
+Presence
+  binary_sensor.kantoor_bezet exists (template, unique_id kantoor_bezet, PIR-derived, delay_on 45 s / delay_off 15 min).
+  Behaves plausibly: weekday office blocks, no daytime occupancy 09-19/09-20. At 2 of Sander's 4 manual closes (09-18, 09-21)
+  it was OFF and turned on 6 min later both times (remote used on the way in, or PIR latency - not distinguishable).
+
+HA version
+  2026.9.0 (pod home-assistant-69ccfbff69-jrhsq started 2026-09-03T02:01:41Z) - UNCHANGED since 09-09.
+  Working branch chore/ops-thanos-decom still pins 2026.6.4 in helmrelease.yaml; origin/main pins 2026.9.0 (Flux deploys main). Not our change; noted.
+
+Recorder
+  No purge_keep_days set -> default 10 days. 09-09..09-11 already purged, incl. the 09-09 "25% offset" samples.
+  -> the install-day evidence MUST be exported to this directory the same week or it will be lost.
+  automation domain + sun.sun excluded from recorder: automation runs are only visible via traces (last 5 per automation).
+
+Restart behaviour (memory ha-restored-entity-timestamps), from the 2026-09-16 restarts
+  cover.screen state kept (closed) but last_changed re-stamped at 21:32:47Z and 21:37:06Z -> `since` resets to 0 ->
+  45-min interlock blocks rules 5-7 after every restart. Rules 0-2 (extern-open, evening reset, wind retract) sit ABOVE it.
+  rfxtrx `event` attribute is dropped on restart (None until the next RF packet).
+  input_booleans kept state (off->off, last_changed re-stamped). Restore of an ON value NOT observed (never on) - ASSUMED from
+  HA input_boolean restore semantics (no `initial:` on UI helpers).

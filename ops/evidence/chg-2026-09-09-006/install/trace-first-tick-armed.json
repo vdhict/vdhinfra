@@ -1,0 +1,574 @@
+{
+  "last_step": "action/8/if/condition/0",
+  "run_id": "7d71b2a8862cc9ae081af42128ead167",
+  "state": "stopped",
+  "script_execution": "finished",
+  "timestamp": {
+    "start": "2026-09-22T19:40:00.308569+00:00",
+    "finish": "2026-09-22T19:40:00.311163+00:00"
+  },
+  "domain": "automation",
+  "item_id": "1757400001",
+  "trigger": "time pattern",
+  "trace": {
+    "trigger/0": [
+      {
+        "path": "trigger/0",
+        "timestamp": "2026-09-22T19:40:00.308604+00:00",
+        "changed_variables": {
+          "this": {
+            "entity_id": "automation.kantoor_screen_zonwering",
+            "state": "on",
+            "attributes": {
+              "id": "1757400001",
+              "last_triggered": "2026-09-22T19:35:00.308404+00:00",
+              "mode": "queued",
+              "current": 0,
+              "max": 5,
+              "friendly_name": "Kantoor Screen - Zonwering"
+            },
+            "last_changed": "2026-09-22T19:33:38.630002+00:00",
+            "last_reported": "2026-09-22T19:35:00.310765+00:00",
+            "last_updated": "2026-09-22T19:35:00.310765+00:00",
+            "context": {
+              "id": "01M359THYM5G3BSDT7H3TRVW9S",
+              "parent_id": null,
+              "user_id": null
+            }
+          },
+          "trigger": {
+            "id": "tick",
+            "idx": "0",
+            "alias": null,
+            "platform": "time_pattern",
+            "now": "2026-09-22T21:40:00.308469+02:00",
+            "description": "time pattern"
+          }
+        }
+      }
+    ],
+    "action/0": [
+      {
+        "path": "action/0",
+        "timestamp": "2026-09-22T19:40:00.308779+00:00",
+        "changed_variables": {
+          "context": {
+            "id": "01M35A3PXMKZHNMT63F3G45CY3",
+            "parent_id": null,
+            "user_id": null
+          },
+          "az": 294.6,
+          "el": -18.0,
+          "pv15": 0.0,
+          "pv45": 0.0,
+          "wind": 3.708,
+          "wind_age": 3.21299195,
+          "gust": 0,
+          "bezet_raw": "off",
+          "bezet": false,
+          "auto": true,
+          "auto_dicht": false,
+          "hold": false,
+          "helpers_ok": true,
+          "cur": "closed",
+          "since": 149.62919730000002,
+          "in_beam": false,
+          "close_az_min": 120,
+          "in_close_beam": false,
+          "at_edge": false,
+          "wind_stale": false,
+          "wind_bad": false,
+          "wind_marginal": false
+        }
+      }
+    ],
+    "action/1": [
+      {
+        "path": "action/1",
+        "timestamp": "2026-09-22T19:40:00.309435+00:00"
+      }
+    ],
+    "action/1/if": [
+      {
+        "path": "action/1/if",
+        "timestamp": "2026-09-22T19:40:00.309476+00:00",
+        "result": {
+          "result": false
+        }
+      }
+    ],
+    "action/1/if/condition/0": [
+      {
+        "path": "action/1/if/condition/0",
+        "timestamp": "2026-09-22T19:40:00.309501+00:00",
+        "result": {
+          "result": false,
+          "entities": []
+        }
+      }
+    ],
+    "action/2": [
+      {
+        "path": "action/2",
+        "timestamp": "2026-09-22T19:40:00.309658+00:00"
+      }
+    ],
+    "action/2/if": [
+      {
+        "path": "action/2/if",
+        "timestamp": "2026-09-22T19:40:00.309685+00:00",
+        "result": {
+          "result": false
+        }
+      }
+    ],
+    "action/2/if/condition/0": [
+      {
+        "path": "action/2/if/condition/0",
+        "timestamp": "2026-09-22T19:40:00.309705+00:00",
+        "result": {
+          "result": false,
+          "entities": []
+        }
+      }
+    ],
+    "action/3": [
+      {
+        "path": "action/3",
+        "timestamp": "2026-09-22T19:40:00.309785+00:00"
+      }
+    ],
+    "action/3/if": [
+      {
+        "path": "action/3/if",
+        "timestamp": "2026-09-22T19:40:00.309806+00:00",
+        "result": {
+          "result": false
+        }
+      }
+    ],
+    "action/3/if/condition/0": [
+      {
+        "path": "action/3/if/condition/0",
+        "timestamp": "2026-09-22T19:40:00.309826+00:00",
+        "result": {
+          "result": false,
+          "entities": []
+        }
+      }
+    ],
+    "action/4": [
+      {
+        "path": "action/4",
+        "timestamp": "2026-09-22T19:40:00.309900+00:00"
+      }
+    ],
+    "action/4/if": [
+      {
+        "path": "action/4/if",
+        "timestamp": "2026-09-22T19:40:00.309920+00:00",
+        "result": {
+          "result": false
+        }
+      }
+    ],
+    "action/4/if/condition/0": [
+      {
+        "path": "action/4/if/condition/0",
+        "timestamp": "2026-09-22T19:40:00.309938+00:00",
+        "result": {
+          "result": false,
+          "entities": []
+        }
+      }
+    ],
+    "action/5": [
+      {
+        "path": "action/5",
+        "timestamp": "2026-09-22T19:40:00.310006+00:00"
+      }
+    ],
+    "action/5/if": [
+      {
+        "path": "action/5/if",
+        "timestamp": "2026-09-22T19:40:00.310079+00:00",
+        "result": {
+          "result": false
+        }
+      }
+    ],
+    "action/5/if/condition/0": [
+      {
+        "path": "action/5/if/condition/0",
+        "timestamp": "2026-09-22T19:40:00.310098+00:00",
+        "result": {
+          "result": false,
+          "entities": []
+        }
+      }
+    ],
+    "action/6": [
+      {
+        "path": "action/6",
+        "timestamp": "2026-09-22T19:40:00.310646+00:00"
+      }
+    ],
+    "action/6/if": [
+      {
+        "path": "action/6/if",
+        "timestamp": "2026-09-22T19:40:00.310702+00:00",
+        "result": {
+          "result": false
+        }
+      }
+    ],
+    "action/6/if/condition/0": [
+      {
+        "path": "action/6/if/condition/0",
+        "timestamp": "2026-09-22T19:40:00.310722+00:00",
+        "result": {
+          "result": false,
+          "entities": []
+        }
+      }
+    ],
+    "action/7": [
+      {
+        "path": "action/7",
+        "timestamp": "2026-09-22T19:40:00.310804+00:00"
+      }
+    ],
+    "action/7/if": [
+      {
+        "path": "action/7/if",
+        "timestamp": "2026-09-22T19:40:00.310843+00:00",
+        "result": {
+          "result": false
+        }
+      }
+    ],
+    "action/7/if/condition/0": [
+      {
+        "path": "action/7/if/condition/0",
+        "timestamp": "2026-09-22T19:40:00.310862+00:00",
+        "result": {
+          "result": false,
+          "entities": []
+        }
+      }
+    ],
+    "action/8": [
+      {
+        "path": "action/8",
+        "timestamp": "2026-09-22T19:40:00.310939+00:00"
+      }
+    ],
+    "action/8/if": [
+      {
+        "path": "action/8/if",
+        "timestamp": "2026-09-22T19:40:00.310975+00:00",
+        "result": {
+          "result": false
+        }
+      }
+    ],
+    "action/8/if/condition/0": [
+      {
+        "path": "action/8/if/condition/0",
+        "timestamp": "2026-09-22T19:40:00.310994+00:00",
+        "result": {
+          "result": false,
+          "entities": []
+        }
+      }
+    ]
+  },
+  "config": {
+    "id": "1757400001",
+    "alias": "Kantoor Screen - Zonwering",
+    "description": "Laat het kantoorscreen (cover.screen, LET OP: de automatiseringen die 'Keuken Screen' heten sturen OOK dit screen, zie chg-2026-09-09-005) zakken bij felle zon op de zuidgevel en weer omhoog als de zon van de gevel af is of het langdurig bewolkt wordt. Doel: warmtewering (kantoor leeg) en verblindingswering (kantoor bezet).\nSTUURT OP BUITENSIGNALEN, NIET OP DE LUX IN DE KAMER. Het screen laten zakken haalt sensor.multisensor_illuminance van 1300-2400 lx naar ~300 lx; die zelfveroorzaakte stap is groter dan elke werkbare hysterese. Daarom sensor.evcc_pv_power (via de twee statistiek-helpers) plus zonnestand. Gevel ~182 graden (zuid).\nDREMPELS (herijkt 2026-09-22 op 11 dagen van de helpers zelf): dicht bij 15-min gemiddelde >= 2000 W met de zon op de gevel (hoogte >12, azimut tot 245). Is het kantoor LEEG, dan mag dat vanaf azimut 120 (warmtewering). Is het kantoor BEZET, dan pas vanaf azimut 145 - keuze van de gebruiker, omdat hij 's ochtends zelf nog geen screen wil. Deze bezet-regel geldt ALLEEN voor dichtdoen: als iemand binnenkomt terwijl het screen al dicht is, gaat het daardoor NIET open. Is de aanwezigheid onbekend of de sensor weg, dan geldt de BEZET-grens (145).\nOpen bij 45-min gemiddelde <= 700 W als het kantoor bezet is en het screen al minstens 120 minuten dicht is, of eenmalig als de zon van de gevel af is (az >245, hoogte >8).\nHANDMATIG GAAT VOOR. Heeft deze automatisering het screen dichtgedaan en doet iemand het daarna open (afstandsbediening, app, schema), dan blijft het die dag open: input_boolean.kantoor_screen_handmatig gaat aan en wordt 's avonds (zonhoogte <6) gewist. Een screen dat iemand ZELF dichtdoet wordt nooit door deze automatisering geopend, behalve bij harde wind. Let op: loopt de ochtendroutine in het weekend laat, dan opent het weekendschema (routine + 1 uur) soms een screen dat wij al lieten zakken; dan staat 'handmatig' aan en is de zonwering die dag verder uit.\nWINDBEVEILIGING - LEES DIT. Zip/cassette-scherm, windklasse ~49 km/h. Terugtrekken bij gemiddeld >=45 km/h of vlaag >=60, niet uitrollen boven 38 / 50. Bij harde wind gaat het screen OOK omhoog als iemand anders het dichtdeed, ook 's avonds. Ontbrekende of verouderde winddata (>3 uur geen melding) trekt alleen een screen terug dat DEZE automatisering liet zakken. De enige windbron is OpenWeatherMap op stadsniveau; die ziet geen valwind of rukwindfront. Dit is GEEN echte windbeveiliging, daarvoor is een lokale windmeter nodig.\nSEIZOEN - VERWACHT GEDRAG, GEEN STORING. Van 15 oktober tot en met 26 februari gaat de zon onder voordat hij azimut 245 haalt; het screen dat deze automatisering liet zakken blijft dan dicht tot het avondschema en gaat de volgende ochtend met het ochtendschema weer open. Of de 2000 W in de winter nog gehaald wordt is NIET gemeten (er is geen PV-historie van vorige winter); herijken in november.\nUIT ZETTEN: input_boolean.kantoor_screen_auto op off. De windterugtrekking blijft dan actief.",
+    "trace": {
+      "stored_traces": 300
+    },
+    "triggers": [
+      {
+        "trigger": "time_pattern",
+        "minutes": "/5",
+        "id": "tick"
+      },
+      {
+        "trigger": "numeric_state",
+        "entity_id": "sensor.openweathermap_windsnelheid",
+        "above": 45,
+        "id": "wind"
+      },
+      {
+        "trigger": "state",
+        "entity_id": "cover.screen",
+        "from": "closed",
+        "to": "open",
+        "id": "extern_open"
+      }
+    ],
+    "conditions": [],
+    "actions": [
+      {
+        "variables": {
+          "az": "{{ state_attr('sun.sun','azimuth') | float(-1) }}",
+          "el": "{{ state_attr('sun.sun','elevation') | float(-90) }}",
+          "pv15": "{{ states('sensor.kantoor_zon_pv_15m') | float(-1) }}",
+          "pv45": "{{ states('sensor.kantoor_zon_pv_45m') | float(-1) }}",
+          "wind": "{{ states('sensor.openweathermap_windsnelheid') | float(-1) }}",
+          "wind_age": "{% set s = states.sensor.openweathermap_windsnelheid %} {{ ((now() - s.last_reported).total_seconds() / 60) if s is not none else 9999 }}",
+          "gust": "{{ states('sensor.openweathermap_windvlaag_snelheid') | float(0) }}",
+          "bezet_raw": "{{ states('binary_sensor.kantoor_bezet') }}",
+          "bezet": "{{ bezet_raw == 'on' }}",
+          "auto": "{{ is_state('input_boolean.kantoor_screen_auto','on') }}",
+          "auto_dicht": "{{ is_state('input_boolean.kantoor_screen_auto_dicht','on') }}",
+          "hold": "{{ is_state('input_boolean.kantoor_screen_handmatig','on') }}",
+          "helpers_ok": "{{ states('input_boolean.kantoor_screen_auto_dicht') in ['on','off']\n   and states('input_boolean.kantoor_screen_handmatig') in ['on','off'] }}",
+          "cur": "{{ states('cover.screen') }}",
+          "since": "{% set c = states.cover.screen %} {{ ((now() - c.last_changed).total_seconds() / 60) if c is not none else 0 }}",
+          "in_beam": "{{ el > 12 and 120 <= az <= 245 }}",
+          "close_az_min": "{{ 120 if bezet_raw == 'off' else 145 }}",
+          "in_close_beam": "{{ el > 12 and close_az_min <= az <= 245 }}",
+          "at_edge": "{{ az > 245 and el > 8 }}",
+          "wind_stale": "{{ wind < 0 or wind_age > 180 }}",
+          "wind_bad": "{{ wind >= 45 or gust >= 60 }}",
+          "wind_marginal": "{{ wind >= 38 or gust >= 50 or wind_stale }}"
+        }
+      },
+      {
+        "if": [
+          {
+            "condition": "template",
+            "value_template": "{{ trigger.id == 'extern_open' }}"
+          }
+        ],
+        "then": [
+          {
+            "if": [
+              {
+                "condition": "template",
+                "value_template": "{{ auto_dicht }}"
+              }
+            ],
+            "then": [
+              {
+                "action": "input_boolean.turn_on",
+                "target": {
+                  "entity_id": "input_boolean.kantoor_screen_handmatig"
+                }
+              },
+              {
+                "action": "input_boolean.turn_off",
+                "target": {
+                  "entity_id": "input_boolean.kantoor_screen_auto_dicht"
+                }
+              },
+              {
+                "action": "logbook.log",
+                "data": {
+                  "name": "Kantoor Screen",
+                  "message": "Handmatig geopend na automatisch dicht; automatisering blijft er vandaag af.",
+                  "entity_id": "cover.screen"
+                }
+              }
+            ]
+          },
+          {
+            "stop": "extern open handled"
+          }
+        ]
+      },
+      {
+        "if": [
+          {
+            "condition": "template",
+            "value_template": "{{ cur == 'closed' and (wind_bad or (wind_stale and auto_dicht and el >= 6)) }}"
+          }
+        ],
+        "then": [
+          {
+            "action": "input_boolean.turn_off",
+            "target": {
+              "entity_id": "input_boolean.kantoor_screen_auto_dicht"
+            }
+          },
+          {
+            "action": "cover.open_cover",
+            "target": {
+              "entity_id": "cover.screen"
+            }
+          },
+          {
+            "action": "logbook.log",
+            "data": {
+              "name": "Kantoor Screen",
+              "message": "Windterugtrekking: wind {{ wind }} km/h, vlaag {{ gust }} km/h (OpenWeatherMap, laatste melding {{ wind_age | round(0) }} min geleden){{ ', WINDDATA VEROUDERD/ONTBREEKT' if wind_stale else '' }}; az {{ az | round(1) }}, el {{ el | round(1) }}, bezet {{ bezet_raw }}.",
+              "entity_id": "cover.screen"
+            }
+          },
+          {
+            "stop": "wind retract done"
+          }
+        ]
+      },
+      {
+        "if": [
+          {
+            "condition": "template",
+            "value_template": "{{ el < 6 and (auto_dicht or hold) }}"
+          }
+        ],
+        "then": [
+          {
+            "action": "input_boolean.turn_off",
+            "target": {
+              "entity_id": [
+                "input_boolean.kantoor_screen_auto_dicht",
+                "input_boolean.kantoor_screen_handmatig"
+              ]
+            }
+          },
+          {
+            "stop": "evening reset"
+          }
+        ]
+      },
+      {
+        "if": [
+          {
+            "condition": "template",
+            "value_template": "{{ not auto }}"
+          }
+        ],
+        "then": [
+          {
+            "stop": "auto mode off"
+          }
+        ]
+      },
+      {
+        "if": [
+          {
+            "condition": "template",
+            "value_template": "{{ since < 45 }}"
+          }
+        ],
+        "then": [
+          {
+            "stop": "moved recently, holding off"
+          }
+        ]
+      },
+      {
+        "if": [
+          {
+            "condition": "template",
+            "value_template": "{{ in_close_beam and pv15 >= 2000 and not wind_marginal and not hold\n   and helpers_ok and cur == 'open' }}"
+          }
+        ],
+        "then": [
+          {
+            "action": "input_boolean.turn_on",
+            "target": {
+              "entity_id": "input_boolean.kantoor_screen_auto_dicht"
+            }
+          },
+          {
+            "action": "cover.close_cover",
+            "target": {
+              "entity_id": "cover.screen"
+            }
+          },
+          {
+            "action": "logbook.log",
+            "data": {
+              "name": "Kantoor Screen",
+              "message": "Dicht (zon op gevel): pv15 {{ pv15 }} W, pv45 {{ pv45 }} W, az {{ az | round(1) }}, el {{ el | round(1) }}, bezet {{ bezet_raw }}, sinds vorige beweging {{ since | round(0) }} min, wind {{ wind }} km/h, vlaag {{ gust }} km/h.",
+              "entity_id": "cover.screen"
+            }
+          },
+          {
+            "stop": "closed for sun"
+          }
+        ]
+      },
+      {
+        "if": [
+          {
+            "condition": "template",
+            "value_template": "{{ in_beam and 0 <= pv45 <= 700 and bezet and since >= 120\n   and cur == 'closed' and auto_dicht }}"
+          }
+        ],
+        "then": [
+          {
+            "action": "input_boolean.turn_off",
+            "target": {
+              "entity_id": "input_boolean.kantoor_screen_auto_dicht"
+            }
+          },
+          {
+            "action": "cover.open_cover",
+            "target": {
+              "entity_id": "cover.screen"
+            }
+          },
+          {
+            "action": "logbook.log",
+            "data": {
+              "name": "Kantoor Screen",
+              "message": "Open (langdurig bewolkt, kantoor bezet): pv15 {{ pv15 }} W, pv45 {{ pv45 }} W, az {{ az | round(1) }}, el {{ el | round(1) }}, bezet {{ bezet_raw }}, sinds vorige beweging {{ since | round(0) }} min, wind {{ wind }} km/h, vlaag {{ gust }} km/h.",
+              "entity_id": "cover.screen"
+            }
+          },
+          {
+            "stop": "opened, sun gone and room occupied"
+          }
+        ]
+      },
+      {
+        "if": [
+          {
+            "condition": "template",
+            "value_template": "{{ at_edge and cur == 'closed' and auto_dicht }}"
+          }
+        ],
+        "then": [
+          {
+            "action": "input_boolean.turn_off",
+            "target": {
+              "entity_id": "input_boolean.kantoor_screen_auto_dicht"
+            }
+          },
+          {
+            "action": "cover.open_cover",
+            "target": {
+              "entity_id": "cover.screen"
+            }
+          },
+          {
+            "action": "logbook.log",
+            "data": {
+              "name": "Kantoor Screen",
+              "message": "Open (zon van de gevel): pv15 {{ pv15 }} W, pv45 {{ pv45 }} W, az {{ az | round(1) }}, el {{ el | round(1) }}, bezet {{ bezet_raw }}, sinds vorige beweging {{ since | round(0) }} min, wind {{ wind }} km/h, vlaag {{ gust }} km/h.",
+              "entity_id": "cover.screen"
+            }
+          },
+          {
+            "stop": "opened, sun off the facade"
+          }
+        ]
+      }
+    ],
+    "mode": "queued",
+    "max": 5
+  },
+  "blueprint_inputs": null,
+  "context": {
+    "id": "01M35A3PXMKZHNMT63F3G45CY3",
+    "parent_id": null,
+    "user_id": null
+  }
+}
