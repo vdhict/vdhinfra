@@ -1,0 +1,37 @@
+chg-2026-09-09-006 v2.1 replay (Sander 2026-09-22: occupied -> no close before az 145; empty -> az 120). Same inputs/method as replay-v2-summary.txt.
+Presence = real binary_sensor.kantoor_bezet history at each 5-min tick. C=2000 O=700 R6 dwell 120, hold, el<6 reset.
+
+=== mode A (policy + schedules only): mean 1.45 max 2 zero-days 3/11 days>2 0
+  2026-09-12 Sat 2  11:00 closed R5 close          az131 p15=2265 p45=2053 bezet=off  17:25 open   R7 edge           az245 p15=288 p45=533 bezet=off
+  2026-09-13 Sun 2  14:25 closed R5 close          az196 p15=2381 p45=1691 bezet=off  17:30 open   R7 edge           az246 p15=233 p45=420 bezet=off
+  2026-09-14 Mon 2  13:30 closed R5 close          az177 p15=2326 p45=1693 bezet=on  17:05 open   R6 dull+occupied  az240 p15=455 p45=641 bezet=on
+  2026-09-15 Tue 2  11:50 closed R5 close          az146 p15=2351 p45=2266 bezet=on  16:40 open   R6 dull+occupied  az234 p15=846 p45=618 bezet=on
+  2026-09-16 Wed 2  13:00 closed R5 close          az168 p15=2306 p45=1215 bezet=on  15:00 open   R6 dull+occupied  az207 p15=646 p45=471 bezet=on
+  2026-09-17 Thu 0  
+  2026-09-18 Fri 2  10:35 closed R5 close          az127 p15=2019 p45=1746 bezet=off  17:30 open   R7 edge           az245 p15=1426 p45=1455 bezet=off
+  2026-09-19 Sat 0  
+  2026-09-20 Sun 2  14:00 closed R5 close          az188 p15=2211 p45=1275 bezet=off  17:35 open   R7 edge           az246 p15=672 p45=862 bezet=off
+  2026-09-21 Mon 2  12:15 closed R5 close          az155 p15=2118 p45=1586 bezet=on  17:35 open   R7 edge           az246 p15=1629 p45=1845 bezet=on
+  2026-09-22 Tue 0  
+  auto moves <45 min apart: none
+=== mode B (Sander's 6 real moves injected): mean 1.00 max 2 zero-days 5/11 days>2 0
+  2026-09-12 Sat 2  11:00 closed R5 close          az131 p15=2265 p45=2053 bezet=off  17:25 open   R7 edge           az245 p15=288 p45=533 bezet=off
+  2026-09-13 Sun 2  14:25 closed R5 close          az196 p15=2381 p45=1691 bezet=off  17:30 open   R7 edge           az246 p15=233 p45=420 bezet=off
+  2026-09-14 Mon 0  
+  2026-09-15 Tue 0  
+  2026-09-16 Wed 2  13:00 closed R5 close          az168 p15=2306 p45=1215 bezet=on  15:00 open   R6 dull+occupied  az207 p15=646 p45=471 bezet=on
+  2026-09-17 Thu 0  
+  2026-09-18 Fri 2  10:35 closed R5 close          az127 p15=2019 p45=1746 bezet=off  17:30 open   R7 edge           az245 p15=1426 p45=1455 bezet=off
+  2026-09-19 Sat 0  
+  2026-09-20 Sun 2  14:00 closed R5 close          az188 p15=2211 p45=1275 bezet=off  17:35 open   R7 edge           az246 p15=672 p45=862 bezet=off
+  2026-09-21 Mon 1  12:15 closed R5 close          az155 p15=2118 p45=1586 bezet=on
+  2026-09-22 Tue 0  
+  auto moves <45 min apart: none
+
+Against Sander's 6 manual moves (mode A = what v2.1 would have done on its own):
+  09-14 12:16 closed az153.6  -> v2.1 closed 13:30 az177 (+74 min)
+  09-15 11:47 closed az145.3  -> v2.1 closed 11:50 az146 (+3 min)
+  09-15 16:30 open   az231.8  -> v2.1 open 16:40 az234 (+9 min)
+  09-18 13:21 closed az175.4  -> v2.1 closed 10:35 az127 (-167 min)
+  09-21 15:07 closed az208.6  -> v2.1 closed 12:15 az155 (-172 min)
+  09-21 15:45 open   az219.4  -> v2.1 open 17:35 az246 (+110 min)

@@ -1,0 +1,41 @@
+v2.1 presence close-gate renders against LIVE HA /api/template, 2026-09-22. Derived vars (close_az_min, in_close_beam, in_beam...) are computed by HA from the overridden inputs.
+### LIVE now (real bezet)
+  vars: az=290.89, el=-15.53, pv15=0.0, pv45=0.0, wind=3.708, wind_age=4.401284116666667, gust=0.0, bezet=False, auto=False, auto_dicht=False, hold=False, cur=closed, since=130.81847511666666, in_beam=False, close_az_min=120.0, in_close_beam=False, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=True] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 3 auto_off
+### EMPTY az130 sunny open -> expect 5 close (heat branch, floor 120)
+  vars: az=130.0, el=28.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=8.0, gust=0.0, bezet=False, auto=True, auto_dicht=False, hold=False, cur=open, since=60.0, in_beam=True, close_az_min=120.0, in_close_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=False] [interlock=False] [close=True] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 5 close
+### OCCUPIED az130 sunny open -> expect none (floor 145)
+  vars: az=130.0, el=28.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=8.0, gust=0.0, bezet=True, auto=True, auto_dicht=False, hold=False, cur=open, since=60.0, in_beam=True, close_az_min=145.0, in_close_beam=False, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): none -> run ends
+### OCCUPIED az144 sunny open -> expect none
+  vars: az=144.0, el=28.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=8.0, gust=0.0, bezet=True, auto=True, auto_dicht=False, hold=False, cur=open, since=60.0, in_beam=True, close_az_min=145.0, in_close_beam=False, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): none -> run ends
+### OCCUPIED az145 sunny open -> expect 5 close (boundary inclusive)
+  vars: az=145.0, el=33.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=8.0, gust=0.0, bezet=True, auto=True, auto_dicht=False, hold=False, cur=open, since=60.0, in_beam=True, close_az_min=145.0, in_close_beam=True, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=False] [interlock=False] [close=True] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 5 close
+### EMPTY az119 sunny open -> expect none
+  vars: az=119.0, el=26.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=8.0, gust=0.0, bezet=False, auto=True, auto_dicht=False, hold=False, cur=open, since=60.0, in_beam=False, close_az_min=120.0, in_close_beam=False, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): none -> run ends
+### NEG: closed by US at az130 while empty, now OCCUPIED, still bright -> expect NO open
+  vars: az=130.0, el=28.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=8.0, gust=0.0, bezet=True, auto=True, auto_dicht=True, hold=False, cur=closed, since=20.0, in_beam=True, close_az_min=145.0, in_close_beam=False, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=False] [interlock=True] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 4 interlock
+### NEG: same, 70 min later, still bright -> expect NO open
+  vars: az=130.0, el=28.0, pv15=2100.0, pv45=1800.0, wind=10.0, wind_age=8.0, gust=0.0, bezet=True, auto=True, auto_dicht=True, hold=False, cur=closed, since=70.0, in_beam=True, close_az_min=145.0, in_close_beam=False, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): none -> run ends
+### NEG: same, but dull pv45=600 and since 70 -> expect NO open (dwell 120)
+  vars: az=130.0, el=28.0, pv15=500.0, pv45=600.0, wind=10.0, wind_age=8.0, gust=0.0, bezet=True, auto=True, auto_dicht=True, hold=False, cur=closed, since=70.0, in_beam=True, close_az_min=145.0, in_close_beam=False, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=False] [interlock=False] [close=False] [open_dull=False] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): none -> run ends
+### PRE-EXISTING R6: same, dull pv45=600, since 130 -> rule 6 opens (dull-open, NOT the gate)
+  vars: az=130.0, el=28.0, pv15=500.0, pv45=600.0, wind=10.0, wind_age=8.0, gust=0.0, bezet=True, auto=True, auto_dicht=True, hold=False, cur=closed, since=130.0, in_beam=True, close_az_min=145.0, in_close_beam=False, at_edge=False, wind_stale=False, wind_bad=False, wind_marginal=False
+  guards: [extern_open=False] [evening_reset=False] [wind_retract=False] [auto_off=False] [interlock=False] [close=False] [open_dull=True] [open_edge=False]
+  FIRST TRUE GUARD (terminates via stop): 6 open_dull

@@ -1,0 +1,1 @@
+now=2026-09-22T21:36:43.171154+02:00 mean=3.708 gust=unknown mean_age_min=9.9 cover=closed bezet=off el=-18.0 dicht=off hand=off

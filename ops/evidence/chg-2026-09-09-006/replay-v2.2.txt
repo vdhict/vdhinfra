@@ -1,0 +1,8 @@
+chg-2026-09-09-006 v2.2 replay (B1: az floor 120 only when kantoor_bezet == off). kantoor_bezet over 2026-09-12..22: 92 rows, 52 off / 40 on,
+ZERO unavailable/unknown rows (incl. the 09-16 restarts), so B1 cannot change the result; re-run to prove it. A1/A2/B2 do not change
+behaviour on this data (wind never bad/stale, helpers present in replay).
+
+mode A: mean 1.45 max 2 zero 3 >2 0 auto-moves<45min 0  per-day [2, 2, 2, 2, 2, 0, 2, 0, 2, 2, 0]
+   closes: 12@11:00/az131 13@14:25/az196 14@13:30/az177 15@11:50/az146 16@13:00/az168 18@10:35/az127 20@14:00/az188 21@12:15/az155
+mode B: mean 1.00 max 2 zero 5 >2 0 auto-moves<45min 0  per-day [2, 2, 0, 0, 2, 0, 2, 0, 2, 1, 0]
+   closes: 12@11:00/az131 13@14:25/az196 16@13:00/az168 18@10:35/az127 20@14:00/az188 21@12:15/az155

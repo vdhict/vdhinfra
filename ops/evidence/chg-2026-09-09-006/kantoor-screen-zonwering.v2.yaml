@@ -1,0 +1,312 @@
+# ============================================================================
+# chg-2026-09-09-006 — v2 (2026-09-22). Supersedes kantoor-screen-zonwering.draft.yaml.
+# NOT INSTALLED. Install only after Themis qa_passed on the revised plan.
+#
+# Changes vs the 09-09 draft (each backed by replay-v2-*.txt in this directory):
+#   T1  close threshold 1800 -> 2000 W on sensor.kantoor_zon_pv_15m. 11 days of the
+#       REAL helper: in-beam daily max on dull days 1405-1760 W, on sunny days
+#       2790-3477 W. 1800 sat 40 W above the worst dull day; 2000 sits 240 W above
+#       it and 790 W below the weakest sunny day.
+#   T2  open threshold 700 W on sensor.kantoor_zon_pv_45m UNCHANGED, plus a NEW
+#       120-min dwell before the dull-open (rule R5). With the 45-min interlock only,
+#       09-16 hunts (close/open/close/open = 4 moves). Dwell 60 still hunts, 75 holds,
+#       120 chosen for margin. Lowering O instead would have needed O<=500 (74 W from
+#       the hunting value) and would have missed Sander's own 09-15 16:30 open.
+#   T3  R5 requires pv45 >= 0: a missing/unavailable 45m helper renders -1, which the
+#       draft treated as "dull" and would OPEN the screen (seen: helpers unavailable
+#       5 min during the 2026-09-16 21:32Z restart).
+#   W1  wind staleness reads last_reported, not last_updated. last_updated only moves
+#       when the VALUE changes; OWM polls every ~10 min. Measured: two false ">180 min
+#       stale" windows in 11 days (value held 210 and 270 min), and wind has read 0.0
+#       since 2026-09-22 18:46Z — under the draft that opens the screen at night.
+#   W2  stale-data retract only undoes THIS automation's own deployment
+#       (auto_dicht on). Genuine wind (>=45 mean / >=60 gust) still retracts any
+#       closed screen, as decided on 09-09.
+#   W3  wind entity missing -> template no longer raises (draft dereferenced
+#       states.sensor.x.last_updated on None and the whole run, incl. the wind
+#       retract, aborted). Missing -> age 9999 -> stale.
+#   O1  NEW input_boolean.kantoor_screen_handmatig: an OPEN of a screen this
+#       automation closed, made by anyone else (remote, HA UI, schedule), latches a
+#       hold that blocks re-closing until the evening reset. Closes the 09-09 "known
+#       gap" which the replay shows biting on 2026-09-21 (re-close 55 min after
+#       Sander's own 15:45 open).
+#   O2  ownership flag is cleared BEFORE every open command, so the automation's own
+#       open can never look external.
+#   O3  evening reset at el < 6 (was el <= 0) and moved ABOVE the auto-off and
+#       interlock guards. el<6 precedes the sunset-30 close by 14-33 min all year,
+#       so ownership is always cleared before the schedule closes the screen.
+#       The draft's el<=0 left auto_dicht set for ~30 min after the sunset-30 close,
+#       and the draft's reset sat behind the "auto off" stop, so the flag could leak.
+#   M1  mode queued (max 5) instead of single/silent, so the extern-open state
+#       trigger is never silently dropped while a tick run is in flight.
+#   P1  (Sander, 2026-09-22) CLOSE-ONLY presence gate: while binary_sensor.kantoor_bezet
+#       is on, no automatic close before az 145; when empty the close window starts at
+#       az 120 (heat protection). Variable close_az_min. It gates rule 5 only; no open
+#       rule reads it, so occupancy changing never opens the screen.
+#
+# Helpers (existing, created 2026-09-09):
+#   sensor.kantoor_zon_pv_15m  statistics average_step evcc_pv_power 15 min
+#   sensor.kantoor_zon_pv_45m  statistics average_step evcc_pv_power 45 min
+#   input_boolean.kantoor_screen_auto        user off-switch (currently OFF = unarmed)
+#   input_boolean.kantoor_screen_auto_dicht  "this automation closed it"
+# Helper to create at install (NEW, via WS input_boolean/create):
+#   input_boolean.kantoor_screen_handmatig   "manually re-opened today, hands off"
+#   --- v2.2 (2026-09-22, after Themis qa_failed 19:26:35Z) ---
+#   B1  presence fail-safe: close_az_min = 120 ONLY when kantoor_bezet is explicitly
+#       'off'; unavailable / unknown / missing -> 145 (occupied floor). Rule 6 keeps
+#       bezet == 'on' (unknown presence -> no dull-open = inert). One read: bezet_raw.
+#   B2  evidence survives: trace stored_traces 300 (~1 day of /5 ticks -> E2 traces must
+#       be exported within 24 h), and a logbook.log in rules 5/6/7 with pv15, pv45, az,
+#       el, raw bezet state, since, wind, gust (logbook_entry events ARE recorded; only
+#       call_service is excluded) -> durable per-move rows for E1/E3.
+#   A1  wind retract moved ABOVE the evening reset, so real wind never waits a tick.
+#       Its stale-data branch additionally requires el >= 6, so a stale feed at dusk
+#       cannot re-open our screen before the reset clears the flag (O3 intent kept).
+#   A2  close requires both kantoor_screen_auto_dicht and kantoor_screen_handmatig to
+#       exist (state on/off): never close a screen the automation could not re-open.
+# ============================================================================
+
+- id: '1757400001'
+  alias: Kantoor Screen - Zonwering
+  description: >-
+    Laat het kantoorscreen (cover.screen, LET OP: de automatiseringen die
+    'Keuken Screen' heten sturen OOK dit screen, zie chg-2026-09-09-005)
+    zakken bij felle zon op de zuidgevel en weer omhoog als de zon van de
+    gevel af is of het langdurig bewolkt wordt. Doel: warmtewering (kantoor
+    leeg) en verblindingswering (kantoor bezet).
+
+    STUURT OP BUITENSIGNALEN, NIET OP DE LUX IN DE KAMER. Het screen laten
+    zakken haalt sensor.multisensor_illuminance van 1300-2400 lx naar ~300 lx;
+    die zelfveroorzaakte stap is groter dan elke werkbare hysterese.
+    Daarom sensor.evcc_pv_power (via de twee statistiek-helpers) plus
+    zonnestand. Gevel ~182 graden (zuid).
+
+    DREMPELS (herijkt 2026-09-22 op 11 dagen van de helpers zelf): dicht bij
+    15-min gemiddelde >= 2000 W met de zon op de gevel (hoogte >12, azimut
+    tot 245). Is het kantoor LEEG, dan mag dat vanaf azimut 120
+    (warmtewering). Is het kantoor BEZET, dan pas vanaf azimut 145 - keuze
+    van de gebruiker, omdat hij 's ochtends zelf nog geen screen wil. Deze
+    bezet-regel geldt ALLEEN voor dichtdoen: als iemand binnenkomt terwijl
+    het screen al dicht is, gaat het daardoor NIET open. Is de
+    aanwezigheid onbekend of de sensor weg, dan geldt de BEZET-grens (145).
+
+    Open bij 45-min gemiddelde <= 700 W als het kantoor bezet is en het
+    screen al minstens 120 minuten dicht is, of eenmalig als de zon van de
+    gevel af is (az >245, hoogte >8).
+
+    HANDMATIG GAAT VOOR. Heeft deze automatisering het screen dichtgedaan en
+    doet iemand het daarna open (afstandsbediening, app, schema), dan blijft
+    het die dag open: input_boolean.kantoor_screen_handmatig gaat aan en wordt
+    's avonds (zonhoogte <6) gewist. Een screen dat iemand ZELF dichtdoet wordt
+    nooit door deze automatisering geopend, behalve bij harde wind.
+    Let op: loopt de ochtendroutine in het weekend laat, dan opent het
+    weekendschema (routine + 1 uur) soms een screen dat wij al lieten zakken;
+    dan staat 'handmatig' aan en is de zonwering die dag verder uit.
+
+    WINDBEVEILIGING - LEES DIT. Zip/cassette-scherm, windklasse ~49 km/h.
+    Terugtrekken bij gemiddeld >=45 km/h of vlaag >=60, niet uitrollen boven
+    38 / 50. Bij harde wind gaat het screen OOK omhoog als iemand anders het
+    dichtdeed, ook 's avonds. Ontbrekende of verouderde winddata (>3 uur geen
+    melding) trekt alleen een screen terug dat DEZE automatisering liet
+    zakken. De enige windbron is OpenWeatherMap op stadsniveau; die ziet
+    geen valwind of rukwindfront. Dit is GEEN echte windbeveiliging, daarvoor
+    is een lokale windmeter nodig.
+
+    SEIZOEN - VERWACHT GEDRAG, GEEN STORING. Van 15 oktober tot en met 26
+    februari gaat de zon onder voordat hij azimut 245 haalt; het screen dat
+    deze automatisering liet zakken blijft dan dicht tot het avondschema en
+    gaat de volgende ochtend met het ochtendschema weer open. Of de 2000 W in
+    de winter nog gehaald wordt is NIET gemeten (er is geen PV-historie van
+    vorige winter); herijken in november.
+
+    UIT ZETTEN: input_boolean.kantoor_screen_auto op off. De windterugtrekking
+    blijft dan actief.
+  trace:
+    stored_traces: 300
+  triggers:
+    - trigger: time_pattern
+      minutes: /5
+      id: tick
+    - trigger: numeric_state
+      entity_id: sensor.openweathermap_windsnelheid
+      above: 45
+      id: wind
+    - trigger: state
+      entity_id: cover.screen
+      from: closed
+      to: open
+      id: extern_open
+  conditions: []
+  actions:
+    - variables:
+        az: "{{ state_attr('sun.sun','azimuth') | float(-1) }}"
+        el: "{{ state_attr('sun.sun','elevation') | float(-90) }}"
+        pv15: "{{ states('sensor.kantoor_zon_pv_15m') | float(-1) }}"
+        pv45: "{{ states('sensor.kantoor_zon_pv_45m') | float(-1) }}"
+        wind: "{{ states('sensor.openweathermap_windsnelheid') | float(-1) }}"
+        wind_age: >-
+          {% set s = states.sensor.openweathermap_windsnelheid %}
+          {{ ((now() - s.last_reported).total_seconds() / 60) if s is not none else 9999 }}
+        gust: "{{ states('sensor.openweathermap_windvlaag_snelheid') | float(0) }}"
+        bezet_raw: "{{ states('binary_sensor.kantoor_bezet') }}"
+        bezet: "{{ bezet_raw == 'on' }}"
+        auto: "{{ is_state('input_boolean.kantoor_screen_auto','on') }}"
+        auto_dicht: "{{ is_state('input_boolean.kantoor_screen_auto_dicht','on') }}"
+        hold: "{{ is_state('input_boolean.kantoor_screen_handmatig','on') }}"
+        helpers_ok: >-
+          {{ states('input_boolean.kantoor_screen_auto_dicht') in ['on','off']
+             and states('input_boolean.kantoor_screen_handmatig') in ['on','off'] }}
+        cur: "{{ states('cover.screen') }}"
+        since: >-
+          {% set c = states.cover.screen %}
+          {{ ((now() - c.last_changed).total_seconds() / 60) if c is not none else 0 }}
+        in_beam: "{{ el > 12 and 120 <= az <= 245 }}"
+        close_az_min: "{{ 120 if bezet_raw == 'off' else 145 }}"
+        in_close_beam: "{{ el > 12 and close_az_min <= az <= 245 }}"
+        at_edge: "{{ az > 245 and el > 8 }}"
+        wind_stale: "{{ wind < 0 or wind_age > 180 }}"
+        wind_bad: "{{ wind >= 45 or gust >= 60 }}"
+        wind_marginal: "{{ wind >= 38 or gust >= 50 or wind_stale }}"
+
+    # ---- 0. EXTERN OPEN: someone else opened a screen WE closed -> hands off today ----
+    #      Our own opens clear auto_dicht BEFORE commanding, so they never land here
+    #      with auto_dicht on. Terminates unconditionally (stop), whatever the inner if.
+    - if:
+        - condition: template
+          value_template: "{{ trigger.id == 'extern_open' }}"
+      then:
+        - if:
+            - condition: template
+              value_template: "{{ auto_dicht }}"
+          then:
+            - action: input_boolean.turn_on
+              target: {entity_id: input_boolean.kantoor_screen_handmatig}
+            - action: input_boolean.turn_off
+              target: {entity_id: input_boolean.kantoor_screen_auto_dicht}
+            - action: logbook.log
+              data:
+                name: Kantoor Screen
+                message: >-
+                  Handmatig geopend na automatisch dicht; automatisering blijft
+                  er vandaag af.
+                entity_id: cover.screen
+        - stop: "extern open handled"
+
+    # ---- 1. WIND RETRACT — first real guard; ignores the auto switch on purpose ----
+    #      Real wind: any closed screen, day or night, never delayed by the reset.
+    #      Stale/missing data: only our own deployment, and only while el >= 6 so a
+    #      stale feed at dusk cannot re-open the screen before the evening reset.
+    - if:
+        - condition: template
+          value_template: >-
+            {{ cur == 'closed' and (wind_bad or (wind_stale and auto_dicht and el >= 6)) }}
+      then:
+        - action: input_boolean.turn_off
+          target: {entity_id: input_boolean.kantoor_screen_auto_dicht}
+        - action: cover.open_cover
+          target: {entity_id: cover.screen}
+        - action: logbook.log
+          data:
+            name: Kantoor Screen
+            message: >-
+              Windterugtrekking: wind {{ wind }} km/h, vlaag {{ gust }} km/h
+              (OpenWeatherMap, laatste melding {{ wind_age | round(0) }} min
+              geleden){{ ', WINDDATA VEROUDERD/ONTBREEKT' if wind_stale else '' }};
+              az {{ az | round(1) }}, el {{ el | round(1) }}, bezet {{ bezet_raw }}.
+            entity_id: cover.screen
+        - stop: "wind retract done"
+
+    # ---- 2. EVENING RESET — above auto-off and interlock so it can never be skipped ----
+    - if:
+        - condition: template
+          value_template: "{{ el < 6 and (auto_dicht or hold) }}"
+      then:
+        - action: input_boolean.turn_off
+          target:
+            entity_id:
+              - input_boolean.kantoor_screen_auto_dicht
+              - input_boolean.kantoor_screen_handmatig
+        - stop: "evening reset"
+
+    # ---- 3. automatic mode off ----
+    - if:
+        - condition: template
+          value_template: "{{ not auto }}"
+      then:
+        - stop: "auto mode off"
+
+    # ---- 4. minimum re-command interval; also absorbs a manual move and a restart ----
+    - if:
+        - condition: template
+          value_template: "{{ since < 45 }}"
+      then:
+        - stop: "moved recently, holding off"
+
+    # ---- 5. CLOSE: strong sun on the facade, unless manually re-opened today ----
+    #      Presence gate (CLOSE ONLY): az floor 120 only when kantoor_bezet is
+    #      explicitly 'off'; on/unavailable/unknown/missing -> 145.
+    #      helpers_ok: never close a screen we could not re-open.
+    - if:
+        - condition: template
+          value_template: >-
+            {{ in_close_beam and pv15 >= 2000 and not wind_marginal and not hold
+               and helpers_ok and cur == 'open' }}
+      then:
+        - action: input_boolean.turn_on
+          target: {entity_id: input_boolean.kantoor_screen_auto_dicht}
+        - action: cover.close_cover
+          target: {entity_id: cover.screen}
+        - action: logbook.log
+          data:
+            name: Kantoor Screen
+            message: >-
+              Dicht (zon op gevel): pv15 {{ pv15 }} W,
+              pv45 {{ pv45 }} W, az {{ az | round(1) }}, el {{ el | round(1) }},
+              bezet {{ bezet_raw }}, sinds vorige beweging {{ since | round(0) }} min,
+              wind {{ wind }} km/h, vlaag {{ gust }} km/h.
+            entity_id: cover.screen
+        - stop: "closed for sun"
+
+    # ---- 6. OPEN: sustained dull, he is there, and it has been down >= 120 min ----
+    - if:
+        - condition: template
+          value_template: >-
+            {{ in_beam and 0 <= pv45 <= 700 and bezet and since >= 120
+               and cur == 'closed' and auto_dicht }}
+      then:
+        - action: input_boolean.turn_off
+          target: {entity_id: input_boolean.kantoor_screen_auto_dicht}
+        - action: cover.open_cover
+          target: {entity_id: cover.screen}
+        - action: logbook.log
+          data:
+            name: Kantoor Screen
+            message: >-
+              Open (langdurig bewolkt, kantoor bezet): pv15 {{ pv15 }} W,
+              pv45 {{ pv45 }} W, az {{ az | round(1) }}, el {{ el | round(1) }},
+              bezet {{ bezet_raw }}, sinds vorige beweging {{ since | round(0) }} min,
+              wind {{ wind }} km/h, vlaag {{ gust }} km/h.
+            entity_id: cover.screen
+        - stop: "opened, sun gone and room occupied"
+
+    # ---- 7. OPEN once when the sun leaves the facade (unreachable 15 Oct - 26 Feb) ----
+    - if:
+        - condition: template
+          value_template: "{{ at_edge and cur == 'closed' and auto_dicht }}"
+      then:
+        - action: input_boolean.turn_off
+          target: {entity_id: input_boolean.kantoor_screen_auto_dicht}
+        - action: cover.open_cover
+          target: {entity_id: cover.screen}
+        - action: logbook.log
+          data:
+            name: Kantoor Screen
+            message: >-
+              Open (zon van de gevel): pv15 {{ pv15 }} W,
+              pv45 {{ pv45 }} W, az {{ az | round(1) }}, el {{ el | round(1) }},
+              bezet {{ bezet_raw }}, sinds vorige beweging {{ since | round(0) }} min,
+              wind {{ wind }} km/h, vlaag {{ gust }} km/h.
+            entity_id: cover.screen
+        - stop: "opened, sun off the facade"
+  mode: queued
+  max: 5
