@@ -1,0 +1,57 @@
+---
+# P4-K1: HTTPS to the forge on envoy-internal. LAN (and WireGuard) only.
+#
+#   https://forge.${SECRET_DOMAIN}  ->  envoy-internal (172.16.2.241:443,
+#   wildcard cert)  ->  forgejo-http:3000
+#
+# NEVER envoy-external, never the Cloudflare tunnel: this forge holds client
+# repositories. HTTPS push is enough for the programme's first goal; SSH is
+# P4-K2, a separate optional commit with its own LoadBalancer IP.
+#
+# DNS - read this before touching the annotations:
+#   Three external-dns instances watch gateway-httproute on this domain.
+#   * external-dns.alpha.kubernetes.io/controller: none keeps BOTH Cloudflare
+#     instances off. Without it external-dns-cloudflare-internal would publish
+#     a PUBLIC CNAME forge -> internal.${SECRET_DOMAIN} plus a world-readable
+#     TXT naming this route, advertising that a code forge exists here.
+#   * external-dns-unifi does NOT read that key: it runs with
+#     --annotation-prefix=external-dns-unifi.bluejungle.net/, and in
+#     external-dns v0.20.0 the controller key is derived from the prefix
+#     (source/annotations/annotations.go: ControllerKey = AnnotationKeyPrefix
+#     + "controller"). So it DOES create the LAN record itself:
+#     forge.${SECRET_DOMAIN} A 172.16.2.241 on the UDM, plus its owner TXT,
+#     and removes both again if this route is reverted. Same mechanism as
+#     network/studio-ai. Do NOT also hand-write a static A record for forge.
+#
+# Forgejo's own URL does not come from this route: ROOT_URL/DOMAIN are
+# pinned in helmrelease.yaml, and this hostname must stay equal to them.
+#
+# Timeouts: Envoy's per-route default (15s, request -> complete response)
+# applies, as on most routes on this listener. Enough for small
+# repositories. A multi-minute clone/push of a large repo would be cut off;
+# the fix then is `timeouts.request` on this rule (see network/studio-ai for
+# the tested 600s form and its idle_timeout side effect). Not set today.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/gateway.networking.k8s.io/httproute_v1.json
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: forgejo
+  annotations:
+    external-dns.alpha.kubernetes.io/controller: none
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: envoy-internal
+      namespace: network
+      sectionName: https
+  hostnames:
+    - forge.${SECRET_DOMAIN}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: forgejo-http
+          port: 3000
