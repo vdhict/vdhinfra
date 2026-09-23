@@ -1,0 +1,148 @@
+---
+# One-shot: create the forge's scoped MinIO identities, then prove them.
+#
+#   init 1  iam-apply       ROOT. mb forge-volsync, 2 policies, 2 users,
+#                           attach, post-check. The ONLY container with root.
+#   init 2  restic-check    forge-volsync creds ONLY. The VolSync mover's own
+#                           restic 0.18.0 replays the mover's command sequence.
+#   main    verify-forge-pg       forge-pg creds ONLY.      positive + negative
+#   main    verify-forge-volsync  forge-volsync creds ONLY. positive + negative
+#
+# Each verify script refuses to run if root is in its environment OR if the
+# root mc config dir (/tmp/mc-apply) is visible to it. Root is
+# referenced key-by-key via secretKeyRef, never envFrom, so no container sees
+# the rest of minio-secret (AZURE_STORAGE_KEY, VOLSYNC_REPO_PASSWORD).
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/batch/job_v1.json
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-iam-forge
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  # Backstop if run.sh is killed before its cleanup: the pod goes away on its
+  # own. The ExternalSecret/Secret still need run.sh (or a manual delete).
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: minio-iam-forge
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile: {type: RuntimeDefault}
+      volumes:
+        - name: iam
+          configMap:
+            name: minio-iam-forge-scripts
+            defaultMode: 0555
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+        # ROOT ISOLATION (Argus sec-A1): `mc alias set` writes the root
+        # password in plaintext to $MC_CONFIG_DIR/config.json(.old). That
+        # directory lives on THIS volume, which is mounted in iam-apply ONLY -
+        # never in restic-check or the verify containers. Memory-backed, and
+        # iam-apply.sh deletes it on exit. The other containers FATAL if they
+        # can see /tmp/mc-apply at all.
+        - name: tmp-root
+          emptyDir:
+            medium: Memory
+            sizeLimit: 16Mi
+      initContainers:
+        - name: iam-apply
+          image: quay.io/minio/mc:RELEASE.2024-09-09T07-53-10Z@sha256:782e3b2caa88fb565d5c78b15575939ea9778754a4577794922c1d359c06f422
+          command: ["/bin/bash", "/iam/iam-apply.sh", "apply"]
+          env:
+            - {name: HOME, value: /tmp}
+            - {name: TMPDIR, value: /tmp}
+            - {name: MINIO_ENDPOINT, value: "http://minio.storage.svc.cluster.local:9000"}
+            - {name: POLICY_DIR, value: /iam}
+            - {name: MC_CONFIG_DIR, value: /tmp/mc-apply}
+            - name: MINIO_ROOT_USER
+              valueFrom: {secretKeyRef: {name: minio-secret, key: MINIO_ROOT_USER}}
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom: {secretKeyRef: {name: minio-secret, key: MINIO_ROOT_PASSWORD}}
+            - name: FORGE_PG_ACCESS_KEY
+              valueFrom: {secretKeyRef: {name: minio-iam-forge, key: FORGE_PG_ACCESS_KEY}}
+            - name: FORGE_PG_SECRET_KEY
+              valueFrom: {secretKeyRef: {name: minio-iam-forge, key: FORGE_PG_SECRET_KEY}}
+            - name: FORGE_VOLSYNC_ACCESS_KEY
+              valueFrom: {secretKeyRef: {name: minio-iam-forge, key: FORGE_VOLSYNC_ACCESS_KEY}}
+            - name: FORGE_VOLSYNC_SECRET_KEY
+              valueFrom: {secretKeyRef: {name: minio-iam-forge, key: FORGE_VOLSYNC_SECRET_KEY}}
+          volumeMounts:
+            - {name: iam, mountPath: /iam, readOnly: true}
+            - {name: tmp-root, mountPath: /tmp}   # root-only volume, see above
+          securityContext: &csc
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {memory: 256Mi}
+
+        - name: restic-check
+          # Same image + digest the VolSync operator runs as its mover.
+          image: quay.io/backube/volsync:0.13.1@sha256:b2e36d392fa557383066f41828b9737cde0433250b65e1a9fc2301568979a1e4
+          command: ["/bin/bash", "/iam/restic-check.sh"]
+          env:
+            - {name: HOME, value: /tmp}
+            - {name: TMPDIR, value: /tmp}
+            - {name: MINIO_ENDPOINT, value: "http://minio.storage.svc.cluster.local:9000"}
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom: {secretKeyRef: {name: minio-iam-forge, key: FORGE_VOLSYNC_ACCESS_KEY}}
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom: {secretKeyRef: {name: minio-iam-forge, key: FORGE_VOLSYNC_SECRET_KEY}}
+          volumeMounts: &mounts
+            - {name: iam, mountPath: /iam, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+          securityContext: *csc
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {memory: 512Mi}
+
+      containers:
+        - name: verify-forge-pg
+          image: quay.io/minio/mc:RELEASE.2024-09-09T07-53-10Z@sha256:782e3b2caa88fb565d5c78b15575939ea9778754a4577794922c1d359c06f422
+          command: ["/bin/bash", "/iam/iam-verify.sh"]
+          args: [forge-backups, cnpg-backups, volsync, mac-mini-backups, thanos, forge-volsync]
+          env:
+            - {name: HOME, value: /tmp}
+            - {name: TMPDIR, value: /tmp}
+            - {name: MINIO_ENDPOINT, value: "http://minio.storage.svc.cluster.local:9000"}
+            - {name: MC_CONFIG_DIR, value: /tmp/mc-verify-pg}
+            - name: S3_ACCESS_KEY
+              valueFrom: {secretKeyRef: {name: minio-iam-forge, key: FORGE_PG_ACCESS_KEY}}
+            - name: S3_SECRET_KEY
+              valueFrom: {secretKeyRef: {name: minio-iam-forge, key: FORGE_PG_SECRET_KEY}}
+          volumeMounts: *mounts
+          securityContext: *csc
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {memory: 256Mi}
+
+        - name: verify-forge-volsync
+          image: quay.io/minio/mc:RELEASE.2024-09-09T07-53-10Z@sha256:782e3b2caa88fb565d5c78b15575939ea9778754a4577794922c1d359c06f422
+          command: ["/bin/bash", "/iam/iam-verify.sh"]
+          args: [forge-volsync, cnpg-backups, volsync, mac-mini-backups, thanos, forge-backups]
+          env:
+            - {name: HOME, value: /tmp}
+            - {name: TMPDIR, value: /tmp}
+            - {name: MINIO_ENDPOINT, value: "http://minio.storage.svc.cluster.local:9000"}
+            - {name: MC_CONFIG_DIR, value: /tmp/mc-verify-vs}
+            - name: S3_ACCESS_KEY
+              valueFrom: {secretKeyRef: {name: minio-iam-forge, key: FORGE_VOLSYNC_ACCESS_KEY}}
+            - name: S3_SECRET_KEY
+              valueFrom: {secretKeyRef: {name: minio-iam-forge, key: FORGE_VOLSYNC_SECRET_KEY}}
+          volumeMounts: *mounts
+          securityContext: *csc
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {memory: 256Mi}

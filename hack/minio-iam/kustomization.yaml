@@ -1,0 +1,27 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+#
+# One-shot MinIO IAM Job for the forge (chg-2026-09-23-002). NOT under
+# kubernetes/main, so Flux never applies it. Run it with ./run.sh, which
+# applies, waits, captures evidence, and deletes everything again.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: storage
+labels:
+  - pairs:
+      app.kubernetes.io/name: minio-iam-forge
+      app.kubernetes.io/part-of: minio-iam
+    includeSelectors: false
+resources:
+  - ./externalsecret.yaml
+  - ./job.yaml
+configMapGenerator:
+  - name: minio-iam-forge-scripts
+    files:
+      - ./iam-apply.sh
+      - ./iam-verify.sh
+      - ./restic-check.sh
+      - ./policies/forge-backups-rw.json
+      - ./policies/forge-volsync-rw.json
+generatorOptions:
+  disableNameSuffixHash: true

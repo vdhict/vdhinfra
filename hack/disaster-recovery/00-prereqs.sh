@@ -48,4 +48,25 @@ JSON
   rm -f /tmp/dr-mc-check.json
 fi
 
+# MinIO IAM lives on MinIO's /data backend (/data/.minio.sys/config/iam/ on the
+# Synology export), NOT in Git, so Flux cannot restore it. If MinIO came back
+# from an empty or partial volume, the forge's scoped identities are gone and
+# forge-pg (barman) + forgejo (VolSync) fail with AccessDenied. Added by
+# chg-2026-09-23-002 (Argus sec-01 step 4). See runbook §A.4b.
+log "verifying MinIO IAM (forge scoped identities)..."
+if kubectl -n storage get secret minio-secret >/dev/null 2>&1; then
+  if "$(dirname "$0")/../minio-iam/run.sh" check; then
+    ok "forge MinIO identities present"
+  else
+    warn "forge MinIO identities MISSING (expected after a MinIO rebuild)"
+    warn "needs 1Password items minio-forge-pg + minio-forge-volsync in vault home-infra"
+    confirm "Re-create them now with hack/minio-iam/run.sh apply?"
+    EVID="${DR_EVIDENCE_DIR:-/tmp}/minio-iam-dr-$(date -u +%Y%m%dT%H%M%SZ).txt"
+    "$(dirname "$0")/../minio-iam/run.sh" apply "$EVID" || fatal "MinIO IAM re-creation failed - evidence in $EVID"
+    ok "forge MinIO identities re-created and verified (evidence: $EVID)"
+  fi
+else
+  warn "storage/minio-secret not present yet - re-run this pre-flight once MinIO is up"
+fi
+
 ok "pre-flight passed. You may now proceed with the recovery scripts."
