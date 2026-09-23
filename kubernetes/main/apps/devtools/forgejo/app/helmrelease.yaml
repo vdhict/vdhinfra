@@ -17,6 +17,27 @@ spec:
     cleanupOnFail: true
     remediation:
       retries: 3
+  # P4-K2: the SSH LoadBalancer must NOT allocate a NodePort. The devtools
+  # ResourceQuota sets services.nodeports: 0 on purpose (P1), and a default
+  # LoadBalancer Service asks for one, so without this the Service is
+  # rejected at admission (measured: "exceeded quota: devtools, requested:
+  # services.nodeports=1") and the Helm upgrade fails. It also keeps SSH off
+  # a high port on every node IP. Cilium kube-proxy replacement serves the
+  # LB IP itself and does not need the NodePort. The chart has no value for
+  # this field, hence the post-render patch. First use of both
+  # allocateLoadBalancerNodePorts:false and postRenderers in this estate -
+  # the K2 end-to-end SSH test is what proves it.
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              version: v1
+              kind: Service
+              name: forgejo-ssh
+            patch: |
+              - op: add
+                path: /spec/allocateLoadBalancerNodePorts
+                value: false
   values:
     image:
       # Chart default is rootless: true and the chart's image helper appends
@@ -45,19 +66,29 @@ spec:
         type: ClusterIP
         port: 3000
       ssh:
-        # ── SEAM FOR P4-K2 (optional, separate commit, high risk) ─────────
-        # K2 turns this into a LoadBalancer on a network-proven IP with
-        #   lbipam.cilium.io/ips: "172.16.2.248"   (proven free by Iris,
-        #                                           chg-2026-09-23-001)
-        #   external-dns-unifi.bluejungle.net/hostname: forge-ssh.${SECRET_DOMAIN}
-        # and sets DISABLE_SSH: false below.
-        # ⚠ The SSH hostname MUST be forge-ssh, never forge: external-dns-unifi
-        # would write a SECOND `forge` A record (-> .248) next to the HTTPS one
-        # (-> .241), and round-robin DNS would send ~half of HTTPS clients to
-        # a port-443-closed address. The devtools ResourceQuota allows exactly
+        # ── P4-K2: git over SSH on its OWN LAN LoadBalancer IP ────────────
+        # 172.16.2.248 was proven free ON THE NETWORK by Iris
+        # (chg-2026-09-23-001): not a Cilium allocation, not a UniFi fixed-IP
+        # reservation, never seen in 1 year of client history, outside the
+        # CLIENT-VLAN DHCP scope (.3.x), nc + ARP negative with positive
+        # controls. The Cilium l2-pool spans 172.16.2.0/23 and includes the
+        # default gateway (inc-2026-09-18-001), so this pin is the ONLY thing
+        # choosing the address: if the annotation is ever dropped or garbled,
+        # Cilium hands out the lowest free address instead. After landing,
+        # status.loadBalancer.ingress MUST read 172.16.2.248; anything else
+        # (especially .0 or .1) = revert immediately.
+        #
+        # ⚠ Hostname is forge-ssh, NEVER forge: external-dns-unifi (which reads
+        # this prefixed key) would otherwise write a SECOND `forge` A record
+        # (-> .248) beside the HTTPS one (-> .241), and round-robin DNS would
+        # send ~half of HTTPS clients to an address with nothing on 443.
+        # SSH_DOMAIN below matches. The devtools ResourceQuota allows exactly
         # one LoadBalancer in this namespace - this is it.
-        type: ClusterIP
+        type: LoadBalancer
         port: 22
+        annotations:
+          lbipam.cilium.io/ips: "172.16.2.248"
+          external-dns-unifi.bluejungle.net/hostname: forge-ssh.${SECRET_DOMAIN}
 
     # ── P4-K1: the HTTPS route is a standalone file (httproute.yaml), NOT the
     # chart's httpRoute block, so it can land and be reverted without a Helm
@@ -156,11 +187,17 @@ spec:
           SSH_DOMAIN: forge-ssh.${SECRET_DOMAIN}
           SSH_PORT: 22
           SSH_LISTEN_PORT: 2222
-          # true until P4-K2 exposes SSH on its own LoadBalancer IP. Without
-          # it the UI would advertise git@forge-ssh... clone URLs that lead
-          # nowhere. K2 flips this to false in the same commit as the LB.
-          # HTTPS clone/push works regardless.
-          DISABLE_SSH: true
+          # false since P4-K2: SSH is exposed on 172.16.2.248 (service.ssh).
+          # Reverting K2 must set this back to true in the same commit, or
+          # the UI advertises git@forge-ssh... clone URLs that lead nowhere.
+          DISABLE_SSH: false
+          # No SHA-1 on the SSH server (Argus). Forgejo v15.0.9 defaults
+          # (modules/setting/ssh.go:60-61) also offer diffie-hellman-group14-
+          # sha1 and hmac-sha1. Both lists below are subsets of those
+          # defaults, so the bundled golang.org/x/crypto v0.56.0 supports
+          # every name. Read from [server] (ssh.go loadSSHFrom).
+          SSH_SERVER_KEY_EXCHANGES: mlkem768x25519-sha256,curve25519-sha256,ecdh-sha2-nistp256
+          SSH_SERVER_MACS: hmac-sha2-256-etm@openssh.com,hmac-sha2-256
           LFS_START_SERVER: true
           OFFLINE_MODE: true
 
