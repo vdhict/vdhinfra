@@ -5,3 +5,12 @@ metadata:
   name: devtools
   labels:
     kustomize.toolkit.fluxcd.io/prune: disabled
+    # Pod Security Admission (Argus, chg-2026-09-18-003). baseline is
+    # ENFORCED: no privileged pods, host namespaces, hostPath or added
+    # capabilities in the namespace that will host CI runners (P7).
+    # restricted is warn+audit only, to see what a tightening would break.
+    # This does NOT close sec-03 - default-deny NetworkPolicy is still owed
+    # before P7.
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

@@ -8,11 +8,26 @@
 # alert on a metric that does not exist (or that is always true) is worse
 # than no alert at all.
 #
+# SEVERITY: every rule here is `critical` ON PURPOSE. Alertmanager routes
+# ONLY severity=critical (-> ha-critical -> HA push to Sander's phone);
+# warnings go to the null receiver and reach nobody (inc-2026-09-21-001).
+# The forge has NO off-site copy (ar-002, ADR 0004), so a silent backup
+# failure is exactly the failure that loses data. Do not "tone these down"
+# to warning without first fixing inc-2026-09-21-001.
+#
+# LAND ORDER (avoids false pages): land/enable only after forge-pg has ONE
+# completed backup (else ForgePostgresBackupStale fires: max is 0) AND the
+# forgejo ReplicationSource has completed TWO syncs (with one, the sync
+# counter is flat at 1 and increase(...[3h]) < 1 is true for ~1h).
+#
 # NOTE ON AVAILABILITY: there is deliberately no "ForgejoDown" rule here.
 # blackbox-exporter already ships a GENERIC rule, BlackboxProbeFailure
 # (probe_success == 0 for 3m), which picks up every Probe target
 # automatically - including the one added by this change. A forge-specific
 # copy would simply double-notify on the same condition.
+# KNOWN GAP: BlackboxProbeFailure is severity WARNING, so today a forge
+# OUTAGE notifies NOBODY (inc-2026-09-21-001). Accepted for an ops-only
+# service; it closes when that incident is fixed, not here.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -45,7 +60,7 @@ spec:
             ) > 129600
           for: 30m
           labels:
-            severity: warning
+            severity: critical
             component: forge-pg
           annotations:
             summary: "forge-pg has no successful backup in over 36h"
@@ -71,7 +86,7 @@ spec:
             )
           for: 30m
           labels:
-            severity: warning
+            severity: critical
             component: forge-pg
           annotations:
             summary: "forge-pg's most recent backup attempt FAILED"
@@ -92,7 +107,7 @@ spec:
             ) > 1
           for: 15m
           labels:
-            severity: warning
+            severity: critical
             component: forge-pg
           annotations:
             summary: "forge-pg WAL archiving to MinIO is failing"
@@ -110,7 +125,7 @@ spec:
             volsync_volume_out_of_sync{obj_name="forgejo", obj_namespace="devtools"} == 1
           for: 2h
           labels:
-            severity: warning
+            severity: critical
             component: forgejo
           annotations:
             summary: "Forgejo VolSync backup has been out of sync for 2h"
@@ -136,7 +151,7 @@ spec:
             ) < 1
           for: 30m
           labels:
-            severity: warning
+            severity: critical
             component: forgejo
           annotations:
             summary: "No Forgejo VolSync backup has completed in 3h"
@@ -157,7 +172,7 @@ spec:
             absent(volsync_volume_out_of_sync{obj_name="forgejo", obj_namespace="devtools"})
           for: 1h
           labels:
-            severity: warning
+            severity: critical
             component: forge
           annotations:
             summary: "Forge backup metrics have disappeared from Prometheus"
