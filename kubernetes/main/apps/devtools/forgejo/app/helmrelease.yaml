@@ -177,6 +177,10 @@ spec:
         repository:
           DEFAULT_PRIVATE: private
           DEFAULT_PUSH_CREATE_PRIVATE: true
+          # Nobody - not even an admin - can make a repository public.
+          # Repository visibility changes are outside the programme approval
+          # (chg-2026-09-15-003), and the forge holds client and personal data.
+          FORCE_PRIVATE: true
 
         mirror:
           # No user of this forge may create a PUSH mirror, i.e. may not
