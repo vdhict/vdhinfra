@@ -24,7 +24,18 @@ spec:
   # Two instances, not three. CNPG failover is operator-driven rather than
   # quorum-based, so a primary + one standby is a valid HA pair. postgres16
   # stays at three because it is family-critical; the forge is not.
+  # Replication is ASYNCHRONOUS (no minSyncReplicas), so a failover can lose
+  # the last few transactions (RPO > 0). Accepted for a forge.
   instances: 2
+  # REQUIRED, not the CRD default "preferred". With only two instances a
+  # soft rule can put both on one worker - most likely during a drain (Talos
+  # upgrade, rack move) - and one node loss then takes the whole database,
+  # which voids the reason for having two. 3 schedulable workers, 2 pods:
+  # no scheduling deadlock. A drain of the node holding one instance waits
+  # until the replacement can land on a different worker.
+  affinity:
+    podAntiAffinityType: required
+    topologyKey: kubernetes.io/hostname
   # Newest 16.x published in the repo (the full paginated ghcr tag list was
   # enumerated; there is no 18.x). Same major as postgres16 so the estate
   # carries one PG major. Digest-pinned per repo convention.
@@ -81,7 +92,12 @@ spec:
     #
     # SECOND CONSEQUENCE: honouring "no off-site" means the forge has NO
     # off-site backup at all. A house fire takes Ceph, the Synology and the
-    # forge together. That trade-off is the user's to accept, not ours.
+    # forge together. Sander accepted this on 2026-09-23, interim, until he
+    # decides on off-site backups in general: ops/accepted_risks.yaml ar-002,
+    # docs/adr/0004-forge-no-offsite-backup-interim.md.
+    #
+    # CREDENTIAL: forge-pg-backup-secret is the scoped MinIO user `forge-pg`
+    # (bucket forge-backups only), not root. See secrets.yaml for why.
     # ─────────────────────────────────────────────────────────────────────
     barmanObjectStore:
       destinationPath: s3://forge-backups/forge-pg
