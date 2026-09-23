@@ -34,6 +34,8 @@ What was lost?
 | 5 | 1Password vault | 1Password cloud | If 1Password account is lost, all runtime credentials are gone. 1Password keeps its own offsite versioning; recovery requires the 1P emergency kit. |
 | 6 | MinIO buckets | Synology `/volume1/minio` (`cnpg-backups`, `volsync`) | **Single point of failure** — if the NAS dies, all backups die with it. See §C — gap analysis. |
 | 7 | `VOLSYNC_REPO_PASSWORD` | 1Password `minio` item | Encryption password for every restic repo. If 1P + this password are both lost, even an intact MinIO bucket is unrecoverable. |
+| 8 | MinIO IAM (forge identities `forge-pg`, `forge-volsync`) | MinIO `/data/.minio.sys/config/iam/` on the Synology export — **NOT in Git**; values in 1Password `minio-forge-pg` / `minio-forge-volsync` | Flux cannot restore it. After a MinIO rebuild from an empty volume, forge-pg barman and forgejo VolSync fail with AccessDenied until §A.4b is run. |
+| 9 | Forge restic password | 1Password `minio-forge-volsync` → `RESTIC_PASSWORD` | **Separate from #7.** Encrypts only `s3://forge-volsync/forgejo`. Lost = the forge's git object backups are unrecoverable even with the bucket intact. |
 
 **Action item**: Make sure item #2 is on at least one offline medium. The literal contents:
 ```
@@ -115,6 +117,51 @@ This suspends the Flux Kustomizations for postgres16 and all 7 VolSync-protected
 - `radarr`
 
 If any of these had already started with empty PVCs by the time this ran, the script will print warnings — see §A.5 for cleanup.
+
+### A.4b. Re-create MinIO IAM (forge identities)
+
+MinIO keeps users and policies on its own `/data` backend, not in Kubernetes,
+so Flux does not bring them back. Since chg-2026-09-23-002 the forge does not
+use MinIO root: `devtools/forge-pg` authenticates as `forge-pg` (policy
+`forge-backups-rw`, bucket `forge-backups` only) and `devtools/forgejo`'s
+VolSync as `forge-volsync` (policy `forge-volsync-rw`, bucket `forge-volsync`
+only). Every other consumer still uses root and is unaffected.
+
+`hack/disaster-recovery/00-prereqs.sh` runs this check and offers to fix it.
+By hand:
+
+```bash
+hack/minio-iam/run.sh check        # read-only; exit 3 = identities missing
+hack/minio-iam/run.sh apply /tmp/minio-iam-dr.txt   # idempotent; safe to re-run
+```
+
+`apply` needs the 1Password items `minio-forge-pg` (ACCESS_KEY, SECRET_KEY) and
+`minio-forge-volsync` (ACCESS_KEY, SECRET_KEY, RESTIC_PASSWORD) in vault
+`home-infra`. It pre-creates both buckets with root, creates both policies and
+users, then proves each identity: positive put/get/list/delete in its own
+bucket, and HTTP 403 on list/get/put/delete in every other bucket plus
+`mc admin`. The evidence file holds that proof. No secret is printed.
+
+- If MinIO came back from the NAS with `/data/.minio.sys` intact, the
+  identities survived and `check` passes. Nothing to do.
+- If `check` fails with the 1Password items gone too: generate new keys (40
+  chars, alphanumeric), store them in new items with the same names, run
+  `apply`, then force-sync `devtools/forge-pg-backup` and
+  `devtools/forgejo-volsync`. A NEW `RESTIC_PASSWORD` cannot open the existing
+  `forge-volsync/forgejo` repo (see asset #9).
+- Rollback: `hack/minio-iam/run.sh remove <evidence>` removes both users and
+  policies. It never deletes a non-empty bucket. `remove` still needs the two
+  1Password items (it reuses the same ExternalSecret); if they are gone, do it
+  by hand as root from any mc pod: `mc admin user remove <alias> forge-pg`,
+  `... forge-volsync`, `mc admin policy remove <alias> forge-backups-rw`,
+  `... forge-volsync-rw`.
+
+> **Forge not yet in the DR scripts.** `15-pause-stateful.sh`,
+> `20-restore-postgres.sh` and `30-restore-volsync-*.sh` do not cover
+> `forge-pg` or `forgejo` yet. Until they do, suspend `forge-pg` and `forgejo`
+> by hand at step A.4 (`flux -n flux-system suspend ks forge-pg` and the same for `forgejo`). A
+> fresh `forge-pg` pointed at a bucket that already holds WAL will refuse to
+> archive, by design (barman-cloud-check-wal-archive).
 
 ### A.5. Recover postgres from barman
 
