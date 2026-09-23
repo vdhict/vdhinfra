@@ -45,24 +45,25 @@ spec:
         type: ClusterIP
         port: 3000
       ssh:
-        # ── SEAM FOR P4 (Iris, high risk, NOT authored here) ──────────────
-        # To expose git-over-SSH, change type to LoadBalancer and add:
-        #   annotations:
-        #     lbipam.cilium.io/ips: "172.16.2.x"
-        #     external-dns-unifi.bluejungle.net/hostname: forge.${SECRET_DOMAIN}
-        # The address must be proven free ON THE NETWORK first: the Cilium
-        # l2-pool is 172.16.2.0/23, which spans 172.16.2.0-172.16.3.255 and
-        # overlaps the CLIENT-VLAN DHCP range, so "no k8s Service uses it"
-        # is NOT sufficient. The devtools ResourceQuota allows exactly one
-        # LoadBalancer in this namespace.
+        # ── SEAM FOR P4-K2 (optional, separate commit, high risk) ─────────
+        # K2 turns this into a LoadBalancer on a network-proven IP with
+        #   lbipam.cilium.io/ips: "172.16.2.248"   (proven free by Iris,
+        #                                           chg-2026-09-23-001)
+        #   external-dns-unifi.bluejungle.net/hostname: forge-ssh.${SECRET_DOMAIN}
+        # and sets DISABLE_SSH: false below.
+        # ⚠ The SSH hostname MUST be forge-ssh, never forge: external-dns-unifi
+        # would write a SECOND `forge` A record (-> .248) next to the HTTPS one
+        # (-> .241), and round-robin DNS would send ~half of HTTPS clients to
+        # a port-443-closed address. The devtools ResourceQuota allows exactly
+        # one LoadBalancer in this namespace - this is it.
         type: ClusterIP
         port: 22
 
-    # ── SEAM FOR P4 ──────────────────────────────────────────────────────
-    # Left disabled. Iris either flips this on with parentRefs pointing at
-    # envoy-internal/https, or drops a standalone HTTPRoute alongside.
-    # Either way no values restructuring is needed, because ROOT_URL and
-    # DOMAIN below are already pinned explicitly.
+    # ── P4-K1: the HTTPS route is a standalone file (httproute.yaml), NOT the
+    # chart's httpRoute block, so it can land and be reverted without a Helm
+    # upgrade or a pod restart. Keep this disabled. ROOT_URL/DOMAIN below are
+    # pinned explicitly, so the route does not change Forgejo's idea of its
+    # own URL.
     httpRoute:
       enabled: false
 
@@ -152,9 +153,16 @@ spec:
           ROOT_URL: https://forge.${SECRET_DOMAIN}
           PROTOCOL: http
           HTTP_PORT: 3000
-          SSH_DOMAIN: forge.${SECRET_DOMAIN}
+          # forge-ssh, not forge - see the service.ssh comment above. Pinned
+          # now so clone URLs do not change when K2 lands.
+          SSH_DOMAIN: forge-ssh.${SECRET_DOMAIN}
           SSH_PORT: 22
           SSH_LISTEN_PORT: 2222
+          # true until P4-K2 exposes SSH on its own LoadBalancer IP. Without
+          # it the UI would advertise git@forge-ssh... clone URLs that lead
+          # nowhere. K2 flips this to false in the same commit as the LB.
+          # HTTPS clone/push works regardless.
+          DISABLE_SSH: true
           LFS_START_SERVER: true
           OFFLINE_MODE: true
 

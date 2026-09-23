@@ -23,12 +23,14 @@
 # LimitRange default.
 #
 # "forge-volsync" is NOT in the mirror's bucket loop, so this stays
-# on-prem. restic creates its own bucket on init, so no manual `mc mb`.
+# on-prem. The bucket is pre-created by hack/minio-iam (chg-2026-09-23-002),
+# so the scoped identity below needs no s3:CreateBucket.
 #
-# CONSEQUENCE, stated plainly: the forge then has NO off-site backup at
-# all. A fire that takes the rack also takes the Synology and the forge.
-# If that is not acceptable, the answer is a separate decision about an
-# encrypted off-site path - not quietly adding this bucket to the loop.
+# CONSEQUENCE, stated plainly: the forge has NO off-site backup at all. A
+# fire that takes the rack also takes the Synology and the forge. Sander
+# accepted that on 2026-09-23 as an interim (ops/accepted_risks.yaml ar-002,
+# docs/adr/0004-forge-no-offsite-backup-interim.md). Changing it is a
+# separate decision - not quietly adding this bucket to the mirror loop.
 #
 # An alternative was considered and rejected for now: parameterising the
 # shared component as ${VOLSYNC_BUCKET:=volsync}, which renders
@@ -37,6 +39,26 @@
 # node-red, esphome, mealie and radarr, and editing it was not in scope
 # for this change. It remains a clean follow-up if preferred.
 # ─────────────────────────────────────────────────────────────────────────
+# CREDENTIALS: the SCOPED MinIO user `forge-volsync`, NOT MinIO root.
+#
+# The shared component reads the whole 1Password `minio` item
+# (dataFrom.extract), which puts MinIO ROOT into the namespace. Root reads
+# s3://cnpg-backups - the household's UNENCRYPTED authelia/lldap barman
+# dumps - and devtools will host CI runners from P7. So this ExternalSecret
+# names three fields of its OWN item, `minio-forge-volsync`, one by one, and
+# never touches the `minio` item (Argus sec-04 on chg-2026-09-18-002).
+#
+# `forge-volsync` carries one policy, forge-volsync-rw: list/get/put/delete
+# on s3://forge-volsync only. restic 0.18.0 needs exactly ListBucket,
+# GetObject, PutObject and DeleteObject - DeleteObject because restic removes
+# its own lock objects after every command and forget/prune delete snapshots
+# and packs (measured by ablation: ops/evidence/
+# chg-2026-09-23-002-minio-iam-rehearsal.txt).
+#
+# RESTIC_PASSWORD is the forge's OWN repo password, NOT the shared
+# VOLSYNC_REPO_PASSWORD, so this repo does not depend on the root-bearing
+# item either. It is the only key to s3://forge-volsync/forgejo: lose it and
+# the forge's git object backups are unrecoverable (DR runbook asset #9).
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -48,19 +70,27 @@ spec:
     name: onepassword-connect
   target:
     name: forgejo-volsync-secret
+    creationPolicy: Owner
     template:
       engineVersion: v2
       data:
-        # Same MinIO endpoint and the same shared repo password as every
-        # other app, so cross-repo restores still work - only the BUCKET
-        # differs, and that difference is the whole point.
         RESTIC_REPOSITORY: s3:http://minio.storage.svc.cluster.local:9000/forge-volsync/forgejo
-        RESTIC_PASSWORD: "{{ .VOLSYNC_REPO_PASSWORD }}"
-        AWS_ACCESS_KEY_ID: "{{ .MINIO_ROOT_USER }}"
-        AWS_SECRET_ACCESS_KEY: "{{ .MINIO_ROOT_PASSWORD }}"
-  dataFrom:
-    - extract:
-        key: minio
+        RESTIC_PASSWORD: "{{ .RESTIC_PASSWORD }}"
+        AWS_ACCESS_KEY_ID: "{{ .ACCESS_KEY }}"
+        AWS_SECRET_ACCESS_KEY: "{{ .SECRET_KEY }}"
+  data:
+    - secretKey: ACCESS_KEY
+      remoteRef:
+        key: minio-forge-volsync
+        property: ACCESS_KEY
+    - secretKey: SECRET_KEY
+      remoteRef:
+        key: minio-forge-volsync
+        property: SECRET_KEY
+    - secretKey: RESTIC_PASSWORD
+      remoteRef:
+        key: minio-forge-volsync
+        property: RESTIC_PASSWORD
 ---
 # yaml-language-server: $schema=https://schemas.zinn.ca/volsync.backube/replicationsource_v1alpha1.json
 apiVersion: volsync.backube/v1alpha1
