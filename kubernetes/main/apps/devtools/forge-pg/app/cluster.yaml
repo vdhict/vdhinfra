@@ -1,0 +1,133 @@
+---
+# Dedicated PostgreSQL cluster for Forgejo.
+#
+# WHY SEPARATE FROM postgres16 (deliberate, not convention-drift):
+# postgres16 holds authelia, home_assistant, grafana and lldap - the
+# household's auth store and its history. Forgejo holds CLIENT repository
+# metadata and, from P7, will be reachable by CI runners. Sharing one
+# instance would put a client-data schema and a CI-reachable credential in
+# the same postgres as the family's auth, and would turn every Forgejo
+# schema migration into a household-critical maintenance window. The cost
+# of separating is two pods (~400m CPU request, 2Gi RAM) on a cluster
+# sitting at 49-66% CPU request.
+#
+# NON-INTERFERENCE with the existing estate:
+#   - lives in devtools, not database; services are forge-pg-rw/-ro/-r
+#   - NO LoadBalancer Service. postgres-lb on 172.16.2.239 is untouched.
+#   - the devtools ResourceQuota caps services.loadbalancers at 1, which
+#     P4 consumes for SSH, so this cluster cannot acquire a LAN address.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: forge-pg
+spec:
+  # Two instances, not three. CNPG failover is operator-driven rather than
+  # quorum-based, so a primary + one standby is a valid HA pair. postgres16
+  # stays at three because it is family-critical; the forge is not.
+  # Replication is ASYNCHRONOUS (no minSyncReplicas), so a failover can lose
+  # the last few transactions (RPO > 0). Accepted for a forge.
+  instances: 2
+  # REQUIRED, not the CRD default "preferred". With only two instances a
+  # soft rule can put both on one worker - most likely during a drain (Talos
+  # upgrade, rack move) - and one node loss then takes the whole database,
+  # which voids the reason for having two. 3 schedulable workers, 2 pods:
+  # no scheduling deadlock. A drain of the node holding one instance waits
+  # until the replacement can land on a different worker.
+  affinity:
+    podAntiAffinityType: required
+    topologyKey: kubernetes.io/hostname
+  # Newest 16.x published in the repo (the full paginated ghcr tag list was
+  # enumerated; there is no 18.x). Same major as postgres16 so the estate
+  # carries one PG major. Digest-pinned per repo convention.
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.9-22@sha256:cca50a94e2da46ddcaefb23260c805ed3b466763bd2a25e1617410176d5fd0ab
+  primaryUpdateStrategy: unsupervised
+  storage:
+    size: 20Gi
+    storageClass: rook-ceph-block
+  # enableSuperuserAccess is deliberately omitted (defaults false). There is
+  # no superuser secret to rotate; Forgejo authenticates as the app role
+  # using the forge-pg-app Secret that CNPG generates and owns.
+  replicationSlots:
+    highAvailability:
+      enabled: true
+  resources:
+    requests:
+      cpu: 200m
+      memory: 1Gi
+    limits:
+      # requests.memory == limits.memory on purpose: the DB then is not a
+      # candidate for eviction for exceeding its request under node memory
+      # pressure. No CPU limit - see the devtools ResourceQuota comment.
+      memory: 1Gi
+  postgresql:
+    parameters:
+      max_connections: "100"
+      shared_buffers: 256MB
+  bootstrap:
+    initdb:
+      database: forgejo
+      owner: forgejo
+  monitoring:
+    enablePodMonitor: true
+  backup:
+    # ─────────────────────────────────────────────────────────────────────
+    # ⚠ DO NOT CHANGE destinationPath TO s3://cnpg-backups/... ⚠
+    #
+    # storage/minio-offsite-mirror runs `for bucket in cnpg-backups volsync`
+    # and rclone-syncs each one to Azure Blob nightly at 04:30. Anything
+    # under cnpg-backups therefore leaves the house.
+    #
+    # This database holds Forgejo's issues, pull requests, review comments,
+    # user emails, SSH public keys and the names/topology of CLIENT
+    # repositories. chg-2026-09-15-003 explicitly does NOT cover off-site
+    # copying of client repos; the default is NO. `forge-backups` is not in
+    # that loop, so this data stays on-prem.
+    #
+    # KNOWN GAP, accepted deliberately and not silently: barman compresses
+    # with gzip and does NOT encrypt. CNPG only offers server-side
+    # encryption (encryption: AES256 == S3 SSE-S3) and our MinIO has no KMS
+    # configured, so that option is unavailable here. The backups sit
+    # gzip-only on the Synology NFS volume. postgres16 has the identical
+    # gap today. Closing it needs MinIO KES/KMS, which is a separate change.
+    #
+    # SECOND CONSEQUENCE: honouring "no off-site" means the forge has NO
+    # off-site backup at all. A house fire takes Ceph, the Synology and the
+    # forge together. Sander accepted this on 2026-09-23, interim, until he
+    # decides on off-site backups in general: ops/accepted_risks.yaml ar-002,
+    # docs/adr/0004-forge-no-offsite-backup-interim.md.
+    #
+    # CREDENTIAL: forge-pg-backup-secret is the scoped MinIO user `forge-pg`
+    # (bucket forge-backups only), not root. See secrets.yaml for why.
+    # ─────────────────────────────────────────────────────────────────────
+    barmanObjectStore:
+      destinationPath: s3://forge-backups/forge-pg
+      endpointURL: http://minio.storage.svc.cluster.local:9000
+      s3Credentials:
+        accessKeyId:
+          name: forge-pg-backup-secret
+          key: AWS_ACCESS_KEY_ID
+        secretAccessKey:
+          name: forge-pg-backup-secret
+          key: AWS_SECRET_ACCESS_KEY
+      wal:
+        compression: gzip
+        maxParallel: 4
+      data:
+        compression: gzip
+        immediateCheckpoint: false
+        jobs: 2
+    retentionPolicy: "14d"
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: forge-pg-daily
+spec:
+  # 03:10 — deliberately after postgres16's 02:30 run so the two clusters
+  # never push to MinIO at the same time, and comfortably before the 04:30
+  # offsite mirror.  CNPG cron has six fields.
+  schedule: "0 10 3 * * *"
+  backupOwnerReference: self
+  cluster:
+    name: forge-pg
+  method: barmanObjectStore
