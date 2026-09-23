@@ -1,0 +1,485 @@
+# REHEARSAL chg-2026-09-23-002 2026-09-23T09:23:23Z - LOCAL MinIO built from tag RELEASE.2024-09-09T16-59-28Z (prod server), mc RELEASE.2024-09-09T07-53-10Z, restic 0.18.0 (= VolSync 0.13.1 mover), barman 3.20.0
+# scripts sha256: 5805a45eb66a 05a6dceb24e2 f4e71b320320 bafaeb0ecf4e f1e9a63e442b 
+# prod-shaped buckets pre-seeded: cnpg-backups (fake barman object), volsync, mac-mini-backups, thanos, forge-backups; IAM state before = as left by previous rehearsal step (idempotent re-run)
+════════ iam-apply (root) ════════
+── server reachable as root (admin info ok) ──
+── IAM inventory (before) ──
+  user: {"status":"success","accessKey":"forge-pg","policyName":"forge-backups-rw","userStatus":"enabled"}
+  user: {"status":"success","accessKey":"forge-volsync","policyName":"forge-volsync-rw","userStatus":"enabled"}
+  policy: {"status":"success","policy":"forge-backups-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"forge-volsync-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"readonly","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"readwrite","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"writeonly","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"consoleAdmin","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"diagnostics","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+── identity forge-pg -> policy forge-backups-rw -> bucket forge-backups ──
+  $ mc mb --ignore-existing root/forge-backups -> rc=0 {"status":"success","bucket":"root/forge-backups","region":""}
+  $ mc admin policy create root forge-backups-rw /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/743312b1-6b9e-4bf4-bf26-d4504d06a737/scratchpad/wt-a/hack/minio-iam/policies/forge-backups-rw.json -> rc=0 {"status":"success","policy":"forge-backups-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  user forge-pg present (secret set from 1Password, not printed)
+  policy forge-backups-rw already attached - no change
+  POSTCHECK OK: forge-pg policyName=forge-backups-rw userStatus=enabled
+── identity forge-volsync -> policy forge-volsync-rw -> bucket forge-volsync ──
+  $ mc mb --ignore-existing root/forge-volsync -> rc=0 {"status":"success","bucket":"root/forge-volsync","region":""}
+  $ mc admin policy create root forge-volsync-rw /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/743312b1-6b9e-4bf4-bf26-d4504d06a737/scratchpad/wt-a/hack/minio-iam/policies/forge-volsync-rw.json -> rc=0 {"status":"success","policy":"forge-volsync-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  user forge-volsync present (secret set from 1Password, not printed)
+  policy forge-volsync-rw already attached - no change
+  POSTCHECK OK: forge-volsync policyName=forge-volsync-rw userStatus=enabled
+── IAM inventory (after) ──
+  user: {"status":"success","accessKey":"forge-pg","policyName":"forge-backups-rw","userStatus":"enabled"}
+  user: {"status":"success","accessKey":"forge-volsync","policyName":"forge-volsync-rw","userStatus":"enabled"}
+  policy: {"status":"success","policy":"readwrite","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"writeonly","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"consoleAdmin","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"diagnostics","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"forge-backups-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"forge-volsync-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"readonly","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+APPLY: OK
+exit=0
+════════ restic-check (forge-volsync creds only) ════════
+identity=forge-volsync repo=s3:http://127.0.0.1:19000/forge-volsync/_iam-verify/restic-20260923T092324Z
+restic 0.18.0 compiled with go1.24.1 on darwin/arm64
+RAW[R1-catconfig] rc=10 restic cat config
+    Fatal: repository does not exist: unable to open config file: Stat: The specified key does not exist.
+    Is there a repository at the following location?
+    s3:http://127.0.0.1:19000/forge-volsync/_iam-verify/restic-20260923T092324Z
+PASS[R1-catconfig] rc=10
+RAW[R2-init] rc=0 restic init
+    created restic repository eba1b8b726 at s3:http://127.0.0.1:19000/forge-volsync/_iam-verify/restic-20260923T092324Z
+    
+    Please note that knowledge of your password is required to access
+    the repository. Losing your password means that your data is
+    irrecoverably lost.
+PASS[R2-init] rc=0
+RAW[R3-backup1] rc=0 restic backup --host volsync --exclude=lost+found .
+    Files:           2 new,     0 changed,     0 unmodified
+    Dirs:            1 new,     0 changed,     0 unmodified
+    Added to the repository: 24.002 MiB (24.003 MiB stored)
+    
+    processed 2 files, 24.000 MiB in 0:00
+    snapshot 069fecbe saved
+PASS[R3-backup1] rc=0
+RAW[R4-backup2] rc=0 restic backup --host volsync --exclude=lost+found .
+    Files:           0 new,     1 changed,     1 unmodified
+    Dirs:            0 new,     1 changed,     0 unmodified
+    Added to the repository: 2.318 KiB (1.468 KiB stored)
+    
+    processed 2 files, 24.000 MiB in 0:00
+    snapshot 3e9297a3 saved
+PASS[R4-backup2] rc=0
+RAW[R5-snapshots] rc=0 restic snapshots
+    ID        Time                 Host        Tags        Paths                                                                 Size
+    ---------------------------------------------------------------------------------------------------------------------------------------
+    069fecbe  2026-09-23 11:23:27  volsync                 /var/folders/3p/h9w66_hj49g942yzt45rly6w0000gn/T/tmp.fjv0g5kXvt/data  24.000 MiB
+    3e9297a3  2026-09-23 11:23:28  volsync                 /var/folders/3p/h9w66_hj49g942yzt45rly6w0000gn/T/tmp.fjv0g5kXvt/data  24.000 MiB
+    ---------------------------------------------------------------------------------------------------------------------------------------
+    2 snapshots
+PASS[R5-snapshots] rc=0
+RAW[R6-forget] rc=0 restic forget --host volsync --keep-last 1
+    ---------------------------------------------------------------------------------------------------------------------------------------
+    069fecbe  2026-09-23 11:23:27  volsync                 /var/folders/3p/h9w66_hj49g942yzt45rly6w0000gn/T/tmp.fjv0g5kXvt/data  24.000 MiB
+    ---------------------------------------------------------------------------------------------------------------------------------------
+    1 snapshots
+    
+    [0:00] 100.00%  1 / 1 files deleted
+PASS[R6-forget] rc=0
+RAW[R6b-prune] rc=0 restic prune
+    rebuilding index
+    [0:00] 100.00%  2 / 2 indexes processed
+    [0:00] 100.00%  2 / 2 old indexes deleted
+    removing 1 old packs
+    [0:00] 100.00%  1 / 1 files deleted
+    done
+PASS[R6b-prune] rc=0
+RAW[R7-check] rc=0 restic check
+    create exclusive lock for repository
+    load indexes
+    check all packs
+    check snapshots, trees and blobs
+    [0:00] 100.00%  1 / 1 snapshots
+    no errors were found
+PASS[R7-check] rc=0
+RAW[R8-unlock] rc=0 restic unlock
+    
+PASS[R8-unlock] rc=0
+RAW[R9-restore] rc=0 restic restore latest -t /var/folders/3p/h9w66_hj49g942yzt45rly6w0000gn/T/tmp.8rvP5W8dym --host volsync
+    restoring snapshot 3e9297a3 of [/var/folders/3p/h9w66_hj49g942yzt45rly6w0000gn/T/tmp.fjv0g5kXvt/data] at 2026-09-23 11:23:28.82083 +0200 CEST by sheijden@volsync to /var/folders/3p/h9w66_hj49g942yzt45rly6w0000gn/T/tmp.8rvP5W8dym
+    Summary: Restored 3 files/dirs (24.000 MiB) in 0:00
+PASS[R9-restore] rc=0
+PASS[R10-compare] restored files sha256-identical
+VERDICT restic identity=forge-volsync pass=11 fail=0
+exit=0
+════════ verify-forge-pg (forge-pg creds only) ════════
+identity=forge-pg own_bucket=forge-backups foreign=[cnpg-backups volsync mac-mini-backups thanos forge-volsync] ts=20260923T092333Z endpoint=http://127.0.0.1:19000
+RAW[P1-list] rc=0 
+PASS[P1-list] list forge-backups
+RAW[P2-put] rc=0 {"status":"success","source":"/var/folders/3p/h9w66_hj49g942yzt45rly6w0000gn/T/tmp.pBM2pBR4kG/small","target":"scoped/forge-backups/_iam-verify/20260923T092333Z/small","size":37,"totalCount":1,"totalSize":0}
+{"status":"success","total":37,"transferred":37,"speed":11814.793846216728}
+PASS[P2-put] put small object
+RAW[P3-stat] rc=0 {"status":"success","name":"small","lastModified":"2026-09-23T11:23:34+02:00","size":37,"etag":"1ceb96ab9ca6f57d938ef01496b917f9","type":"file","metadata":{"Content-Type":"application/octet-stream"}}
+PASS[P3-stat] stat small object
+RAW[P4-get] rc=0 {"status":"success","source":"scoped/forge-backups/_iam-verify/20260923T092333Z/small","target":"/var/folders/3p/h9w66_hj49g942yzt45rly6w0000gn/T/tmp.pBM2pBR4kG/small.back","size":37,"totalCount":1,"totalSize":0}
+{"status":"success","total":37,"transferred":37,"speed":15873.015873015871}
+PASS[P4-get] get small object, sha256 matches
+RAW[P5-multipart] rc=0 {"status":"success","source":"/var/folders/3p/h9w66_hj49g942yzt45rly6w0000gn/T/tmp.pBM2pBR4kG/big","target":"scoped/forge-backups/_iam-verify/20260923T092333Z/big","size":50331648,"totalCount":1,"totalSize":0}
+{"status":"success","total":50331648,"transferred":50331648,"speed":1296330395.0291362}
+PASS[P5-multipart] put 48 MiB object (multipart)
+RAW[P6-getbig] rc=0 {"status":"success","source":"scoped/forge-backups/_iam-verify/20260923T092333Z/big","target":"/var/folders/3p/h9w66_hj49g942yzt45rly6w0000gn/T/tmp.pBM2pBR4kG/big.back","size":50331648,"totalCount":1,"totalSize":0}
+{"status":"success","total":50331648,"transferred":50331648,"speed":3025958482.900347}
+PASS[P6-getbig] get 48 MiB object, sha256 matches
+RAW[P7-listpfx] rc=0 {"status":"success","type":"file","lastModified":"2026-09-23T11:23:34.216+02:00","size":50331648,"key":"big","etag":"aa3d2b195f70b2ff5ad2cc9c5b8815d3-3","url":"http://127.0.0.1:19000/forge-backups/_iam-verify/20260923T092333Z/","versionOrdinal":1,"storageClass":"STANDARD"}
+{"status":"success","type":"file","lastModified":"2026-09-23T11:23:34.114+02:00","size":37,"key":"small","etag":"1ceb96ab9ca6f57d938ef01496b917f9","url":"http://127.0.0.1:19000/forge-backups/_iam-verify/20260923T092333Z/","versionOrdinal":1,"storageClass":"STANDARD"}
+PASS[P7-listpfx] list test prefix
+RAW[P8-delete] rc=0 {"status":"success","key":"scoped/forge-backups/_iam-verify/20260923T092333Z/big","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/forge-backups/_iam-verify/20260923T092333Z/small","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+PASS[P8-delete] delete test objects
+RAW[P9-gone] rc=1 {"status":"error","error":{"message":"Unable to stat `scoped/forge-backups/_iam-verify/20260923T092333Z/small`.","cause":{"message":"Object does not exist","error":{}},"type":"fatal"}}
+PASS[P9-gone] deleted object is gone (not-found, not denied)
+RAW[P10-cleanup] rc=0 
+PASS[P10-cleanup] _iam-verify/ prefix removed
+RAW[I1-listbuckets] rc=0 {"status":"success","type":"folder","lastModified":"2026-09-23T11:13:04.446+02:00","size":0,"key":"forge-backups/","etag":"","url":"http://127.0.0.1:19000/","versionOrdinal":1}
+PASS[I1-listbuckets] no foreign bucket name visible in ListBuckets
+RAW[N-cnpg-backups-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-cnpg-backups-list] list cnpg-backups -> 403 AccessDenied
+RAW[N-cnpg-backups-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/cnpg-backups/_iam-verify-absent-20260923T092333Z`. Object does not exist
+PASS[N-cnpg-backups-get] stat/get key in cnpg-backups -> 403 AccessDenied
+RAW[N-cnpg-backups-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/var/folders/3p/h9w66_hj49g942yzt45rly6w0000gn/T/tmp.pBM2pBR4kG/small`. Insufficient permissions to access this path `http://127.0.0.1:19000/cnpg-backups/_iam-verify-20260923T092333Z`
+PASS[N-cnpg-backups-put] put into cnpg-backups -> 403 AccessDenied
+RAW[N-cnpg-backups-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/cnpg-backups/_iam-verify-absent-20260923T092333Z`. Insufficient permissions to access this path `http://127.0.0.1:19000/cnpg-backups/_iam-verify-absent-20260923T092333Z`
+PASS[N-cnpg-backups-rm] delete key in cnpg-backups -> 403 AccessDenied
+RAW[N-volsync-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-volsync-list] list volsync -> 403 AccessDenied
+RAW[N-volsync-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/volsync/_iam-verify-absent-20260923T092333Z`. Object does not exist
+PASS[N-volsync-get] stat/get key in volsync -> 403 AccessDenied
+RAW[N-volsync-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/var/folders/3p/h9w66_hj49g942yzt45rly6w0000gn/T/tmp.pBM2pBR4kG/small`. Insufficient permissions to access this path `http://127.0.0.1:19000/volsync/_iam-verify-20260923T092333Z`
+PASS[N-volsync-put] put into volsync -> 403 AccessDenied
+RAW[N-volsync-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/volsync/_iam-verify-absent-20260923T092333Z`. Insufficient permissions to access this path `http://127.0.0.1:19000/volsync/_iam-verify-absent-20260923T092333Z`
+PASS[N-volsync-rm] delete key in volsync -> 403 AccessDenied
+RAW[N-mac-mini-backups-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-mac-mini-backups-list] list mac-mini-backups -> 403 AccessDenied
+RAW[N-mac-mini-backups-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/mac-mini-backups/_iam-verify-absent-20260923T092333Z`. Object does not exist
+PASS[N-mac-mini-backups-get] stat/get key in mac-mini-backups -> 403 AccessDenied
+RAW[N-mac-mini-backups-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/var/folders/3p/h9w66_hj49g942yzt45rly6w0000gn/T/tmp.pBM2pBR4kG/small`. Insufficient permissions to access this path `http://127.0.0.1:19000/mac-mini-backups/_iam-verify-20260923T092333Z`
+PASS[N-mac-mini-backups-put] put into mac-mini-backups -> 403 AccessDenied
+RAW[N-mac-mini-backups-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/mac-mini-backups/_iam-verify-absent-20260923T092333Z`. Insufficient permissions to access this path `http://127.0.0.1:19000/mac-mini-backups/_iam-verify-absent-20260923T092333Z`
+PASS[N-mac-mini-backups-rm] delete key in mac-mini-backups -> 403 AccessDenied
+RAW[N-thanos-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-thanos-list] list thanos -> 403 AccessDenied
+RAW[N-thanos-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/thanos/_iam-verify-absent-20260923T092333Z`. Object does not exist
+PASS[N-thanos-get] stat/get key in thanos -> 403 AccessDenied
+RAW[N-thanos-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/var/folders/3p/h9w66_hj49g942yzt45rly6w0000gn/T/tmp.pBM2pBR4kG/small`. Insufficient permissions to access this path `http://127.0.0.1:19000/thanos/_iam-verify-20260923T092333Z`
+PASS[N-thanos-put] put into thanos -> 403 AccessDenied
+RAW[N-thanos-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/thanos/_iam-verify-absent-20260923T092333Z`. Insufficient permissions to access this path `http://127.0.0.1:19000/thanos/_iam-verify-absent-20260923T092333Z`
+PASS[N-thanos-rm] delete key in thanos -> 403 AccessDenied
+RAW[N-forge-volsync-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-forge-volsync-list] list forge-volsync -> 403 AccessDenied
+RAW[N-forge-volsync-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/forge-volsync/_iam-verify-absent-20260923T092333Z`. Object does not exist
+PASS[N-forge-volsync-get] stat/get key in forge-volsync -> 403 AccessDenied
+RAW[N-forge-volsync-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/var/folders/3p/h9w66_hj49g942yzt45rly6w0000gn/T/tmp.pBM2pBR4kG/small`. Insufficient permissions to access this path `http://127.0.0.1:19000/forge-volsync/_iam-verify-20260923T092333Z`
+PASS[N-forge-volsync-put] put into forge-volsync -> 403 AccessDenied
+RAW[N-forge-volsync-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/forge-volsync/_iam-verify-absent-20260923T092333Z`. Insufficient permissions to access this path `http://127.0.0.1:19000/forge-volsync/_iam-verify-absent-20260923T092333Z`
+PASS[N-forge-volsync-rm] delete key in forge-volsync -> 403 AccessDenied
+RAW[N-admin-info] rc=1 http=[403] mc: <ERROR> Unable to get service info. Access Denied.
+PASS[N-admin-info] mc admin info -> 403 AccessDenied
+RAW[N-admin-users] rc=1 http=[403] mc: <ERROR> Unable to list user. Access Denied.
+PASS[N-admin-users] mc admin user list -> 403 AccessDenied
+RAW[N-admin-policies] rc=1 http=[403] mc: <ERROR> Unable to list policy. Access Denied.
+PASS[N-admin-policies] mc admin policy list -> 403 AccessDenied
+RAW[N-mb] rc=1 http=[403] mc: <ERROR> Unable to make bucket `scoped/iam-verify-must-not-exist-1790155414`. Access Denied.
+PASS[N-mb] create a new bucket -> 403 AccessDenied
+VERDICT identity=forge-pg pass=35 fail=0
+exit=0
+════════ verify-forge-volsync (forge-volsync creds only) ════════
+identity=forge-volsync own_bucket=forge-volsync foreign=[cnpg-backups volsync mac-mini-backups thanos forge-backups] ts=20260923T092334Z endpoint=http://127.0.0.1:19000
+RAW[P1-list] rc=0 {"status":"success","type":"file","lastModified":"2026-09-23T11:19:14.828+02:00","size":10,"key":"keep-me","etag":"c69fa98398b02e778285ecf7393da789","url":"http://127.0.0.1:19000/forge-volsync/","versionOrdinal":1,"storageClass":"STANDARD"}
+{"status":"success","type":"folder","lastModified":"2026-09-23T11:23:35.056706+02:00","size":0,"key":"_iam-verify/","etag":"","url":"http://127.0.0.1:19000/forge-volsync/","versionOrdinal":1}
+PASS[P1-list] list forge-volsync
+RAW[P2-put] rc=0 {"status":"success","source":"/var/folders/3p/h9w66_hj49g942yzt45rly6w0000gn/T/tmp.XZ7p8M0GwW/small","target":"scoped/forge-volsync/_iam-verify/20260923T092334Z/small","size":42,"totalCount":1,"totalSize":0}
+{"status":"success","total":42,"transferred":42,"speed":13507.537688442211}
+PASS[P2-put] put small object
+RAW[P3-stat] rc=0 {"status":"success","name":"small","lastModified":"2026-09-23T11:23:35+02:00","size":42,"etag":"61416651638c46bcfe7ad891a07d09c1","type":"file","metadata":{"Content-Type":"application/octet-stream"}}
+PASS[P3-stat] stat small object
+RAW[P4-get] rc=0 {"status":"success","source":"scoped/forge-volsync/_iam-verify/20260923T092334Z/small","target":"/var/folders/3p/h9w66_hj49g942yzt45rly6w0000gn/T/tmp.XZ7p8M0GwW/small.back","size":42,"totalCount":1,"totalSize":0}
+{"status":"success","total":42,"transferred":42,"speed":17882.483979210334}
+PASS[P4-get] get small object, sha256 matches
+RAW[P5-multipart] rc=0 {"status":"success","source":"/var/folders/3p/h9w66_hj49g942yzt45rly6w0000gn/T/tmp.XZ7p8M0GwW/big","target":"scoped/forge-volsync/_iam-verify/20260923T092334Z/big","size":50331648,"totalCount":1,"totalSize":0}
+{"status":"success","total":50331648,"transferred":50331648,"speed":1282710806.9880347}
+PASS[P5-multipart] put 48 MiB object (multipart)
+RAW[P6-getbig] rc=0 {"status":"success","source":"scoped/forge-volsync/_iam-verify/20260923T092334Z/big","target":"/var/folders/3p/h9w66_hj49g942yzt45rly6w0000gn/T/tmp.XZ7p8M0GwW/big.back","size":50331648,"totalCount":1,"totalSize":0}
+{"status":"success","total":50331648,"transferred":50331648,"speed":2955751679.1825414}
+PASS[P6-getbig] get 48 MiB object, sha256 matches
+RAW[P7-listpfx] rc=0 {"status":"success","type":"file","lastModified":"2026-09-23T11:23:35.18+02:00","size":50331648,"key":"big","etag":"e4170a964799728308382c93b7d656b0-3","url":"http://127.0.0.1:19000/forge-volsync/_iam-verify/20260923T092334Z/","versionOrdinal":1,"storageClass":"STANDARD"}
+{"status":"success","type":"file","lastModified":"2026-09-23T11:23:35.078+02:00","size":42,"key":"small","etag":"61416651638c46bcfe7ad891a07d09c1","url":"http://127.0.0.1:19000/forge-volsync/_iam-verify/20260923T092334Z/","versionOrdinal":1,"storageClass":"STANDARD"}
+PASS[P7-listpfx] list test prefix
+RAW[P8-delete] rc=0 {"status":"success","key":"scoped/forge-volsync/_iam-verify/20260923T092334Z/big","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/forge-volsync/_iam-verify/20260923T092334Z/small","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+PASS[P8-delete] delete test objects
+RAW[P9-gone] rc=1 {"status":"error","error":{"message":"Unable to stat `scoped/forge-volsync/_iam-verify/20260923T092334Z/small`.","cause":{"message":"Object does not exist","error":{}},"type":"fatal"}}
+PASS[P9-gone] deleted object is gone (not-found, not denied)
+RAW[P10-cleanup] rc=0 {"status":"success","key":"scoped/forge-volsync/_iam-verify/restic-20260923T092324Z/config","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/forge-volsync/_iam-verify/restic-20260923T092324Z/data/30/303c8dd56e603d0470286e15340a9668f80081ceb73c809d6e884684297a1dbf","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/forge-volsync/_iam-verify/restic-20260923T092324Z/data/90/90f1adb4a6ee8ec5a11a0d9a8e75a28c0ef6641181a4c74a57a56d9417ebd259","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/forge-volsync/_iam-verify/restic-20260923T092324Z/data/ad/ad74b490ead13e7bbc44d6a29eb90cf59ea0b53c435317b3455c0776692b3e36","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/forge-volsync/_iam-verify/restic-20260923T092324Z/data/c9/c98b9cc324b51232eeacf05f71e83fb925636548bd59290bd3ce1c04d702acb0","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/forge-volsync/_iam-verify/restic-20260923T092324Z/index/2036331847eb454cf9b23b9efe27c95535340ac8b57fca6ae3dab9fc908bff8a","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/forge-volsync/_iam-verify/restic-20260923T092324Z/keys/67c38e9ac999392cc024786b753c2478ee14c80e3eb73068d768f0533fa32666","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/forge-volsync/_iam-verify/restic-20260923T092324Z/snapshots/3e9297a3dab79cf3c0ab5518a2cb5ac82bd6043a1f0f40962afa7d89bdbfd6d7","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+PASS[P10-cleanup] _iam-verify/ prefix removed
+RAW[I1-listbuckets] rc=0 {"status":"success","type":"folder","lastModified":"2026-09-23T11:13:20.732+02:00","size":0,"key":"forge-volsync/","etag":"","url":"http://127.0.0.1:19000/","versionOrdinal":1}
+PASS[I1-listbuckets] no foreign bucket name visible in ListBuckets
+RAW[N-cnpg-backups-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-cnpg-backups-list] list cnpg-backups -> 403 AccessDenied
+RAW[N-cnpg-backups-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/cnpg-backups/_iam-verify-absent-20260923T092334Z`. Object does not exist
+PASS[N-cnpg-backups-get] stat/get key in cnpg-backups -> 403 AccessDenied
+RAW[N-cnpg-backups-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/var/folders/3p/h9w66_hj49g942yzt45rly6w0000gn/T/tmp.XZ7p8M0GwW/small`. Insufficient permissions to access this path `http://127.0.0.1:19000/cnpg-backups/_iam-verify-20260923T092334Z`
+PASS[N-cnpg-backups-put] put into cnpg-backups -> 403 AccessDenied
+RAW[N-cnpg-backups-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/cnpg-backups/_iam-verify-absent-20260923T092334Z`. Insufficient permissions to access this path `http://127.0.0.1:19000/cnpg-backups/_iam-verify-absent-20260923T092334Z`
+PASS[N-cnpg-backups-rm] delete key in cnpg-backups -> 403 AccessDenied
+RAW[N-volsync-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-volsync-list] list volsync -> 403 AccessDenied
+RAW[N-volsync-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/volsync/_iam-verify-absent-20260923T092334Z`. Object does not exist
+PASS[N-volsync-get] stat/get key in volsync -> 403 AccessDenied
+RAW[N-volsync-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/var/folders/3p/h9w66_hj49g942yzt45rly6w0000gn/T/tmp.XZ7p8M0GwW/small`. Insufficient permissions to access this path `http://127.0.0.1:19000/volsync/_iam-verify-20260923T092334Z`
+PASS[N-volsync-put] put into volsync -> 403 AccessDenied
+RAW[N-volsync-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/volsync/_iam-verify-absent-20260923T092334Z`. Insufficient permissions to access this path `http://127.0.0.1:19000/volsync/_iam-verify-absent-20260923T092334Z`
+PASS[N-volsync-rm] delete key in volsync -> 403 AccessDenied
+RAW[N-mac-mini-backups-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-mac-mini-backups-list] list mac-mini-backups -> 403 AccessDenied
+RAW[N-mac-mini-backups-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/mac-mini-backups/_iam-verify-absent-20260923T092334Z`. Object does not exist
+PASS[N-mac-mini-backups-get] stat/get key in mac-mini-backups -> 403 AccessDenied
+RAW[N-mac-mini-backups-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/var/folders/3p/h9w66_hj49g942yzt45rly6w0000gn/T/tmp.XZ7p8M0GwW/small`. Insufficient permissions to access this path `http://127.0.0.1:19000/mac-mini-backups/_iam-verify-20260923T092334Z`
+PASS[N-mac-mini-backups-put] put into mac-mini-backups -> 403 AccessDenied
+RAW[N-mac-mini-backups-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/mac-mini-backups/_iam-verify-absent-20260923T092334Z`. Insufficient permissions to access this path `http://127.0.0.1:19000/mac-mini-backups/_iam-verify-absent-20260923T092334Z`
+PASS[N-mac-mini-backups-rm] delete key in mac-mini-backups -> 403 AccessDenied
+RAW[N-thanos-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-thanos-list] list thanos -> 403 AccessDenied
+RAW[N-thanos-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/thanos/_iam-verify-absent-20260923T092334Z`. Object does not exist
+PASS[N-thanos-get] stat/get key in thanos -> 403 AccessDenied
+RAW[N-thanos-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/var/folders/3p/h9w66_hj49g942yzt45rly6w0000gn/T/tmp.XZ7p8M0GwW/small`. Insufficient permissions to access this path `http://127.0.0.1:19000/thanos/_iam-verify-20260923T092334Z`
+PASS[N-thanos-put] put into thanos -> 403 AccessDenied
+RAW[N-thanos-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/thanos/_iam-verify-absent-20260923T092334Z`. Insufficient permissions to access this path `http://127.0.0.1:19000/thanos/_iam-verify-absent-20260923T092334Z`
+PASS[N-thanos-rm] delete key in thanos -> 403 AccessDenied
+RAW[N-forge-backups-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-forge-backups-list] list forge-backups -> 403 AccessDenied
+RAW[N-forge-backups-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/forge-backups/_iam-verify-absent-20260923T092334Z`. Object does not exist
+PASS[N-forge-backups-get] stat/get key in forge-backups -> 403 AccessDenied
+RAW[N-forge-backups-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/var/folders/3p/h9w66_hj49g942yzt45rly6w0000gn/T/tmp.XZ7p8M0GwW/small`. Insufficient permissions to access this path `http://127.0.0.1:19000/forge-backups/_iam-verify-20260923T092334Z`
+PASS[N-forge-backups-put] put into forge-backups -> 403 AccessDenied
+RAW[N-forge-backups-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/forge-backups/_iam-verify-absent-20260923T092334Z`. Insufficient permissions to access this path `http://127.0.0.1:19000/forge-backups/_iam-verify-absent-20260923T092334Z`
+PASS[N-forge-backups-rm] delete key in forge-backups -> 403 AccessDenied
+RAW[N-admin-info] rc=1 http=[403] mc: <ERROR> Unable to get service info. Access Denied.
+PASS[N-admin-info] mc admin info -> 403 AccessDenied
+RAW[N-admin-users] rc=1 http=[403] mc: <ERROR> Unable to list user. Access Denied.
+PASS[N-admin-users] mc admin user list -> 403 AccessDenied
+RAW[N-admin-policies] rc=1 http=[403] mc: <ERROR> Unable to list policy. Access Denied.
+PASS[N-admin-policies] mc admin policy list -> 403 AccessDenied
+RAW[N-mb] rc=1 http=[403] mc: <ERROR> Unable to make bucket `scoped/iam-verify-must-not-exist-1790155415`. Access Denied.
+PASS[N-mb] create a new bucket -> 403 AccessDenied
+VERDICT identity=forge-volsync pass=35 fail=0
+exit=0
+════════ root view after: leftover probe objects/buckets ════════
+_iam-verify objects: 0
+restic.log run1.log run2.log 
+
+════════ ABLATION: restic 0.18.0 mover sequence vs forge-volsync-rw minus one action ════════
+drop=NONE  -> FAIL steps: []  VERDICT restic identity=ablate pass=11 fail=0
+drop=s3:GetBucketLocation  -> FAIL steps: []  VERDICT restic identity=ablate pass=11 fail=0
+drop=s3:ListBucket  -> FAIL steps: [R2-init R3-backup1 R4-backup2 R5-snapshots R6-forget R6b-prune R7-check R8-unlock R9-restore R10-compare ]  VERDICT restic identity=ablate pass=1 fail=10
+drop=s3:ListBucketMultipartUploads  -> FAIL steps: []  VERDICT restic identity=ablate pass=11 fail=0
+drop=s3:GetObject  -> FAIL steps: [R1-catconfig R2-init R3-backup1 R4-backup2 R5-snapshots R6-forget R6b-prune R7-check R8-unlock R9-restore R10-compare ]  VERDICT restic identity=ablate pass=0 fail=11
+drop=s3:PutObject  -> FAIL steps: [R2-init R3-backup1 R4-backup2 R5-snapshots R6-forget R6b-prune R7-check R8-unlock R9-restore R10-compare ]  VERDICT restic identity=ablate pass=1 fail=10
+drop=s3:DeleteObject  -> FAIL steps: [R6-forget R6b-prune R7-check R8-unlock ]  VERDICT restic identity=ablate pass=7 fail=4
+drop=s3:AbortMultipartUpload  -> FAIL steps: []  VERDICT restic identity=ablate pass=11 fail=0
+drop=s3:ListMultipartUploadParts  -> FAIL steps: []  VERDICT restic identity=ablate pass=11 fail=0
+
+════════ ABLATION: barman-cloud 3.20.0 vs forge-backups-rw minus one action ════════
+(B1 check-wal-archive, B2/B3 wal-archive gzip, B4 wal-restore, B5 byte-compare, B6 backup-list, B7 backup-delete --retention-policy 'RECOVERY WINDOW OF 14 DAYS', B8 barman S3CloudInterface.delete_objects = the retention delete path)
+drop=NONE -> BARMAN VERDICT pass=8 fail=0 failed=[ ]
+drop=s3:GetBucketLocation -> BARMAN VERDICT pass=8 fail=0 failed=[ ]
+drop=s3:ListBucket -> BARMAN VERDICT pass=2 fail=6 failed=[ B1-check-wal-archive B4-wal-restore B5-compare B6-backup-list B7-retention-delete B8-barman-delete-objects ]
+drop=s3:ListBucketMultipartUploads -> BARMAN VERDICT pass=8 fail=0 failed=[ ]
+drop=s3:GetObject -> BARMAN VERDICT pass=6 fail=2 failed=[ B4-wal-restore B5-compare ]
+drop=s3:PutObject -> BARMAN VERDICT pass=3 fail=5 failed=[ B2-wal-archive B3-wal-archive2 B4-wal-restore B5-compare B8-barman-delete-objects ]
+drop=s3:DeleteObject -> BARMAN VERDICT pass=7 fail=1 failed=[ B8-barman-delete-objects ]
+drop=s3:AbortMultipartUpload -> BARMAN VERDICT pass=8 fail=0 failed=[ ]
+drop=s3:ListMultipartUploadParts -> BARMAN VERDICT pass=8 fail=0 failed=[ ]
+
+════════ NEGATIVE CONTROL: user with built-in 'readwrite' policy through iam-verify.sh ════════
+FAIL[I1-listbuckets] foreign bucket names visible in ListBuckets: cnpg-backups volsync
+FAIL[N-cnpg-backups-list] list cnpg-backups -> a 2xx response was returned
+FAIL[N-cnpg-backups-get] stat/get key in cnpg-backups -> a 2xx response was returned
+FAIL[N-cnpg-backups-put] put into cnpg-backups -> a 2xx response was returned
+FAIL[N-cnpg-backups-rm] delete key in cnpg-backups -> a 2xx response was returned
+FAIL[N-volsync-list] list volsync -> a 2xx response was returned
+FAIL[N-volsync-get] stat/get key in volsync -> a 2xx response was returned
+FAIL[N-volsync-put] put into volsync -> a 2xx response was returned
+FAIL[N-volsync-rm] delete key in volsync -> a 2xx response was returned
+FAIL[N-mb] create a new bucket -> a 2xx response was returned
+VERDICT identity=overpriv pass=13 fail=10
+
+################################################################################
+# APPENDED 2026-09-23 (Themis record-integrity finding): full lifecycle from EMPTY IAM
+################################################################################
+# LIFECYCLE REHEARSAL 2026-09-23T09:53:18Z - FRESH empty MinIO (RELEASE.2024-09-09T16-59-28Z from source), scripts from commit fbafe9c
+# scripts sha256: 5805a45eb66a 05a6dceb24e2 f4e71b320320 bafaeb0ecf4e f1e9a63e442b 
+# seeded prod bucket set; IAM users before: []
+════════ GUARD: swapped items ════════
+FATAL: FORGE_PG_ACCESS_KEY is 'forge-volsync', expected 'forge-pg' - items swapped or mislabelled?
+exit=2
+users after guard: []
+════════ GUARD: non-alnum secret ════════
+FATAL: FORGE_PG_SECRET_KEY must be alphanumeric only
+exit=2
+users after guard: []
+════════ GUARD: missing field ════════
+FATAL: FORGE_VOLSYNC_SECRET_KEY empty (1Password item missing or label wrong?)
+exit=2
+users after guard: []
+════════ GUARD: short secret ════════
+FATAL: FORGE_PG_SECRET_KEY length 10 outside 32..40
+exit=2
+users after guard: []
+════════ GUARD: secret equals root ════════
+FATAL: FORGE_PG_SECRET_KEY equals the root password
+exit=2
+users after guard: []
+════════ GUARD: both users share secret ════════
+FATAL: both scoped users share one secret
+exit=2
+users after guard: []
+════════ APPLY #1 (from EMPTY IAM) ════════
+── server reachable as root (admin info ok) ──
+── IAM inventory (before) ──
+  users: (none)
+  policy: {"status":"success","policy":"consoleAdmin","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"diagnostics","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"readonly","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"readwrite","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"writeonly","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+── identity forge-pg -> policy forge-backups-rw -> bucket forge-backups ──
+  $ mc mb --ignore-existing root/forge-backups -> rc=0 {"status":"success","bucket":"root/forge-backups","region":""}
+  $ mc admin policy create root forge-backups-rw /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/743312b1-6b9e-4bf4-bf26-d4504d06a737/scratchpad/reh2/src/hack/minio-iam/policies/forge-backups-rw.json -> rc=0 {"status":"success","policy":"forge-backups-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  user forge-pg present (secret set from 1Password, not printed)
+  $ mc admin policy attach root forge-backups-rw --user forge-pg -> rc=0 {"status":"success","policiesAttached":["forge-backups-rw"],"user":"forge-pg"}
+  POSTCHECK OK: forge-pg policyName=forge-backups-rw userStatus=enabled
+── identity forge-volsync -> policy forge-volsync-rw -> bucket forge-volsync ──
+  $ mc mb --ignore-existing root/forge-volsync -> rc=0 {"status":"success","bucket":"root/forge-volsync","region":""}
+  $ mc admin policy create root forge-volsync-rw /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/743312b1-6b9e-4bf4-bf26-d4504d06a737/scratchpad/reh2/src/hack/minio-iam/policies/forge-volsync-rw.json -> rc=0 {"status":"success","policy":"forge-volsync-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  user forge-volsync present (secret set from 1Password, not printed)
+  $ mc admin policy attach root forge-volsync-rw --user forge-volsync -> rc=0 {"status":"success","policiesAttached":["forge-volsync-rw"],"user":"forge-volsync"}
+  POSTCHECK OK: forge-volsync policyName=forge-volsync-rw userStatus=enabled
+── IAM inventory (after) ──
+  user: {"status":"success","accessKey":"forge-pg","policyName":"forge-backups-rw","userStatus":"enabled"}
+  user: {"status":"success","accessKey":"forge-volsync","policyName":"forge-volsync-rw","userStatus":"enabled"}
+  policy: {"status":"success","policy":"diagnostics","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"forge-backups-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"forge-volsync-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"readonly","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"readwrite","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"writeonly","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"consoleAdmin","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+APPLY: OK
+exit=0
+════════ APPLY #2 (idempotent) ════════
+  $ mc mb --ignore-existing root/forge-backups -> rc=0 {"status":"success","bucket":"root/forge-backups","region":""}
+  $ mc admin policy create root forge-backups-rw /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/743312b1-6b9e-4bf4-bf26-d4504d06a737/scratchpad/reh2/src/hack/minio-iam/policies/forge-backups-rw.json -> rc=0 {"status":"success","policy":"forge-backups-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  $ mc mb --ignore-existing root/forge-volsync -> rc=0 {"status":"success","bucket":"root/forge-volsync","region":""}
+  $ mc admin policy create root forge-volsync-rw /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/743312b1-6b9e-4bf4-bf26-d4504d06a737/scratchpad/reh2/src/hack/minio-iam/policies/forge-volsync-rw.json -> rc=0 {"status":"success","policy":"forge-volsync-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy forge-backups-rw already attached - no change
+  POSTCHECK OK: forge-pg policyName=forge-backups-rw userStatus=enabled
+  policy forge-volsync-rw already attached - no change
+  POSTCHECK OK: forge-volsync policyName=forge-volsync-rw userStatus=enabled
+APPLY: OK
+exit=0
+════════ GUARD: user already carries a DIFFERENT policy ════════
+  $ mc mb --ignore-existing root/forge-backups -> rc=0 {"status":"success","bucket":"root/forge-backups","region":""}
+  $ mc admin policy create root forge-backups-rw /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/743312b1-6b9e-4bf4-bf26-d4504d06a737/scratchpad/reh2/src/hack/minio-iam/policies/forge-backups-rw.json -> rc=0 {"status":"success","policy":"forge-backups-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+FATAL: forge-pg already carries a DIFFERENT policy set - refusing to guess, fix by hand: {"status":"success","accessKey":"forge-pg","policyName":"forge-backups-rw,readonly","userStatus":"enabled"}
+exit=2
+════════ REMOVE with a NON-EMPTY forge-volsync ════════
+── server reachable as root (admin info ok) ──
+── IAM inventory (before) ──
+  user: {"status":"success","accessKey":"forge-pg","policyName":"forge-backups-rw","userStatus":"enabled"}
+  user: {"status":"success","accessKey":"forge-volsync","policyName":"forge-volsync-rw","userStatus":"enabled"}
+  policy: {"status":"success","policy":"forge-backups-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"forge-volsync-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"readonly","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"readwrite","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"writeonly","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"consoleAdmin","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"diagnostics","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+── removing forge-pg / forge-backups-rw ──
+  $ mc admin policy detach root forge-backups-rw --user forge-pg -> rc=0 {"status":"success","policiesDetached":["forge-backups-rw"],"user":"forge-pg"}
+  $ mc admin user remove root forge-pg -> rc=0 {"status":"success","accessKey":"forge-pg"}
+  $ mc admin policy remove root forge-backups-rw -> rc=0 {"status":"success","policy":"forge-backups-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+── removing forge-volsync / forge-volsync-rw ──
+  $ mc admin policy detach root forge-volsync-rw --user forge-volsync -> rc=0 {"status":"success","policiesDetached":["forge-volsync-rw"],"user":"forge-volsync"}
+  $ mc admin user remove root forge-volsync -> rc=0 {"status":"success","accessKey":"forge-volsync"}
+  $ mc admin policy remove root forge-volsync-rw -> rc=0 {"status":"success","policy":"forge-volsync-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  $ mc rb root/forge-volsync -> rc=1 {"status":"error","error":{"message":"`root/forge-volsync` is not empty. Retry this command with ‘--force’ flag if you want to remove `root/forge-volsync` and all its contents","cause":{"message":"","error":{}},"type":"fatal"}}
+  forge-volsync NOT removed (absent or not empty - by design)
+── IAM inventory (after) ──
+  users: (none)
+  policy: {"status":"success","policy":"diagnostics","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"readonly","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"readwrite","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"writeonly","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"consoleAdmin","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+REMOVE: OK
+exit=0
+root view after remove: buckets [cnpg-backups/ forge-backups/ forge-volsync/ mac-mini-backups/ thanos/ volsync/ ] forge-volsync objects: 1 cnpg-backups objects: 1
+════════ REMOVE with an EMPTY forge-volsync (bucket removed) ════════
+  $ mc mb --ignore-existing root/forge-backups -> rc=0 {"status":"success","bucket":"root/forge-backups","region":""}
+  $ mc admin policy create root forge-backups-rw /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/743312b1-6b9e-4bf4-bf26-d4504d06a737/scratchpad/reh2/src/hack/minio-iam/policies/forge-backups-rw.json -> rc=0 {"status":"success","policy":"forge-backups-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  $ mc admin policy attach root forge-backups-rw --user forge-pg -> rc=0 {"status":"success","policiesAttached":["forge-backups-rw"],"user":"forge-pg"}
+  $ mc mb --ignore-existing root/forge-volsync -> rc=0 {"status":"success","bucket":"root/forge-volsync","region":""}
+  $ mc admin policy create root forge-volsync-rw /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/743312b1-6b9e-4bf4-bf26-d4504d06a737/scratchpad/reh2/src/hack/minio-iam/policies/forge-volsync-rw.json -> rc=0 {"status":"success","policy":"forge-volsync-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  $ mc admin policy attach root forge-volsync-rw --user forge-volsync -> rc=0 {"status":"success","policiesAttached":["forge-volsync-rw"],"user":"forge-volsync"}
+  $ mc admin policy detach root forge-backups-rw --user forge-pg -> rc=0 {"status":"success","policiesDetached":["forge-backups-rw"],"user":"forge-pg"}
+  $ mc admin user remove root forge-pg -> rc=0 {"status":"success","accessKey":"forge-pg"}
+  $ mc admin policy remove root forge-backups-rw -> rc=0 {"status":"success","policy":"forge-backups-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  $ mc admin policy detach root forge-volsync-rw --user forge-volsync -> rc=0 {"status":"success","policiesDetached":["forge-volsync-rw"],"user":"forge-volsync"}
+  $ mc admin user remove root forge-volsync -> rc=0 {"status":"success","accessKey":"forge-volsync"}
+  $ mc admin policy remove root forge-volsync-rw -> rc=0 {"status":"success","policy":"forge-volsync-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  $ mc rb root/forge-volsync -> rc=0 {"status":"success","bucket":"root/forge-volsync"}
+  users: (none)
+REMOVE: OK
+buckets: [cnpg-backups/ forge-backups/ mac-mini-backups/ thanos/ volsync/ ]
+════════ RE-APPLY after remove ════════
+  $ mc mb --ignore-existing root/forge-backups -> rc=0 {"status":"success","bucket":"root/forge-backups","region":""}
+  $ mc admin policy create root forge-backups-rw /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/743312b1-6b9e-4bf4-bf26-d4504d06a737/scratchpad/reh2/src/hack/minio-iam/policies/forge-backups-rw.json -> rc=0 {"status":"success","policy":"forge-backups-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  $ mc admin policy attach root forge-backups-rw --user forge-pg -> rc=0 {"status":"success","policiesAttached":["forge-backups-rw"],"user":"forge-pg"}
+  $ mc mb --ignore-existing root/forge-volsync -> rc=0 {"status":"success","bucket":"root/forge-volsync","region":""}
+  $ mc admin policy create root forge-volsync-rw /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/743312b1-6b9e-4bf4-bf26-d4504d06a737/scratchpad/reh2/src/hack/minio-iam/policies/forge-volsync-rw.json -> rc=0 {"status":"success","policy":"forge-volsync-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  $ mc admin policy attach root forge-volsync-rw --user forge-volsync -> rc=0 {"status":"success","policiesAttached":["forge-volsync-rw"],"user":"forge-volsync"}
+  POSTCHECK OK: forge-pg policyName=forge-backups-rw userStatus=enabled
+  POSTCHECK OK: forge-volsync policyName=forge-volsync-rw userStatus=enabled
+APPLY: OK
+exit=0
+
+################################################################################
+# APPENDED 2026-09-23: Argus sec-A1 fix (root mc config isolation) + quoted redact - diff rehearsal
+################################################################################
+# sec-A1 diff rehearsal 2026-09-23T09:55:37Z, scripts: 6b2380d042e2 b93e2cdf2e84 f0667c4da9e3 
+== iam-apply with MC_CONFIG_DIR=/private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/743312b1-6b9e-4bf4-bf26-d4504d06a737/scratchpad/reh2/mc-apply-root
+  $ mc mb --ignore-existing root/forge-backups -> rc=0 {"status":"success","bucket":"root/forge-backups","region":""}
+  $ mc admin policy create root forge-backups-rw /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/743312b1-6b9e-4bf4-bf26-d4504d06a737/scratchpad/wt-chain/hack/minio-iam/policies/forge-backups-rw.json -> rc=0 {"status":"success","policy":"forge-backups-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  $ mc mb --ignore-existing root/forge-volsync -> rc=0 {"status":"success","bucket":"root/forge-volsync","region":""}
+  $ mc admin policy create root forge-volsync-rw /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/743312b1-6b9e-4bf4-bf26-d4504d06a737/scratchpad/wt-chain/hack/minio-iam/policies/forge-volsync-rw.json -> rc=0 {"status":"success","policy":"forge-volsync-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+APPLY: OK
+after exit: root mc dir exists? no
+== verify, root dir absent
+root-isolation: /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/743312b1-6b9e-4bf4-bf26-d4504d06a737/scratchpad/reh2/mc-apply-root absent
+VERDICT identity=forge-pg pass=19 fail=0
+== restic-check, root dir absent
+root-isolation: /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/743312b1-6b9e-4bf4-bf26-d4504d06a737/scratchpad/reh2/mc-apply-root absent
+VERDICT restic identity=forge-volsync pass=11 fail=0
+== verify, root dir PRESENT (must FATAL)
+FATAL: root-isolation: /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/743312b1-6b9e-4bf4-bf26-d4504d06a737/scratchpad/reh2/mc-apply-root is VISIBLE to this container
+exit=2
+== restic-check, root dir PRESENT (must FATAL)
+FATAL: root-isolation: /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/743312b1-6b9e-4bf4-bf26-d4504d06a737/scratchpad/reh2/mc-apply-root is VISIBLE to this container
+exit=2
+== quoted redact with a glob-laden secret
+pw=<redacted:MINIO_ROOT_PASSWORD> other=axxb
