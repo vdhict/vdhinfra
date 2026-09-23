@@ -1,0 +1,18 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/ocirepository_v1.json
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: forgejo
+spec:
+  interval: 15m
+  layerSelector:
+    mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
+    operation: copy
+  ref:
+    # forgejo-helm 17.1.7 (released 2026-09-17), appVersion 15.0.9.
+    # Chart was pulled and read locally before authoring these values - it
+    # bundles no postgresql and no valkey/redis subchart, so there is
+    # nothing to disable.
+    tag: 17.1.7
+  url: oci://code.forgejo.org/forgejo-helm/forgejo

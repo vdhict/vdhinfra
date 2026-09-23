@@ -129,6 +129,12 @@
         "kubernetes/main/bootstrap/**",
         "kubernetes/main/components/**",
         "kubernetes/main/apps/security/**",
+        // devtools holds the Forgejo forge, which stores CLIENT repositories.
+        // An unattended chart or image bump on a code forge is not something
+        // to discover after the fact, and forge-pg's backups are the only
+        // copy of that metadata outside Ceph (deliberately not mirrored
+        // off-site). Manual review, always.
+        "kubernetes/main/apps/devtools/**",
       ],
       automerge: false,
     },
