@@ -1,0 +1,301 @@
+# minio-iam run.sh apply  2026-09-23T10:20:48Z  context=admin@vdhinfra-local
+# git: 6c9d4f2  rendered sha256: c0d1df0d141b3b99
+── server-side dry-run ──
+configmap/minio-iam-forge-scripts created (server dry run)
+job.batch/minio-iam-forge created (server dry run)
+externalsecret.external-secrets.io/minio-iam-forge created (server dry run)
+── ExternalSecret ──
+externalsecret.external-secrets.io/minio-iam-forge created
+externalsecret.external-secrets.io/minio-iam-forge condition met
+── Job (apply) ──
+configmap/minio-iam-forge-scripts created
+job.batch/minio-iam-forge created
+════════ container iam-apply ════════
+── server reachable as root (admin info ok) ──
+── IAM inventory (before) ──
+  users: (none)
+  policy: {"status":"success","policy":"diagnostics","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"readonly","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"readwrite","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"writeonly","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"consoleAdmin","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+── identity forge-pg -> policy forge-backups-rw -> bucket forge-backups ──
+  $ mc mb --ignore-existing root/forge-backups -> rc=0 {"status":"success","bucket":"root/forge-backups","region":""}
+  $ mc admin policy create root forge-backups-rw /iam/forge-backups-rw.json -> rc=0 {"status":"success","policy":"forge-backups-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  user forge-pg present (secret set from 1Password, not printed)
+  $ mc admin policy attach root forge-backups-rw --user forge-pg -> rc=0 {"status":"success","policiesAttached":["forge-backups-rw"],"user":"forge-pg"}
+  POSTCHECK OK: forge-pg policyName=forge-backups-rw userStatus=enabled
+── identity forge-volsync -> policy forge-volsync-rw -> bucket forge-volsync ──
+  $ mc mb --ignore-existing root/forge-volsync -> rc=0 {"status":"success","bucket":"root/forge-volsync","region":""}
+  $ mc admin policy create root forge-volsync-rw /iam/forge-volsync-rw.json -> rc=0 {"status":"success","policy":"forge-volsync-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  user forge-volsync present (secret set from 1Password, not printed)
+  $ mc admin policy attach root forge-volsync-rw --user forge-volsync -> rc=0 {"status":"success","policiesAttached":["forge-volsync-rw"],"user":"forge-volsync"}
+  POSTCHECK OK: forge-volsync policyName=forge-volsync-rw userStatus=enabled
+── IAM inventory (after) ──
+  user: {"status":"success","accessKey":"forge-pg","policyName":"forge-backups-rw","userStatus":"enabled"}
+  user: {"status":"success","accessKey":"forge-volsync","policyName":"forge-volsync-rw","userStatus":"enabled"}
+  policy: {"status":"success","policy":"forge-backups-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"forge-volsync-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"readonly","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"readwrite","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"writeonly","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"consoleAdmin","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"diagnostics","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+APPLY: OK
+════════ container restic-check ════════
+root-isolation: /tmp/mc-apply absent
+identity=forge-volsync repo=s3:http://minio.storage.svc.cluster.local:9000/forge-volsync/_iam-verify/restic-20260923T102052Z
+restic 0.18.0 compiled with go1.23.12 on linux/amd64
+RAW[R1-catconfig] rc=10 restic cat config
+    Fatal: repository does not exist: unable to open config file: Stat: The specified key does not exist.
+    Is there a repository at the following location?
+    s3:http://minio.storage.svc.cluster.local:9000/forge-volsync/_iam-verify/restic-20260923T102052Z
+PASS[R1-catconfig] rc=10
+RAW[R2-init] rc=0 restic init
+    created restic repository 8b33a76e51 at s3:http://minio.storage.svc.cluster.local:9000/forge-volsync/_iam-verify/restic-20260923T102052Z
+    
+    Please note that knowledge of your password is required to access
+    the repository. Losing your password means that your data is
+    irrecoverably lost.
+PASS[R2-init] rc=0
+RAW[R3-backup1] rc=0 restic backup --host volsync --exclude=lost+found .
+    Files:           2 new,     0 changed,     0 unmodified
+    Dirs:            1 new,     0 changed,     0 unmodified
+    Added to the repository: 24.002 MiB (24.003 MiB stored)
+    
+    processed 2 files, 24.000 MiB in 0:01
+    snapshot 48df7cb3 saved
+PASS[R3-backup1] rc=0
+RAW[R4-backup2] rc=0 restic backup --host volsync --exclude=lost+found .
+    Files:           0 new,     1 changed,     1 unmodified
+    Dirs:            0 new,     1 changed,     0 unmodified
+    Added to the repository: 2.181 KiB (1.396 KiB stored)
+    
+    processed 2 files, 24.000 MiB in 0:00
+    snapshot d54f950b saved
+PASS[R4-backup2] rc=0
+RAW[R5-snapshots] rc=0 restic snapshots
+    ID        Time                 Host        Tags        Paths                     Size
+    -------------------------------------------------------------------------------------------
+    48df7cb3  2026-09-23 10:20:55  volsync                 /tmp/tmp.OGTF8XLks4/data  24.000 MiB
+    d54f950b  2026-09-23 10:20:56  volsync                 /tmp/tmp.OGTF8XLks4/data  24.000 MiB
+    -------------------------------------------------------------------------------------------
+    2 snapshots
+PASS[R5-snapshots] rc=0
+RAW[R6-forget] rc=0 restic forget --host volsync --keep-last 1
+    -------------------------------------------------------------------------------------------
+    48df7cb3  2026-09-23 10:20:55  volsync                 /tmp/tmp.OGTF8XLks4/data  24.000 MiB
+    -------------------------------------------------------------------------------------------
+    1 snapshots
+    
+    [0:00] 100.00%  1 / 1 files deleted
+PASS[R6-forget] rc=0
+RAW[R6b-prune] rc=0 restic prune
+    rebuilding index
+    [0:00] 100.00%  2 / 2 indexes processed
+    [0:00] 100.00%  2 / 2 old indexes deleted
+    removing 1 old packs
+    [0:00] 100.00%  1 / 1 files deleted
+    done
+PASS[R6b-prune] rc=0
+RAW[R7-check] rc=0 restic check
+    create exclusive lock for repository
+    load indexes
+    check all packs
+    check snapshots, trees and blobs
+    [0:00] 100.00%  1 / 1 snapshots
+    no errors were found
+PASS[R7-check] rc=0
+RAW[R8-unlock] rc=0 restic unlock
+    
+PASS[R8-unlock] rc=0
+RAW[R9-restore] rc=0 restic restore latest -t /tmp/tmp.PKpDSp0zPL --host volsync
+    restoring snapshot d54f950b of [/tmp/tmp.OGTF8XLks4/data] at 2026-09-23 10:20:56.549442384 +0000 UTC by nobody@volsync to /tmp/tmp.PKpDSp0zPL
+    Summary: Restored 3 files/dirs (24.000 MiB) in 0:00
+PASS[R9-restore] rc=0
+PASS[R10-compare] restored files sha256-identical
+VERDICT restic identity=forge-volsync pass=11 fail=0
+════════ container verify-forge-pg ════════
+root-isolation: /tmp/mc-apply absent
+identity=forge-pg own_bucket=forge-backups foreign=[cnpg-backups volsync mac-mini-backups thanos forge-volsync] ts=20260923T102102Z endpoint=http://minio.storage.svc.cluster.local:9000
+RAW[P1-list] rc=0 
+PASS[P1-list] list forge-backups
+RAW[P2-put] rc=0 {"status":"success","source":"/tmp/tmp.BrYerCxgqb/small","target":"scoped/forge-backups/_iam-verify/20260923T102102Z/small","size":37,"totalCount":1,"totalSize":0}
+{"status":"success","total":37,"transferred":37,"speed":2617.2042415968112}
+PASS[P2-put] put small object
+RAW[P3-stat] rc=0 {"status":"success","name":"small","lastModified":"2026-09-23T10:21:03Z","size":37,"etag":"4f55d12ddfc53f376e29bfccb0845c20","type":"file","metadata":{"Content-Type":"application/octet-stream"}}
+PASS[P3-stat] stat small object
+RAW[P4-get] rc=0 {"status":"success","source":"scoped/forge-backups/_iam-verify/20260923T102102Z/small","target":"/tmp/tmp.BrYerCxgqb/small.back","size":37,"totalCount":1,"totalSize":0}
+{"status":"success","total":37,"transferred":37,"speed":4189.210563649223}
+PASS[P4-get] get small object, sha256 matches
+RAW[P5-multipart] rc=0 {"status":"success","source":"/tmp/tmp.BrYerCxgqb/big","target":"scoped/forge-backups/_iam-verify/20260923T102102Z/big","size":50331648,"totalCount":1,"totalSize":0}
+{"status":"success","total":50331648,"transferred":50331648,"speed":50621191.19061446}
+PASS[P5-multipart] put 48 MiB object (multipart)
+RAW[P6-getbig] rc=0 {"status":"success","source":"scoped/forge-backups/_iam-verify/20260923T102102Z/big","target":"/tmp/tmp.BrYerCxgqb/big.back","size":50331648,"totalCount":1,"totalSize":0}
+{"status":"success","total":50331648,"transferred":50331648,"speed":57770841.48902716}
+PASS[P6-getbig] get 48 MiB object, sha256 matches
+RAW[P7-listpfx] rc=0 {"status":"success","type":"file","lastModified":"2026-09-23T10:21:04.1Z","size":50331648,"key":"big","etag":"9c967dc49e842c7b96b0a421753a8a2a-3","url":"http://minio.storage.svc.cluster.local:9000/forge-backups/_iam-verify/20260923T102102Z/","versionOrdinal":1,"storageClass":"STANDARD"}
+{"status":"success","type":"file","lastModified":"2026-09-23T10:21:03.11Z","size":37,"key":"small","etag":"4f55d12ddfc53f376e29bfccb0845c20","url":"http://minio.storage.svc.cluster.local:9000/forge-backups/_iam-verify/20260923T102102Z/","versionOrdinal":1,"storageClass":"STANDARD"}
+PASS[P7-listpfx] list test prefix
+RAW[P8-delete] rc=0 {"status":"success","key":"scoped/forge-backups/_iam-verify/20260923T102102Z/big","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/forge-backups/_iam-verify/20260923T102102Z/small","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+PASS[P8-delete] delete test objects
+RAW[P9-gone] rc=1 {"status":"error","error":{"message":"Unable to stat `scoped/forge-backups/_iam-verify/20260923T102102Z/small`.","cause":{"message":"Object does not exist","error":{}},"type":"fatal"}}
+PASS[P9-gone] deleted object is gone (not-found, not denied)
+RAW[P10-cleanup] rc=0 
+PASS[P10-cleanup] _iam-verify/ prefix removed
+RAW[I1-listbuckets] rc=0 {"status":"success","type":"folder","lastModified":"2026-09-20T19:06:34.868Z","size":0,"key":"forge-backups/","etag":"","url":"http://minio.storage.svc.cluster.local:9000/","versionOrdinal":1}
+PASS[I1-listbuckets] no foreign bucket name visible in ListBuckets
+RAW[N-cnpg-backups-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-cnpg-backups-list] list cnpg-backups -> 403 AccessDenied
+RAW[N-cnpg-backups-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/cnpg-backups/_iam-verify-absent-20260923T102102Z`. Object does not exist
+PASS[N-cnpg-backups-get] stat/get key in cnpg-backups -> 403 AccessDenied
+RAW[N-cnpg-backups-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/tmp/tmp.BrYerCxgqb/small`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/cnpg-backups/_iam-verify-20260923T102102Z`
+PASS[N-cnpg-backups-put] put into cnpg-backups -> 403 AccessDenied
+RAW[N-cnpg-backups-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/cnpg-backups/_iam-verify-absent-20260923T102102Z`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/cnpg-backups/_iam-verify-absent-20260923T102102Z`
+PASS[N-cnpg-backups-rm] delete key in cnpg-backups -> 403 AccessDenied
+RAW[N-volsync-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-volsync-list] list volsync -> 403 AccessDenied
+RAW[N-volsync-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/volsync/_iam-verify-absent-20260923T102102Z`. Object does not exist
+PASS[N-volsync-get] stat/get key in volsync -> 403 AccessDenied
+RAW[N-volsync-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/tmp/tmp.BrYerCxgqb/small`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/volsync/_iam-verify-20260923T102102Z`
+PASS[N-volsync-put] put into volsync -> 403 AccessDenied
+RAW[N-volsync-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/volsync/_iam-verify-absent-20260923T102102Z`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/volsync/_iam-verify-absent-20260923T102102Z`
+PASS[N-volsync-rm] delete key in volsync -> 403 AccessDenied
+RAW[N-mac-mini-backups-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-mac-mini-backups-list] list mac-mini-backups -> 403 AccessDenied
+RAW[N-mac-mini-backups-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/mac-mini-backups/_iam-verify-absent-20260923T102102Z`. Object does not exist
+PASS[N-mac-mini-backups-get] stat/get key in mac-mini-backups -> 403 AccessDenied
+RAW[N-mac-mini-backups-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/tmp/tmp.BrYerCxgqb/small`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/mac-mini-backups/_iam-verify-20260923T102102Z`
+PASS[N-mac-mini-backups-put] put into mac-mini-backups -> 403 AccessDenied
+RAW[N-mac-mini-backups-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/mac-mini-backups/_iam-verify-absent-20260923T102102Z`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/mac-mini-backups/_iam-verify-absent-20260923T102102Z`
+PASS[N-mac-mini-backups-rm] delete key in mac-mini-backups -> 403 AccessDenied
+RAW[N-thanos-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-thanos-list] list thanos -> 403 AccessDenied
+RAW[N-thanos-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/thanos/_iam-verify-absent-20260923T102102Z`. Object does not exist
+PASS[N-thanos-get] stat/get key in thanos -> 403 AccessDenied
+RAW[N-thanos-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/tmp/tmp.BrYerCxgqb/small`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/thanos/_iam-verify-20260923T102102Z`
+PASS[N-thanos-put] put into thanos -> 403 AccessDenied
+RAW[N-thanos-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/thanos/_iam-verify-absent-20260923T102102Z`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/thanos/_iam-verify-absent-20260923T102102Z`
+PASS[N-thanos-rm] delete key in thanos -> 403 AccessDenied
+RAW[N-forge-volsync-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-forge-volsync-list] list forge-volsync -> 403 AccessDenied
+RAW[N-forge-volsync-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/forge-volsync/_iam-verify-absent-20260923T102102Z`. Object does not exist
+PASS[N-forge-volsync-get] stat/get key in forge-volsync -> 403 AccessDenied
+RAW[N-forge-volsync-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/tmp/tmp.BrYerCxgqb/small`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/forge-volsync/_iam-verify-20260923T102102Z`
+PASS[N-forge-volsync-put] put into forge-volsync -> 403 AccessDenied
+RAW[N-forge-volsync-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/forge-volsync/_iam-verify-absent-20260923T102102Z`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/forge-volsync/_iam-verify-absent-20260923T102102Z`
+PASS[N-forge-volsync-rm] delete key in forge-volsync -> 403 AccessDenied
+RAW[N-admin-info] rc=1 http=[403] mc: <ERROR> Unable to get service info. Access Denied.
+PASS[N-admin-info] mc admin info -> 403 AccessDenied
+RAW[N-admin-users] rc=1 http=[403] mc: <ERROR> Unable to list user. Access Denied.
+PASS[N-admin-users] mc admin user list -> 403 AccessDenied
+RAW[N-admin-policies] rc=1 http=[403] mc: <ERROR> Unable to list policy. Access Denied.
+PASS[N-admin-policies] mc admin policy list -> 403 AccessDenied
+RAW[N-mb] rc=1 http=[403] mc: <ERROR> Unable to make bucket `scoped/iam-verify-must-not-exist-1790158866`. Access Denied.
+PASS[N-mb] create a new bucket -> 403 AccessDenied
+VERDICT identity=forge-pg pass=35 fail=0
+════════ container verify-forge-volsync ════════
+root-isolation: /tmp/mc-apply absent
+identity=forge-volsync own_bucket=forge-volsync foreign=[cnpg-backups volsync mac-mini-backups thanos forge-backups] ts=20260923T102102Z endpoint=http://minio.storage.svc.cluster.local:9000
+RAW[P1-list] rc=0 {"status":"success","type":"folder","lastModified":"2026-09-23T10:21:03.189066942Z","size":0,"key":"_iam-verify/","etag":"","url":"http://minio.storage.svc.cluster.local:9000/forge-volsync/","versionOrdinal":1}
+PASS[P1-list] list forge-volsync
+RAW[P2-put] rc=0 {"status":"success","source":"/tmp/tmp.fg5pU9L2F4/small","target":"scoped/forge-volsync/_iam-verify/20260923T102102Z/small","size":42,"totalCount":1,"totalSize":0}
+{"status":"success","total":42,"transferred":42,"speed":2623.4441336634795}
+PASS[P2-put] put small object
+RAW[P3-stat] rc=0 {"status":"success","name":"small","lastModified":"2026-09-23T10:21:03Z","size":42,"etag":"99086634581c04598845a9e95dc13e4e","type":"file","metadata":{"Content-Type":"application/octet-stream"}}
+PASS[P3-stat] stat small object
+RAW[P4-get] rc=0 {"status":"success","source":"scoped/forge-volsync/_iam-verify/20260923T102102Z/small","target":"/tmp/tmp.fg5pU9L2F4/small.back","size":42,"totalCount":1,"totalSize":0}
+{"status":"success","total":42,"transferred":42,"speed":3640.428308525259}
+PASS[P4-get] get small object, sha256 matches
+RAW[P5-multipart] rc=0 {"status":"success","source":"/tmp/tmp.fg5pU9L2F4/big","target":"scoped/forge-volsync/_iam-verify/20260923T102102Z/big","size":50331648,"totalCount":1,"totalSize":0}
+{"status":"success","total":50331648,"transferred":50331648,"speed":54992257.31528715}
+PASS[P5-multipart] put 48 MiB object (multipart)
+RAW[P6-getbig] rc=0 {"status":"success","source":"scoped/forge-volsync/_iam-verify/20260923T102102Z/big","target":"/tmp/tmp.fg5pU9L2F4/big.back","size":50331648,"totalCount":1,"totalSize":0}
+{"status":"success","total":50331648,"transferred":50331648,"speed":57676862.145903684}
+PASS[P6-getbig] get 48 MiB object, sha256 matches
+RAW[P7-listpfx] rc=0 {"status":"success","type":"file","lastModified":"2026-09-23T10:21:04.186Z","size":50331648,"key":"big","etag":"3cff1b0d211c60103f430f6346807f48-3","url":"http://minio.storage.svc.cluster.local:9000/forge-volsync/_iam-verify/20260923T102102Z/","versionOrdinal":1,"storageClass":"STANDARD"}
+{"status":"success","type":"file","lastModified":"2026-09-23T10:21:03.213Z","size":42,"key":"small","etag":"99086634581c04598845a9e95dc13e4e","url":"http://minio.storage.svc.cluster.local:9000/forge-volsync/_iam-verify/20260923T102102Z/","versionOrdinal":1,"storageClass":"STANDARD"}
+PASS[P7-listpfx] list test prefix
+RAW[P8-delete] rc=0 {"status":"success","key":"scoped/forge-volsync/_iam-verify/20260923T102102Z/big","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/forge-volsync/_iam-verify/20260923T102102Z/small","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+PASS[P8-delete] delete test objects
+RAW[P9-gone] rc=1 {"status":"error","error":{"message":"Unable to stat `scoped/forge-volsync/_iam-verify/20260923T102102Z/small`.","cause":{"message":"Object does not exist","error":{}},"type":"fatal"}}
+PASS[P9-gone] deleted object is gone (not-found, not denied)
+RAW[P10-cleanup] rc=0 {"status":"success","key":"scoped/forge-volsync/_iam-verify/restic-20260923T102052Z/config","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/forge-volsync/_iam-verify/restic-20260923T102052Z/data/0f/0fc484cd2cd85a4ce82a8c182c374229494713d9a014a6dfdba2e3430b26353e","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/forge-volsync/_iam-verify/restic-20260923T102052Z/data/3d/3d0a69949373e1fd6ec886f2e5011022a3f2612feb44f7e1a7b5771de45c19ee","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/forge-volsync/_iam-verify/restic-20260923T102052Z/data/b3/b30807b8dbf23462024efb0fbb25808e6e74465d82cdc9c33ce412608b875742","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/forge-volsync/_iam-verify/restic-20260923T102052Z/data/d4/d41c3d454f5e15bccf794ff715e89a708d56ee34a10e6ed78fb23f18f18c14ce","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/forge-volsync/_iam-verify/restic-20260923T102052Z/index/090615f757f1b4d4b4b270126e2d2046287bef57c8775bb790e09887538fc77a","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/forge-volsync/_iam-verify/restic-20260923T102052Z/keys/70312c6e0b443a62592a22cf705a0340fdc657acdec300a5679ac465f60dad44","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/forge-volsync/_iam-verify/restic-20260923T102052Z/snapshots/d54f950bb2b062f2c9e59bef854d5c4caf4561985e8ccb070f97615a54268311","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+PASS[P10-cleanup] _iam-verify/ prefix removed
+RAW[I1-listbuckets] rc=0 {"status":"success","type":"folder","lastModified":"2026-09-23T10:20:51.072Z","size":0,"key":"forge-volsync/","etag":"","url":"http://minio.storage.svc.cluster.local:9000/","versionOrdinal":1}
+PASS[I1-listbuckets] no foreign bucket name visible in ListBuckets
+RAW[N-cnpg-backups-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-cnpg-backups-list] list cnpg-backups -> 403 AccessDenied
+RAW[N-cnpg-backups-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/cnpg-backups/_iam-verify-absent-20260923T102102Z`. Object does not exist
+PASS[N-cnpg-backups-get] stat/get key in cnpg-backups -> 403 AccessDenied
+RAW[N-cnpg-backups-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/tmp/tmp.fg5pU9L2F4/small`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/cnpg-backups/_iam-verify-20260923T102102Z`
+PASS[N-cnpg-backups-put] put into cnpg-backups -> 403 AccessDenied
+RAW[N-cnpg-backups-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/cnpg-backups/_iam-verify-absent-20260923T102102Z`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/cnpg-backups/_iam-verify-absent-20260923T102102Z`
+PASS[N-cnpg-backups-rm] delete key in cnpg-backups -> 403 AccessDenied
+RAW[N-volsync-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-volsync-list] list volsync -> 403 AccessDenied
+RAW[N-volsync-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/volsync/_iam-verify-absent-20260923T102102Z`. Object does not exist
+PASS[N-volsync-get] stat/get key in volsync -> 403 AccessDenied
+RAW[N-volsync-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/tmp/tmp.fg5pU9L2F4/small`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/volsync/_iam-verify-20260923T102102Z`
+PASS[N-volsync-put] put into volsync -> 403 AccessDenied
+RAW[N-volsync-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/volsync/_iam-verify-absent-20260923T102102Z`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/volsync/_iam-verify-absent-20260923T102102Z`
+PASS[N-volsync-rm] delete key in volsync -> 403 AccessDenied
+RAW[N-mac-mini-backups-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-mac-mini-backups-list] list mac-mini-backups -> 403 AccessDenied
+RAW[N-mac-mini-backups-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/mac-mini-backups/_iam-verify-absent-20260923T102102Z`. Object does not exist
+PASS[N-mac-mini-backups-get] stat/get key in mac-mini-backups -> 403 AccessDenied
+RAW[N-mac-mini-backups-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/tmp/tmp.fg5pU9L2F4/small`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/mac-mini-backups/_iam-verify-20260923T102102Z`
+PASS[N-mac-mini-backups-put] put into mac-mini-backups -> 403 AccessDenied
+RAW[N-mac-mini-backups-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/mac-mini-backups/_iam-verify-absent-20260923T102102Z`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/mac-mini-backups/_iam-verify-absent-20260923T102102Z`
+PASS[N-mac-mini-backups-rm] delete key in mac-mini-backups -> 403 AccessDenied
+RAW[N-thanos-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-thanos-list] list thanos -> 403 AccessDenied
+RAW[N-thanos-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/thanos/_iam-verify-absent-20260923T102102Z`. Object does not exist
+PASS[N-thanos-get] stat/get key in thanos -> 403 AccessDenied
+RAW[N-thanos-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/tmp/tmp.fg5pU9L2F4/small`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/thanos/_iam-verify-20260923T102102Z`
+PASS[N-thanos-put] put into thanos -> 403 AccessDenied
+RAW[N-thanos-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/thanos/_iam-verify-absent-20260923T102102Z`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/thanos/_iam-verify-absent-20260923T102102Z`
+PASS[N-thanos-rm] delete key in thanos -> 403 AccessDenied
+RAW[N-forge-backups-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-forge-backups-list] list forge-backups -> 403 AccessDenied
+RAW[N-forge-backups-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/forge-backups/_iam-verify-absent-20260923T102102Z`. Object does not exist
+PASS[N-forge-backups-get] stat/get key in forge-backups -> 403 AccessDenied
+RAW[N-forge-backups-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/tmp/tmp.fg5pU9L2F4/small`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/forge-backups/_iam-verify-20260923T102102Z`
+PASS[N-forge-backups-put] put into forge-backups -> 403 AccessDenied
+RAW[N-forge-backups-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/forge-backups/_iam-verify-absent-20260923T102102Z`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/forge-backups/_iam-verify-absent-20260923T102102Z`
+PASS[N-forge-backups-rm] delete key in forge-backups -> 403 AccessDenied
+RAW[N-admin-info] rc=1 http=[403] mc: <ERROR> Unable to get service info. Access Denied.
+PASS[N-admin-info] mc admin info -> 403 AccessDenied
+RAW[N-admin-users] rc=1 http=[403] mc: <ERROR> Unable to list user. Access Denied.
+PASS[N-admin-users] mc admin user list -> 403 AccessDenied
+RAW[N-admin-policies] rc=1 http=[403] mc: <ERROR> Unable to list policy. Access Denied.
+PASS[N-admin-policies] mc admin policy list -> 403 AccessDenied
+RAW[N-mb] rc=1 http=[403] mc: <ERROR> Unable to make bucket `scoped/iam-verify-must-not-exist-1790158866`. Access Denied.
+PASS[N-mb] create a new bucket -> 403 AccessDenied
+VERDICT identity=forge-volsync pass=35 fail=0
+iam-apply: exit=0
+restic-check: exit=0
+verify-forge-pg: exit=0
+verify-forge-volsync: exit=0
+RESULT: Job minio-iam-forge Complete
+── cleanup ──
+cleanup: Job, ConfigMap, ExternalSecret and Secret gone
+
+════════ E4 independent (Heph, 2026-09-23T10:21:27Z) ════════
+$ kubectl -n storage get job,pod,cm,externalsecret,secret | grep minio-iam
+(no minio-iam objects in storage)
+$ hack/minio-iam/run.sh check
+{"status":"success","accessKey":"forge-volsync","policyName":"forge-volsync-rw","userStatus":"enabled"}
+{"status":"success","accessKey":"forge-pg","policyName":"forge-backups-rw","userStatus":"enabled"}
+MinIO IAM: forge identities present
+check exit=0
+Error from server (NotFound): pods "minio-iam-check" not found
