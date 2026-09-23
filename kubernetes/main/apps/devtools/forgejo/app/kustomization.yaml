@@ -7,6 +7,7 @@ resources:
   - ./helmrelease.yaml
   - ./externalsecret.yaml
   - ./volsync.yaml
+  - ./httproute.yaml   # P4-K1
 # NOTE: components/volsync is deliberately NOT used here. See the header of
 # volsync.yaml for why (the shared component hardcodes a bucket that is
 # mirrored off-site to Azure).
