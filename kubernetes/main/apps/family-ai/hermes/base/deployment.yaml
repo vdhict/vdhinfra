@@ -58,9 +58,10 @@ spec:
         - ip: 172.16.2.200
           hostnames: [api.bluejungle.net]
       initContainers:
-        # Copy-ONCE of this profile's config bundle (config.yaml, persona,
-        # skills, plugin) from the SOPS Secret into /opt/data. Never touches
-        # memories/, state.db or sessions/. See seed-once.sh.
+        # Writes this profile's bundle (config.yaml, SOUL.md, plugins/) from
+        # the SOPS Secret into /opt/data on EVERY start (Mack addendum 1 §4:
+        # otherwise the image seeds its all-tools example config). Never
+        # touches memories/, state.db* or sessions/. See seed-once.sh.
         - name: seed-once
           image: docker.io/nousresearch/hermes-agent:v2026.9.24@sha256:fca358f12efd65bfaaca05884166f15c0e2788375ca30d77061ac1ebc96452b7
           command: ["/bin/sh", "/seed/seed-once.sh"]
