@@ -96,6 +96,9 @@ spec:
             - {name: ENABLE_EVALUATION_ARENA_MODELS, value: "false"}
             - {name: ENABLE_CODE_INTERPRETER, value: "false"}
             - {name: ENABLE_CODE_EXECUTION, value: "false"}
+            # Argus R2: the 30-day retention job deletes chats, not uploaded
+            # files; with uploads off nothing outlives the retention window.
+            - {name: USER_PERMISSIONS_CHAT_FILE_UPLOAD, value: "false"}
             # Sander 2026-09-26: 7 days. ONE global setting for ALL users
             # (Open WebUI has no per-user lifetime), so it also applies to the
             # admin and the shared keuken account. It is a PersistentConfig key
