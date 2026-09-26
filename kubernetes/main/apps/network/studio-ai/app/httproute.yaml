@@ -1,8 +1,13 @@
 ---
-# The household AI edge. Two names, one backend, one route.
+# The household AI edge. One name, one backend, one route.
 #
-# chat.bluejungle.net — Open WebUI (Socket.IO, long-lived websocket)
 # api.bluejungle.net  — OpenAI-compatible /v1 (SSE, 2-6 minute generations)
+#
+# chat.bluejungle.net MOVED to family-ai/open-webui (in-cluster Open WebUI,
+# chg-2026-09-26-001 L4). It must not come back here: two routes carrying
+# the same hostname on this listener conflict, and Gateway API resolves the
+# conflict in favour of the OLDER route. The LAN A record is unchanged
+# (still 172.16.2.241); external-dns-unifi re-owns it for the new route.
 #
 # envoy-internal ONLY. Never envoy-external, never the Cloudflare tunnel.
 #
@@ -47,7 +52,7 @@ metadata:
     # record — one future A record there turns every internal name into a
     # public name resolving into RFC1918.
     #
-    # Landing this route without the annotation would add 4 public records
+    # Landing this route without the annotation would add public records
     # advertising that this household runs an LLM API.
     #
     # WHY THE LAN RECORD STILL GETS WRITTEN: external-dns-unifi runs with
@@ -60,7 +65,6 @@ metadata:
     external-dns.alpha.kubernetes.io/controller: none
 spec:
   hostnames:
-    - chat.bluejungle.net
     - api.bluejungle.net
   parentRefs:
     - group: gateway.networking.k8s.io
