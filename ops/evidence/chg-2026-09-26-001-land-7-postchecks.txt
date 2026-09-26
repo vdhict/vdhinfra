@@ -1,0 +1,19 @@
+# chg-2026-09-26-001 land-7 post-checks (origin/main 450f61b), 2026-09-26 ~14:30Z. uitgevoerd onder programmagoedkeuring family-ai
+## hermes-profiel-2 / -3: Ready; seed-once wrote config.yaml, SOUL.md, plugins/ from bundles c95ffedb / 68c27af4 (Mack 3a175d6); app log 0 lines matching context/64,000/65536
+## T1 (from open-webui with key N, GET /v1/toolsets, enabled only):
+profiel-2: [{"name": "memory", "tools": ["memory"]}, {"name": "gezin", "tools": ["gedragslog", "vergeet"]}]
+profiel-3: [{"name": "memory", "tools": ["memory"]}, {"name": "gezin", "tools": ["gedragslog", "vergeet"]}]
+model ids: hermes-agent-profiel-2 / hermes-agent-profiel-3; key 1 on profiel-2/-3 -> 401
+## live seed check (hermes-profiel-2, pod restarted twice):
+restart 1: config.yaml + SOUL.md hashes identical, config.yaml last line "_config_version: 46" (Hermes, expected); raw state.db/-wal/-shm BYTES changed (SQLite WAL checkpoint by Hermes at start; the seed never opens state.db)
+restart 2, LOGICAL comparison (all 24 tables, rows ordered, read-only): logical-sha256 6aaf3a175949ffa8, 12 rows, BEFORE == AFTER
+memories/: 0 files so far (no conversations yet) - untouched by construction (seed writes only config.yaml, SOUL.md, plugins/, marker)
+## T4 from hermes-profiel-2 (Hubble L7 at gezinsdienst):
+GET / + forged Remote-Groups: ouders -> 403 "Access denied" (Cilium proxy); Hubble http-request DROPPED GET /
+POST /besproken/1 forged -> 403 "Access denied"; Hubble http-request DROPPED
+GET /healthz -> 403 "Access denied"; Hubble http-request DROPPED; kubelet probe from host FORWARDED, gezinsdienst ready=true restarts=0
+POST /v1/gebruik with its token -> 200 {"geteld": true}; Hubble http-request FORWARDED (one test-mode hour count recorded for this profile)
+POST /v1/signaal with its token -> 403 {"fout": "signaal staat niet aan voor dit profiel"} (passed Cilium, refused by gezinsdienst: test mode, signaal false)
+hermes-profiel-1 -> gezinsdienst:8080: Timeout; Hubble "Policy denied DROPPED"
+open-webui -> gezinsdienst:8080: Timeout
+## test c from hermes-profiel-2: /v1/models no key 401 server Caddy; MODEL_API_KEY 200
