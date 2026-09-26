@@ -1,0 +1,151 @@
+---
+# Open WebUI v0.11.4 - front-end for the family (Mack, GL-023 §4.2). v0.11.4
+# (not Mack's v0.11.3) because it carries the 2026-09-21 security advisory
+# fixes (Argus A2); every env name below was re-checked in its source.
+#
+# Runs as 0:0 because the image does (image config User "0:0"); the
+# namespace enforces PSA baseline, which admits that. Everything the
+# container does not need is still taken away: no service-account token,
+# no service links, no privilege escalation, runtime-default seccomp.
+#
+# ENV IS MACK'S SPEC VERBATIM, plus the security-review additions marked
+# below. Do not "tidy" it: OPENAI_API_BASE_URLS
+# is read on FIRST start only and then persisted in the DB
+# (ENABLE_PERSISTENT_CONFIG defaults to True in v0.11.4 config.py), so a
+# wrong first value survives every later edit of this file.
+# WEBUI_ADMIN_EMAIL/PASSWORD seed Sander's admin ONLY while the user table
+# is empty (main.py create_admin_user).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: open-webui
+  labels:
+    app.kubernetes.io/name: open-webui
+  annotations:
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 1
+  # RWO PVC + SQLite: never two pods on the data at once.
+  strategy:
+    type: Recreate
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: open-webui
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: open-webui
+        app.kubernetes.io/part-of: family-ai
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        seccompProfile: {type: RuntimeDefault}
+      # ndots 1: absolute names (api.bluejungle.net) are tried as-is FIRST,
+      # so they never fan out into search-domain queries that the Cilium DNS
+      # allow-list in network-policies/ would have to anticipate.
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+      # Sander D5 (v3): talk to Caddy on the Studio DIRECTLY, never through
+      # envoy-internal (removes the SNI/Host fronting exposure,
+      # inc-2026-09-26-001). /etc/hosts wins over DNS, so the URL, the SNI
+      # and the Host header all stay api.bluejungle.net while the packets
+      # go to 172.16.2.200. Egress is pinned to that /32 in network-policies/.
+      hostAliases:
+        - ip: 172.16.2.200
+          hostnames: [api.bluejungle.net]
+      containers:
+        - name: app
+          image: ghcr.io/open-webui/open-webui:v0.11.4@sha256:9591b13f13843c7721c2b8eaf7382846c81b3ffe126526d1888d1fed50c6a33f
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - {name: ENABLE_SIGNUP, value: "false"}
+            - {name: ENABLE_LOGIN_FORM, value: "true"}
+            - {name: DEFAULT_USER_ROLE, value: "pending"}
+            - {name: ENABLE_ADMIN_CHAT_ACCESS, value: "false"}
+            - {name: ENABLE_ADMIN_EXPORT, value: "false"}
+            - {name: ENABLE_COMMUNITY_SHARING, value: "false"}
+            - {name: ENABLE_MESSAGE_RATING, value: "false"}
+            - {name: ENABLE_MEMORIES, value: "false"}
+            - {name: ENABLE_WEB_SEARCH, value: "false"}
+            - {name: ENABLE_OLLAMA_API, value: "false"}
+            - {name: ENABLE_OPENAI_API, value: "true"}
+            - {name: ENABLE_FORWARD_USER_INFO_HEADERS, value: "false"}
+            - {name: BYPASS_MODEL_ACCESS_CONTROL, value: "false"}
+            - {name: USER_PERMISSIONS_CHAT_SHARE, value: "false"}
+            - {name: USER_PERMISSIONS_FEATURES_AUTOMATIONS, value: "false"}
+            - {name: OFFLINE_MODE, value: "true"}
+            - {name: HF_HUB_OFFLINE, value: "1"}
+            - {name: BYPASS_EMBEDDING_AND_RETRIEVAL, value: "true"}
+            - {name: ANONYMIZED_TELEMETRY, value: "false"}
+            - {name: SCARF_NO_ANALYTICS, value: "true"}
+            - {name: DO_NOT_TRACK, value: "true"}
+            - {name: WEBUI_URL, value: "https://chat.bluejungle.net"}
+            # ── added after security review (Argus, chg-2026-09-26-001) ──
+            # B2: /api/v1/analytics/messages returns message CONTENT to the
+            # admin; ENABLE_ADMIN_CHAT_ACCESS=false does not cover it. With
+            # this false, main.py never mounts /api/v1/analytics (404).
+            - {name: ENABLE_ADMIN_ANALYTICS, value: "false"}
+            # A3 (names verified in the v0.11.4 source; ENABLE_API_KEY with
+            # no S does not exist and would silently do nothing)
+            - {name: ENABLE_API_KEYS, value: "false"}
+            - {name: ENABLE_EVALUATION_ARENA_MODELS, value: "false"}
+            - {name: ENABLE_CODE_INTERPRETER, value: "false"}
+            - {name: ENABLE_CODE_EXECUTION, value: "false"}
+            # Sander 2026-09-26: 7 days. ONE global setting for ALL users
+            # (Open WebUI has no per-user lifetime), so it also applies to the
+            # admin and the shared keuken account. It is a PersistentConfig key
+            # (auth.jwt_expiry): read on FIRST start, then the DB wins.
+            - {name: JWT_EXPIRES_IN, value: "7d"}
+            # Trust ONLY Caddy's internal root (studio-ca-configmap.yaml).
+            # SSL_CERT_FILE: OpenSSL default context (aiohttp, urllib, httpx
+            # with trust_env); REQUESTS_CA_BUNDLE: python-requests (certifi
+            # otherwise); CURL_CA_BUNDLE for the test commands.
+            - {name: SSL_CERT_FILE, value: /etc/studio-ca/ca.crt}
+            - {name: REQUESTS_CA_BUNDLE, value: /etc/studio-ca/ca.crt}
+            - {name: CURL_CA_BUNDLE, value: /etc/studio-ca/ca.crt}
+            - name: OPENAI_API_BASE_URLS
+              value: "http://hermes-profiel-1:8642/v1;http://hermes-profiel-2:8642/v1;http://hermes-profiel-3:8642/v1;https://api.bluejungle.net/v1"
+          # WEBUI_SECRET_KEY, WEBUI_ADMIN_EMAIL, WEBUI_ADMIN_PASSWORD,
+          # OPENAI_API_KEYS (4 values, same order as above)
+          envFrom:
+            - secretRef:
+                name: family-ai-openwebui
+          # Argus A4: uid 0 but NO capabilities. Root without DAC_OVERRIDE
+          # still owns (and can write) everything it creates on the PVC.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              memory: 3Gi
+          startupProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 5
+            failureThreshold: 60   # first start runs DB migrations
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 30
+            failureThreshold: 4
+          volumeMounts:
+            - name: data
+              mountPath: /app/backend/data
+            - {name: studio-ca, mountPath: /etc/studio-ca, readOnly: true}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: open-webui-data
+        - name: studio-ca
+          configMap:
+            name: studio-ca

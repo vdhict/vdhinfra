@@ -1,0 +1,83 @@
+---
+# Daily Open WebUI chat retention: chats idle for more than 30 days are
+# deleted (Sander, 2026-09-26). Logic and concurrency reasoning: see
+# chat-retention.py. Runs the SAME Open WebUI image (its own model layer)
+# against the SAME PVC, on the SAME node as the running app.
+#
+# Retention boundary, stated plainly: VolSync keeps restic snapshots of the
+# PVC for ~28 days (+ up to 7 days prune lag), so a deleted chat can still
+# exist in a backup for about 5 weeks after deletion.
+#
+# No network at all: network-policies/chat-retention.yaml (no ingress, no
+# egress, no DNS). OFFLINE_MODE as in the app.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: open-webui-chat-retention
+spec:
+  schedule: "10 4 * * *"          # 04:10, quiet hours; VolSync for open-webui runs at :20
+  timeZone: Europe/Amsterdam
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 900  # also ends a Job stuck Pending (app not running)
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: open-webui-chat-retention
+            app.kubernetes.io/part-of: family-ai
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          securityContext:
+            seccompProfile: {type: RuntimeDefault}
+          # SAME NODE as the app: required for SQLite WAL across processes
+          # and for mounting the RWO volume while the app holds it.
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/name: open-webui
+                  topologyKey: kubernetes.io/hostname
+          containers:
+            - name: retention
+              image: ghcr.io/open-webui/open-webui:v0.11.4@sha256:9591b13f13843c7721c2b8eaf7382846c81b3ffe126526d1888d1fed50c6a33f
+              workingDir: /app/backend
+              command: ["python", "/retention/chat-retention.py"]
+              env:
+                - {name: RETENTION_DAYS, value: "30"}
+                - {name: RETENTION_DRY_RUN, value: "false"}
+                - {name: DATA_DIR, value: /app/backend/data}
+                - {name: DATABASE_SQLITE_PRAGMA_BUSY_TIMEOUT, value: "30000"}
+                - {name: ENABLE_DB_MIGRATIONS, value: "false"}
+                - {name: OFFLINE_MODE, value: "true"}
+                - {name: HF_HUB_OFFLINE, value: "1"}
+                # env.py refuses to import without it; ONLY this key from the
+                # Secret (no admin credentials, no API keys in this pod).
+                - name: WEBUI_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef: {name: family-ai-openwebui, key: WEBUI_SECRET_KEY}
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]      # uid 0 = owner of webui.db (and -wal/-shm)
+              resources:
+                requests: {cpu: 50m, memory: 256Mi}
+                limits: {memory: 1Gi}
+              volumeMounts:
+                - {name: data, mountPath: /app/backend/data}
+                - {name: retention, mountPath: /retention, readOnly: true}
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: open-webui-data
+            - name: retention
+              configMap:
+                name: open-webui-chat-retention
