@@ -37,22 +37,27 @@ spec:
     # open-webui pod terminates TLS for auth.bluejungle.net (hostAlias ->
     # 127.0.0.1, private CA) and forwards plain HTTP to the Authelia pods
     # with Host auth.bluejungle.net + X-Forwarded-Proto https, so the issuer
-    # stays https://auth.bluejungle.net (measured 2026-09-26). Plain HTTP
-    # makes an L7 allow-list possible: ONLY these four calls, from ANY
-    # container in the pod - the app cannot reach Authelia's login, authz
-    # or admin endpoints this way.
+    # stays https://auth.bluejungle.net. nginx in the sidecar is the path
+    # allow-list (the four OIDC calls, everything else 404).
+    #
+    # ⚠ THIS EDGE IS DELIBERATELY L4 (Argus option A, chg-2026-09-26-001).
+    # A Cilium L7 `rules.http` block here sends the request through Cilium's
+    # embedded Envoy, which OVERWRITES X-Forwarded-Proto; Authelia then
+    # cannot derive the https issuer and answers 500. Measured on land-2
+    # (2026-09-26 12:58Z): Hubble http-request FORWARDED -> http-response 500
+    # for every header variant; the same request from an un-policed pod: 200
+    # + correct issuer. Do NOT re-add L7 here without a tested fix for that.
+    # Scope: the Authelia POD selector and TCP 8888 only - not the metrics
+    # port 8080, not the rest of the security namespace. Residual (accepted
+    # by Argus): the app container can reach other Authelia HTTP paths
+    # in-cluster, the same endpoints the LAN reaches via auth.bluejungle.net.
     - toEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: security
             app.kubernetes.io/name: authelia
+            app.kubernetes.io/component: authelia
       toPorts:
         - ports: [{port: "8888", protocol: TCP}]
-          rules:
-            http:
-              - {method: GET, path: "/\\.well-known/openid-configuration"}
-              - {method: GET, path: "/jwks\\.json"}
-              - {method: POST, path: "/api/oidc/token"}
-              - {method: "GET|POST", path: "/api/oidc/userinfo"}
     - toEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: kube-system
