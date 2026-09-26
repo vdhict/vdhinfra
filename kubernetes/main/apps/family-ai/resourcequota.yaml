@@ -1,0 +1,40 @@
+---
+# Quota for family-ai, sized from measured headroom (Heph, M-a, 2026-09-26):
+#   workers  3 x 7950m CPU / ~60GiB allocatable
+#            requests: node01 53% cpu / 53% mem, node02 51% / 23%,
+#                      node03 66% / 31%
+#            limits:   node01 88% mem, node03 101% cpu (already overcommitted)
+#   control plane is tainted NoSchedule - workers only.
+#   ceph-blockpool replicated size 3 / min_size 2, failure domain host;
+#            MAX AVAIL 809 GiB (ceph df)
+#
+# Steady-state footprint (Mack's spec):
+#   open-webui     250m / 1Gi    limit 3Gi
+#   hermes x3      100m / 384Mi  limit 1.5Gi each
+#   gezinsdienst    20m / 64Mi   limit 256Mi
+#   => 570m / 2.2Gi requested, 7.75Gi memory limit
+# plus 4 VolSync movers (staggered schedule, 50m / 256Mi, limit 1Gi each)
+# and init containers (only during start).
+#
+# limits.cpu is deliberately NOT quoted (CFS throttling on a chat backend
+# helps nobody; see devtools/resourcequota.yaml for the same reasoning).
+# `namespace:` is explicit: cluster-apps sets no targetNamespace.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: family-ai
+  namespace: family-ai
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 6Gi
+    limits.memory: 14Gi
+    pods: "16"
+    persistentvolumeclaims: "16"
+    # PVCs 10 + 3x5 + 1 = 26Gi; VolSync snapshot clones of the 4 backed-up
+    # PVCs add 25Gi while a mover runs. Caches are on openebs-hostpath but
+    # still count here (4 x 2Gi).
+    requests.storage: 80Gi
+    # Nothing in family-ai is exposed except through envoy-internal.
+    services.loadbalancers: "0"
+    services.nodeports: "0"

@@ -1,0 +1,40 @@
+---
+# Caddy's internal root CA on the Mac Studio (172.16.2.200) - the ONLY
+# trust anchor family-ai pods get (chg-2026-09-26-001 v3, Sander D5).
+#
+# Hermes and Open WebUI talk DIRECTLY to Caddy on 172.16.2.200:443 (hostAlias
+# api.bluejungle.net), not through envoy-internal. Caddy runs `tls internal`:
+# its leaves are 12-hour certificates from "Caddy Local Authority - ECC
+# Intermediate", chaining to this root. Measured 2026-09-26 07:13Z from a
+# throwaway pod and from the LAN: SNI api.bluejungle.net -> SAN matched,
+# verify=0, HTTP 401 with this file; http 000 (verify failure) with the
+# system store. It is a PUBLIC certificate, not a secret.
+#
+# Byte-identical copy of network/caddy-studio-ca (studio-ai), provenance
+# recorded there: file sha256 b5a5113b4e9fd3976e33941d4379f74de2d86129cfc1e08cccad19fce6edb414,
+# self-signed root, CA:TRUE pathlen:1, valid 2026-09-21 -> 2036-07-30.
+# Pin the ROOT, never a leaf. If Mack ever regenerates Caddy's CA, BOTH
+# copies must be replaced in the same commit.
+#
+# Mounted as the pods' ONLY CA bundle (SSL_CERT_FILE / REQUESTS_CA_BUNDLE):
+# they trust the Studio and nothing else, which matches their egress.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: studio-ca
+  namespace: family-ai
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+data:
+  ca.crt: |
+    -----BEGIN CERTIFICATE-----
+    MIIBpDCCAUmgAwIBAgIQA+td1G0/WItccXY1kpFpVjAKBggqhkjOPQQDAjAwMS4w
+    LAYDVQQDEyVDYWRkeSBMb2NhbCBBdXRob3JpdHkgLSAyMDI2IEVDQyBSb290MB4X
+    DTI2MDkyMTA5NTUwOVoXDTM2MDczMDA5NTUwOVowMDEuMCwGA1UEAxMlQ2FkZHkg
+    TG9jYWwgQXV0aG9yaXR5IC0gMjAyNiBFQ0MgUm9vdDBZMBMGByqGSM49AgEGCCqG
+    SM49AwEHA0IABDeK6QI4hWa5IWsc1vLbEranumCafTTCt3K6OxpA3ZW496ywg4HV
+    bslgKmKcMxX77p8Yu1lvfCjMudYUKMm35HejRTBDMA4GA1UdDwEB/wQEAwIBBjAS
+    BgNVHRMBAf8ECDAGAQH/AgEBMB0GA1UdDgQWBBQIRJ6ovmRLcVzffZ04l90HMLLk
+    VjAKBggqhkjOPQQDAgNJADBGAiEAyN1bVCaoJIyasvKe956sz5qJffUwDsfel5B2
+    4ExC1QQCIQC1UheTj+sdI5yIWE6jeIxhKqjA2G03mu2pcitoYkZVIA==
+    -----END CERTIFICATE-----
