@@ -1,0 +1,24 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+# hermes-profiel-1. Every name from ../base gets the suffix -1.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+nameSuffix: "-1"
+labels:
+  - pairs:
+      app.kubernetes.io/instance: hermes-profiel-1
+    includeSelectors: true
+    includeTemplates: true
+resources:
+  - ../base
+  - ./externalsecret.yaml
+  - ./bundle.sops.yaml
+  - ./volsync.yaml
+patches:
+  # The Secret named here is written by ESO, not by kustomize, so kustomize
+  # cannot rename the reference itself. Pin it to the ExternalSecret target.
+  - target: {kind: Deployment, name: hermes-profiel}
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/envFrom/0/secretRef/name
+        value: family-ai-hermes-profiel-1
