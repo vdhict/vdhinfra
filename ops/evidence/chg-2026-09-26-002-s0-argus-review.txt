@@ -1,0 +1,66 @@
+# chg-2026-09-26-002 S0 security review + inc-2026-09-26-001 code-server activity check - security-engineer (Argus), 2026-09-26T08:09:20Z
+# Read-only. No secret values.
+
+## F1 envoy-internal access log, every hass-code request in the last 3h (both envoy-internal pods)
+2026-09-26T06:13:54.724Z 172.16.2.86 hass-code.bluejungle.net GET / 302 curl/8.7.1
+2026-09-26T06:13:54.942Z 172.16.2.86 hass-code.bluejungle.net GET / 302 curl/8.7.1
+2026-09-26T06:14:03.421Z 172.16.2.86 hass-code.bluejungle.net GET /?folder=/config 200 curl/8.7.1
+2026-09-26T06:14:03.445Z 172.16.2.86 hass-code.bluejungle.net GET /?folder=/config 200 curl/8.7.1
+2026-09-26T06:14:06.536Z 172.16.2.86 hass-code.bluejungle.net GET /?folder=/config 200 curl/8.7.1
+2026-09-26T06:23:19.624Z 172.16.2.86 hass-code.bluejungle.net GET / 302 curl/8.7.1
+2026-09-26T06:23:19.639Z 172.16.2.86 hass-code.bluejungle.net GET /?folder=/config 200 curl/8.7.1
+local probe client: curl 8.7.1 (vdhmini01); 172.16.2.86 = L2-announcing node (Cilium SNAT), not the client
+
+## F2 code-server state (container code-server, read-only)
+2026-09-26 06:23:19.636889351 +0000 /config/.vscode/coder.json
+2026-09-26 06:13:54.911548983 +0000 /config/.vscode/logs/20260926T061354
+2026-09-26 06:13:54.911548983 +0000 /config/.vscode/logs/20260926T061354/mcpGateway.log
+2026-09-26 06:13:54.906302414 +0000 /config/.vscode/logs/20260926T061354/remoteTelemetry.log
+2026-09-26 06:13:54.934302729 +0000 /config/.vscode/logs/20260926T061354/remoteagent.log
+process start:
+      1 Thu Sep  3 02:01:44 2026 dumb-init /usr/bin/code-server --bind-addr 0.0.0.0:8080 . [args trimmed]
+log dirs:
+20260406T042438
+20260502T095405
+20260505T112505
+20260808T051135
+20260829T224035
+20260926T061354
+remoteagent.log non-stacktrace lines:
+2026-09-26 06:13:54.886 [info] 
+2026-09-26 06:13:54.895 [info] [AgentHostChannel] Registered lazy IPC channel 'agentHostProxy' (upstream: /tmp/vscode-ipc-604bc213-57f9-44a5-a74f-e8287311f3a9.sock)
+2026-09-26 06:13:54.897 [info] Extension host agent started.
+connection/exthost/terminal lines: 0
+
+## F3 /config files modified since 2026-09-25T22:00Z (excluding HA db, logs, .cache, tts, backups)
+./.cloud/production_auth.json
+./.vscode/coder.json
+.storage:
+afvalbeheer.bar_2993ca_14__auth auto_backup.snapshots_expiry backup bluetooth.passive_update_processor core.config_entries core.entity_registry core.restore_state google.01JJRCC20STCDYWT0K86SCC585 library.json 
+auth stores modified today: 0
+
+## F4 non-Envoy listeners (HA pod app container sockets, TCP LISTEN)
+tcp 1400 510210AC
+tcp 8123 00000000
+tcp 18554 0100007F
+tcp6 8123 00000000000000000000000000000000
+tcp6 18555 00000000000000000000000000000000
+172.16.2.81:1400   -> 405 server=Python/3.14 aiohttp/3.14.3
+172.16.2.81:18555  -> 000 server=
+172.16.2.81:8123   -> 200 server=
+172.16.2.81:12321  -> 302 server=
+172.16.2.81:8080   -> 000 server=
+esphome container sockets: tcp 6052 00000000;tcp 6055 00000000;
+esphome-device-builder 1.13.1 (PyPI wheel): helpers/auth.py _PUBLIC_PATHS / /ws /favicon.ico /manifest.json /version /api/firmware/download /api/devices/import_bundle; rate limit 10 fails/5 min/IP; session TTL 30 d sliding; trusted site only with --ha-addon (not used: cmdline 'esphome-device-builder /config'); :6055 remote-build peer-link = Noise XX + receiver pair-approval dialog (in the dashboard UI).
+
+## F5 other LAN-reachable admin surfaces (unauthenticated GETs from vdhmini01)
+music-assistant LB 172.16.2.238:8095 /info: server_version 2.10.1 onboard_done False
+ceph dashboard 172.16.2.83:7000 /api/summary -> 401
+radarr /initialize.json (via envoy) apiKey served unauthenticated: True
+zigbee2mqtt / (via envoy) -> 200
+zwave / (via envoy) -> 200
+evcc /api/state (via envoy) -> 200
+qbittorrent / -> 500 (empty body, no server header = Envoy-generated)
+readarr / -> 500 (empty body, no server header = Envoy-generated)
+pgadmin / -> 500 (empty body, no server header = Envoy-generated)
+calibre / -> 500 (empty body, no server header = Envoy-generated)
