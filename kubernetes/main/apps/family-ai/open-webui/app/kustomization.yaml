@@ -1,0 +1,22 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./externalsecret.yaml
+  - ./pvc.yaml
+  - ./deployment.yaml
+  - ./service.yaml
+  - ./volsync.yaml
+  - ./chat-retention.yaml
+configMapGenerator:
+  - name: open-webui-chat-retention
+    files:
+      - ./chat-retention.py
+generatorOptions:
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+# The HTTPRoute for chat.bluejungle.net is in ../route and lands in step L4
+# together with the removal of chat from network/studio-ai (two routes with
+# the same hostname on one listener would conflict; Gateway API gives the
+# OLDER route precedence, so the new one would silently lose).

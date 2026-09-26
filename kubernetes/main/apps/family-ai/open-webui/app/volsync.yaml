@@ -1,0 +1,86 @@
+---
+# ON-PREM backup, by Sander's decision (chg-2026-09-26-001), NOT the shared
+# components/volsync: that component writes to s3://volsync, which
+# storage/minio-offsite-mirror rclone-syncs to Azure every night (04:30).
+# family-ai data (children's conversations) stays on the Synology.
+#
+# Bucket family-ai-volsync is pre-created by hack/minio-iam (IAM_SET=
+# family-ai) and is NOT in the mirror's bucket loop. Identity: the scoped
+# MinIO user `family-ai-volsync` (policy family-ai-volsync-rw, this bucket
+# only) - never MinIO root, never the `minio` item.
+#
+# 1Password item "minio-family-ai-volsync" (vault home-infra):
+#   ACCESS_KEY = family-ai-volsync   SECRET_KEY (40 alnum)   RESTIC_PASSWORD
+# RESTIC_PASSWORD is shared by the four family-ai repos and by nothing else.
+# Lose it and every family-ai backup is unrecoverable (add to DR assets).
+#
+# CONSEQUENCE: no off-site copy. A fire that takes the rack takes the
+# Synology and these backups with it (same accepted posture as the forge,
+# ar-002).
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: open-webui-volsync
+spec:
+  refreshInterval: 12h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword-connect
+  target:
+    name: open-webui-volsync-secret
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        RESTIC_REPOSITORY: s3:http://minio.storage.svc.cluster.local:9000/family-ai-volsync/open-webui
+        RESTIC_PASSWORD: "{{ .RESTIC_PASSWORD }}"
+        AWS_ACCESS_KEY_ID: "{{ .ACCESS_KEY }}"
+        AWS_SECRET_ACCESS_KEY: "{{ .SECRET_KEY }}"
+  data:
+    - secretKey: ACCESS_KEY
+      remoteRef: {key: minio-family-ai-volsync, property: ACCESS_KEY}
+    - secretKey: SECRET_KEY
+      remoteRef: {key: minio-family-ai-volsync, property: SECRET_KEY}
+    - secretKey: RESTIC_PASSWORD
+      remoteRef: {key: minio-family-ai-volsync, property: RESTIC_PASSWORD}
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/volsync.backube/replicationsource_v1alpha1.json
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationSource
+metadata:
+  name: open-webui
+spec:
+  sourcePVC: open-webui-data
+  trigger:
+    # :20 - staggered from the estate's :00 sources, forgejo :15 and the
+    # three hermes profiles (:25/:30/:35) so no two family-ai movers overlap.
+    schedule: 20 * * * *
+  restic:
+    copyMethod: Snapshot
+    accessModes: [ReadWriteOnce]
+    cacheAccessModes: [ReadWriteOnce]
+    cacheCapacity: 2Gi
+    cacheStorageClassName: openebs-hostpath
+    storageClassName: rook-ceph-block
+    volumeSnapshotClassName: csi-ceph-blockpool
+    # The data is written by uid 0 (the image runs as 0:0). The mover runs
+    # with ALL capabilities dropped, so only the owning uid can read 0600
+    # files - hence 0 here, which PSA baseline admits.
+    moverSecurityContext:
+      runAsUser: 0
+      runAsGroup: 0
+      fsGroup: 0
+    # Selected by network-policies/ (egress to MinIO only).
+    moverPodLabels:
+      family-ai/role: volsync-mover
+    moverResources:
+      requests: {cpu: 50m, memory: 256Mi}
+      limits: {memory: 1Gi}
+    repository: open-webui-volsync-secret
+    # ≤ ~30 days of history, in line with Sander's 30-day decision for
+    # conversation copies: 24 hourly + 7 daily + 3 weekly.
+    retain:
+      hourly: 24
+      daily: 7
+      weekly: 3
+    pruneIntervalDays: 7

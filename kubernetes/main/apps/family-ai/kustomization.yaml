@@ -19,3 +19,4 @@ resources:
   - ./runtime-configmap.yaml
   - ./studio-ca-configmap.yaml
   - ./network-policies/install.yaml
+  - ./open-webui/install.yaml
