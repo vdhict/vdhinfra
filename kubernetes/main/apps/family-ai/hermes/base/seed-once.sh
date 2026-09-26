@@ -1,27 +1,31 @@
 #!/bin/sh
-# Copy-ONCE of a Hermes profile's config bundle into /opt/data
-# (chg-2026-09-26-001). Runs as UID 10000 (hermes) in an init container,
-# with no capabilities.
+# Write a Hermes profile's config bundle into /opt/data on EVERY start
+# (chg-2026-09-26-001 v4, Mack addendum 1 §4: "our files are leading").
+# Runs as UID 10000 (hermes) in an init container, with no capabilities.
+# (File name kept for history; it is no longer copy-once.)
+#
+# Why every start: if config.yaml is ever missing, the image seeds its
+# EXAMPLE config with ALL tools enabled (docker/stage2-hook.sh:443-456,
+# v2026.9.24). Rewriting ours before every start closes that door, and a
+# bundle update applies on the next restart instead of silently not at all.
 #
 #   /bundle/bundle.tar.gz          the profile bundle (Mack), from the SOPS
 #   /bundle/bundle.tar.gz.sha256   Secret built by hack/family-ai/build-bundle.sh
 #   inside the tarball: SHA256SUMS  per-file checksums
 #
-# FAIL-CLOSED on every start (before anything else):
-#   * FAMILY_LLM_MODEL empty or still a __MACK_* placeholder (Themis B4):
-#     Hermes would otherwise start, pass its TCP probes and fail every chat.
-#   * the bundle is still the PLACEHOLDER Secret.
-# Then, only on the FIRST start:
-#   * both checksums verified BEFORE extraction;
-#   * tar members listed with -tv BEFORE extraction: only regular files and
-#     directories (no symlinks 'l', no hardlinks 'h', no devices), and only
-#     paths on the allow-list config.yaml | SOUL.md | SHA256SUMS |
-#     plugins/** | skills/** (Argus A8). No absolute paths, no '..';
-#   * never overwrite anything already in /opt/data (cp -n) - memories/,
-#     state.db and sessions/ are the child's own state and are never on the
-#     allow-list anyway;
-#   * /opt/data/.family-ai-seeded (bundle sha256) is written last. Re-seeding
-#     is a deliberate, recorded act: delete the marker.
+# FAIL-CLOSED, before anything is written:
+#   * FAMILY_LLM_MODEL empty or still a __MACK_* placeholder (Themis B4);
+#   * the bundle is still the PLACEHOLDER Secret;
+#   * outer sha256 mismatch;
+#   * any tar member that is not a regular file or directory (symlink 'l',
+#     hardlink 'h', device ...) or not on the allow-list
+#     config.yaml | SOUL.md | SHA256SUMS | plugins/** (Argus A8) - listed
+#     with -tv BEFORE extraction; absolute paths and '..' refused;
+#   * per-file SHA256SUMS mismatch after extraction into a temp dir.
+# Then it writes EXACTLY: config.yaml, SOUL.md (overwrite) and plugins/
+# (replaced as a whole, so a plugin removed from the bundle is removed from
+# the profile). It NEVER touches memories/, state.db*, sessions/ or
+# anything else in /opt/data.
 set -eu
 DATA="${SEED_DATA:-/opt/data}"   # overridable for the offline test only
 B="${SEED_BUNDLE:-/bundle}"
@@ -42,16 +46,6 @@ got=$(sha256sum "$B/bundle.tar.gz" | cut -d' ' -f1)
 [ "$want" = "$got" ] || fatal "bundle sha256 mismatch (want $want, got $got)"
 echo "seed-once: model set, bundle sha256 $got verified"
 
-if [ -e "$MARK" ]; then
-  had=$(cat "$MARK")
-  if [ "$had" = "$got" ]; then
-    echo "seed-once: already seeded with this bundle - nothing to do"
-  else
-    echo "seed-once: NOTE already seeded with $had; the mounted bundle ($got) is NOT applied (copy-once). Delete $MARK to re-seed."
-  fi
-  exit 0
-fi
-
 # Member types and names, BEFORE extraction. GNU tar -tv: first column is
 # the mode string; its first character is the type ('-' file, 'd' dir,
 # 'l' symlink, 'h' hardlink, 'c'/'b' device, 'p' fifo).
@@ -71,7 +65,7 @@ while IFS= read -r p; do
   q=${p#./}
   case "$q" in
     config.yaml|SOUL.md|SHA256SUMS) ;;
-    plugins|plugins/|plugins/*|skills|skills/|skills/*) ;;
+    plugins|plugins/|plugins/*) ;;
     *) fatal "bundle member not on the allow-list: $q" ;;
   esac
   case "/$q/" in
@@ -86,7 +80,19 @@ tar -xzf "$B/bundle.tar.gz" -C "$T" --no-same-owner --no-same-permissions
 echo "seed-once: per-file SHA256SUMS verified ($(wc -l < "$T/SHA256SUMS") files)"
 rm -f "$T/SHA256SUMS"
 
-cp -Rn "$T"/. "$DATA"/
+# Write: files via temp + rename (never a half-written config), plugins/
+# replaced as a whole.
+for f in config.yaml SOUL.md; do
+  [ -f "$T/$f" ] || fatal "bundle has no $f"
+  cp "$T/$f" "$DATA/.$f.new" && mv -f "$DATA/.$f.new" "$DATA/$f"
+done
+rm -rf "$DATA/.plugins.new" "$DATA/.plugins.old"
+if [ -d "$T/plugins" ]; then
+  cp -R "$T/plugins" "$DATA/.plugins.new"
+fi
+if [ -e "$DATA/plugins" ]; then mv "$DATA/plugins" "$DATA/.plugins.old"; fi
+if [ -d "$DATA/.plugins.new" ]; then mv "$DATA/.plugins.new" "$DATA/plugins"; fi
+rm -rf "$DATA/.plugins.old"
 rm -rf "$T" /tmp/seed-list /tmp/seed-types
-printf '%s\n' "$got" > "$MARK.tmp" && mv "$MARK.tmp" "$MARK"
-echo "seed-once: seeded /opt/data from bundle $got"
+printf '%s\n' "$got" > "$MARK.tmp" && mv "$MARK.tmp" "$MARK"   # informational: last bundle written
+echo "seed-once: wrote config.yaml, SOUL.md, plugins/ from bundle $got"

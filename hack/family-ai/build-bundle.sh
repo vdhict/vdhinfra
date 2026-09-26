@@ -9,7 +9,7 @@
 # is verified in full first; a delivery carrying VERVANGEN.txt (superseded)
 # is refused.
 #
-# ALLOW-LIST (Argus A8): only config.yaml, SOUL.md, plugins/** and skills/**
+# ALLOW-LIST (Argus A8): only config.yaml, SOUL.md and plugins/**
 # from profiel-<n>/ are shipped. Refused anywhere: .env, auth.json, state
 # (memories/, state.db*, sessions/), symlinks, anything outside the list.
 # The seed-once init container re-checks all of this in the pod BEFORE it
@@ -34,7 +34,7 @@ while IFS= read -r f; do
   case "$f" in
     *" "*) die "file name with space: refused" ;;
     .env|*/.env|auth.json|*/auth.json) die "refused: $f" ;;
-    config.yaml|SOUL.md|plugins/*|skills/*) ;;
+    config.yaml|SOUL.md|plugins/*) ;;
     *) die "not on the allow-list: $f" ;;
   esac
 done <<<"$files"
@@ -60,7 +60,7 @@ cat > "$TMP/bundle.sops.yaml" <<YAML
 ---
 # Config bundle for hermes-profiel-$N (Mack's delivery $(basename "$SRC")), built by
 # hack/family-ai/build-bundle.sh. bundle.tar.gz sha256 $S.
-# Copied ONCE into /opt/data by the seed-once init container.
+# Written into /opt/data on EVERY start by the seed-once init container.
 apiVersion: v1
 kind: Secret
 metadata:

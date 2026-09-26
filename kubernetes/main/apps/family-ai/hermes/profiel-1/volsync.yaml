@@ -56,10 +56,9 @@ spec:
       requests: {cpu: 50m, memory: 256Mi}
       limits: {memory: 1Gi}
     repository: hermes-profiel-1-volsync-secret
-    # ≤ ~30 days (Sander: Hermes keeps conversation copies 30 days; a longer
-    # backup tail would quietly outlive that decision).
+    # 7 days in-house, as promised in the family-facing text (Mack
+    # addendum 2 §5): 24 hourly + 7 daily, NO weekly.
     retain:
       hourly: 24
       daily: 7
-      weekly: 3
     pruneIntervalDays: 7
