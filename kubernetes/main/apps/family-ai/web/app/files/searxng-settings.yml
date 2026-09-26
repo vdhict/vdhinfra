@@ -8,6 +8,8 @@ use_default_settings:
       - brave
 general:
   instance_name: family-ai
+  # never debug: debug mode logs every engine request with its query
+  debug: false
   enable_metrics: false
 server:
   # secret_key comes from env SEARXNG_SECRET (ESO Password generator)
@@ -25,6 +27,11 @@ search:
   safe_search: 2
   autocomplete: ""
   formats: [html, json]
+# NO plugins (the user list REPLACES the defaults). In particular not
+# tracker_url_remover: its init downloads the ClearURLs rules from the
+# internet (not via our proxy -> fails + log noise); results go to an agent,
+# not a browser, so there is nothing for it to protect.
+plugins: {}
 preferences:
   lock:
     - safesearch
