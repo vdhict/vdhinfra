@@ -1,0 +1,243 @@
+# chg-2026-09-26-001 MinIO IAM family-ai - uitgevoerd onder programmagoedkeuring family-ai (approved event 2026-09-26T06:15:16Z; gates qa_passed 07:28:36Z Argus / 07:30:08Z Themis). Operator: k8s-engineer. Lock storage.minio held.
+## E1 pre-state (read-only check, IAM_SET=family-ai)
+{"status":"success","accessKey":"forge-pg","policyName":"forge-backups-rw","userStatus":"enabled"}
+{"status":"success","accessKey":"forge-volsync","policyName":"forge-volsync-rw","userStatus":"enabled"}
+MISSING: "accessKey":"family-ai-volsync","policyName":"family-ai-volsync-rw","userStatus":"enabled"
+MinIO IAM: family-ai identities MISSING - run: IAM_SET=family-ai hack/minio-iam/run.sh apply <evidence-file>
+
+## E2-E4 apply (server dry-run, ExternalSecret, Job: iam-apply, restic-check, verify)
+# minio-iam run.sh apply  set=family-ai  2026-09-26T07:53:27Z  context=admin@vdhinfra-local
+# git: a3f1117  rendered sha256: 7a9f8a7c4b615155
+── server-side dry-run ──
+configmap/minio-iam-family-ai-scripts created (server dry run)
+job.batch/minio-iam-family-ai created (server dry run)
+externalsecret.external-secrets.io/minio-iam-family-ai created (server dry run)
+── ExternalSecret ──
+externalsecret.external-secrets.io/minio-iam-family-ai created
+externalsecret.external-secrets.io/minio-iam-family-ai condition met
+── Job (apply) ──
+configmap/minio-iam-family-ai-scripts created
+job.batch/minio-iam-family-ai created
+════════ container iam-apply ════════
+── server reachable as root (admin info ok) ──
+── IAM inventory (before) ──
+  user: {"status":"success","accessKey":"forge-pg","policyName":"forge-backups-rw","userStatus":"enabled"}
+  user: {"status":"success","accessKey":"forge-volsync","policyName":"forge-volsync-rw","userStatus":"enabled"}
+  policy: {"status":"success","policy":"forge-backups-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"forge-volsync-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"readonly","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"readwrite","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"writeonly","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"consoleAdmin","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"diagnostics","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+── identity family-ai-volsync -> policy family-ai-volsync-rw -> bucket family-ai-volsync ──
+  $ mc mb --ignore-existing root/family-ai-volsync -> rc=0 {"status":"success","bucket":"root/family-ai-volsync","region":""}
+  $ mc admin policy create root family-ai-volsync-rw /iam/family-ai-volsync-rw.json -> rc=0 {"status":"success","policy":"family-ai-volsync-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  user family-ai-volsync present (secret set from 1Password, not printed)
+  $ mc admin policy attach root family-ai-volsync-rw --user family-ai-volsync -> rc=0 {"status":"success","policiesAttached":["family-ai-volsync-rw"],"user":"family-ai-volsync"}
+  POSTCHECK OK: family-ai-volsync policyName=family-ai-volsync-rw userStatus=enabled
+── IAM inventory (after) ──
+  user: {"status":"success","accessKey":"forge-volsync","policyName":"forge-volsync-rw","userStatus":"enabled"}
+  user: {"status":"success","accessKey":"family-ai-volsync","policyName":"family-ai-volsync-rw","userStatus":"enabled"}
+  user: {"status":"success","accessKey":"forge-pg","policyName":"forge-backups-rw","userStatus":"enabled"}
+  policy: {"status":"success","policy":"readwrite","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"writeonly","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"consoleAdmin","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"diagnostics","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"family-ai-volsync-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"forge-backups-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"forge-volsync-rw","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+  policy: {"status":"success","policy":"readonly","policyInfo":{"PolicyName":"","Policy":null},"isGroup":false}
+APPLY: OK
+════════ container restic-check ════════
+root-isolation: /tmp/mc-apply absent
+identity=family-ai-volsync repo=s3:http://minio.storage.svc.cluster.local:9000/family-ai-volsync/_iam-verify/restic-20260926T075330Z
+restic 0.18.0 compiled with go1.23.12 on linux/amd64
+RAW[R1-catconfig] rc=10 restic cat config
+    Fatal: repository does not exist: unable to open config file: Stat: The specified key does not exist.
+    Is there a repository at the following location?
+    s3:http://minio.storage.svc.cluster.local:9000/family-ai-volsync/_iam-verify/restic-20260926T075330Z
+PASS[R1-catconfig] rc=10
+RAW[R2-init] rc=0 restic init
+    created restic repository 5e0c91cf68 at s3:http://minio.storage.svc.cluster.local:9000/family-ai-volsync/_iam-verify/restic-20260926T075330Z
+    
+    Please note that knowledge of your password is required to access
+    the repository. Losing your password means that your data is
+    irrecoverably lost.
+PASS[R2-init] rc=0
+RAW[R3-backup1] rc=0 restic backup --host volsync --exclude=lost+found .
+    Files:           2 new,     0 changed,     0 unmodified
+    Dirs:            1 new,     0 changed,     0 unmodified
+    Added to the repository: 24.002 MiB (24.004 MiB stored)
+    
+    processed 2 files, 24.000 MiB in 0:01
+    snapshot 440b323f saved
+PASS[R3-backup1] rc=0
+RAW[R4-backup2] rc=0 restic backup --host volsync --exclude=lost+found .
+    Files:           0 new,     1 changed,     1 unmodified
+    Dirs:            0 new,     1 changed,     0 unmodified
+    Added to the repository: 2.573 KiB (1.601 KiB stored)
+    
+    processed 2 files, 24.000 MiB in 0:00
+    snapshot d614447c saved
+PASS[R4-backup2] rc=0
+RAW[R5-snapshots] rc=0 restic snapshots
+    ID        Time                 Host        Tags        Paths                     Size
+    -------------------------------------------------------------------------------------------
+    440b323f  2026-09-26 07:53:32  volsync                 /tmp/tmp.3E4Y3aR9JZ/data  24.000 MiB
+    d614447c  2026-09-26 07:53:33  volsync                 /tmp/tmp.3E4Y3aR9JZ/data  24.000 MiB
+    -------------------------------------------------------------------------------------------
+    2 snapshots
+PASS[R5-snapshots] rc=0
+RAW[R6-forget] rc=0 restic forget --host volsync --keep-last 1
+    -------------------------------------------------------------------------------------------
+    440b323f  2026-09-26 07:53:32  volsync                 /tmp/tmp.3E4Y3aR9JZ/data  24.000 MiB
+    -------------------------------------------------------------------------------------------
+    1 snapshots
+    
+    [0:00] 100.00%  1 / 1 files deleted
+PASS[R6-forget] rc=0
+RAW[R6b-prune] rc=0 restic prune
+    rebuilding index
+    [0:00] 100.00%  2 / 2 indexes processed
+    [0:00] 100.00%  2 / 2 old indexes deleted
+    removing 1 old packs
+    [0:00] 100.00%  1 / 1 files deleted
+    done
+PASS[R6b-prune] rc=0
+RAW[R7-check] rc=0 restic check
+    create exclusive lock for repository
+    load indexes
+    check all packs
+    check snapshots, trees and blobs
+    [0:00] 100.00%  1 / 1 snapshots
+    no errors were found
+PASS[R7-check] rc=0
+RAW[R8-unlock] rc=0 restic unlock
+    
+PASS[R8-unlock] rc=0
+RAW[R9-restore] rc=0 restic restore latest -t /tmp/tmp.gmygfcPc35 --host volsync
+    restoring snapshot d614447c of [/tmp/tmp.3E4Y3aR9JZ/data] at 2026-09-26 07:53:33.944536806 +0000 UTC by nobody@volsync to /tmp/tmp.gmygfcPc35
+    Summary: Restored 3 files/dirs (24.000 MiB) in 0:00
+PASS[R9-restore] rc=0
+PASS[R10-compare] restored files sha256-identical
+VERDICT restic identity=family-ai-volsync pass=11 fail=0
+════════ container verify-family-ai-volsync ════════
+root-isolation: /tmp/mc-apply absent
+identity=family-ai-volsync own_bucket=family-ai-volsync foreign=[cnpg-backups volsync mac-mini-backups thanos forge-backups forge-volsync] ts=20260926T075340Z endpoint=http://minio.storage.svc.cluster.local:9000
+RAW[P1-list] rc=0 {"status":"success","type":"folder","lastModified":"2026-09-26T07:53:40.647258254Z","size":0,"key":"_iam-verify/","etag":"","url":"http://minio.storage.svc.cluster.local:9000/family-ai-volsync/","versionOrdinal":1}
+PASS[P1-list] list family-ai-volsync
+RAW[P2-put] rc=0 {"status":"success","source":"/tmp/tmp.PjagJ8Gppi/small","target":"scoped/family-ai-volsync/_iam-verify/20260926T075340Z/small","size":46,"totalCount":1,"totalSize":0}
+{"status":"success","total":46,"transferred":46,"speed":3684.612840507288}
+PASS[P2-put] put small object
+RAW[P3-stat] rc=0 {"status":"success","name":"small","lastModified":"2026-09-26T07:53:40Z","size":46,"etag":"4804550740c7ab4cc5cda95adff9907d","type":"file","metadata":{"Content-Type":"application/octet-stream"}}
+PASS[P3-stat] stat small object
+RAW[P4-get] rc=0 {"status":"success","source":"scoped/family-ai-volsync/_iam-verify/20260926T075340Z/small","target":"/tmp/tmp.PjagJ8Gppi/small.back","size":46,"totalCount":1,"totalSize":0}
+{"status":"success","total":46,"transferred":46,"speed":5481.244313953759}
+PASS[P4-get] get small object, sha256 matches
+RAW[P5-multipart] rc=0 {"status":"success","source":"/tmp/tmp.PjagJ8Gppi/big","target":"scoped/family-ai-volsync/_iam-verify/20260926T075340Z/big","size":50331648,"totalCount":1,"totalSize":0}
+{"status":"success","total":50331648,"transferred":50331648,"speed":86523559.34537156}
+PASS[P5-multipart] put 48 MiB object (multipart)
+RAW[P6-getbig] rc=0 {"status":"success","source":"scoped/family-ai-volsync/_iam-verify/20260926T075340Z/big","target":"/tmp/tmp.PjagJ8Gppi/big.back","size":50331648,"totalCount":1,"totalSize":0}
+{"status":"success","total":50331648,"transferred":50331648,"speed":105647420.77803296}
+PASS[P6-getbig] get 48 MiB object, sha256 matches
+RAW[P7-listpfx] rc=0 {"status":"success","type":"file","lastModified":"2026-09-26T07:53:41.309Z","size":50331648,"key":"big","etag":"c02c083a36004ee9a4c24634e66c1bb2-3","url":"http://minio.storage.svc.cluster.local:9000/family-ai-volsync/_iam-verify/20260926T075340Z/","versionOrdinal":1,"storageClass":"STANDARD"}
+{"status":"success","type":"file","lastModified":"2026-09-26T07:53:40.668Z","size":46,"key":"small","etag":"4804550740c7ab4cc5cda95adff9907d","url":"http://minio.storage.svc.cluster.local:9000/family-ai-volsync/_iam-verify/20260926T075340Z/","versionOrdinal":1,"storageClass":"STANDARD"}
+PASS[P7-listpfx] list test prefix
+RAW[P8-delete] rc=0 {"status":"success","key":"scoped/family-ai-volsync/_iam-verify/20260926T075340Z/big","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/family-ai-volsync/_iam-verify/20260926T075340Z/small","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+PASS[P8-delete] delete test objects
+RAW[P9-gone] rc=1 {"status":"error","error":{"message":"Unable to stat `scoped/family-ai-volsync/_iam-verify/20260926T075340Z/small`.","cause":{"message":"Object does not exist","error":{}},"type":"fatal"}}
+PASS[P9-gone] deleted object is gone (not-found, not denied)
+RAW[P10-cleanup] rc=0 {"status":"success","key":"scoped/family-ai-volsync/_iam-verify/restic-20260926T075330Z/config","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/family-ai-volsync/_iam-verify/restic-20260926T075330Z/data/3f/3fa6eae814c50892a9d190dcba783768484f9282782c5f9341a9372e4f0ca1ab","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/family-ai-volsync/_iam-verify/restic-20260926T075330Z/data/6b/6b8aff177aae9e60bc451df839d6e5337e85d2837cdb0e278d2ed9f2372b6158","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/family-ai-volsync/_iam-verify/restic-20260926T075330Z/data/74/74edfa52a867310f7e87ceb9706172e4ec0df5f368aa809394f44bc43ba7d0c0","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/family-ai-volsync/_iam-verify/restic-20260926T075330Z/data/eb/eba89efe9a44fff9ba49a388c7b67130dfb80a1dd9953bb2a1b0305595e83d74","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/family-ai-volsync/_iam-verify/restic-20260926T075330Z/index/c000196a90a4e717425582674a74e60b116009ec8df1a61e9c827f49ccd22715","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/family-ai-volsync/_iam-verify/restic-20260926T075330Z/keys/c2d87486042b72151f036e7a5af8da52185c77ac53a56ee6abc7b65d62b0bee8","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+{"status":"success","key":"scoped/family-ai-volsync/_iam-verify/restic-20260926T075330Z/snapshots/d614447cae7018cbda38574ef7e6a23ba879b593a70797c50bdccb9e263629ce","deleteMarker":false,"versionID":"","modTime":null,"dryRun":false}
+PASS[P10-cleanup] _iam-verify/ prefix removed
+RAW[I1-listbuckets] rc=0 {"status":"success","type":"folder","lastModified":"2026-09-26T07:53:29.066Z","size":0,"key":"family-ai-volsync/","etag":"","url":"http://minio.storage.svc.cluster.local:9000/","versionOrdinal":1}
+PASS[I1-listbuckets] no foreign bucket name visible in ListBuckets
+RAW[N-cnpg-backups-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-cnpg-backups-list] list cnpg-backups -> 403 AccessDenied
+RAW[N-cnpg-backups-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/cnpg-backups/_iam-verify-absent-20260926T075340Z`. Object does not exist
+PASS[N-cnpg-backups-get] stat/get key in cnpg-backups -> 403 AccessDenied
+RAW[N-cnpg-backups-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/tmp/tmp.PjagJ8Gppi/small`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/cnpg-backups/_iam-verify-20260926T075340Z`
+PASS[N-cnpg-backups-put] put into cnpg-backups -> 403 AccessDenied
+RAW[N-cnpg-backups-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/cnpg-backups/_iam-verify-absent-20260926T075340Z`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/cnpg-backups/_iam-verify-absent-20260926T075340Z`
+PASS[N-cnpg-backups-rm] delete key in cnpg-backups -> 403 AccessDenied
+RAW[N-volsync-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-volsync-list] list volsync -> 403 AccessDenied
+RAW[N-volsync-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/volsync/_iam-verify-absent-20260926T075340Z`. Object does not exist
+PASS[N-volsync-get] stat/get key in volsync -> 403 AccessDenied
+RAW[N-volsync-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/tmp/tmp.PjagJ8Gppi/small`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/volsync/_iam-verify-20260926T075340Z`
+PASS[N-volsync-put] put into volsync -> 403 AccessDenied
+RAW[N-volsync-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/volsync/_iam-verify-absent-20260926T075340Z`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/volsync/_iam-verify-absent-20260926T075340Z`
+PASS[N-volsync-rm] delete key in volsync -> 403 AccessDenied
+RAW[N-mac-mini-backups-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-mac-mini-backups-list] list mac-mini-backups -> 403 AccessDenied
+RAW[N-mac-mini-backups-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/mac-mini-backups/_iam-verify-absent-20260926T075340Z`. Object does not exist
+PASS[N-mac-mini-backups-get] stat/get key in mac-mini-backups -> 403 AccessDenied
+RAW[N-mac-mini-backups-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/tmp/tmp.PjagJ8Gppi/small`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/mac-mini-backups/_iam-verify-20260926T075340Z`
+PASS[N-mac-mini-backups-put] put into mac-mini-backups -> 403 AccessDenied
+RAW[N-mac-mini-backups-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/mac-mini-backups/_iam-verify-absent-20260926T075340Z`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/mac-mini-backups/_iam-verify-absent-20260926T075340Z`
+PASS[N-mac-mini-backups-rm] delete key in mac-mini-backups -> 403 AccessDenied
+RAW[N-thanos-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-thanos-list] list thanos -> 403 AccessDenied
+RAW[N-thanos-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/thanos/_iam-verify-absent-20260926T075340Z`. Object does not exist
+PASS[N-thanos-get] stat/get key in thanos -> 403 AccessDenied
+RAW[N-thanos-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/tmp/tmp.PjagJ8Gppi/small`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/thanos/_iam-verify-20260926T075340Z`
+PASS[N-thanos-put] put into thanos -> 403 AccessDenied
+RAW[N-thanos-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/thanos/_iam-verify-absent-20260926T075340Z`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/thanos/_iam-verify-absent-20260926T075340Z`
+PASS[N-thanos-rm] delete key in thanos -> 403 AccessDenied
+RAW[N-forge-backups-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-forge-backups-list] list forge-backups -> 403 AccessDenied
+RAW[N-forge-backups-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/forge-backups/_iam-verify-absent-20260926T075340Z`. Object does not exist
+PASS[N-forge-backups-get] stat/get key in forge-backups -> 403 AccessDenied
+RAW[N-forge-backups-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/tmp/tmp.PjagJ8Gppi/small`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/forge-backups/_iam-verify-20260926T075340Z`
+PASS[N-forge-backups-put] put into forge-backups -> 403 AccessDenied
+RAW[N-forge-backups-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/forge-backups/_iam-verify-absent-20260926T075340Z`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/forge-backups/_iam-verify-absent-20260926T075340Z`
+PASS[N-forge-backups-rm] delete key in forge-backups -> 403 AccessDenied
+RAW[N-forge-volsync-list] rc=1 http=[403,403] mc: <ERROR> Unable to list folder. Access Denied.
+PASS[N-forge-volsync-list] list forge-volsync -> 403 AccessDenied
+RAW[N-forge-volsync-get] rc=1 http=[403,403] mc: <ERROR> Unable to stat `scoped/forge-volsync/_iam-verify-absent-20260926T075340Z`. Object does not exist
+PASS[N-forge-volsync-get] stat/get key in forge-volsync -> 403 AccessDenied
+RAW[N-forge-volsync-put] rc=1 http=[403,403,403,403] mc: <ERROR> Failed to copy `/tmp/tmp.PjagJ8Gppi/small`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/forge-volsync/_iam-verify-20260926T075340Z`
+PASS[N-forge-volsync-put] put into forge-volsync -> 403 AccessDenied
+RAW[N-forge-volsync-rm] rc=1 http=[403,403,403] mc: <ERROR> Failed to remove `scoped/forge-volsync/_iam-verify-absent-20260926T075340Z`. Insufficient permissions to access this path `http://minio.storage.svc.cluster.local:9000/forge-volsync/_iam-verify-absent-20260926T075340Z`
+PASS[N-forge-volsync-rm] delete key in forge-volsync -> 403 AccessDenied
+RAW[N-admin-info] rc=1 http=[403] mc: <ERROR> Unable to get service info. Access Denied.
+PASS[N-admin-info] mc admin info -> 403 AccessDenied
+RAW[N-admin-users] rc=1 http=[403] mc: <ERROR> Unable to list user. Access Denied.
+PASS[N-admin-users] mc admin user list -> 403 AccessDenied
+RAW[N-admin-policies] rc=1 http=[403] mc: <ERROR> Unable to list policy. Access Denied.
+PASS[N-admin-policies] mc admin policy list -> 403 AccessDenied
+RAW[N-mb] rc=1 http=[403] mc: <ERROR> Unable to make bucket `scoped/iam-verify-must-not-exist-1790409222`. Access Denied.
+PASS[N-mb] create a new bucket -> 403 AccessDenied
+VERDICT identity=family-ai-volsync pass=39 fail=0
+iam-apply: exit=0
+restic-check: exit=0
+verify-family-ai-volsync: exit=0
+RESULT: Job minio-iam-family-ai Complete
+── cleanup ──
+cleanup: Job, ConfigMap, ExternalSecret and Secret gone
+
+## E5 post-state: IAM_SET=family-ai check and IAM_SET=forge check (Themis A6), 2026-09-26T07:53:58Z
+### IAM_SET=family-ai
+{"status":"success","accessKey":"forge-volsync","policyName":"forge-volsync-rw","userStatus":"enabled"}
+{"status":"success","accessKey":"family-ai-volsync","policyName":"family-ai-volsync-rw","userStatus":"enabled"}
+{"status":"success","accessKey":"forge-pg","policyName":"forge-backups-rw","userStatus":"enabled"}
+MinIO IAM: family-ai identities present
+rc=0
+### IAM_SET=forge
+{"status":"success","accessKey":"family-ai-volsync","policyName":"family-ai-volsync-rw","userStatus":"enabled"}
+{"status":"success","accessKey":"forge-pg","policyName":"forge-backups-rw","userStatus":"enabled"}
+{"status":"success","accessKey":"forge-volsync","policyName":"forge-volsync-rw","userStatus":"enabled"}
+MinIO IAM: forge identities present
+### leftovers in storage ns
+none
+
+### off-site mirror bucket loop (live CronJob storage/minio-offsite-mirror)
+for bucket in cnpg-backups volsync
