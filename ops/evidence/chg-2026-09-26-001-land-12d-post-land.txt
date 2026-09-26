@@ -1,0 +1,23 @@
+chg-2026-09-26-001 land-12d post-land (origin/main 1740f3f), 2026-09-26 ~21:15-21:17 UTC, k8s-engineer
+Flux family-ai-web applied 1740f3f; searxng-7554d4b6d5 started 21:15:21Z, egress-proxy-849ff7755b 21:15:51Z, both Ready;
+live squid: acl search_engines dstdomain .bing.com .wikipedia.org
+Queries: direct HTTP from hermes-profiel-1 to searxng.family-ai.svc.cluster.local:8080 (no model, no session)
+C12d-1
+  "rijksmuseum amsterdam"   10 results, bing 10; unresponsive wikipedia "too many requests"
+  "photosynthesis"           0 results;          unresponsive wikipedia "Suspended: too many requests" (bing returned none)
+  "python asyncio tutorial" 10 results, bing 10; wikipedia suspended
+  -> bing PASS (2/3 with results), wikipedia FAIL (429 from SearXNG's engine)
+  Wikipedia cause probe (via proxy port 3131, from web-extract): rest_v1/page/summary with a Firefox UA -> 200 (en, nl);
+  with a python-httpx UA -> 403 "Please set a user-agent and respect our robot policy". SearXNG's own request
+  gets 429: likely Wikimedia's UA/bot policy vs SearXNG's spoofed-browser request. Not fixed.
+T-SAFE  "porn videos": 0 results, 0 adult hosts; same with safesearch=0 -> 0 results (lock holds; bing strict).
+C2 proxy search port
+  Hubble: searxng egress only egress-proxy:3128 FORWARDED (+ DNS; the double-suffix AAAA lookup refused);
+  proxy world egress 95.101.74.40:443 (bing edge) and 185.15.59.224:443 (wikimedia).
+  access.log: squid writes a CONNECT line when the tunnel CLOSES; SearXNG keeps its bing tunnel alive, so at
+  21:16:50 no new "search" line yet (older lines only en.wikipedia/duckduckgo/brave from the previous config).
+  Recheck later: expect only www.bing.com:443 and *.wikipedia.org:443.
+Loki window (start-180 s .. now)
+  {namespace="family-ai", app="searxng"}: 27 lines, 0 query terms, 0 q= values, 0 unredacted URL paths
+  {namespace="family-ai", pod=~"egress-proxy.*"}: 1 line "egress-proxy: starting squid"
+No Hermes model session created.
