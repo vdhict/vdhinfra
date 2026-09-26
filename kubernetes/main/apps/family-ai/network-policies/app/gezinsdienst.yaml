@@ -2,7 +2,7 @@
 # gezinsdienst: in from the Hermes pods and envoy-internal on 8080; out to
 # ntfy.sh:443 (FQDN - learned from the DNS answers the proxy sees) and DNS.
 #
-# Hermes -> gezinsdienst is L7-restricted (Argus B1): ONLY
+# Hermes profiel-2/-3 -> gezinsdienst is L7-restricted (Argus B1): ONLY
 #   POST /v1/signaal | /v1/gedrag | /v1/gebruik
 # which authenticate by per-profile bearer token. Everything else from a
 # Hermes pod - GET /, /ladder, /v1/overzicht, POST /besproken/*,
@@ -21,9 +21,15 @@ spec:
     matchLabels:
       app.kubernetes.io/name: gezinsdienst
   ingress:
+    # Mack addendum 1 §5: only the CHILDREN's agents (profiel-2, -3) - never
+    # profiel-1, which has no gezinsdienst subject and no token.
     - fromEndpoints:
         - matchLabels:
             app.kubernetes.io/name: hermes
+          matchExpressions:
+            - key: app.kubernetes.io/instance
+              operator: In
+              values: [hermes-profiel-2, hermes-profiel-3]
       toPorts:
         - ports: [{port: "8080", protocol: TCP}]
           rules:
