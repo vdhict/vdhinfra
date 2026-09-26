@@ -5,6 +5,7 @@ kind: Kustomization
 resources:
   - ./helmrelease.yaml
   - ./secrets.yaml
+  - ./oidc-open-webui-secret.yaml   # chg-2026-09-26-001 v4
 configMapGenerator:
   - name: authelia-configmap
     files:

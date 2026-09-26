@@ -70,7 +70,13 @@ spec:
               AUTHELIA_TOTP_ISSUER: authelia.com
               X_AUTHELIA_CONFIG: /config/configuration.yaml
               X_AUTHELIA_CONFIG_FILTERS: template
-            envFrom: *envFrom
+            envFrom:
+              - secretRef:
+                  name: authelia-secret
+              # bcrypt digest of the open-webui OIDC client secret
+              # (oidc-open-webui-secret.yaml, chg-2026-09-26-001)
+              - secretRef:
+                  name: authelia-oidc-open-webui
             args: [--config, /config/configuration.yaml, --config.experimental.filters, expand-env]
             probes:
               liveness: &probes
