@@ -1,0 +1,29 @@
+# chg-2026-09-26-001 RAG model copy into PVC family-ai/open-webui-models (land-8a, origin/main b76ab18), 2026-09-26 ~17:25Z. uitgevoerd onder programmagoedkeuring family-ai
+# PVC Bound; one-off pod python:3.13-slim@7c61056e (baseline, caps drop ALL, no SA token) mounted it; tar stream from ~/family-ai-models; in-pod sha256sum -c; pod deleted.
+Warning: would violate PodSecurity "restricted:latest": runAsNonRoot != true (pod or container "c" must set securityContext.runAsNonRoot=true)
+pod/heph-rag-copy created
+pod/heph-rag-copy condition met
+models--cross-encoder--mmarco-mMiniLMv2-L12-H384-v1/refs/main: OK
+models--cross-encoder--mmarco-mMiniLMv2-L12-H384-v1/snapshots/1427fd652930e4ba29e8149678df786c240d8825/config.json: OK
+models--cross-encoder--mmarco-mMiniLMv2-L12-H384-v1/snapshots/1427fd652930e4ba29e8149678df786c240d8825/model.safetensors: OK
+models--cross-encoder--mmarco-mMiniLMv2-L12-H384-v1/snapshots/1427fd652930e4ba29e8149678df786c240d8825/sentencepiece.bpe.model: OK
+models--cross-encoder--mmarco-mMiniLMv2-L12-H384-v1/snapshots/1427fd652930e4ba29e8149678df786c240d8825/special_tokens_map.json: OK
+models--cross-encoder--mmarco-mMiniLMv2-L12-H384-v1/snapshots/1427fd652930e4ba29e8149678df786c240d8825/tokenizer.json: OK
+models--cross-encoder--mmarco-mMiniLMv2-L12-H384-v1/snapshots/1427fd652930e4ba29e8149678df786c240d8825/tokenizer_config.json: OK
+models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2/refs/main: OK
+models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2/snapshots/e8f8c211226b894fcb81acc59f3b34ba3efd5f42/1_Pooling/config.json: OK
+models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2/snapshots/e8f8c211226b894fcb81acc59f3b34ba3efd5f42/config.json: OK
+models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2/snapshots/e8f8c211226b894fcb81acc59f3b34ba3efd5f42/config_sentence_transformers.json: OK
+models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2/snapshots/e8f8c211226b894fcb81acc59f3b34ba3efd5f42/model.safetensors: OK
+models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2/snapshots/e8f8c211226b894fcb81acc59f3b34ba3efd5f42/modules.json: OK
+models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2/snapshots/e8f8c211226b894fcb81acc59f3b34ba3efd5f42/sentence_bert_config.json: OK
+models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2/snapshots/e8f8c211226b894fcb81acc59f3b34ba3efd5f42/sentencepiece.bpe.model: OK
+models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2/snapshots/e8f8c211226b894fcb81acc59f3b34ba3efd5f42/special_tokens_map.json: OK
+models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2/snapshots/e8f8c211226b894fcb81acc59f3b34ba3efd5f42/tokenizer.json: OK
+models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2/snapshots/e8f8c211226b894fcb81acc59f3b34ba3efd5f42/tokenizer_config.json: OK
+models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2/snapshots/e8f8c211226b894fcb81acc59f3b34ba3efd5f42/unigram.json: OK
+OK: 19/19
+e4d43631c08186772a7ebcd28829be55f8dcef6fa71f93aec046979de5f0a1b4  SHA256SUMS
+947M	/models
+pod "heph-rag-copy" deleted from family-ai namespace
+# Cleanup: macOS tar had added 30 AppleDouble '._*' metadata files (163 B). Removed with a second one-off pod; re-check: files=20 (19 + SHA256SUMS), appledouble=0, sha256sum -c OK 19/19, SHA256SUMS sha256 e4d43631c08186772a7ebcd28829be55f8dcef6fa71f93aec046979de5f0a1b4, 947M. rag-copy.sh now uses COPYFILE_DISABLE=1 + --no-xattrs for DR re-copies.
