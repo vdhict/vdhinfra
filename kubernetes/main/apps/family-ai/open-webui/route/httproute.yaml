@@ -1,0 +1,49 @@
+---
+# chat.bluejungle.net -> Open WebUI. Lands in L4 TOGETHER WITH the removal of
+# chat.bluejungle.net from network/studio-ai (HIGH, touches the open
+# chg-2026-09-21-002 route).
+#
+# envoy-internal ONLY (LAN + WireGuard). Literal hostname, not
+# ${SECRET_DOMAIN}, for the same reasons given in network/studio-ai.
+#
+# DNS: `controller: none` keeps both Cloudflare external-dns instances off
+# (no public CNAME/TXT advertising a family AI). external-dns-unifi runs
+# with --annotation-prefix=external-dns-unifi.bluejungle.net/ and does not
+# read this key, so it keeps (re)writing the LAN A record
+# chat.bluejungle.net -> 172.16.2.241. That record already exists for
+# studio-ai; after the move its owner TXT names this route instead.
+#
+# Alt-Svc: Open WebUI (uvicorn, v0.11.3 source at the image revision) sets no
+# Alt-Svc header, so the studio-ai QUIC-trap filter is not needed here; the
+# listener's altsvc-clear-internal patch alone applies. Checked in the test
+# plan with a real response, not assumed.
+#
+# timeouts.request 600s as studio-ai: Open WebUI streams model output back
+# over this route; long Hermes turns take minutes. (Renders idle_timeout
+# 3600s on EG v1.3.0 - same accepted side effect as studio-ai.)
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/gateway.networking.k8s.io/httproute_v1.json
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: open-webui
+  annotations:
+    external-dns.alpha.kubernetes.io/controller: none
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: envoy-internal
+      namespace: network
+      sectionName: https
+  hostnames:
+    - chat.bluejungle.net
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: open-webui
+          port: 8080
+      timeouts:
+        request: 600s

@@ -28,3 +28,29 @@ spec:
   interval: 30m
   retryInterval: 1m
   timeout: 10m
+---
+# L4 (HIGH): chat.bluejungle.net -> open-webui. Same commit removes chat
+# from network/studio-ai.
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: family-ai-open-webui-route
+  namespace: flux-system
+spec:
+  targetNamespace: family-ai
+  commonMetadata:
+    labels:
+      app.kubernetes.io/part-of: family-ai
+  dependsOn:
+    - name: family-ai-open-webui
+    - name: envoy-gateway-gateways
+  path: ./kubernetes/main/apps/family-ai/open-webui/route
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: false
+  interval: 30m
+  timeout: 5m
