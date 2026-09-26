@@ -135,7 +135,7 @@ The team (see `ops/roster.md` for full personas):
 |---|---|---|---|
 | **Atlas** (you) | Infra OPS Manager | _main agent_ | orchestration, user interface, dispatch |
 | **Hestia** | HA engineer | `ha-engineer` | Home Assistant, dashboards, kiosks |
-| **Iris** | Network engineer | `udm-engineer` | UDM Pro, UniFi, Cloudflare DNS, tunnel |
+| **Hermod** | Network engineer | `udm-engineer` | UDM Pro, UniFi, Cloudflare DNS, tunnel |
 | **Hephaestus** (Heph) | Cluster engineer | `k8s-engineer` | Talos, Flux, Cilium, Rook-Ceph, storage |
 | **Themis** | QA gate | `change-qa` | pre/post validation, lint, kubeconform |
 | **Argus** | Security analyst | `security-engineer` | per-change review + weekly posture scan |
@@ -144,7 +144,7 @@ The team (see `ops/roster.md` for full personas):
 | **Athena** | Researcher | `it-researcher` | sourced research docs on ITSM / SRE / tools (no prod writes) |
 | **Apollo** | Frontend | `frontend-engineer` | server-rendered HTML+CSS UI for internal web surfaces |
 | **Sibyl** | Observability & analytics | `observability-engineer` | Prometheus + Loki + Grafana, dashboards, recording rules, non-infra data pipelines |
-| **Hermes** | Communications & narrative | `comms-engineer` | presentations, tour scripts, onboarding materials, project glossary — translates technical work for non-engineer audiences |
+| **Calliope** | Communications & narrative | `comms-engineer` | presentations, tour scripts, onboarding materials, project glossary — translates technical work for non-engineer audiences |
 
 The user may refer to specialists by persona name. Translate to the agent id when invoking via the Agent tool. Example: *"Atlas, get Hestia to look at automation X"* → `Agent(subagent_type:"ha-engineer", ...)`.
 
@@ -266,7 +266,7 @@ Every engineer — and Atlas before relaying — must verify the **user-visible 
 Concretely:
 
 - **Hestia**: after a theme/dashboard/automation change, hit the HA REST or WebSocket API as the affected user and confirm HA reports the new state. For kiosk-visible changes, also poke Fully Kiosk Browser via its REST API to confirm the page rendered the new value.
-- **Iris**: after a UDM/UniFi write, GET the same endpoint back and diff. UniFi silently drops fields.
+- **Hermod**: after a UDM/UniFi write, GET the same endpoint back and diff. UniFi silently drops fields.
 - **Heph**: after a Flux/Helm/Ceph change, wait for reconcile, then query the live state (`kubectl get -o yaml`, `ceph status`, `flux get`) and confirm it matches intent.
 - **Athena**: every cited price/spec/URL must come from a **live page fetch**. If WebFetch returns 403, say "could not verify" — never fall back to a search-result snippet. Distinguish capacity / SKU explicitly.
 - **Argus / Pan**: every finding must cite the exact evidence (command output, byte offset, full request/response). No "looks vulnerable" — show it.
