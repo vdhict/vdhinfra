@@ -33,3 +33,18 @@ READBACK (neutral labels):
   user-profiel-2 exists
   user-profiel-3 exists
   keuken exists
+
+## 2026-09-26T14:53:40Z add-only: owui-profiel-2 += user-profiel-2, owui-profiel-3 += user-profiel-3 (after Mack's non-streaming T13 browser PASS), admins += sander-account (Larry within Sander's choices: admins = only Sander, with 2FA)
+## side-effect check BEFORE writing admins: (1) Authelia *.domain one_factor rule [group:admins, group:users] - sander-account already in users: no change; (2) Authelia OIDC policy open-webui rule 1 group:admins -> two_factor: Sander now needs 2FA for Open WebUI login and gets the Open WebUI admin role (OAUTH_ADMIN_ROLES=admins) - intended; (3) Grafana: live grafana.ini [auth.generic_oauth.group_mapping] role_attribute_path matches the literal group 'admin' (not 'admins') - no Grafana role change; grafana client is two_factor for everyone already; (4) lldap's own admin rights come from lldap_admin, not admins; (5) no other reference to admins in kubernetes/ on origin/main.
+add user-profiel-2 -> owui-profiel-2
+add user-profiel-3 -> owui-profiel-3
+add sander-account -> admins
+READBACK:
+  admins 2 ['builtin-admin', 'sander-account']
+  gezin 4 ['sander-account', 'user-profiel-1', 'user-profiel-2', 'user-profiel-3']
+  ouders 1 ['sander-account']
+  owui-keuken 1 ['keuken']
+  owui-profiel-1 1 ['user-profiel-1']
+  owui-profiel-2 1 ['user-profiel-2']
+  owui-profiel-3 1 ['user-profiel-3']
+  users 2 ['builtin-admin', 'sander-account']
