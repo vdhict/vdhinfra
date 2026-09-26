@@ -1,0 +1,108 @@
+---
+# gezinsdienst - the family service (Mack): stdlib Python, code from a
+# ConfigMap, SQLite on a 1Gi PVC. PSA-restricted-clean: python:3.13-slim
+# has no USER, so it is pinned to nobody (65534) here, read-only root FS,
+# all capabilities dropped.
+#
+# Trust model (Mack's gezinsdienst.py): GET /, /ladder, /v1/overzicht and
+# POST /besproken/<id>, /telt-niet/<id> authorise ONLY on Remote-User /
+# Remote-Groups, set by Authelia via Envoy ext-auth on the gezin route.
+# The code's own docstring requires envoy to be the only ingress for those
+# paths. network-policies/gezinsdienst.yaml enforces that: the Hermes pods
+# may reach ONLY POST /v1/(signaal|gedrag|gebruik) (Cilium L7, Argus B1);
+# those three authenticate by bearer token, not by header.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gezinsdienst
+  labels:
+    app.kubernetes.io/name: gezinsdienst
+  annotations:
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gezinsdienst
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gezinsdienst
+        app.kubernetes.io/part-of: family-ai
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: {type: RuntimeDefault}
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+      containers:
+        - name: app
+          image: docker.io/library/python:3.13-slim@sha256:7c61056e61ac89e852de05f3dc6fa51a6dd2181797bceed46aa725dd7cb2cd3b
+          command: ["python", "/app/gezinsdienst.py"]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - {name: GEZIN_CONFIG, value: /config/config.json}
+            - {name: GEZIN_TEKSTEN, value: /config/teksten.json}
+            - {name: GEZIN_DB, value: /data/gezin.db}
+            - {name: GEZIN_POORT, value: "8080"}
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+            - {name: PYTHONUNBUFFERED, value: "1"}
+            - {name: TZ, value: Europe/Amsterdam}
+          envFrom:
+            - secretRef:
+                name: family-ai-gezinsdienst
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 30
+            failureThreshold: 4
+          volumeMounts:
+            - {name: data, mountPath: /data}
+            - {name: code, mountPath: /app, readOnly: true}
+            - {name: config, mountPath: /config, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: gezinsdienst-data
+        - name: code
+          configMap:
+            name: gezinsdienst-code
+        # /config = config.json from the SOPS Secret + teksten.json from the
+        # ConfigMap, in one read-only directory.
+        - name: config
+          projected:
+            sources:
+              - secret:
+                  name: gezinsdienst-config
+                  items: [{key: config.json, path: config.json}]
+              - configMap:
+                  name: gezinsdienst-teksten
+                  items: [{key: teksten.json, path: teksten.json}]
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

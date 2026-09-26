@@ -1,0 +1,15 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gezinsdienst
+  labels:
+    app.kubernetes.io/name: gezinsdienst
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: gezinsdienst
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

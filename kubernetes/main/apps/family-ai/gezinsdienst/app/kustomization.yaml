@@ -1,0 +1,25 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./externalsecret.yaml
+  - ./config.sops.yaml   # config.json: names + login map -> SOPS only (public repo)
+  - ./pvc.yaml
+  - ./deployment.yaml
+  - ./service.yaml
+# Mack's code and texts, imported by hack/family-ai/import-gezinsdienst.sh,
+# which verifies SHA256SUMS and proves these two files carry no identifier
+# from config.json. The hash suffix rolls the pod when either changes.
+configMapGenerator:
+  - name: gezinsdienst-code
+    files:
+      - ./files/gezinsdienst.py
+  - name: gezinsdienst-teksten
+    files:
+      - ./files/teksten.json
+generatorOptions:
+  annotations:
+    # Python / JSON: Flux postBuild must not touch ${...} in them.
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+# NO VolSync for gezinsdienst-data - by decision (Sander + Mack).
