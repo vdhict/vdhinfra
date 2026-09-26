@@ -22,3 +22,4 @@ resources:
   - ./open-webui/install.yaml
   - ./hermes/install.yaml
   - ./gezinsdienst/install.yaml
+  - ./web/install.yaml

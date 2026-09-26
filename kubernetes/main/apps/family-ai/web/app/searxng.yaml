@@ -1,0 +1,110 @@
+---
+# searxng: the ONLY search service for the Hermes agents. Strict safe search
+# for everyone; engines duckduckgo, wikipedia, brave; all engine traffic via
+# egress-proxy (files/searxng-settings.yml). No route, cluster-only.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/generators.external-secrets.io/password_v1alpha1.json
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: Password
+metadata:
+  name: searxng-secret
+spec:
+  length: 48
+  digits: 10
+  symbols: 0
+  noUpper: false
+  allowRepeat: true
+---
+# Signs searxng cookies only; nothing depends on it surviving a rebuild, so a
+# generated value (render once) is fine here - no 1Password item needed.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: searxng
+spec:
+  refreshInterval: "0"
+  target:
+    name: searxng
+    creationPolicy: Owner
+    template:
+      data:
+        SEARXNG_SECRET: "{{ .password }}"
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: Password
+          name: searxng-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: searxng
+  labels:
+    app.kubernetes.io/name: searxng
+spec:
+  selector:
+    app.kubernetes.io/name: searxng
+  ports:
+    - {name: http, port: 8080, targetPort: http}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: searxng
+  labels:
+    app.kubernetes.io/name: searxng
+  annotations:
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: searxng
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: searxng
+        app.kubernetes.io/part-of: family-ai
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 977         # 'searxng' in the image (verify at first start)
+        runAsGroup: 977
+        seccompProfile: {type: RuntimeDefault}
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+      containers:
+        - name: searxng
+          image: docker.io/searxng/searxng:2026.9.25-d8ae3abd5@sha256:38ed750807fb00c26047e51896b50f83e7843d120d9e65f950770305f62c7111
+          ports:
+            - {name: http, containerPort: 8080}
+          env:
+            - {name: GRANIAN_HOST, value: "0.0.0.0"}
+            - {name: SEARXNG_BASE_URL, value: "http://searxng.family-ai.svc.cluster.local:8080/"}
+          envFrom:
+            - secretRef: {name: searxng}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 50m, memory: 192Mi}
+            limits: {memory: 512Mi}
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 15
+          volumeMounts:
+            - {name: etc, mountPath: /etc/searxng}
+            - {name: settings, mountPath: /etc/searxng/settings.yml, subPath: settings.yml, readOnly: true}
+            - {name: cache, mountPath: /var/cache/searxng}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - {name: etc, emptyDir: {sizeLimit: 8Mi}}
+        - name: settings
+          configMap: {name: searxng-settings}
+        - {name: cache, emptyDir: {sizeLimit: 64Mi}}
+        - {name: tmp, emptyDir: {sizeLimit: 64Mi}}

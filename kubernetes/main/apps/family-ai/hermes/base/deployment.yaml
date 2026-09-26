@@ -107,6 +107,25 @@ spec:
             - {name: SSL_CERT_FILE, value: /etc/studio-ca/ca.crt}
             - {name: REQUESTS_CA_BUNDLE, value: /etc/studio-ca/ca.crt}
             - {name: CURL_CA_BUNDLE, value: /etc/studio-ca/ca.crt}
+            # ── controlled internet (chg-2026-09-26-001): the tools only
+            #    appear once Mack's config.yaml adds toolset `web` with
+            #    web.search_backend: searxng + web.extract_backend: firecrawl.
+            - {name: SEARXNG_URL, value: "http://searxng:8080"}
+            - {name: FIRECRAWL_API_URL, value: "http://web-extract:8080"}
+            # the in-cluster shim ignores it; set because the Firecrawl SDK
+            # may insist on a non-empty key
+            - {name: FIRECRAWL_API_KEY, value: "self-hosted-no-key"}
+            # UNREACHABLE on purpose (CNP): its only effect is that Hermes'
+            # SSRF pre-check (tools/url_safety.py) defers DNS of public
+            # names to "the proxy" instead of failing closed on this pod's
+            # restricted DNS. The fetch itself happens in web-extract, and
+            # egress-proxy enforces the private-range deny.
+            - {name: HTTPS_PROXY, value: "http://egress-proxy:3128"}
+            - {name: HTTP_PROXY, value: "http://egress-proxy:3128"}
+            # everything Hermes legitimately calls must bypass that proxy
+            - name: NO_PROXY
+              value: "localhost,127.0.0.1,api.bluejungle.net,172.16.2.200,gezinsdienst,searxng,web-extract,.family-ai.svc.cluster.local,.svc,.cluster.local"
+            - {name: no_proxy, value: "localhost,127.0.0.1,api.bluejungle.net,172.16.2.200,gezinsdienst,searxng,web-extract,.family-ai.svc.cluster.local,.svc,.cluster.local"}
             # API_SERVER_KEY, MODEL_API_KEY, GEZIN_TOKEN
           envFrom:
             - secretRef:

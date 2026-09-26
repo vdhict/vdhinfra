@@ -1,0 +1,32 @@
+# SearXNG for family-ai (chg-2026-09-26-001). One instance, used only by the
+# Hermes agents' fixed web_search provider (q + format=json + pageno).
+use_default_settings:
+  engines:
+    keep_only:
+      - duckduckgo
+      - wikipedia
+      - brave
+general:
+  instance_name: family-ai
+  enable_metrics: false
+server:
+  # secret_key comes from env SEARXNG_SECRET (ESO Password generator)
+  limiter: false
+  public_instance: false
+  image_proxy: false
+  method: GET
+search:
+  # STRICT for everyone. Per-request overrides are not reachable: the Hermes
+  # provider sends no safesearch parameter, and nothing else can reach this
+  # service (CNP ingress = Hermes pods only).
+  safe_search: 2
+  autocomplete: ""
+  formats: [html, json]
+outgoing:
+  request_timeout: 6.0
+  enable_http2: false
+  # ALL engine traffic goes through the logging egress proxy; searxng has no
+  # direct internet route (CNP).
+  proxies:
+    all://:
+      - http://egress-proxy.family-ai.svc.cluster.local:3128

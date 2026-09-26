@@ -1,0 +1,72 @@
+---
+# web-extract: the ONLY page fetcher for the Hermes agents - a stdlib shim
+# for the Firecrawl /v2/scrape call Hermes' firecrawl provider makes when
+# FIRECRAWL_API_URL points at a self-hosted instance. Fetches ONLY via
+# egress-proxy (files/web_extract.py). Caps: URL <= 512 chars (limits data
+# smuggling in query strings), 2 MB, 60k chars of text, 30 fetches/min.
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-extract
+  labels:
+    app.kubernetes.io/name: web-extract
+spec:
+  selector:
+    app.kubernetes.io/name: web-extract
+  ports:
+    - {name: http, port: 8080, targetPort: http}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-extract
+  labels:
+    app.kubernetes.io/name: web-extract
+  annotations:
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: web-extract
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: web-extract
+        app.kubernetes.io/part-of: family-ai
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile: {type: RuntimeDefault}
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+      containers:
+        - name: app
+          image: docker.io/library/python:3.13-slim@sha256:7c61056e61ac89e852de05f3dc6fa51a6dd2181797bceed46aa725dd7cb2cd3b
+          command: ["python", "/app/web_extract.py"]
+          ports:
+            - {name: http, containerPort: 8080}
+          env:
+            - {name: EGRESS_PROXY, value: "http://egress-proxy.family-ai.svc.cluster.local:3128"}
+            - {name: PYTHONUNBUFFERED, value: "1"}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 20m, memory: 64Mi}
+            limits: {memory: 256Mi}
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 15
+          volumeMounts:
+            - {name: code, mountPath: /app, readOnly: true}
+      volumes:
+        - name: code
+          configMap: {name: web-extract-code}

@@ -1,0 +1,32 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Controlled internet for the Hermes agents (chg-2026-09-26-001, Sander in
+# session; exception on inc-2026-09-26-001 for web search/fetch ONLY):
+#   searxng      the ONLY search service (strict safe search)
+#   web-extract  the ONLY page fetcher (Firecrawl-/v2/scrape-compatible shim)
+#   egress-proxy the ONLY internet egress for both (squid, denies every
+#                private/LAN/cluster/link-local range, logs host+status)
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: family-ai-web
+  namespace: flux-system
+spec:
+  targetNamespace: family-ai
+  commonMetadata:
+    labels:
+      app.kubernetes.io/part-of: family-ai
+  dependsOn:
+    - name: family-ai-network-policies
+    - name: external-secrets-stores
+    - name: rook-ceph-cluster
+  path: ./kubernetes/main/apps/family-ai/web/app
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: true
+  interval: 30m
+  retryInterval: 1m
+  timeout: 10m
