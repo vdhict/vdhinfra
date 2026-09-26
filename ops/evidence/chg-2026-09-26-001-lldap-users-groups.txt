@@ -1,0 +1,35 @@
+# chg-2026-09-26-001 lldap users + groups, 2026-09-26T14:45:44Z. uitgevoerd onder programmagoedkeuring family-ai. Lock k8s.security.lldap held by k8s-engineer.
+# Neutral labels only (public repo). Mechanism: throwaway pod security/heph-lldap-apply (python:3.13-slim, deleted after); lldap admin credential read by the pod via secretKeyRef lldap-secret, never in the operator session; lldap GraphQL createUser/createGroup/addUserToGroup, add-only (nothing removed or modified).
+# Passwords: NONE set - Sander sets them. Email per new user: <username>@users.invalid (RFC 2606 reserved, non-deliverable); compared by sha256 against WEBUI_ADMIN_EMAIL (computed in the open-webui pod, never printed): no match, and the admin email is not in users.invalid.
+# sander-account = Sander's EXISTING lldap account (display name matches; the delivery's short name does not exist in lldap). It is in group users, NOT in admins.
+## run output (dry-run identical, then apply):
+login OK with candidate 1
+existing accounts: 2 | sander-account exists: True
+user-profiel-1 create (no password), email <label>@users.invalid
+user-profiel-2 create (no password), email <label>@users.invalid
+user-profiel-3 create (no password), email <label>@users.invalid
+keuken create (no password), email <label>@users.invalid
+group gezin create
+group ouders create
+group owui-profiel-1 create
+group owui-profiel-2 create
+group owui-profiel-3 create
+group owui-keuken create
+add user-profiel-1 -> gezin
+add user-profiel-2 -> gezin
+add user-profiel-3 -> gezin
+add sander-account -> gezin
+add sander-account -> ouders
+add user-profiel-1 -> owui-profiel-1
+add keuken -> owui-keuken
+READBACK (neutral labels):
+  gezin 4 ['sander-account', 'user-profiel-1', 'user-profiel-2', 'user-profiel-3'] MATCH
+  ouders 1 ['sander-account'] MATCH
+  owui-profiel-1 1 ['user-profiel-1'] MATCH
+  owui-profiel-2 0 [] MATCH
+  owui-profiel-3 0 [] MATCH
+  owui-keuken 1 ['keuken'] MATCH
+  user-profiel-1 exists
+  user-profiel-2 exists
+  user-profiel-3 exists
+  keuken exists
