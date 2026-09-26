@@ -5,7 +5,8 @@ container. Hermes' web providers log search queries and full request URLs: the S
 provider at INFO ("SearXNG search '<query>'"), and on any HTTP error at WARNING with the
 exception text, which carries the full URL incl. ?q=<query>. WARNING reaches stdout -> Loki;
 INFO reaches logs/agent.log on the PVC (backed up). Here, without touching the bundle:
-  * the web-provider loggers are raised to WARNING (the INFO query lines are never emitted);
+  * the web-provider loggers and tools.web_tools are raised to WARNING (the INFO query
+    lines are never emitted);
   * every log record, any logger/level: URLs are cut to scheme://host/[redacted] and
     q=/query=/search= values become [redacted]; exception tracebacks are reduced to the
     exception class name (httpx puts the URL into the exception text).
@@ -38,7 +39,9 @@ def _factory(*args, **kwargs):
 
 
 logging.setLogRecordFactory(_factory)
-for _name in ("plugins.web.searxng.provider", "plugins.web.firecrawl.provider", "plugins.web._common"):
+# tools.web_tools logs "Web search via <backend>: '<query>'" at INFO (land-12e finding)
+for _name in ("plugins.web.searxng.provider", "plugins.web.firecrawl.provider", "plugins.web._common",
+              "tools.web_tools"):
     logging.getLogger(_name).setLevel(logging.WARNING)
 
 try:  # Debian's sitecustomize, which this file shadows
