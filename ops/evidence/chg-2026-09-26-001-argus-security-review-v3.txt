@@ -1,0 +1,60 @@
+# chg-2026-09-26-001 v3 security re-review evidence - security-engineer (Argus), 2026-09-26T07:27:50Z
+# Branch feat/family-ai 289a442 (L0 7f431d9 .. L6 289a442). Mack delivery 5c3f3ab. No secret values, no children's names.
+
+## V1 D5 direct-to-Studio: what a family-ai pod can still reach on 172.16.2.200:443 (Caddy), probed from vdhmini01
+SNI=api Host=api.bluejungle.net       -> 401 server=Caddy len=81
+SNI=api Host=chat.bluejungle.net      -> 503 server=Caddy len=284
+SNI=api Host=grafana.bluejungle.net   -> 200 server=Caddy len=0
+SNI=api Host=node-red.bluejungle.net  -> 200 server=Caddy len=0
+SNI=api Host=localhost                -> 200 server=Caddy len=0
+api no-key /              -> 401
+api no-key /health        -> 401
+api no-key /metrics       -> 401
+api no-key /docs          -> 401
+api no-key /openapi.json  -> 401
+api no-key /v1/models     -> 401
+api no-key /api/tags      -> 401
+=> unknown Host on Caddy = empty 200 (no upstream); chat = 503 orphan; api = 401 on every probed path. No estate hostname is proxied.
+CNP open-webui/hermes egress (289a442): toCIDR 172.16.2.200/32 port 443; kube-dns with dns matchPattern '*.family-ai.svc.cluster.local' only; hermes also gezinsdienst:8080; NO rule to envoy-internal or 172.16.2.241.
+studio-ca ConfigMap == network/caddy-studio-ca root (diff of PEM bodies: identical); SSL_CERT_FILE/REQUESTS_CA_BUNDLE/CURL_CA_BUNDLE point only at it.
+CiliumLoadBalancerIPPool l2-pool blocks: 172.16.2.0/23 (contains .200); no Service currently holds 172.16.2.200 (count 0).
+
+## V2 Open WebUI v0.11.4
+ghcr open-webui:v0.11.4 -> sha256:9591b13f13843c7721c2b8eaf7382846c81b3ffe126526d1888d1fed50c6a33f (pinned 9591b13f...)
+v0.11.4 config.py:1857:USER_PERMISSIONS_CHAT_FILE_UPLOAD = os.getenv('USER_PERMISSIONS_CHAT_FILE_UPLOAD', 'True').lower() == 'true'
+v0.11.4 config.py:2094:ENABLE_ADMIN_ANALYTICS = os.getenv('ENABLE_ADMIN_ANALYTICS', 'True').lower() == 'true'
+v0.11.4 config.py:2454:ENABLE_API_KEYS = os.getenv('ENABLE_API_KEYS', 'False').lower() == 'true'
+v0.11.4 config.py:2456:ENABLE_API_KEYS_ENDPOINT_RESTRICTIONS = (
+v0.11.4 config.py:2466:JWT_EXPIRES_IN = os.getenv('JWT_EXPIRES_IN', '4w')
+v0.11.4 main.py:878:if ENABLE_ADMIN_ANALYTICS:
+v0.11.4 utils/auth.py: async def revoke_user_tokens(request, user_id: str):
+v0.11.4 utils/auth.py:     """Reject every token already issued to a user. Requires Redis."""
+v0.11.4 utils/auth.py:     redis = request.app.state.redis
+v0.11.4 utils/auth.py: 
+v0.11.4 utils/auth.py:     if not redis:
+v0.11.4 utils/auth.py:         log.warning(
+v0.11.4 utils/auth.py:             'Cannot revoke tokens for user %s: Redis is not configured, existing sessions stay valid until expiry.',
+v0.11.4 utils/auth.py:             user_id,
+v0.11.4 utils/auth.py:         )
+v0.11.4 utils/auth.py:         return
+v0.11.4 env.py: if WEBUI_AUTH and WEBUI_SECRET_KEY == '':
+v0.11.4 env.py:     raise SystemExit(
+v0.11.4 models/chats.py delete_chat_by_id (2476-2486): deletes chat_message rows + chat + shared copy; files/uploads NOT touched.
+
+## V3 Hermes toolset resolution (NousResearch/hermes-agent v2026.9.24 hermes_cli/tools_config.py)
+_get_platform_tools: explicit list -> _explicit_toolsets; unknown names ('gezin' when the plugin registered nothing) become explicit_passthrough, no composite expansion.
+_RECENTLY_SHIPPED_TOOLSETS = frozenset() in this release; _recover_platform_native_toolsets over hermes-api-server: offline evaluation of toolsets.py -> 0 recoverable non-configurable toolsets.
+
+## V4 Mack delivery 5c3f3ab
+  22 OK
+symlinks: 0
+Files 958f384/SHA256SUMS and 5c3f3ab/SHA256SUMS differ
+Only in 958f384: VERVANGEN.txt
+Files 958f384/profiel-1/SOUL.md and 5c3f3ab/profiel-1/SOUL.md differ
+Files 958f384/profiel-2/SOUL.md and 5c3f3ab/profiel-2/SOUL.md differ
+Files 958f384/profiel-2/plugins/gezin/__init__.py and 5c3f3ab/profiel-2/plugins/gezin/__init__.py differ
+Files 958f384/profiel-3/SOUL.md and 5c3f3ab/profiel-3/SOUL.md differ
+Files 958f384/profiel-3/plugins/gezin/__init__.py and 5c3f3ab/profiel-3/plugins/gezin/__init__.py differ
+profiel-2/3 plugins/gezin/__init__.py:148-151  register(): url,token = GEZIN_URL,GEZIN_TOKEN from os.environ; 'if not url or not token: return' BEFORE any register_tool/register_hook.
+profiel-2/3 SOUL.md still instruct: VEILIGHEID step 4 'Gebruik de knop veiligheidssignaal', D on request ('stuur papa een seintje'), 'Zegt hij vergeet dat, gebruik dan de memory-tool'; plugin docstring records T15: model claimed erasure without a memory call 3/3 runs.
+model-provider plugin (3 identical copies): no network, no file I/O, no env reads (env_vars=()), overrides provider 'custom' + aliases: thinking off, default_max_tokens 4096.
