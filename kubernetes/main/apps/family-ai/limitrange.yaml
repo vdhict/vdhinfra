@@ -1,0 +1,22 @@
+---
+# Defaults so operator-created pods (VolSync movers) and init containers
+# are admitted under the ResourceQuota. No cpu limit default, no cpu max
+# (see resourcequota.yaml).
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: family-ai
+  namespace: family-ai
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: 20m
+        memory: 64Mi
+      default:
+        memory: 512Mi
+    - type: PersistentVolumeClaim
+      min:
+        storage: 1Gi
+      max:
+        storage: 20Gi

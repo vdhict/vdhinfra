@@ -1,0 +1,20 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+#
+# Namespace-level resource list for `family-ai` (chg-2026-09-26-001).
+# Picked up by cluster-apps' directory scan, like every other namespace.
+#
+# Landing order (one commit per step, see the change record):
+#   L1  namespace + quota + limitrange + runtime ConfigMap       (medium)
+#   L2  network-policies                                         (HIGH)
+#   L3  open-webui (no route) + hermes + gezinsdienst (no route) (medium)
+#   L4  open-webui chat route + studio-ai hostname edit          (HIGH)
+#   L5  gezin route + Authelia ext-auth + header strip           (HIGH)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./namespace.yaml
+  - ./resourcequota.yaml
+  - ./limitrange.yaml
+  - ./runtime-configmap.yaml
+  - ./studio-ca-configmap.yaml
