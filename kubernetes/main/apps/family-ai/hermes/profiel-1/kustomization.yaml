@@ -27,3 +27,7 @@ patches:
       - op: add
         path: /spec/template/spec/containers/0/env/-
         value: {name: API_SERVER_MODEL_NAME, value: hermes-agent-profiel-1}
+      # web-extract caller id -> proxy port 3131 (chg-2026-09-26-001)
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: FIRECRAWL_API_KEY, value: profiel-1}

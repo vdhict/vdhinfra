@@ -2,14 +2,13 @@
 # egress-proxy: squid, the ONLY internet egress for searxng, web-extract and
 # the family-ai sandboxes (chg-2026-09-26-001). Policy in files/squid.conf.
 #
-# LOG PRIVACY: with web access for the children this is a log of their
-# browsing. Fields: time, source pod IP, method, destination host:port,
-# status, bytes - no paths, no query strings, no bodies (HTTPS: host only).
-# Lives ONLY on PVC egress-proxy-logs, 7 daily files (logfile_rotate 6 +
-# daily rotate), never on stdout, so the cluster log shipper does NOT send it
-# to Loki. NOT backed up. Readable by whoever can exec into this pod or
-# mount the PVC in family-ai = cluster admins; not Open WebUI admins, not
-# the agents. Which child made a request is NOT in it (shared services).
+# LOG PRIVACY: this is a browsing log. Fields: time, profile (profiel-N or
+# "search", derived from the squid PORT the caller may reach - CNP - not from
+# anything it sends), URL without query string (HTTPS: host:443 only),
+# status. No IPs, no bodies. Lives ONLY on PVC egress-proxy-logs, 7 daily
+# files, never on stdout, so NOT shipped to Loki. NOT backed up. Readable by
+# cluster admins only (exec into this pod / mount the PVC); not Open WebUI
+# admins, not the agents, not the sandboxes.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -31,7 +30,10 @@ spec:
   selector:
     app.kubernetes.io/name: egress-proxy
   ports:
-    - {name: proxy, port: 3128, targetPort: proxy}
+    - {name: search, port: 3128, targetPort: search}
+    - {name: profiel-1, port: 3131, targetPort: profiel-1}
+    - {name: profiel-2, port: 3132, targetPort: profiel-2}
+    - {name: profiel-3, port: 3133, targetPort: profiel-3}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -68,7 +70,10 @@ spec:
           image: docker.io/ubuntu/squid:6.13-25.04_edge@sha256:3de2e64f0ca6efdac3e98557607dc0f23050037f3885016d5d5bfcf9950501b8
           command: ["/bin/sh", "/etc/egress-proxy/run.sh"]
           ports:
-            - {name: proxy, containerPort: 3128}
+            - {name: search, containerPort: 3128}
+            - {name: profiel-1, containerPort: 3131}
+            - {name: profiel-2, containerPort: 3132}
+            - {name: profiel-3, containerPort: 3133}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -77,7 +82,7 @@ spec:
             requests: {cpu: 50m, memory: 64Mi}
             limits: {memory: 256Mi}
           readinessProbe:
-            tcpSocket: {port: proxy}
+            tcpSocket: {port: search}
             periodSeconds: 10
           volumeMounts:
             - {name: conf, mountPath: /etc/egress-proxy, readOnly: true}

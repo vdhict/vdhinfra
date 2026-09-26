@@ -53,7 +53,8 @@ spec:
           ports:
             - {name: http, containerPort: 8080}
           env:
-            - {name: EGRESS_PROXY, value: "http://egress-proxy.family-ai.svc.cluster.local:3128"}
+            # + per-profile port 3131..3133 (see files/web_extract.py)
+            - {name: EGRESS_PROXY_BASE, value: "http://egress-proxy.family-ai.svc.cluster.local"}
             - {name: PYTHONUNBUFFERED, value: "1"}
           securityContext:
             allowPrivilegeEscalation: false

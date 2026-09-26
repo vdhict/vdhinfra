@@ -12,15 +12,33 @@ spec:
   endpointSelector:
     matchLabels:
       app.kubernetes.io/name: egress-proxy
+  # One squid port per caller (files/squid.conf): the port IS the profile
+  # tag in the log, so each caller may reach only its own port(s). The
+  # sandbox rules are inert until land-10 creates those pods.
   ingress:
     - fromEndpoints:
         - matchLabels: {app.kubernetes.io/name: searxng}
-        - matchLabels: {app.kubernetes.io/name: web-extract}
-        - matchLabels:
-            k8s:io.kubernetes.pod.namespace: family-ai-sandbox
-            app.kubernetes.io/name: sandbox
       toPorts:
         - ports: [{port: "3128", protocol: TCP}]
+    - fromEndpoints:
+        - matchLabels: {app.kubernetes.io/name: web-extract}
+      toPorts:
+        - ports:
+            - {port: "3131", protocol: TCP}
+            - {port: "3132", protocol: TCP}
+            - {port: "3133", protocol: TCP}
+    - fromEndpoints:
+        - matchLabels: {app.kubernetes.io/name: sandbox, app.kubernetes.io/instance: sandbox-profiel-1}
+      toPorts:
+        - ports: [{port: "3131", protocol: TCP}]
+    - fromEndpoints:
+        - matchLabels: {app.kubernetes.io/name: sandbox, app.kubernetes.io/instance: sandbox-profiel-2}
+      toPorts:
+        - ports: [{port: "3132", protocol: TCP}]
+    - fromEndpoints:
+        - matchLabels: {app.kubernetes.io/name: sandbox, app.kubernetes.io/instance: sandbox-profiel-3}
+      toPorts:
+        - ports: [{port: "3133", protocol: TCP}]
   egress:
     - toCIDRSet:
         - cidr: 0.0.0.0/0
@@ -72,7 +90,11 @@ spec:
     - toEndpoints:
         - matchLabels: {app.kubernetes.io/name: egress-proxy}
       toPorts:
-        - ports: [{port: "3128", protocol: TCP}]
+        - ports:
+            - {port: "3128", protocol: TCP}
+            - {port: "3131", protocol: TCP}
+            - {port: "3132", protocol: TCP}
+            - {port: "3133", protocol: TCP}
     - toEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: kube-system
@@ -83,4 +105,4 @@ spec:
             - {port: "53", protocol: TCP}
           rules:
             dns:
-              - matchPattern: "*.family-ai.svc.cluster.local"
+              - matchName: egress-proxy.family-ai.svc.cluster.local
