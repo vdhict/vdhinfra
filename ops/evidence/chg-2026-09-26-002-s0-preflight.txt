@@ -1,0 +1,66 @@
+# chg-2026-09-26-002 S0 preflight - k8s-engineer (Heph), 2026-09-26. Read-only; nothing applied.
+# Branch fix/ha-admin-ui-containment-s0 off origin/main bbc180f (NOT pushed):
+#   ae76a8f fix(home-assistant): remove unauthenticated code-server sidecar, port and route
+#   c7cb277 fix(esphome): require dashboard login (ESPHOME_USERNAME/PASSWORD from 1Password)
+#   c38aa5c chore(node-red): retain the config PVC ahead of decommission      <- push 1 ends here
+#   458393a chore(node-red): decommission (step 2 of 2)                      <- push 2, only after gate G1
+
+## P1 baseline (vdhmini01, nc -z / curl, control ports included)
+172.16.2.237:12321 open | 172.16.2.237:8123 open (control)
+NodePort 30922 open on .81 .82 .83 .84 .85 .86 | NodePort 32504 (HA 8123, control) open on all six
+172.16.2.81:12321 open (HA node, hostNetwork) -> GET / 302 ./?folder=/config
+172.16.2.82:6052 GET /devices 200, WS /ws server-info requires_auth=false (esphome 2026.8.2, device-builder 1.13.1)
+node-red via envoy-internal 200; LAN DNS (UDM) hass-code/node-red/esphome -> 172.16.2.241; public DoH NXDOMAIN
+
+## P2 root build (flux-local build ks -A kubernetes/main/cluster, origin/main vs branch HEAD)
+objects 328 -> 325
++ ExternalSecret/home-automation/esphome
+- ExternalSecret/home-automation/node-red-volsync
+- HelmRelease/home-automation/node-red
+- Kustomization/flux-system/node-red
+- ReplicationSource/home-automation/node-red
+(+ content changes inside HelmRelease home-assistant and esphome)
+(flux-local build all --enable-helm fails identically on origin/main: pre-existing snmp-exporter HelmRepository ref; not this change)
+
+## P3 helm render delta (helm template app-template 3.7.3, values from the HRs)
+home-assistant: 7 -> 6 objects. Service home-assistant loses port 12321; Deployment loses container code-server; HTTPRoute home-assistant-code-server removed. Nothing else differs.
+esphome: Deployment container gains envFrom secretRef esphome-secret. Nothing else differs.
+node-red step 1: PVC node-red-config gains label kustomize.toolkit.fluxcd.io/prune=disabled + annotation helm.sh/resource-policy=keep. Nothing else (no pod template change).
+
+## P4 server-side dry-run (kubectl apply --server-side --dry-run=server)
+externalsecret.external-secrets.io/esphome, helmrelease/esphome, helmrelease/home-assistant: serverside-applied (server dry run)
+HA: pvc x2, service/home-assistant, deployment/home-assistant, httproute kiosk + main: serverside-applied (server dry run)
+esphome: pvc, service, deployment, httproute: serverside-applied (server dry run)
+node-red step1: pvc/node-red-config, service, deployment: serverside-applied (server dry run)
+step 2: kustomization.kustomize.toolkit.fluxcd.io "node-red" deleted (server dry run)
+yamllint clean on all changed files; kustomize build home-automation OK.
+
+## P5 source verification esphome auth (esphome 2026.8.2 docker/Dockerfile: esphome-device-builder==1.13.1; entrypoint routes `dashboard` to it)
+helpers/credentials.py resolve_credentials: CLI flag > $ESPHOME_USERNAME/$ESPHOME_PASSWORD > legacy $USERNAME/$PASSWORD; both-or-neither.
+helpers/auth.py auth_middleware: 401 + WWW-Authenticate when using_password; _PUBLIC_PATHS = / /ws /favicon.ico /manifest.json /version /api/firmware/download /api/devices/import_bundle (the last two need single-use tokens minted over the authenticated WS).
+api/ws.py: pre_authenticated = trusted_site or not using_password; only auth, auth/login allowed before auth; others -> not_authenticated.
+=> expected after S0: GET / 200 (SPA shell, by design), GET /devices 401, WS server-info requires_auth=true, WS command -> not_authenticated.
+
+## P6 PVC / restart facts
+node-red-config: managed-by Helm, no keep annotation today; StorageClass rook-ceph-block reclaimPolicy Delete (hence the two-step).
+home-assistant Deployment strategy Recreate, no probes, grace 30s; last container restart (2026-09-16) showed up==0 for ~1 min in Prometheus.
+esphome Deployment strategy Recreate; HR upgrade remediation strategy rollback (missing 1P item => rollback to unauthenticated revision).
+
+## ADDENDUM r2 (after Themis qa_failed B1 08:06:55Z + Hestia qa_passed-with-conditions 08:05:50Z)
+Branch rebuilt on origin/main bbc180f. Superseded commits kept as local branch s0-old (458393a).
+  47015b4 feat(esphome): guarded ExternalSecret (push 1a)          -- ES + kustomization entry only; esphome HR identical to origin/main
+  0bdbe89 fix(home-assistant): remove code-server/port/route       -- identical tree to reviewed ae76a8f
+  2405624 fix(esphome): envFrom esphome-secret (push 1b)            -- HR semantically identical to reviewed c7cb277 (comment only)
+  a958611 chore(node-red): retain PVC (step 1)                      -- identical to reviewed c38aa5c
+  d7cc08f chore(node-red): decommission (step 2)                    -- identical to reviewed 458393a
+Final tree vs reviewed tree: only esphome/app/externalsecret.yaml differs (guard) + one HR comment. Root delta 328->325 and helm render delta unchanged.
+
+B1 guard: template refuses to render unless USERNAME non-empty, == trim, no ':'; PASSWORD len>=16, == trim. Explicit remoteRef properties (missing field => ES error, not empty).
+ESO live v2.4.1: runtime/template/v2 copies sprig.TxtFuncMap; sprig/functions.go has trim (TrimSpace), contains, toString, fail. Guard unit-tested with helm/sprig on the folded (>-) strings:
+  valid -> u=[sander] p=[exact value]; value with inner space and ':' in password -> rendered exactly
+  both empty / user empty / pw 15 chars / pw leading space / user trailing space / user with ':' -> fail (render refused)
+Server-side dry-run of the guarded ES: serverside-applied (server dry run). kustomize build home-automation OK at 47015b4, 2405624, a958611, d7cc08f. yamllint clean.
+Bare $u/$p survive Flux postBuild (precedent: live PrometheusRule in database keeps {{ $labels.pod }}).
+
+T2 baseline 6052: open on .82 only (esphome pod node), closed on .81 .83 .84 .85 .86; control 32504 open on all six.
+node-red-config PVC ALREADY carries meta.helm.sh/release-name=node-red, meta.helm.sh/release-namespace=home-automation, app.kubernetes.io/managed-by=Helm (verified live) -> rollback of step 2 = verify present, not add.
