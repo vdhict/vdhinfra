@@ -1,0 +1,26 @@
+---
+# Local RAG model cache for Open WebUI (chg-2026-09-26-001, Knowledge).
+# Holds two pinned Hugging Face snapshots in HF cache layout:
+#   models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2
+#     revision e8f8c211226b894fcb81acc59f3b34ba3efd5f42
+#   models--cross-encoder--mmarco-mMiniLMv2-L12-H384-v1
+#     revision 1427fd652930e4ba29e8149678df786c240d8825
+# Filled ONCE by kubectl cp from the verified staging dir on the Mac Mini
+# (~/family-ai-models, SHA256SUMS sha256 e4d43631...), with a hash read-back
+# in the pod, BEFORE the config that enables RAG is applied.
+#
+# NOT backed up (no ReplicationSource): it is a reproducible cache (~0.95 GB)
+# and the VolSync restic mover cannot exclude a sub-path of open-webui-data.
+# Mounted read-only in the app, so Open WebUI cannot write into it either.
+# After DR: re-copy from staging (or re-download the pinned revisions) and
+# compare against SHA256SUMS.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: open-webui-models
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: rook-ceph-block
+  resources:
+    requests:
+      storage: 3Gi

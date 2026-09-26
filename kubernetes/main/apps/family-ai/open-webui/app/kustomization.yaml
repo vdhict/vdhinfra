@@ -5,6 +5,7 @@ kind: Kustomization
 resources:
   - ./externalsecret.yaml
   - ./pvc.yaml
+  - ./pvc-models.yaml   # RAG model cache, not backed up
   - ./deployment.yaml
   - ./service.yaml
   - ./volsync.yaml
