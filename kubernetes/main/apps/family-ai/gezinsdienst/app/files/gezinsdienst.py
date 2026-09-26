@@ -149,7 +149,7 @@ CREATE TABLE IF NOT EXISTS gedrag (
   soort TEXT NOT NULL CHECK (soort IN ('huiswerk_doorgedrukt','omzeilpoging','gevaarlijke_vraag','gegevens_van_anderen','leerpad_stap_af')),
   modus TEXT NOT NULL CHECK (modus IN ('test','live')),
   uur REAL NOT NULL,
-  status TEXT NOT NULL DEFAULT 'geldig' CHECK (status IN ('geldig','telt_niet'))
+  status TEXT NOT NULL DEFAULT 'te_controleren' CHECK (status IN ('te_controleren','bevestigd','telt_niet','vervallen'))
 );
 CREATE TABLE IF NOT EXISTS gebruik_uur (
   onderwerp TEXT NOT NULL,
@@ -186,7 +186,34 @@ class Opslag:
     def __init__(self, pad: str):
         self._lock = threading.Lock()
         self.db = sqlite3.connect(pad, check_same_thread=False, isolation_level=None)
+        self._migreer()
         self.db.executescript(SCHEMA)
+
+    def _migreer(self) -> None:
+        """Review 4: CREATE TABLE IF NOT EXISTS does not change an old table. A gedrag table from before the
+        'te controleren' model (statuses geldig/telt_niet) is rebuilt; 'geldig' notes already counted, so they
+        become 'bevestigd'. Idempotent: a current table is left alone."""
+        rij = self.db.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='gedrag'").fetchone()
+        if not rij or "'geldig'" not in rij[0]:
+            return
+        self.db.execute("BEGIN IMMEDIATE")
+        try:
+            self.db.execute("ALTER TABLE gedrag RENAME TO gedrag_oud")
+            self.db.execute("""CREATE TABLE gedrag (
+  id INTEGER PRIMARY KEY,
+  onderwerp TEXT NOT NULL,
+  soort TEXT NOT NULL CHECK (soort IN ('huiswerk_doorgedrukt','omzeilpoging','gevaarlijke_vraag','gegevens_van_anderen','leerpad_stap_af')),
+  modus TEXT NOT NULL CHECK (modus IN ('test','live')),
+  uur REAL NOT NULL,
+  status TEXT NOT NULL DEFAULT 'te_controleren' CHECK (status IN ('te_controleren','bevestigd','telt_niet','vervallen'))
+)""")
+            self.db.execute("INSERT INTO gedrag (id, onderwerp, soort, modus, uur, status) SELECT id, onderwerp, soort, modus, uur, "
+                            "CASE status WHEN 'geldig' THEN 'bevestigd' ELSE status END FROM gedrag_oud")
+            self.db.execute("DROP TABLE gedrag_oud")
+            self.db.execute("COMMIT")
+        except BaseException:
+            self.db.execute("ROLLBACK")
+            raise
 
     def tx(self, fn: Callable[[sqlite3.Connection], Any]) -> Any:
         with self._lock:
@@ -415,7 +442,7 @@ class Dienst:
         modus = self.cfg["onderwerpen"][oid]["modus"]
         start, eind, week = self._week_grenzen(maandag)
         rijen = self.opslag.tx(lambda db: db.execute(
-            "SELECT soort, COUNT(*) FROM gedrag WHERE onderwerp=? AND modus=? AND uur>=? AND uur<? AND status='geldig' "
+            "SELECT soort, COUNT(*) FROM gedrag WHERE onderwerp=? AND modus=? AND uur>=? AND uur<? AND status='bevestigd' "
             "GROUP BY soort", (oid, modus, start, eind)).fetchall())
         tellers = {k: 0 for k in GEDRAG}
         tellers.update({k: int(n) for k, n in rijen})
@@ -448,6 +475,7 @@ class Dienst:
         if nu.weekday() != 6 or nu.hour < 18:
             return None
         maandag = nu.date() - _dt.timedelta(days=6)
+        self.laat_vervallen(maandag)
         samen = self.week_opslaan(maandag)
         if nu.hour < 19:
             return "samengevat"
@@ -465,9 +493,51 @@ class Dienst:
         LOG.info(json.dumps({"event": "weekpush", "nodig": bool(actie)}))
         return "push" if actie else "geen push"
 
+    def _maandag_van(self, uur: float) -> _dt.date:
+        d = _dt.datetime.fromtimestamp(uur, self.tz).date()
+        return d - _dt.timedelta(days=d.weekday())
+
+    def _deadline(self, uur: float) -> float:
+        """The Sunday 18:00 count of the note's own week (Tess §13.4)."""
+        m = self._maandag_van(uur)
+        return _dt.datetime.combine(m + _dt.timedelta(days=6), _dt.time(18, 0), self.tz).timestamp()
+
+    def _herbereken(self, uur: float) -> None:
+        """Review 4: a change to a note in a past week recomputes that week's stored colour and the next one's
+        (red depends on the previous week). The current week is computed on Sunday anyway."""
+        m = self._maandag_van(uur)
+        huidig = self._maandag_van(self.klok())
+        for week in (m, m + _dt.timedelta(days=7)):
+            if week < huidig:
+                self.week_opslaan(week)
+
     def telt_niet(self, gid: int) -> bool:
+        rij = self.opslag.tx(lambda db: db.execute("SELECT uur FROM gedrag WHERE id=?", (gid,)).fetchone())
+        ok = self.opslag.tx(lambda db: db.execute(
+            "UPDATE gedrag SET status='telt_niet' WHERE id=? AND status IN ('te_controleren','bevestigd')", (gid,)).rowcount == 1)
+        if ok and rij:
+            self._herbereken(rij[0])
+        return ok
+
+    def bevestig(self, gid: int) -> bool:
+        """Only Sander's confirmation makes a model note count (Tess §13.4). After its week's Sunday 18:00 a note
+        lapses, also when the background tick was missed (review 4), and it never counts retroactively."""
+        nu = self.klok()
+        rij = self.opslag.tx(lambda db: db.execute("SELECT uur, status FROM gedrag WHERE id=?", (gid,)).fetchone())
+        if not rij or rij[1] != "te_controleren":
+            return False
+        if nu >= self._deadline(rij[0]):
+            self.opslag.tx(lambda db: db.execute(
+                "UPDATE gedrag SET status='vervallen' WHERE id=? AND status='te_controleren'", (gid,)))
+            return False
         return self.opslag.tx(lambda db: db.execute(
-            "UPDATE gedrag SET status='telt_niet' WHERE id=? AND status='geldig'", (gid,)).rowcount == 1)
+            "UPDATE gedrag SET status='bevestigd' WHERE id=? AND status='te_controleren'", (gid,)).rowcount == 1)
+
+    def laat_vervallen(self, maandag: _dt.date) -> int:
+        """At the Sunday 18:00 count, unconfirmed notes of that week lapse and never count retroactively."""
+        _, eind, _ = self._week_grenzen(maandag)
+        return self.opslag.tx(lambda db: db.execute(
+            "UPDATE gedrag SET status='vervallen' WHERE status='te_controleren' AND uur<?", (eind,)).rowcount)
 
     # parents -------------------------------------------------------------------
     def rol(self, gebruiker: str, groepen: str) -> Tuple[str, Optional[str]]:
@@ -529,8 +599,34 @@ class Dienst:
                 "SELECT soort, aangemaakt, besproken FROM signalen WHERE onderwerp=? AND modus=? AND aangemaakt>=? "
                 "ORDER BY aangemaakt DESC", (oid, o["modus"], nu - 30 * 86400)).fetchall())
             dagen = ", ".join(_dt.date.fromisoformat(d).strftime("%a") for d in w["late_avonden"]) or "geen"
-            regels = "".join(f"<tr><td>{e(labels[k])}</td><td>{w['tellers'][k]}</td></tr>"
+            start, eind, _ = self._week_grenzen(maandag)
+            notities = self.opslag.tx(lambda db, oid=oid, o=o: db.execute(
+                "SELECT id, soort, uur, status FROM gedrag WHERE onderwerp=? AND modus=? AND uur>=? AND soort!='leerpad_stap_af' "
+                "ORDER BY uur DESC", (oid, o["modus"], start - 7 * 86400)).fetchall())
+            open_per = {}
+            for _, s_, u_, st_ in notities:
+                if st_ == "te_controleren" and u_ >= start:
+                    open_per[s_] = open_per.get(s_, 0) + 1
+            regels = "".join(f"<tr><td>{e(labels[k])}</td><td>{w['tellers'][k]}"
+                             f"{' (' + str(open_per[k]) + ' te controleren)' if open_per.get(k) else ''}</td></tr>"
                              for k in GEDRAG if k != "leerpad_stap_af")
+            staat = {"te_controleren": "te controleren", "bevestigd": "telt mee", "telt_niet": "telt niet",
+                     "vervallen": "niet bevestigd"}
+            items = []
+            for gid, s_, u_, st_ in notities:
+                wanneer = _dt.datetime.fromtimestamp(u_, self.tz).strftime("%a %d %b %H:00")
+                tekst = f"{e(labels[s_])} · {wanneer} · {staat[st_]}"
+                if st_ == "vervallen":
+                    tekst = f"<s>{tekst}</s>"
+                knoppen = ""
+                if rol == "ouder" and st_ == "te_controleren":
+                    knoppen = (f' <form method="post" action="/bevestigen/{gid}" style="display:inline"><button>Bevestigen</button></form>'
+                               f' <form method="post" action="/telt-niet/{gid}" style="display:inline"><button>Telt niet</button></form>')
+                elif rol == "ouder" and st_ == "bevestigd":
+                    knoppen = f' <form method="post" action="/telt-niet/{gid}" style="display:inline"><button>Telt niet</button></form>'
+                items.append(f"<li>{tekst}{knoppen}</li>")
+            n_open = sum(1 for n in notities if n[3] == "te_controleren")
+            lijst = f"<h3>Notities van de AI (te controleren: {n_open})</h3><ul>{''.join(items) or '<li>geen</li>'}</ul>"
             regels += f"<tr><td>Laat op de avond</td><td>{len(w['late_avonden'])} ({e(dagen)})</td></tr>"
             strip = " ".join(e(k) for _, k in reversed(rijen)) or "nog geen weken"
             seintjes = "".join(
@@ -541,7 +637,7 @@ class Dienst:
             kop = "Mijn ladder" if rol == "kind" else e(o["naam"])
             kolommen.append(
                 f"<section><h2>{kop}{test}</h2><p>Niveau {niveau}.</p><p>Deze week: {e(w['kleur'])}.</p>"
-                f"<table>{regels}</table><p>Laatste weken: {strip}</p>"
+                f"<table>{regels}</table>{lijst}<p>Laatste weken: {strip}</p>"
                 f"<p>Op weg naar niveau {niveau + 1}: {min(groen_op_rij, 4)} van 4 groene weken; de rest bespreek je aan tafel.</p>"
                 f"<h3>{'Jouw seintjes' if rol == 'kind' else 'Veiligheidssignalen'} (30 dagen)</h3><ul>{seintjes}</ul>"
                 f"<p><em>Seintjes tellen nooit mee voor de ladder.</em></p></section>")
@@ -566,12 +662,15 @@ class Dienst:
             if not o.get("gedrag", False) or (rol == "kind" and oid != eigen):
                 continue
             rijen = self.opslag.tx(lambda db: db.execute(
-                "SELECT soort, COUNT(*) FROM gedrag WHERE onderwerp=? AND modus=? AND uur>=? AND status='geldig' GROUP BY soort",
+                "SELECT soort, COUNT(*) FROM gedrag WHERE onderwerp=? AND modus=? AND uur>=? AND status='bevestigd' GROUP BY soort",
                 (oid, o["modus"], grens)).fetchall())
+            open_ = self.opslag.tx(lambda db: db.execute(
+                "SELECT COUNT(*) FROM gedrag WHERE onderwerp=? AND modus=? AND uur>=? AND status='te_controleren'",
+                (oid, o["modus"], grens)).fetchone()[0])
             tellers = {s: 0 for s in GEDRAG}
             tellers.update({s: int(n) for s, n in rijen})
             avonden = self.late_avonden(oid, van, tot)
-            uit[oid] = {"gedrag": tellers, "late_avonden": avonden}
+            uit[oid] = {"gedrag": tellers, "te_controleren": int(open_), "late_avonden": avonden}
         return {"vanaf": van, "tot": tot, "onderwerpen": uit}
 
 
@@ -671,7 +770,7 @@ def maak_handler(dienst: Dienst):
                     code, obj = dienst.gebruik(oid, body)
                 LOG.info(json.dumps({"event": self.path, "status": code}))
                 return self._json(code, obj)
-            m = re.fullmatch(r"/(besproken|telt-niet)/(\d{1,9})", self.path)
+            m = re.fullmatch(r"/(besproken|telt-niet|bevestigen)/(\d{1,9})", self.path)
             if m:
                 rol, _ = self._rol()
                 if rol != "ouder":
@@ -682,6 +781,8 @@ def maak_handler(dienst: Dienst):
                     return self._html(403, "<p>Geweigerd.</p>")
                 if m.group(1) == "besproken":
                     dienst.besproken(int(m.group(2)))
+                elif m.group(1) == "bevestigen":
+                    dienst.bevestig(int(m.group(2)))
                 else:
                     dienst.telt_niet(int(m.group(2)))
                 self.send_response(303)
