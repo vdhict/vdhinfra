@@ -1,0 +1,74 @@
+---
+# OIDC back-channel for Open WebUI (chg-2026-09-26-001 v4, Mack addendum 1).
+#
+# Open WebUI's SERVER must reach the issuer https://auth.bluejungle.net for
+# discovery, JWKS, token and userinfo. Going through envoy-internal would
+# reopen the SNI/Host fronting path Argus closed (inc-2026-09-26-001), and
+# a plain call to http://authelia:8888 yields a different issuer (Authelia
+# derives it from Host + X-Forwarded-Proto; without them it answers 500).
+#
+# So: an nginx sidecar in the open-webui pod listens on 127.0.0.1:443 with
+# a certificate for auth.bluejungle.net from a PRIVATE CA that only this
+# pod trusts, hostAlias auth.bluejungle.net -> 127.0.0.1, and forwards ONLY
+# the four OIDC back-channel calls to the Authelia pods over the cluster
+# network with Host auth.bluejungle.net + X-Forwarded-Proto https.
+# Measured 2026-09-26: that request shape returns
+# issuer=https://auth.bluejungle.net from Authelia 4.39.19.
+# The CNP pins the same four calls at L7 (network-policies/open-webui.yaml),
+# so even the app container cannot talk to anything else on Authelia.
+#
+# The BROWSER still goes to https://auth.bluejungle.net through
+# envoy-internal with the real certificate - nothing changes for users.
+#
+# cert-manager objects below: a self-signed root (10 y) and a 90-day leaf.
+# The CA key never leaves family-ai; the CA is trusted by the open-webui
+# pod only (bundle built by the ca-bundle init container).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cert-manager.io/issuer_v1.json
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: family-ai-selfsigned
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: family-ai-oidc-proxy-ca
+spec:
+  isCA: true
+  commonName: family-ai oidc-proxy local CA
+  secretName: family-ai-oidc-proxy-ca
+  duration: 87600h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    kind: Issuer
+    name: family-ai-selfsigned
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: family-ai-oidc-proxy-ca
+spec:
+  ca:
+    secretName: family-ai-oidc-proxy-ca
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: oidc-proxy-tls
+spec:
+  secretName: oidc-proxy-tls
+  dnsNames: [auth.bluejungle.net]
+  duration: 2160h
+  renewBefore: 360h
+  usages: [server auth, digital signature]
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    kind: Issuer
+    name: family-ai-oidc-proxy-ca

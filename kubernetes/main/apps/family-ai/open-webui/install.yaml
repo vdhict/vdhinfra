@@ -17,6 +17,7 @@ spec:
     - name: external-secrets-stores
     - name: rook-ceph-cluster
     - name: volsync
+    - name: cert-manager   # oidc-proxy CA + leaf
   path: ./kubernetes/main/apps/family-ai/open-webui/app
   sourceRef:
     kind: GitRepository
