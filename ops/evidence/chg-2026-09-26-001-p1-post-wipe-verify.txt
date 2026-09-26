@@ -1,0 +1,24 @@
+chg-2026-09-26-001 profiel-1 post lazy-install + wipe verification (read-only), 2026-09-26 ~21:05-21:10 UTC, k8s-engineer
+(install + wipe run by the operator himself; pod log: chg-2026-09-26-001-p1-lazy-wipe-podlog.txt)
+
+seed-once (hermes-profiel-1-6c4bc9b6f7-s7ttk): bundle 7ee253b3...caf5 verified, 7 files, wrote config.yaml/SOUL.md/plugins/
+T1 /v1/toolsets enabled tools: kennis_zoeken, memory, session_search, web_extract, web_search (unchanged)
+state.db: sessions 0, messages 0 (fresh); memories/ 0 files; sessions/ 0 files
+Other stores (outside wipe scope), counts + test-marker rows only:
+  response_store.db 0 rows; kanban.db 0 rows; runs_idempotency.db 0 rows; shared-state.db 1 row (hosted_room_legacy_imports), 0 marker rows
+  logs/agent.log (263 KB): test-conversation markers present (TEST-prompt marker x4, Rijksmuseum x1, STCW x1, web_search x2, wikipedia x2)
+  logs/errors.log: 1 marker (wikipedia, from the earlier firecrawl failure)
+  -> agent.log holds test-conversation content; wiping it is outside the approved scope (operator decision)
+lazy-packages: firecrawl, firecrawl_py-4.17.0.dist-info, nest_asyncio.py, nest_asyncio-1.6.0.dist-info, tests (top-level package shipped inside the firecrawl-py wheel), .python-abi, .lock
+web_extract via Hermes' own tool function (tools.web_tools.web_extract_tool, separate process in the pod, no LLM, no session):
+  firecrawl 4.17.0 imported from /opt/data/lazy-packages/firecrawl/__init__.py; extract backend firecrawl
+  https://en.wikipedia.org/wiki/Prompt_injection -> 15,518 chars, no error, "prompt injection" x31
+  proxy access.log: 2026-09-26T21:07:47+0000 profiel-1 en.wikipedia.org:443 200
+Hubble hermes-profiel-1 (5 min window):
+  web-extract:8080 FORWARDED (the real path)
+  egress-proxy:3128 Policy denied DROPPED - 5 connections x ~5 SYN retries, 21:07:17-21:07:56 (the deliberately
+    unreachable HTTPS_PROXY; something in the extract path honours it before/besides the firecrawl call)
+  DNS: en.wikipedia.org (+ search-domain variant) dns-request proxy DROPPED x8 (SSRF pre-check lookup, refused by the DNS allow-list)
+  NO DNS lookups for keyless back-ends (exa/parallel/firecrawl.dev/keenable/tavily): no keyless fallback attempted on this extract
+  (keyless_fallback applies to web_search; still true until the bundle update)
+Latency: the extract took ~40 s, mostly the dropped proxy connects timing out.
