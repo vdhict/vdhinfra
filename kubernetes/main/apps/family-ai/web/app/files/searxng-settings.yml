@@ -1,11 +1,25 @@
 # SearXNG for family-ai (chg-2026-09-26-001). One instance, used only by the
 # Hermes agents' fixed web_search provider (q + format=json + pageno).
+# Engines (land-12d, measured 2026-09-26 via our proxy from the home WAN IP):
+#   duckduckgo  CAPTCHA (IP-level, also from the Mini) and did NOT enforce
+#               strict safe search (land-9 T-SAFE fail) -> dropped
+#   brave       HTTP 429 through our proxy while a browser-like client gets
+#               200 (client fingerprinting) -> dropped
+#   bing        keyless, 10 results via the proxy; strict (adlt=strict)
+#               returns 0 for an adult query -> added
+#   wikipedia   API 200 via the proxy -> kept (SearXNG's own requests got
+#               429 earlier; re-measure after landing)
 use_default_settings:
   engines:
     keep_only:
-      - duckduckgo
+      - bing
       - wikipedia
-      - brave
+engines:
+  - name: bing
+    disabled: false     # disabled in SearXNG's defaults
+    timeout: 5.0
+  - name: wikipedia
+    timeout: 4.0
 general:
   instance_name: family-ai
   # never debug: debug mode logs every engine request with its query
@@ -18,6 +32,12 @@ server:
   image_proxy: false
   method: GET
 search:
+  # back off longer than the defaults (180 s) after a 429/deny, so a burst
+  # from several agents does not get the home IP blocked for longer
+  suspended_times:
+    SearxEngineAccessDenied: 900
+    SearxEngineCaptcha: 3600
+    SearxEngineTooManyRequests: 900
   # STRICT (2) for everyone - the cheapest sound option: one instance, no
   # per-profile routing. The Hermes provider sends only q/format/pageno, the
   # value is also LOCKED below so a request parameter or cookie cannot lower
