@@ -22,3 +22,7 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/envFrom/0/secretRef/name
         value: family-ai-hermes-profiel-2
+      # Unique model name per agent (Mack addendum 1 §3; api_server.py:1181).
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: API_SERVER_MODEL_NAME, value: hermes-agent-profiel-2}
