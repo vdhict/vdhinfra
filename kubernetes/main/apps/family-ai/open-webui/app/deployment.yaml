@@ -136,7 +136,28 @@ spec:
             - {name: USER_PERMISSIONS_FEATURES_AUTOMATIONS, value: "false"}
             - {name: OFFLINE_MODE, value: "true"}
             - {name: HF_HUB_OFFLINE, value: "1"}
-            - {name: BYPASS_EMBEDDING_AND_RETRIEVAL, value: "true"}
+            # Knowledge (RAG) ON with LOCAL models only (Sander via Larry,
+            # programme approval). Models are pinned HF snapshots copied into
+            # the separate PVC open-webui-models (see pvc-models.yaml), in the
+            # HF cache layout SENTENCE_TRANSFORMERS_HOME expects
+            # (models--<org>--<name>/{refs/main,snapshots/<rev>}).
+            # OFFLINE_MODE=true already forces local_files_only and both
+            # *_AUTO_UPDATE to false (config.py:1013/1040,
+            # retrieval/utils.py:1729); set explicitly as well.
+            # ⚠ All rag.* values are PersistentConfig: this env only applies
+            # to a FRESH DB (rebuild/DR). The running instance is switched in
+            # Admin Panel > Settings > Documents (or owui-apply via
+            # POST /api/v1/retrieval/embedding/update + /config/update).
+            - {name: BYPASS_EMBEDDING_AND_RETRIEVAL, value: "false"}
+            - {name: RAG_EMBEDDING_ENGINE, value: ""}
+            - {name: RAG_EMBEDDING_MODEL, value: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"}
+            - {name: RAG_EMBEDDING_MODEL_AUTO_UPDATE, value: "false"}
+            - {name: RAG_RERANKING_ENGINE, value: ""}
+            - {name: RAG_RERANKING_MODEL, value: "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"}
+            - {name: RAG_RERANKING_MODEL_AUTO_UPDATE, value: "false"}
+            # the reranker is only used in hybrid search (BM25 + vectors)
+            - {name: ENABLE_RAG_HYBRID_SEARCH, value: "true"}
+            - {name: TRANSFORMERS_OFFLINE, value: "1"}
             - {name: ANONYMIZED_TELEMETRY, value: "false"}
             - {name: SCARF_NO_ANALYTICS, value: "true"}
             - {name: DO_NOT_TRACK, value: "true"}
@@ -217,11 +238,12 @@ spec:
             capabilities:
               drop: ["ALL"]
           resources:
+            # RAG: two local MiniLM models (~0.95 GB on disk) in process.
             requests:
               cpu: 250m
-              memory: 1Gi
+              memory: 2Gi
             limits:
-              memory: 3Gi
+              memory: 5Gi
           startupProbe:
             httpGet: {path: /health, port: http}
             periodSeconds: 5
@@ -236,11 +258,20 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /app/backend/data
+            # Model cache on its OWN PVC, nested over the data path: not
+            # backed up by VolSync (the restic mover has no exclude option),
+            # reproducible from the pinned HF revisions + SHA256SUMS.
+            - name: models
+              mountPath: /app/backend/data/cache/embedding/models
+              readOnly: true
             - {name: ca-bundle, mountPath: /etc/family-ai-ca, readOnly: true}
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: open-webui-data
+        - name: models
+          persistentVolumeClaim:
+            claimName: open-webui-models
         - name: studio-ca
           configMap:
             name: studio-ca
