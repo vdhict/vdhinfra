@@ -1,0 +1,30 @@
+== (0) before
+.clean_shutdown .env .family-ai-seeded .install_id.lock .local .tirith-install-failed SOUL.md audio_cache auth.lock backups bin cache channel_directory.json config.yaml cron gateway-starts.log gateway.lock gateway_state.json home hooks image_cache install_id kanban kanban.db kanban.db-shm kanban.db-wal kanban.db.dispatch.lock kanban.db.init.lock lazy-packages logs lost+found memories pairing pending_messages plans platforms plugins response_store.db runs_idempotency.db sandboxes sessions shared-state.db skills skins state state.db state.db.auto-maintenance.lock state.db.fts_rebuild.lock workspace 
+== (a) verify wheel hashes (offline)
+04a3132e1bba7630a618bf19738f22404d955751d4a24f2912f0e220dac2cca0  firecrawl_py-4.17.0-py3-none-any.whl
+87af6efd6b5e897c81050477ef65c62e2b2f35d51703cae01aff2905b1852e1c  nest_asyncio-1.6.0-py3-none-any.whl
+Using CPython 3.13.5 interpreter at: /opt/hermes/.venv/bin/python
+Resolved 2 packages in 0.57ms
+Prepared 2 packages in 6ms
+warning: Failed to hardlink files; falling back to full copy. This may lead to degraded performance.
+         If the cache and target directories are on different filesystems, hardlinking may not be supported.
+         If this is intentional, set `export UV_LINK_MODE=copy` or use `--link-mode=copy` to suppress this warning.
+Installed 2 packages in 7ms
+ + firecrawl-py==4.17.0
+ + nest-asyncio==1.6.0
+stamp: 3.13:.cpython-313-x86_64-linux-gnu.so
+== (b) wipe conversation state
+== (c) verify
+firecrawl_py-4.17.0.dist-info
+nest_asyncio-1.6.0.dist-info
+import ok firecrawl 4.17.0 nest_asyncio 1.6.0 from /opt/data/lazy-packages/firecrawl/__init__.py
+gone: state.db
+gone: state.db-wal
+gone: state.db-shm
+gone: sessions
+gone: memories
+7fb3b89cdf80bea105fa625cd7c0e0221a7821c0a14459cbe0ed15d6461d9719  /opt/data/config.yaml
+f4d98df8e9f6605e13963fc14fb4e95a111e41cafcff9d86fed6703d8792ce6a  /opt/data/SOUL.md
+kennis
+model-providers
+== done
