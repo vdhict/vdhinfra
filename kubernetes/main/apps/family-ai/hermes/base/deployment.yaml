@@ -110,8 +110,10 @@ spec:
             # ── controlled internet (chg-2026-09-26-001): the tools only
             #    appear once Mack's config.yaml adds toolset `web` with
             #    web.search_backend: searxng + web.extract_backend: firecrawl.
-            - {name: SEARXNG_URL, value: "http://searxng:8080"}
-            - {name: FIRECRAWL_API_URL, value: "http://web-extract:8080"}
+            # full FQDNs: short names intermittently failed to resolve under
+            # ndots:1 + the DNS allow-list (same as KENNIS_URL)
+            - {name: SEARXNG_URL, value: "http://searxng.family-ai.svc.cluster.local:8080"}
+            - {name: FIRECRAWL_API_URL, value: "http://web-extract.family-ai.svc.cluster.local:8080"}
             # FIRECRAWL_API_KEY is set per profile (= "profiel-N", not a
             # secret): web-extract uses it only to pick that profile's proxy
             # port, so the proxy log says whose fetch it was.
