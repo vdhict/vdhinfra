@@ -1,0 +1,22 @@
+chg-2026-09-26-001 land-9b post-land (origin/main aa33356), 2026-09-26 ~18:52-18:55 UTC, k8s-engineer
+
+C9b-1 plugins / ClearURLs
+  ks family-ai-web applied aa33356; searxng pod restarted 18:51:56Z, Ready
+  GET searxng:8080/config from hermes-profiel-1: 200, "plugins": [], safe_search 2
+  searxng log since restart: 0 lines TRACKER/clearurls/jsdelivr; proxy access.log: 0 clearurls/jsdelivr
+  Hubble DNS from searxng (buffer window): only egress-proxy.family-ai.svc.cluster.local queries; 0 clearurls/jsdelivr
+sitecustomize loads
+  PYTHONPATH=/opt/family-ai-py inherited by searxng's python children (resource_tracker environ);
+  venv python: sys.modules['sitecustomize'] = /opt/family-ai-py/sitecustomize.py, flags -E/-I = 0/0;
+  behavioural proof in the live log: granian's own line "Listening at: http://0.0.0.0:8080/[redacted]"
+C9b-2 marker queries (hermes-profiel-1 -> searxng:8080), marker token in q
+  normal 200 (0 results, engines captcha/429), malformed (safesearch=abc) 400, forced fail (engines=brave,wikipedia) 200 with suspended engines
+  Loki {namespace="family-ai", app="searxng"} window start-120s..now: 28 lines; marker 0; q=<value> 0; un-redacted URL paths 0
+  e.g. "ERROR:searx.webapp: search error: SearxParameterException [SearxParameterException]"
+C2 safe-search lock with plugins {}: INCONCLUSIVE - all three engines captcha/429-suspended, 0 results for any query;
+  /config safe_search 2 and parse_safesearch honours the lock (code), so the setting is right; DDG not enforcing strict (land-9 finding) stands.
+C9b-3 SEARXNG_SECRET rotation
+  force-sync annotation alone did not re-render (refreshInterval 0); Secret deleted -> ESO regenerated it from the Password generator
+  Secret resourceVersion 230755309 -> 230771213, created 18:53:47Z; ES refreshTime 18:53:47Z Ready=True; value changed: yes (hash compare, value never printed)
+  searxng rollout restart: new pod started 18:53:55Z (after rotation), Ready; /healthz 200 via hermes-profiel-1; pod env hash == new Secret hash
+Side note: searxng warns /var/cache/searxng owned root:root (emptyDir, no fsGroup) - cosmetic.
