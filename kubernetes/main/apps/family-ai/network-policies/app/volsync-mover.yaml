@@ -1,0 +1,39 @@
+---
+# NOT in Mack's §4, but required: under default-deny the VolSync mover pods
+# (labelled via ReplicationSource moverPodLabels) must reach MinIO, or
+# acceptance test h fails. Egress to the MinIO pod on 9000 and DNS only.
+# The mover pods keep Kubernetes' default ndots:5, so their lookup of
+# minio.storage.svc.cluster.local walks the search list first
+# (...cluster.local.family-ai.svc.cluster.local etc.). The allow-list is
+# `**.cluster.local`: in Cilium 1.19.4 (pkg/fqdn/matchpattern) a leading
+# `**.` matches ONE OR MORE labels, so the whole search walk and the final
+# absolute name pass, and nothing outside cluster.local can be queried -
+# no DNS side channel through CoreDNS -> UDM from pods that read every
+# PVC (Argus A6).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: volsync-mover
+spec:
+  endpointSelector:
+    matchLabels:
+      family-ai/role: volsync-mover
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: storage
+            app.kubernetes.io/name: minio
+      toPorts:
+        - ports: [{port: "9000", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              - matchPattern: "**.cluster.local"

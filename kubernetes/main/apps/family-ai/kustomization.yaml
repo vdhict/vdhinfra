@@ -18,3 +18,4 @@ resources:
   - ./limitrange.yaml
   - ./runtime-configmap.yaml
   - ./studio-ca-configmap.yaml
+  - ./network-policies/install.yaml
