@@ -31,6 +31,28 @@ spec:
         - 172.16.2.200/32
       toPorts:
         - ports: [{port: "443", protocol: TCP}]
+    # OIDC back-channel (v4, Mack addendum 1): discovery, JWKS, token and
+    # userinfo, server-side. NOT via envoy-internal (that would reopen the
+    # SNI/Host fronting path Argus closed). The oidc-proxy sidecar in the
+    # open-webui pod terminates TLS for auth.bluejungle.net (hostAlias ->
+    # 127.0.0.1, private CA) and forwards plain HTTP to the Authelia pods
+    # with Host auth.bluejungle.net + X-Forwarded-Proto https, so the issuer
+    # stays https://auth.bluejungle.net (measured 2026-09-26). Plain HTTP
+    # makes an L7 allow-list possible: ONLY these four calls, from ANY
+    # container in the pod - the app cannot reach Authelia's login, authz
+    # or admin endpoints this way.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: security
+            app.kubernetes.io/name: authelia
+      toPorts:
+        - ports: [{port: "8888", protocol: TCP}]
+          rules:
+            http:
+              - {method: GET, path: "/\\.well-known/openid-configuration"}
+              - {method: GET, path: "/jwks\\.json"}
+              - {method: POST, path: "/api/oidc/token"}
+              - {method: "GET|POST", path: "/api/oidc/userinfo"}
     - toEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: kube-system
@@ -45,3 +67,5 @@ spec:
               # /etc/hosts. A client that bypassed the hosts file would get
               # REFUSED instead of learning the envoy-internal IP.
               - matchPattern: "*.family-ai.svc.cluster.local"
+              # the oidc-proxy sidecar resolves its upstream once at start
+              - matchName: authelia.security.svc.cluster.local

@@ -26,6 +26,8 @@ spec:
         - 172.16.2.200/32
       toPorts:
         - ports: [{port: "443", protocol: TCP}]
+    # Only profiel-2/-3 are admitted by gezinsdienst's ingress rule; the
+    # egress side stays per-namespace-app so the pair is readable in one place.
     - toEndpoints:
         - matchLabels:
             app.kubernetes.io/name: gezinsdienst
