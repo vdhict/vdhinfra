@@ -1,0 +1,23 @@
+# chg-2026-09-26-001 land-2c + land-2b post-checks (origin/main a6e721f), 2026-09-26. uitgevoerd onder programmagoedkeuring family-ai
+## Flux: cluster-apps, authelia, family-ai-open-webui applied a6e721f1, Ready
+## Authelia: ES authelia-oidc-open-webui SecretSynced/Ready (refresh 0), ES authelia Ready; new ReplicaSet authelia-74bc6d448c 2/2 Ready, no error/fatal log lines in the first 2 min
+## From the open-webui app container (python, CA bundle = Studio root + pod-local oidc-proxy CA):
+discovery 200 issuer https://auth.bluejungle.net (token_endpoint https://auth.bluejungle.net/api/oidc/token)
+jwks 200
+nginx /api/firstfactor GET -> 404 ; POST -> 404   (sidecar path allow-list)
+direct authelia-pod :8888 CONNECTED (allowed, L4)
+direct authelia-pod :8080 (metrics) TimeoutError
+direct lldap :5389 TimeoutError ; lldap :8080 TimeoutError
+direct onepassword-connect :8080 TimeoutError
+## Hubble (node of the open-webui pod), last 3 min, SYN only, deduplicated:
+open-webui -> security/authelia-74bc6d448c-8c47f:8888  policy-verdict ALLOWED, to-network FORWARDED (no http-request records = L4)
+open-webui <> security/authelia-74bc6d448c-8c47f:8080  Policy denied DROPPED
+open-webui <> security/lldap-7dc757ff5-cmlk8:5389       Policy denied DROPPED
+open-webui <> security/lldap-7dc757ff5-cmlk8:8080       Policy denied DROPPED
+open-webui <> security/onepassword-connect-f575f7d7b-qtp24:8080 Policy denied DROPPED
+## G2b regression from the LAN (curl):
+https://auth.bluejungle.net/ -> 200
+https://auth.bluejungle.net/.well-known/openid-configuration -> 200
+authorize client_id=grafana -> 302 to the Authelia login flow (grafana OIDC client intact)
+authorize client_id=open-webui (PKCE S256) -> 302 to the Authelia login flow (new client accepted)
+https://grafana.bluejungle.net/login -> 307 to /login/generic_oauth (oauth_auto_login, unchanged)

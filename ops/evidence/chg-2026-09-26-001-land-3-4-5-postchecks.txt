@@ -1,0 +1,19 @@
+# chg-2026-09-26-001 land-3 + land-4 + land-5 post-checks (origin/main e819e60), 2026-09-26 ~14:00Z. uitgevoerd onder programmagoedkeuring family-ai
+## Flux: family-ai-network-policies, -open-webui, -open-webui-route, -hermes, -gezinsdienst, studio-ai applied e819e60b. All ES SecretSynced/Ready (family-ai-gezinsdienst, family-ai-hermes-profiel-1, hermes-profiel-volsync-1, family-ai-openwebui, open-webui-volsync).
+## L3 hermes-profiel-1: Ready; seed-once log: model set, bundle sha256 ea46b63e verified, per-file SHA256SUMS verified (4 files), wrote config.yaml, SOUL.md, plugins/. App log: 0 lines matching context/64,000/65536.
+seed hashes (/opt/data) vs Mack 86d3149 SHA256SUMS: SOUL.md 1778154d = match; plugins/model-providers/custom/__init__.py c4f3ca03 = match; plugin.yaml c51fe8e0 = match; config.yaml differs ONLY by one line Hermes appends at start: "_config_version: 46" (written 3 s after the seed; diff = that single line). ls plugins = model-providers only; memories/ sessions/ state.db present and untouched; GEZIN_TOKEN count 0 (Mack k).
+c (from hermes-profiel-1, own client): hosts api.bluejungle.net -> 172.16.2.200; /v1/models no key 401 server Caddy; with MODEL_API_KEY 200.
+a/A3 (from open-webui, key 1): /v1/models no key 401; with key 200, model id hermes-agent-profiel-1. (/health answers 200 without key - health endpoint only.)
+T1 (from open-webui, key 1, GET /v1/toolsets): enabled = [memory:[memory], session_search:[session_search]] of 29 listed. EXACT.
+N1 from hermes-profiel-1: 172.16.2.241:443 SNI api/grafana/hass-code/lldap/auth all Timeout; 172.16.2.200:22/80/8443 Timeout; envoy pod :10443 Timeout; grafana.bluejungle.net and example.com DNS refused (gaierror); 1.1.1.1:443 Timeout; gezinsdienst:8080 Timeout (profiel-1 not admitted).
+## L4 chat route (from the LAN):
+https://chat.bluejungle.net/ -> 200 via 172.16.2.241, <title>Open WebUI</title>, server uvicorn, alt-svc: clear only
+/api/config: oauth providers {oidc: Gezin}, enable_login_form True, enable_signup False
+https://api.bluejungle.net/v1/models -> 401, server Caddy, alt-svc: clear (studio-ai still serves api)
+UDM DNS: chat A = 172.16.2.241 (one record), AAAA none; TXT k8s.unifi.a-chat.bluejungle.net = "heritage=external-dns,external-dns/owner=unifi,external-dns/resource=httproute/family-ai/open-webui"
+DoH (cloudflare-dns.com, over 443) chat A -> Status 3 NXDOMAIN
+## L5 gezinsdienst: ES Ready, pod 1/1 Ready, restarts 0, log {"event":"start","poort":8080} (its own config/token validation passed)
+ntfy TEST run: gezinsdienst's own ntfy_verstuur() with GEZIN_NTFY_TOPIC_TEST (asserted != live topic; live topic NOT used), title "Studio", body "family-ai testmelding (chg-2026-09-26-001) - TEST-kanaal, graag negeren"
+  POST OK at 2026-09-26T14:01:04Z (16:01:04 CEST) - Sander to confirm receipt on the TEST channel
+Hubble from gezinsdienst: DNS ntfy.sh A/AAAA proxy FORWARDED; -> 159.203.148.75:443 (fqdn identity) ALLOWED/FORWARDED
+controls: DNS example.com (+ search expansions) proxy DROPPED (client: name resolution failure); 1.1.1.1:443 Policy denied DROPPED

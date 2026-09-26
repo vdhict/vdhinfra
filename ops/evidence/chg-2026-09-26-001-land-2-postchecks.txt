@@ -1,0 +1,62 @@
+# chg-2026-09-26-001 land-1+land-2 post-checks (origin/main 3a977f3), 2026-09-26T13:00:05Z. uitgevoerd onder programmagoedkeuring family-ai
+## Hubble, pod family-ai/open-webui-77989677f-vtjkp, verdicts (last 15m)
+   4    family-ai/open-webui-77989677f-vtjkp:50802 (ID:66726) <> network/envoy-network-envoy-internal-1102ed95-656cb6d7fc-plzrc:10443 (ID:82782) Policy denied DROPPED (TCP Flags: SYN)
+   4    family-ai/open-webui-77989677f-vtjkp:50802 (ID:66726) <> network/envoy-network-envoy-internal-1102ed95-656cb6d7fc-plzrc:10443 (ID:82782) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+## FORWARDED to 172.16.2.200:443
+## DNS REFUSED
+Sep 26 12:59:19.370: family-ai/open-webui-77989677f-vtjkp:43258 (ID:66726) -> kube-system/coredns-c8bcb4576-zcnv8:53 (ID:90693) dns-request proxy DROPPED (DNS Query grafana.bluejungle.net. AAAA)
+Sep 26 12:59:19.371: family-ai/open-webui-77989677f-vtjkp:43258 (ID:66726) -> kube-system/coredns-c8bcb4576-zcnv8:53 (ID:90693) dns-request proxy DROPPED (DNS Query grafana.bluejungle.net. A)
+Sep 26 12:59:19.371: family-ai/open-webui-77989677f-vtjkp:43258 (ID:66726) -> kube-system/coredns-c8bcb4576-zcnv8:53 (ID:90693) dns-request proxy DROPPED (DNS Query grafana.bluejungle.net. AAAA)
+## DROPPED destinations (json, distinct ip:port, count)
+## FORWARDED to 172.16.2.200 (json)
+## compact, flows to 172.16.2.200 / 172.16.2.241 / envoy (SYN only, dedup by destination+verdict)
+## NOTE: the node02 Hubble ring buffer had rotated past most N1 SYNs by the time of this capture; the in-pod results below are the primary evidence, the DROPPED lines above are what the buffer still held.
+## N1 + land-2 checks run inside the open-webui app container (python, no secrets printed)
+app Uid:	0	0	0	0
+app CapEff:	0000000000000000
+app CapBnd:	0000000000000000
+bundle_certs 2
+discovery FAIL HTTPError HTTP Error 500: Internal Server Error
+N1a 172.16.2.241:443 SNI api -> TimeoutError after 5.0s
+N1a 172.16.2.241:443 SNI grafana -> TimeoutError after 5.0s
+N1a 172.16.2.241:443 SNI hass-code -> TimeoutError after 5.0s
+N1a 172.16.2.241:443 SNI lldap -> TimeoutError after 5.0s
+N1a 172.16.2.241:443 SNI auth -> TimeoutError after 5.0s
+N1b 172.16.2.200:22 -> TimeoutError after 5.0s
+N1b 172.16.2.200:80 -> TimeoutError after 5.0s
+N1b 172.16.2.200:8443 -> TimeoutError after 5.0s
+N1c envoy pod 10.42.2.90 :10443 -> TimeoutError after 5.0s
+N1d grafana.bluejungle.net -> gaierror [Errno -3] Temporary failure in name resolution
+N1e hosts api.bluejungle.net -> 172.16.2.200
+N1e api /v1/models no key -> 401 server=Caddy
+N1e api /v1/models model key -> 200 server=uvicorn
+N1f SNI grafana to .200 -> SSLError [SSL: TLSV1_ALERT_INTERNAL_ERROR] tlsv1 alert internal error (_ssl.c:1016)
+N1g Host grafana via .200 -> 200 bytes=0 server=Caddy
+## oidc-proxy sidecar
+uid=101(nginx) gid=101(nginx) groups=101(nginx)
+   1: 0100007F:01BB 00000000:0000 0A 00000000:00000000 00:00000000 00000000   101        0 728464940 1 0000000000000000 100 0 0 10 0                 
+## DISCOVERY FAILURE diagnosis: same Host+X-Forwarded-Proto request direct from the app container THROUGH the Cilium L7 proxy -> 500 (from an un-policed pod earlier: 200 + correct issuer). Hubble L7: http-request FORWARDED GET http://auth.bluejungle.net/.well-known/openid-configuration -> http-response 500.
+## Secret family-ai-openwebui: key -> length (no values)
+{"OAUTH_CLIENT_SECRET":64,"OPENAI_API_KEYS":201,"WEBUI_ADMIN_EMAIL":19,"WEBUI_ADMIN_PASSWORD":24,"WEBUI_SECRET_KEY":64}
+## ExternalSecrets / Certificates / VolSync / CronJob
+NAME                                                     STORETYPE            STORE                 REFRESH INTERVAL   STATUS         READY   LAST SYNC
+externalsecret.external-secrets.io/family-ai-openwebui   ClusterSecretStore   onepassword-connect   12h                SecretSynced   True    4m59s
+externalsecret.external-secrets.io/open-webui-volsync    ClusterSecretStore   onepassword-connect   12h                SecretSynced   True    4m59s
+
+NAME                                                  READY   SECRET                    AGE
+certificate.cert-manager.io/family-ai-oidc-proxy-ca   True    family-ai-oidc-proxy-ca   4m59s
+certificate.cert-manager.io/oidc-proxy-tls            True    oidc-proxy-tls            4m59s
+
+NAME                                           SOURCE            LAST SYNC              DURATION       NEXT SYNC
+replicationsource.volsync.backube/open-webui   open-webui-data   2026-09-26T12:56:48Z   19.80193752s   2026-09-26T13:20:00Z
+
+NAME                                      SCHEDULE     TIMEZONE           SUSPEND   ACTIVE   LAST SCHEDULE   AGE
+cronjob.batch/open-webui-chat-retention   10 4 * * *   Europe/Amsterdam   False     0        <none>          4m59s
+## endpoint enforcement != none, all nodes (compare land-1-prestate: only database x3 + flux-system)
+vdhclu01node01 database ingress
+vdhclu01node02 family-ai both
+vdhclu01node02 database ingress
+vdhclu01node03 flux-system ingress
+vdhclu01node03 database ingress
+## studio-ca byte-identical
+b5a5113b4e9fd3976e33941d4379f74de2d86129cfc1e08cccad19fce6edb414  -
