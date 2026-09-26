@@ -82,4 +82,6 @@ spec:
     retain:
       hourly: 24
       daily: 7
-    pruneIntervalDays: 7
+    # Prune daily: with forget/prune only every 7 days a snapshot could
+    # outlive the promised 7 days by up to a week (Argus).
+    pruneIntervalDays: 1

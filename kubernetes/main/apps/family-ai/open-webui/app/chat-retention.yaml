@@ -5,8 +5,8 @@
 # against the SAME PVC, on the SAME node as the running app.
 #
 # Retention boundary, stated plainly: VolSync keeps restic snapshots of the
-# PVC for ~28 days (+ up to 7 days prune lag), so a deleted chat can still
-# exist in a backup for about 5 weeks after deletion. Uploaded files are NOT
+# PVC for 7 days (24 hourly + 7 daily, pruned daily), so a deleted chat can
+# still exist in a backup for up to about 8 days after deletion. Uploaded files are NOT
 # covered by this job; chat file upload is therefore disabled in the app
 # (USER_PERMISSIONS_CHAT_FILE_UPLOAD=false, Argus R2).
 #
