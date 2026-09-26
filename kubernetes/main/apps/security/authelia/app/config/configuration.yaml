@@ -86,8 +86,10 @@ identity_providers:
       endpoints: [authorization, token, revocation, introspection]
       allowed_origins_from_client_redirect_uris: true
     # family-ai (chg-2026-09-26-001, Mack addendum 1): who may complete an
-    # OIDC login to Open WebUI at all. Default DENY; one_factor for the
-    # family groups and admins (LAN only; the children have no 2FA). The
+    # OIDC login to Open WebUI at all. Default DENY. Rules are first-match:
+    # group admins -> two_factor FIRST (they become Open WebUI admins; Argus
+    # O1), then one_factor for the family groups (LAN only; the children
+    # have no 2FA). An admin who is also in gezin still hits rule 1. The
     # *.domain forward-auth rule in access_control is deliberately NOT
     # widened to group gezin - that would open every forward-auth host to
     # the children; the OIDC client has its own policy instead.
@@ -95,11 +97,12 @@ identity_providers:
       open-webui:
         default_policy: deny
         rules:
+          - policy: two_factor
+            subject: [group:admins]
           - policy: one_factor
             subject:
               - group:gezin
               - group:owui-keuken
-              - group:admins
     # Put the claims Open WebUI reads (groups for role + group sync, email,
     # name) in the ID token as well as userinfo, so role management never
     # sees an empty groups claim and falls back to a "pending" account.
