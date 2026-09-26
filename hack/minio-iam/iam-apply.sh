@@ -19,7 +19,7 @@
 # MODES
 #   apply  (default) create buckets if absent, create/refresh policies and users,
 #          attach exactly one policy per user, verify, print inventory.
-#   remove detach + delete the two users and two policies. Buckets are NOT
+#   remove detach + delete the set's users and policies. Buckets are NOT
 #          removed unless empty (mc rb without --force), so no backup data can
 #          be deleted by a rollback.
 #
@@ -42,13 +42,20 @@ export MC_NO_COLOR=1
 A=root
 
 # identity table: policy-name bucket env-prefix expected-access-key
-IDENTITIES="forge-backups-rw:forge-backups:FORGE_PG:forge-pg forge-volsync-rw:forge-volsync:FORGE_VOLSYNC:forge-volsync"
+# Overridable per identity set (the Job sets IDENTITIES for family-ai,
+# chg-2026-09-26-001); the default is the forge set, unchanged.
+IDENTITIES="${IDENTITIES:-forge-backups-rw:forge-backups:FORGE_PG:forge-pg forge-volsync-rw:forge-volsync:FORGE_VOLSYNC:forge-volsync}"
+# Buckets `remove` may delete - ONLY if empty (mc rb without --force).
+# forge-backups pre-dates chg-2026-09-23-002 and is deliberately not listed.
+RB_IF_EMPTY="${RB_IF_EMPTY:-forge-volsync}"
 
 fail() { echo "FATAL: $*"; exit 2; }
 
+REDACT_VARS="MINIO_ROOT_PASSWORD"
+for _id in $IDENTITIES; do IFS=: read -r _p _b _pfx _e <<<"$_id"; REDACT_VARS="$REDACT_VARS ${_pfx}_SECRET_KEY"; done
 redact() {
   local s="$1" v
-  for v in MINIO_ROOT_PASSWORD FORGE_PG_SECRET_KEY FORGE_VOLSYNC_SECRET_KEY; do
+  for v in $REDACT_VARS; do
     if [ -n "${!v:-}" ]; then s="${s//"${!v}"/<redacted:$v>}"; fi
   done
   printf '%s\n' "$s"
@@ -73,7 +80,13 @@ if [ "$MODE" = "apply" ]; then
     [ "$sk" != "$MINIO_ROOT_PASSWORD" ] || fail "$sk_var equals the root password"
     [ -r "$POLICY_DIR/$pol.json" ] || fail "policy file $POLICY_DIR/$pol.json not readable"
   done
-  [ "$FORGE_PG_SECRET_KEY" != "$FORGE_VOLSYNC_SECRET_KEY" ] || fail "both scoped users share one secret"
+  # No two scoped users of this set may share a secret.
+  _seen=""
+  for id in $IDENTITIES; do
+    IFS=: read -r pol bucket pfx expect <<<"$id"; sk_var="${pfx}_SECRET_KEY"
+    for o in $_seen; do [ "${!o}" != "${!sk_var}" ] || fail "$o and $sk_var share one secret"; done
+    _seen="$_seen $sk_var"
+  done
 fi
 
 mkdir -p "$MC_CONFIG_DIR"
@@ -155,9 +168,11 @@ do_remove() {
     run admin user remove "$A" "$ak" >/dev/null || echo "  (user absent)"
     run admin policy remove "$A" "$pol" >/dev/null || echo "  (policy absent)"
   done
-  # forge-volsync was created by this change; remove it ONLY if empty.
-  # forge-backups pre-dates this change (created 2026-09-20) and is left alone.
-  run rb "$A/forge-volsync" >/dev/null || echo "  forge-volsync NOT removed (absent or not empty - by design)"
+  # Buckets created by the change that introduced the set; removed ONLY if
+  # empty. forge-backups pre-dates chg-2026-09-23-002 and is left alone.
+  for b in $RB_IF_EMPTY; do
+    run rb "$A/$b" >/dev/null || echo "  $b NOT removed (absent or not empty - by design)"
+  done
   inventory after
   echo "REMOVE: OK"
 }

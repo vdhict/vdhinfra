@@ -1,0 +1,29 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+#
+# One-shot MinIO IAM Job for family-ai (chg-2026-09-26-001): bucket
+# family-ai-volsync + scoped user family-ai-volsync. NOT under
+# kubernetes/main, so Flux never applies it. Run it with
+#   IAM_SET=family-ai hack/minio-iam/run.sh apply <evidence-file>
+# which renders this directory with --load-restrictor LoadRestrictionsNone
+# (the scripts and policies are shared with the forge set one level up).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: storage
+labels:
+  - pairs:
+      app.kubernetes.io/name: minio-iam-family-ai
+      app.kubernetes.io/part-of: minio-iam
+    includeSelectors: false
+resources:
+  - ./externalsecret.yaml
+  - ./job.yaml
+configMapGenerator:
+  - name: minio-iam-family-ai-scripts
+    files:
+      - ../iam-apply.sh
+      - ../iam-verify.sh
+      - ../restic-check.sh
+      - ../policies/family-ai-volsync-rw.json
+generatorOptions:
+  disableNameSuffixHash: true
