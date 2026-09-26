@@ -40,8 +40,6 @@ spec:
     spec:
       automountServiceAccountToken: false
       enableServiceLinks: false
-      securityContext:
-        seccompProfile: {type: RuntimeDefault}
       # ndots 1: absolute names (api.bluejungle.net) are tried as-is FIRST,
       # so they never fan out into search-domain queries that the Cilium DNS
       # allow-list in network-policies/ would have to anticipate.
@@ -56,6 +54,58 @@ spec:
       hostAliases:
         - ip: 172.16.2.200
           hostnames: [api.bluejungle.net]
+        # OIDC back-channel: the oidc-proxy sidecar on loopback (see
+        # oidc-proxy.yaml). Browsers are unaffected (they use real DNS).
+        - ip: 127.0.0.1
+          hostnames: [auth.bluejungle.net]
+      securityContext:
+        seccompProfile: {type: RuntimeDefault}
+        # lets the non-root oidc-proxy bind 127.0.0.1:443; a "safe" sysctl
+        # (namespaced to this pod), admitted by PSA baseline
+        sysctls:
+          - {name: net.ipv4.ip_unprivileged_port_start, value: "0"}
+      initContainers:
+        # Trust bundle = Caddy's root (Studio) + the pod-local OIDC proxy CA.
+        # Nothing else: the pod reaches only those two TLS endpoints.
+        - name: ca-bundle
+          image: ghcr.io/open-webui/open-webui:v0.11.4@sha256:9591b13f13843c7721c2b8eaf7382846c81b3ffe126526d1888d1fed50c6a33f
+          command: ["sh", "-c", "cat /in/studio/ca.crt /in/oidc/ca.crt > /out/bundle.crt && test $(grep -c 'BEGIN CERTIFICATE' /out/bundle.crt) -eq 2"]
+          securityContext:
+            runAsUser: 65534
+            runAsGroup: 65534
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 64Mi}
+          volumeMounts:
+            - {name: studio-ca, mountPath: /in/studio, readOnly: true}
+            - {name: oidc-ca, mountPath: /in/oidc, readOnly: true}
+            - {name: ca-bundle, mountPath: /out}
+        # Native sidecar (restartPolicy Always): up before the app starts.
+        - name: oidc-proxy
+          image: docker.io/nginxinc/nginx-unprivileged:1.29.2-alpine@sha256:031d8c8ab79d2d171a2a383aa50a06f527791c05ba1aeae9ca05d7b9779caf8e
+          restartPolicy: Always
+          command: ["nginx", "-c", "/etc/oidc-proxy/nginx.conf", "-g", "daemon off;"]
+          securityContext:
+            runAsUser: 101
+            runAsGroup: 101
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          # No probe: nginx listens on loopback only, and PSA baseline forbids
+          # a probe `host`. Open WebUI fetches discovery lazily at the first
+          # login, and a crashing sidecar is restarted by the kubelet.
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 64Mi}
+          volumeMounts:
+            - {name: oidc-proxy-conf, mountPath: /etc/oidc-proxy, readOnly: true}
+            - {name: oidc-proxy-tls, mountPath: /tls, readOnly: true}
+            - {name: oidc-proxy-tmp, mountPath: /tmp}
       containers:
         - name: app
           image: ghcr.io/open-webui/open-webui:v0.11.4@sha256:9591b13f13843c7721c2b8eaf7382846c81b3ffe126526d1888d1fed50c6a33f
@@ -64,6 +114,12 @@ spec:
               containerPort: 8080
           env:
             - {name: ENABLE_SIGNUP, value: "false"}
+            # Kept true ONLY as the break-glass entry for the seeded local
+            # admin (Mack addendum 1 §1); family members have no Open WebUI
+            # password and log in with "Gezin" (OIDC). ⚠ WEBUI_ADMIN_EMAIL must
+            # NOT equal any lldap user's email: with MERGE_ACCOUNTS_BY_EMAIL
+            # off, that person's OIDC signup would collide with the seeded
+            # account. Admin rights via OIDC come from lldap group `admins`.
             - {name: ENABLE_LOGIN_FORM, value: "true"}
             - {name: DEFAULT_USER_ROLE, value: "pending"}
             - {name: ENABLE_ADMIN_CHAT_ACCESS, value: "false"}
@@ -99,18 +155,51 @@ spec:
             # Argus R2: the 30-day retention job deletes chats, not uploaded
             # files; with uploads off nothing outlives the retention window.
             - {name: USER_PERMISSIONS_CHAT_FILE_UPLOAD, value: "false"}
-            # Sander 2026-09-26: 7 days. ONE global setting for ALL users
+            # Sander 2026-09-26: ~30 days for the family, longer for keuken -
+            # NOT expressible: ONE global setting for ALL users
             # (Open WebUI has no per-user lifetime), so it also applies to the
-            # admin and the shared keuken account. It is a PersistentConfig key
+            # admin and the shared keuken account; an OIDC login also gets an
+            # Open WebUI JWT with this same lifetime (utils/oauth.py:2154). It is
+            # a PersistentConfig key
             # (auth.jwt_expiry): read on FIRST start, then the DB wins.
-            - {name: JWT_EXPIRES_IN, value: "7d"}
-            # Trust ONLY Caddy's internal root (studio-ca-configmap.yaml).
+            - {name: JWT_EXPIRES_IN, value: "30d"}
+            # ── login via Authelia OIDC (Mack addendum 1 §1, names checked in
+            #    v0.11.4 config.py). OAuth settings are NOT persistent config
+            #    (ENABLE_OAUTH_PERSISTENT_CONFIG defaults False): env wins on
+            #    every start. auth.jwt_expiry IS persistent (first start).
+            - {name: ENABLE_OAUTH_SIGNUP, value: "true"}
+            - {name: OAUTH_PROVIDER_NAME, value: "Gezin"}
+            - {name: OPENID_PROVIDER_URL, value: "https://auth.bluejungle.net/.well-known/openid-configuration"}
+            - {name: OPENID_REDIRECT_URI, value: "https://chat.bluejungle.net/oauth/oidc/login/callback"}
+            - {name: OAUTH_CLIENT_ID, value: "open-webui"}
+            - {name: OAUTH_SCOPES, value: "openid email profile groups"}
+            - {name: OAUTH_CODE_CHALLENGE_METHOD, value: "S256"}
+            - {name: OAUTH_TOKEN_ENDPOINT_AUTH_METHOD, value: "client_secret_basic"}
+            - {name: OAUTH_MERGE_ACCOUNTS_BY_EMAIL, value: "false"}
+            - {name: ENABLE_OAUTH_ROLE_MANAGEMENT, value: "true"}
+            - {name: OAUTH_ROLES_CLAIM, value: "groups"}
+            - {name: OAUTH_ALLOWED_ROLES, value: "gezin,admins,owui-keuken"}
+            - {name: OAUTH_ADMIN_ROLES, value: "admins"}
+            - {name: ENABLE_OAUTH_GROUP_MANAGEMENT, value: "true"}
+            - {name: OAUTH_GROUP_CLAIM, value: "groups"}
+            - {name: ENABLE_OAUTH_GROUP_CREATION, value: "false"}
+            # OAUTH_CLIENT_SECRET comes from the Secret (envFrom).
+            # ── auxiliary tasks NOT to the Hermes agents (Mack addendum 1 §7)
+            - {name: TASK_MODEL_EXTERNAL, value: "household-chat"}
+            - {name: ENABLE_TITLE_GENERATION, value: "true"}
+            - {name: ENABLE_TAGS_GENERATION, value: "false"}
+            - {name: ENABLE_FOLLOW_UP_GENERATION, value: "false"}
+            - {name: ENABLE_AUTOCOMPLETE_GENERATION, value: "false"}
+            - {name: ENABLE_SEARCH_QUERY_GENERATION, value: "false"}
+            - {name: ENABLE_RETRIEVAL_QUERY_GENERATION, value: "false"}
+            # Trust ONLY Caddy's root + the pod-local OIDC proxy CA (bundle
+            # built by the ca-bundle init container).
             # SSL_CERT_FILE: OpenSSL default context (aiohttp, urllib, httpx
             # with trust_env); REQUESTS_CA_BUNDLE: python-requests (certifi
             # otherwise); CURL_CA_BUNDLE for the test commands.
-            - {name: SSL_CERT_FILE, value: /etc/studio-ca/ca.crt}
-            - {name: REQUESTS_CA_BUNDLE, value: /etc/studio-ca/ca.crt}
-            - {name: CURL_CA_BUNDLE, value: /etc/studio-ca/ca.crt}
+            - {name: SSL_CERT_FILE, value: /etc/family-ai-ca/bundle.crt}
+            - {name: REQUESTS_CA_BUNDLE, value: /etc/family-ai-ca/bundle.crt}
+            - {name: CURL_CA_BUNDLE, value: /etc/family-ai-ca/bundle.crt}
             - name: OPENAI_API_BASE_URLS
               value: "http://hermes-profiel-1:8642/v1;http://hermes-profiel-2:8642/v1;http://hermes-profiel-3:8642/v1;https://api.bluejungle.net/v1"
           # WEBUI_SECRET_KEY, WEBUI_ADMIN_EMAIL, WEBUI_ADMIN_PASSWORD,
@@ -144,7 +233,7 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /app/backend/data
-            - {name: studio-ca, mountPath: /etc/studio-ca, readOnly: true}
+            - {name: ca-bundle, mountPath: /etc/family-ai-ca, readOnly: true}
       volumes:
         - name: data
           persistentVolumeClaim:
@@ -152,3 +241,20 @@ spec:
         - name: studio-ca
           configMap:
             name: studio-ca
+        - name: oidc-ca
+          secret:
+            secretName: oidc-proxy-tls
+            items: [{key: ca.crt, path: ca.crt}]
+        - name: ca-bundle
+          emptyDir: {sizeLimit: 1Mi}
+        - name: oidc-proxy-tls
+          secret:
+            secretName: oidc-proxy-tls
+            items:
+              - {key: tls.crt, path: tls.crt}
+              - {key: tls.key, path: tls.key}
+        - name: oidc-proxy-conf
+          configMap:
+            name: open-webui-oidc-proxy
+        - name: oidc-proxy-tmp
+          emptyDir: {sizeLimit: 16Mi}

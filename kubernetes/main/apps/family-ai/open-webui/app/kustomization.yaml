@@ -9,10 +9,14 @@ resources:
   - ./service.yaml
   - ./volsync.yaml
   - ./chat-retention.yaml
+  - ./oidc-proxy.yaml
 configMapGenerator:
   - name: open-webui-chat-retention
     files:
       - ./chat-retention.py
+  - name: open-webui-oidc-proxy
+    files:
+      - nginx.conf=./oidc-proxy-nginx.conf
 generatorOptions:
   annotations:
     kustomize.toolkit.fluxcd.io/substitute: disabled

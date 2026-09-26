@@ -1,8 +1,8 @@
 ---
 # Shared runtime knobs for the Hermes profiles (Mack, GL-023 §4.2).
 #
-# ⚠ PLACEHOLDER: FAMILY_LLM_MODEL must be set to the model id the Studio
-# serves on https://api.bluejungle.net/v1/models (Mack). Hermes refuses to
+# FAMILY_LLM_MODEL: the model id the Studio serves (Mack addendum 2:
+# served_id household-chat, MTPLX, context 65536). Hermes refuses to
 # start below a 64k context window, so this must name a model whose
 # configured context is >= 65536 (Mack's config.yaml: context_length 65536).
 # FAIL-CLOSED: the seed-once init container of every Hermes profile refuses
@@ -15,4 +15,4 @@ metadata:
   annotations:
     kustomize.toolkit.fluxcd.io/substitute: disabled
 data:
-  FAMILY_LLM_MODEL: "__MACK_FAMILY_LLM_MODEL__"
+  FAMILY_LLM_MODEL: "household-chat"
