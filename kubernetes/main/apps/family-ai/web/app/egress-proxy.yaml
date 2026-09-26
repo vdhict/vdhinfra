@@ -13,6 +13,9 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: egress-proxy-logs
+  annotations:
+    # a Flux prune (ks removed/renamed) must not silently drop the log PVC
+    kustomize.toolkit.fluxcd.io/prune: disabled
 spec:
   accessModes: [ReadWriteOnce]
   storageClassName: rook-ceph-block
