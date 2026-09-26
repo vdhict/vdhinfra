@@ -135,7 +135,22 @@
         // copy of that metadata outside Ceph (deliberately not mirrored
         // off-site). Manual review, always.
         "kubernetes/main/apps/devtools/**",
+        // family-ai holds children's conversations; every Hermes image bump
+        // needs the toolset test (T1) re-run, and an Open WebUI bump can
+        // change persisted-config and admin-visibility semantics
+        // (chg-2026-09-26-001). Manual review, always.
+        "kubernetes/main/apps/family-ai/**",
       ],
+      automerge: false,
+    },
+    {
+      description: "family-ai: Open WebUI app and its chat-retention CronJob MUST run the same image (same model code against the same SQLite DB) - one PR for both (Argus R4, chg-2026-09-26-001)",
+      matchFileNames: ["kubernetes/main/apps/family-ai/**"],
+      matchPackageNames: ["ghcr.io/open-webui/open-webui"],
+      groupName: "family-ai open-webui",
+      group: {
+        commitMessageTopic: "{{{groupName}}} (app + chat-retention job)",
+      },
       automerge: false,
     },
     {
