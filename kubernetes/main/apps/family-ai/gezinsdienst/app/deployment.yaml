@@ -1,4 +1,10 @@
 ---
+# Go-live 2026-09-27 in TEST mode (Mack 86d3149): signaal:false per child,
+# so every signal is refused; the only push is a weekly content-free ntfy
+# message (Sunday 19:00) when something needs discussing - egress ntfy.sh:443
+# stays. Mack's later "live" config needs GEZIN_NTFY_TOPIC, already in the
+# Secret.
+#
 # gezinsdienst - the family service (Mack): stdlib Python, code from a
 # ConfigMap, SQLite on a 1Gi PVC. PSA-restricted-clean: python:3.13-slim
 # has no USER, so it is pinned to nobody (65534) here, read-only root FS,
