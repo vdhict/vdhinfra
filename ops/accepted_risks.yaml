@@ -38,3 +38,12 @@ risks:
     accepted_at: 2026-09-23
     review_by: 2027-03-23
     rationale: Forge backups stay on-prem only until Sander decides on off-site backups in general; interim, typed in session 2026-09-23.
+
+  - id: ar-003
+    adr: docs/adr/0005-shared-uid-501-with-mypka-interim.md
+    finding_title: "^B1.*(uid 501|shared uid|one uid).*$"
+    target: "^(host\\.vdhmini01|prikbord.*|chg-2026-09-23-005)$"
+    accepted_by: user
+    accepted_at: 2026-09-26
+    review_by: 2026-10-31
+    rationale: Atlas and myPKA share uid 501 on vdhmini01 until a separation change lands (preferably a separate macOS account for Atlas); hard end date 2026-10-31.
