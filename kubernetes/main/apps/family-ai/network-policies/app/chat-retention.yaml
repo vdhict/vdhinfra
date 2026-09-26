@@ -1,0 +1,19 @@
+---
+# open-webui-chat-retention (daily CronJob): works on a local SQLite file
+# only. Explicitly NO ingress and NO egress - not even DNS. Default-deny
+# already implies this; the policy makes the intent reviewable and keeps it
+# true if default-deny is ever loosened. Any network attempt by Open WebUI's
+# import path shows up as a Hubble DROPPED for this label.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: chat-retention
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: open-webui-chat-retention
+  ingress:
+    - {}
+  egress:
+    - {}

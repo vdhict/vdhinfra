@@ -1,0 +1,35 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+#
+# family-ai network policy (Mack §4, revised by Sander D5), as
+# CiliumNetworkPolicy - the first CNPs on this cluster. Why Cilium and not
+# networking.k8s.io/NetworkPolicy:
+#
+# 1. ntfy.sh:443 needs FQDN egress (toFQDNs). A plain NetworkPolicy can only
+#    say "any IP on 443", i.e. the whole internet.
+# 2. The L7 rule on gezinsdienst (hermes may only POST
+#    /v1/(signaal|gedrag|gebruik)) needs Cilium's HTTP policy.
+# 3. Per-workload DNS allow-lists (Cilium DNS proxy), so pods cannot use DNS
+#    as a side channel to arbitrary names.
+#
+# Model API path (v3, Sander D5): Hermes and Open WebUI reach Caddy on the
+# Studio DIRECTLY at 172.16.2.200:443 (hostAlias), never via envoy-internal.
+# v1/v2 went through envoy-internal with an SNI filter, which Argus proved
+# fronting-able (inc-2026-09-26-001). Measured: pod -> 172.16.2.200 is a
+# `world` flow (Hubble), SNAT'ed to the node IP; Caddy answers 401 without
+# a key. No serverNames on that rule, deliberately: the destination is one
+# /32 that only serves Caddy's sites, and leaving the L7 proxy out keeps
+# long LLM streams off Cilium's embedded Envoy (60 s proxy idle timeout,
+# cut on every cilium-agent restart - Themis A1/A2). Mack removes the
+# orphan chat site from Caddy so api is the only real site left there.
+#
+# Pods set ndots:1 so absolute names are queried as-is first.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./default-deny.yaml
+  - ./open-webui.yaml
+  - ./hermes.yaml
+  - ./gezinsdienst.yaml
+  - ./volsync-mover.yaml
+  - ./chat-retention.yaml

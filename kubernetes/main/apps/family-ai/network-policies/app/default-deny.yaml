@@ -1,0 +1,16 @@
+---
+# Every pod in family-ai: nothing in, nothing out, unless a policy below
+# allows it. An empty rule ({}) enrols the endpoint in default-deny for that
+# direction without allowing any peer. Kubelet probes still work (Cilium
+# allows the local host identity).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny
+spec:
+  endpointSelector: {}
+  ingress:
+    - {}
+  egress:
+    - {}

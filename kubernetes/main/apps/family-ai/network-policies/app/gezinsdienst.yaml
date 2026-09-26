@@ -1,0 +1,54 @@
+---
+# gezinsdienst: in from the Hermes pods and envoy-internal on 8080; out to
+# ntfy.sh:443 (FQDN - learned from the DNS answers the proxy sees) and DNS.
+#
+# Hermes -> gezinsdienst is L7-restricted (Argus B1): ONLY
+#   POST /v1/signaal | /v1/gedrag | /v1/gebruik
+# which authenticate by per-profile bearer token. Everything else from a
+# Hermes pod - GET /, /ladder, /v1/overzicht, POST /besproken/*,
+# /telt-niet/* (which trust Remote-User/Remote-Groups) and /healthz - is
+# answered 403 by Cilium's proxy and never reaches the service. So code in a
+# Hermes pod cannot forge Remote-Groups: ouders. Envoy-internal stays L4:
+# it only forwards the routed paths, and after Authelia.
+# (Cilium matches `path` as a full-match regex.)
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: gezinsdienst
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: gezinsdienst
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: hermes
+      toPorts:
+        - ports: [{port: "8080", protocol: TCP}]
+          rules:
+            http:
+              - method: POST
+                path: "/v1/(signaal|gedrag|gebruik)"
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            gateway.envoyproxy.io/owning-gateway-name: envoy-internal
+      toPorts:
+        - ports: [{port: "8080", protocol: TCP}]
+  egress:
+    - toFQDNs:
+        - matchName: ntfy.sh
+      toPorts:
+        - ports: [{port: "443", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              - matchName: ntfy.sh

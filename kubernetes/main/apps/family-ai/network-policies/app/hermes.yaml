@@ -1,0 +1,47 @@
+---
+# hermes-profiel-1..3: in from open-webui on 8642 only; out to the Studio
+# (172.16.2.200:443), gezinsdienst:8080 and DNS.
+# Nothing else - in particular no internet (acceptance test d).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: hermes
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: hermes
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: open-webui
+      toPorts:
+        - ports: [{port: "8642", protocol: TCP}]
+  egress:
+    # The model API: Caddy on the Mac Studio, DIRECTLY (hostAlias
+    # api.bluejungle.net -> 172.16.2.200). There is NO rule to the
+    # envoy-internal pods or to 172.16.2.241 any more, so no envoy-internal
+    # hostname is reachable from here at all (Sander D5).
+    - toCIDR:
+        - 172.16.2.200/32
+      toPorts:
+        - ports: [{port: "443", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: gezinsdienst
+      toPorts:
+        - ports: [{port: "8080", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              # api.bluejungle.net is NOT resolvable: it comes from
+              # /etc/hosts. A client that bypassed the hosts file would get
+              # REFUSED instead of learning the envoy-internal IP.
+              - matchPattern: "*.family-ai.svc.cluster.local"
