@@ -85,6 +85,9 @@ spec:
           env:
             - {name: GRANIAN_HOST, value: "0.0.0.0"}
             - {name: SEARXNG_BASE_URL, value: "http://searxng.family-ai.svc.cluster.local:8080/"}
+            # log redaction (files/searxng_sitecustomize.py): no query / URL
+            # ever reaches stdout -> Loki (F-LOG)
+            - {name: PYTHONPATH, value: /opt/family-ai-py}
           envFrom:
             - secretRef: {name: searxng}
           securityContext:
@@ -102,9 +105,15 @@ spec:
             - {name: settings, mountPath: /etc/searxng/settings.yml, subPath: settings.yml, readOnly: true}
             - {name: cache, mountPath: /var/cache/searxng}
             - {name: tmp, mountPath: /tmp}
+            - {name: pylog, mountPath: /opt/family-ai-py, readOnly: true}
       volumes:
         - {name: etc, emptyDir: {sizeLimit: 8Mi}}
         - name: settings
           configMap: {name: searxng-settings}
         - {name: cache, emptyDir: {sizeLimit: 64Mi}}
         - {name: tmp, emptyDir: {sizeLimit: 64Mi}}
+        - name: pylog
+          configMap:
+            name: searxng-sitecustomize
+            items:
+              - {key: sitecustomize.py, path: sitecustomize.py}
