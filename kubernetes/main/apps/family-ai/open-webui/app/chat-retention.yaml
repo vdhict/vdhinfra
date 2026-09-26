@@ -6,7 +6,12 @@
 #
 # Retention boundary, stated plainly: VolSync keeps restic snapshots of the
 # PVC for ~28 days (+ up to 7 days prune lag), so a deleted chat can still
-# exist in a backup for about 5 weeks after deletion.
+# exist in a backup for about 5 weeks after deletion. Uploaded files are NOT
+# covered by this job; chat file upload is therefore disabled in the app
+# (USER_PERMISSIONS_CHAT_FILE_UPLOAD=false, Argus R2).
+#
+# The image digest MUST equal the app's (deployment.yaml): same model code
+# against the same DB. Renovate groups both (see .renovaterc / chg follow-up).
 #
 # No network at all: network-policies/chat-retention.yaml (no ingress, no
 # egress, no DNS). OFFLINE_MODE as in the app.
@@ -59,11 +64,10 @@ spec:
                 - {name: ENABLE_DB_MIGRATIONS, value: "false"}
                 - {name: OFFLINE_MODE, value: "true"}
                 - {name: HF_HUB_OFFLINE, value: "1"}
-                # env.py refuses to import without it; ONLY this key from the
-                # Secret (no admin credentials, no API keys in this pod).
-                - name: WEBUI_SECRET_KEY
-                  valueFrom:
-                    secretKeyRef: {name: family-ai-openwebui, key: WEBUI_SECRET_KEY}
+                # env.py:780 refuses to import with an EMPTY key; the script
+                # signs nothing. A fixed non-secret placeholder, so this pod
+                # holds no key that could mint an admin JWT (Argus R1).
+                - {name: WEBUI_SECRET_KEY, value: retention-job-does-not-sign}
               securityContext:
                 allowPrivilegeEscalation: false
                 capabilities:

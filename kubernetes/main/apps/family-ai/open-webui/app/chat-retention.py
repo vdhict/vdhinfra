@@ -24,8 +24,12 @@ its own short transaction; busy_timeout 30 s here, and the app's 5 s
 default is far above the few milliseconds one delete holds the write lock.
 
 Output: COUNTS ONLY. Never a chat id, title, user id or content.
-Env: RETENTION_DAYS (int >= 1), RETENTION_DRY_RUN (true|false),
-     RETENTION_ONLY_USER_ID (test runs only: limit to one account).
+Env: RETENTION_DAYS (int; a REAL run refuses < 30), RETENTION_DRY_RUN
+     (true|false), RETENTION_ONLY_USER_ID (test runs only: one account).
+
+Deletion is LOGICAL (Argus R3): SQLite leaves the content in free pages and
+the WAL until reused; this job never VACUUMs beside the running app, and
+VolSync snapshots keep about 5 weeks.
 """
 import asyncio
 import json
@@ -52,6 +56,12 @@ async def main() -> int:
         return 2
     dry = os.environ.get("RETENTION_DRY_RUN", "false").lower() == "true"
     only = os.environ.get("RETENTION_ONLY_USER_ID", "")
+    # Themis C1: a real run with a window shorter than Sander's 30 days would
+    # irreversibly delete children's chats. Only a dry run or a run scoped to
+    # one (test) account may use a shorter window.
+    if days < 30 and not dry and not only:
+        out(error="refusing a real run with RETENTION_DAYS < 30 (set RETENTION_DRY_RUN=true or RETENTION_ONLY_USER_ID)")
+        return 2
     cutoff = int(time.time()) - days * 86400
 
     async with get_async_db_context() as s:
