@@ -10,6 +10,9 @@ configMapGenerator:
   - name: hermes-seed
     files:
       - ./seed-once.sh
+  - name: hermes-logscrub
+    files:
+      - sitecustomize.py=./logscrub_sitecustomize.py
 generatorOptions:
   disableNameSuffixHash: true
   annotations:
