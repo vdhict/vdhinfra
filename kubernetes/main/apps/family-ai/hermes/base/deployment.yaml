@@ -1,0 +1,160 @@
+---
+# Hermes Agent v0.21.5 = Docker Hub tag v2026.9.24 (the v0.21.5 tag does not
+# exist on Docker Hub; Argus verified the digest equals v2026.9.24), one profile.
+#
+# Start-up, verified against the image (config + docker/ scripts at image
+# revision f97608f):
+#   ENTRYPOINT /opt/hermes/docker/entrypoint-dispatch.sh
+#     -> if PID 1: exec s6-overlay /init  (so shareProcessNamespace MUST stay
+#        off, or PID 1 is the pause container and s6 supervision is skipped)
+#     -> stage2-hook.sh as root: chown of /opt/data subtrees
+#     -> main-wrapper.sh: s6-setuidgid hermes (UID 10000); exits 1 for any
+#        non-root UID other than 10000.
+# So the container starts as root, with capabilities cut down to exactly
+# what that start path uses (see the app container's securityContext).
+# PSA baseline admits that; restricted would not.
+#
+# HERMES_DASHBOARD is deliberately NOT set (Mack).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hermes-profiel
+  labels:
+    app.kubernetes.io/name: hermes
+  annotations:
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hermes
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hermes
+        app.kubernetes.io/part-of: family-ai
+    spec:
+      automountServiceAccountToken: false
+      # Service links would inject HERMES_PROFIEL_N_* variables into an
+      # application that reads HERMES_* from its environment.
+      enableServiceLinks: false
+      shareProcessNamespace: false
+      securityContext:
+        seccompProfile: {type: RuntimeDefault}
+        fsGroup: 10000
+        fsGroupChangePolicy: OnRootMismatch
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+      # Sander D5 (v3): talk to Caddy on the Studio DIRECTLY, never through
+      # envoy-internal (removes the SNI/Host fronting exposure,
+      # inc-2026-09-26-001). /etc/hosts wins over DNS, so the URL, the SNI
+      # and the Host header all stay api.bluejungle.net while the packets
+      # go to 172.16.2.200. Egress is pinned to that /32 in network-policies/.
+      hostAliases:
+        - ip: 172.16.2.200
+          hostnames: [api.bluejungle.net]
+      initContainers:
+        # Copy-ONCE of this profile's config bundle (config.yaml, persona,
+        # skills, plugin) from the SOPS Secret into /opt/data. Never touches
+        # memories/, state.db or sessions/. See seed-once.sh.
+        - name: seed-once
+          image: docker.io/nousresearch/hermes-agent:v2026.9.24@sha256:fca358f12efd65bfaaca05884166f15c0e2788375ca30d77061ac1ebc96452b7
+          command: ["/bin/sh", "/seed/seed-once.sh"]
+          env:
+            # Checked by seed-once: empty or __MACK_* => the pod never starts.
+            - name: FAMILY_LLM_MODEL
+              valueFrom:
+                configMapKeyRef: {name: family-ai-runtime, key: FAMILY_LLM_MODEL}
+          securityContext:
+            runAsUser: 10000
+            runAsGroup: 10000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 20m, memory: 64Mi}
+            limits: {memory: 256Mi}
+          volumeMounts:
+            - {name: data, mountPath: /opt/data}
+            - {name: seed, mountPath: /seed, readOnly: true}
+            - {name: bundle, mountPath: /bundle, readOnly: true}
+      containers:
+        - name: app
+          image: docker.io/nousresearch/hermes-agent:v2026.9.24@sha256:fca358f12efd65bfaaca05884166f15c0e2788375ca30d77061ac1ebc96452b7
+          args: ["gateway", "run"]
+          ports:
+            - name: api
+              containerPort: 8642
+          env:
+            - {name: API_SERVER_ENABLED, value: "true"}
+            - {name: API_SERVER_HOST, value: "0.0.0.0"}
+            - {name: API_SERVER_PORT, value: "8642"}
+            - {name: TZ, value: "Europe/Amsterdam"}
+            - {name: FAMILY_LLM_BASE_URL, value: "https://api.bluejungle.net/v1"}
+            - name: FAMILY_LLM_MODEL
+              valueFrom:
+                configMapKeyRef: {name: family-ai-runtime, key: FAMILY_LLM_MODEL}
+            - {name: GEZIN_URL, value: "http://gezinsdienst:8080"}
+            # Trust ONLY Caddy's internal root (studio-ca-configmap.yaml).
+            # SSL_CERT_FILE: OpenSSL default context (aiohttp, urllib, httpx
+            # with trust_env); REQUESTS_CA_BUNDLE: python-requests (certifi
+            # otherwise); CURL_CA_BUNDLE for the test commands.
+            - {name: SSL_CERT_FILE, value: /etc/studio-ca/ca.crt}
+            - {name: REQUESTS_CA_BUNDLE, value: /etc/studio-ca/ca.crt}
+            - {name: CURL_CA_BUNDLE, value: /etc/studio-ca/ca.crt}
+            # API_SERVER_KEY, MODEL_API_KEY, GEZIN_TOKEN
+          envFrom:
+            - secretRef:
+                name: family-ai-hermes-profiel
+          # Starts as root on purpose (see header). no_new_privs does not get
+          # in the way of s6-setuidgid: dropping privileges is a plain
+          # setuid()/setgid() by root, not a setuid-binary escalation.
+          securityContext:
+            allowPrivilegeEscalation: false
+            # Argus A4: not the runtime-default set (which includes NET_RAW,
+            # MKNOD, SYS_CHROOT, SETFCAP). Exactly what s6 + stage2 use as
+            # root: chown the data tree, read/fix perms, drop to 10000, and
+            # KILL so s6 can signal the uid-10000 services.
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETUID", "SETGID", "KILL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 384Mi
+            limits:
+              memory: 1536Mi
+          # tcpSocket, not /health: the API server may require the bearer
+          # key and a probe must not carry one.
+          startupProbe:
+            tcpSocket: {port: api}
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket: {port: api}
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: {port: api}
+            periodSeconds: 30
+            failureThreshold: 4
+          volumeMounts:
+            - {name: data, mountPath: /opt/data}
+            - {name: studio-ca, mountPath: /etc/studio-ca, readOnly: true}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: hermes-profiel-data
+        - name: seed
+          configMap:
+            name: hermes-seed
+            defaultMode: 0555
+        - name: bundle
+          secret:
+            secretName: family-ai-hermes-profiel-bundle
+        - name: studio-ca
+          configMap:
+            name: studio-ca

@@ -1,0 +1,14 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+#
+# Three Hermes Agent profiles from one base. Each overlay suffixes every
+# name (-1/-2/-3), so hermes-profiel-N gets its own Deployment, Service,
+# PVC, Secret, config bundle and VolSync source. The shared ConfigMap
+# family-ai-runtime is NOT in this tree, so kustomize leaves that reference
+# alone.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./profiel-1
+  # profiel-2 and profiel-3 land later (L3b-2), after Mack's learning-only
+  # persona for them has passed Argus (B4, chg-2026-09-26-001).
