@@ -1,0 +1,15 @@
+# chg-2026-09-26-001 land-8b post-check: read-only model mount load test (origin/main 06b274a), 2026-09-26T17:44Z. uitgevoerd onder programmagoedkeuring family-ai
+Flux family-ai-open-webui applied 06b274a; open-webui rolled out (2/2 Ready); ResourceQuota limits.memory 16Gi live.
+In the open-webui app container (python3, offline):
+  SENTENCE_TRANSFORMERS_HOME=/app/backend/data/cache/embedding/models, mounted ro: True
+  HF_HUB_OFFLINE=1, TRANSFORMERS_OFFLINE=1, OFFLINE_MODE=true, RAG_EMBEDDING_MODEL_TRUST_REMOTE_CODE=false
+  snapshot_download(local_files_only) -> revisions e8f8c211226b894fcb81acc59f3b34ba3efd5f42 / 1427fd652930e4ba29e8149678df786c240d8825
+  SentenceTransformer(paraphrase-multilingual-MiniLM-L12-v2, trust_remote_code=False).encode -> dim 384, cos(NL,EN paraphrase) = 0.848
+  CrossEncoder(mmarco-mMiniLMv2-L12-H384-v1, trust_remote_code=False).predict -> relevant 5.401 / irrelevant -7.762
+  load + inference 8.3 s; test process max RSS 1418 MiB (transient, separate process)
+  no EROFS, no exception; no .no_exist or other files written into the cache; only benign "UNEXPECTED position_ids" load notes
+Hubble (open-webui pod, 10 min incl. the test): no DNS request at all (none to huggingface), no DROPPED flow
+App log (10 min): 0 lines matching huggingface.co / Read-only file system / EROFS / snapshot download errors
+Pod memory after the test (metrics-server): app 853Mi, oidc-proxy 2Mi (limit 5Gi)
+Health: /health 200; hermes-profiel-1/2/3 /v1/models with their keys -> hermes-agent-profiel-1/2/3 (unchanged)
+Result: read-only mount works; the RW fallback (9fde291) is NOT needed.
