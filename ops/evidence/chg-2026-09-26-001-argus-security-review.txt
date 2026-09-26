@@ -1,0 +1,89 @@
+# chg-2026-09-26-001 security review evidence - security-engineer (Argus), 2026-09-26T06:23:19Z
+# Branch feat/family-ai a0dff1b. No secret values and no children's names in this file.
+
+## E1 envoy-internal domain fronting (SNI api.bluejungle.net, other Host), from vdhmini01, unauthenticated GET /
+SNI=api Host=api.bluejungle.net           -> 401 loc=
+SNI=api Host=grafana.bluejungle.net       -> 302 loc=/login
+SNI=api Host=zigbee2mqtt.bluejungle.net   -> 200 loc=
+SNI=api Host=zwave.bluejungle.net         -> 200 loc=
+SNI=api Host=esphome.bluejungle.net       -> 200 loc=
+SNI=api Host=node-red.bluejungle.net      -> 200 loc=
+SNI=api Host=hass-code.bluejungle.net     -> 302 loc=./?folder=/config
+SNI=api Host=hass-code  GET /?folder=/config -> 200 text/html
+SNI=api Host=node-red   GET /auth/login body -> {}   (empty {} = no adminAuth)
+
+## E2 registry digests
+ghcr open-webui:v0.11.3 -> sha256:41daa0cf2561a5d4c8d1ff31ee2a98d93ab4d3ac2605cac69366ff6a3374a933 (== pinned)
+docker.io library/python:3.13-slim -> sha256:7c61056e61ac89e852de05f3dc6fa51a6dd2181797bceed46aa725dd7cb2cd3b (== pinned, current tag)
+docker.io nousresearch/hermes-agent:v0.21.5 -> HTTP 404 (tag does not exist); pinned digest fca358f1... == Docker Hub tag v2026.9.24 (GitHub release 'Hermes Agent v0.21.5 (v2026.9.24)'); published by NousResearch/hermes-agent .github/workflows/docker.yml IMAGE_NAME nousresearch/hermes-agent
+
+## E3 trivy 0.74.0 (mise aqua:aquasecurity/trivy@0.74.0), --severity HIGH,CRITICAL, remote
+--- python
+Total: 44 (HIGH: 44, CRITICAL: 0)
+Total: 2 (HIGH: 2, CRITICAL: 0)
+--- hermes-agent
+Total: 431 (HIGH: 414, CRITICAL: 17)
+Total: 8 (HIGH: 7, CRITICAL: 1)
+Total: 4 (HIGH: 3, CRITICAL: 1)
+Total: 2 (HIGH: 2, CRITICAL: 0)
+Total: 2 (HIGH: 2, CRITICAL: 0)
+--- open-webui
+Total: 602 (HIGH: 580, CRITICAL: 22)
+Total: 49 (HIGH: 43, CRITICAL: 6)
+open-webui app-layer CRITICAL: chromadb CVE-2026-45829/45833 (no fix), unstructured CVE-2026-71428 SSRF (fix 0.24.0), nltk CVE-2026-78683/79657/79675
+hermes app-layer CRITICAL: node tar CVE-2026-59873 (fix 7.5.19), anyio CVE-2026-63374 (fix 4.14.2)
+
+## E4 Open WebUI v0.11.3 source (raw.githubusercontent.com/open-webui/open-webui/v0.11.3/backend/open_webui/...)
+config.py:422:ENABLE_CODE_INTERPRETER = os.getenv('ENABLE_CODE_INTERPRETER', 'True').lower() == 'true'
+config.py:2068:ENABLE_EVALUATION_ARENA_MODELS = os.getenv('ENABLE_EVALUATION_ARENA_MODELS', 'True').lower() == 'true'
+config.py:2108:ENABLE_ADMIN_ANALYTICS = os.getenv('ENABLE_ADMIN_ANALYTICS', 'True').lower() == 'true'
+config.py:2467:ENABLE_API_KEYS = os.getenv('ENABLE_API_KEYS', 'False').lower() == 'true'
+config.py:2469:ENABLE_API_KEYS_ENDPOINT_RESTRICTIONS = (
+config.py:2479:JWT_EXPIRES_IN = os.getenv('JWT_EXPIRES_IN', '4w')
+main.py:855:if ENABLE_ADMIN_ANALYTICS:
+main.py:856:    app.include_router(analytics.router, prefix='/api/v1/analytics', tags=['analytics'])
+routers/analytics.py: @router.get('/messages', response_model=list[ChatMessageModel])
+routers/analytics.py: async def get_messages(
+routers/analytics.py:     model_id: Optional[str] = Query(None, description='Filter by model ID'),
+routers/analytics.py:     user_id: Optional[str] = Query(None, description='Filter by user ID'),
+routers/analytics.py:     chat_id: Optional[str] = Query(None, description='Filter by chat ID'),
+routers/analytics.py:     start_date: Optional[int] = Query(None, description='Start timestamp (epoch)'),
+routers/analytics.py:     end_date: Optional[int] = Query(None, description='End timestamp (epoch)'),
+routers/analytics.py:     skip: int = Query(0),
+routers/analytics.py:     limit: int = Query(50, le=100),
+routers/analytics.py:     user=Depends(get_admin_user),
+routers/analytics.py:     db: AsyncSession = Depends(get_async_session),
+routers/analytics.py: ):
+models/chat_messages.py:188:    content: Optional[Any] = None  # str or list of blocks
+routers/users.py (admin sets any user password):         if form_data.password:
+routers/users.py (admin sets any user password):             try:
+routers/users.py (admin sets any user password):                 validate_password(form_data.password)
+routers/users.py (admin sets any user password):             except Exception as e:
+routers/users.py (admin sets any user password):                 raise HTTPException(400, detail=str(e))
+routers/users.py (admin sets any user password): 
+routers/users.py (admin sets any user password):             hashed = await get_password_hash(form_data.password)
+routers/users.py (admin sets any user password):             if await Auths.update_user_password_by_id(user_id, hashed, db=db):
+routers/users.py (admin sets any user password):                 await revoke_user_tokens(request, user_id)
+main.py lifespan (admin seeded before yield@463):     if WEBUI_ADMIN_EMAIL and WEBUI_ADMIN_PASSWORD:
+main.py lifespan (admin seeded before yield@463):         if await create_admin_user(WEBUI_ADMIN_EMAIL, WEBUI_ADMIN_PASSWORD, WEBUI_ADMIN_NAME):
+main.py lifespan (admin seeded before yield@463):             # Disable signup since we now have an admin
+main.py lifespan (admin seeded before yield@463):             await Config.upsert({'ui.enable_signup': False})
+routers/auths.py signup:     if WEBUI_AUTH:
+routers/auths.py signup:         if has_users:
+routers/auths.py signup:             if not await Config.get('ui.enable_signup') or not await Config.get('ui.enable_login_form'):
+routers/auths.py signup:                 raise HTTPException(status.HTTP_403_FORBIDDEN, detail=ERROR_MESSAGES.ACCESS_PROHIBITED)
+routers/auths.py signup:         # Don't gate the first admin on ENABLE_SIGNUP: it auto-disables and can persist stale across a DB reset.
+grep -i 'retention|chat.*expir' config.py -> only ENABLE_KNOWLEDGE_FILE_RETENTION and CONTEXT_COMPACTION_RETENTION_PERCENTAGE: no chat retention setting exists
+
+## E5 cluster state (kubectl, read-only)
+EG CRD clienttrafficpolicies has headers.earlyRequestHeaders (line 192); EG v1.3.0; existing ClientTrafficPolicies: none; SecurityPolicies: none
+cilium v1.19.4, enable-l7-proxy=true; minio-offsite-mirror live cronjob: 'for bucket in cnpg-backups volsync; do' (family-ai-volsync not mirrored)
+repo visibility: api.github.com/repos/vdhict/vdhinfra -> private=False visibility=public
+
+## E6 Mack delivery /Users/sheijden/family-ai-bundle/e955dbe (NOT imported into the branch)
+  16 OK
+gezinsdienst.py:14-16 docstring: parents' paths trust forwarded user/groups headers; 'The NetworkPolicy must make envoy the only ingress for those paths'
+gezinsdienst.py:633-653 GET / and /v1/overzicht authorize on Remote-User/Remote-Groups only; :674-686 POST /besproken|/telt-niet same + Origin==Host (client-forgeable)
+config.json: onderwerpen use token_env (plaintext token in gezinsdienst env), NOT GEZIN_TOKEN_SHA256_n; contains children's first names + login map
+teksten.json doorbell: title 'Studio', body constant (no name, no category; states 'a safety signal about one of the boys')
+hermes config.yaml platform_toolsets.api_server: profile-1 [memory, session_search]; profiles 2,3 [memory, gezin]; sessions.retention_days 30
