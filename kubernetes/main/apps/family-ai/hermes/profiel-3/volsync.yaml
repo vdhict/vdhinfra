@@ -61,4 +61,5 @@ spec:
     retain:
       hourly: 24
       daily: 7
-    pruneIntervalDays: 7
+    # Prune daily so the family-facing "7 days in-house" holds (Argus).
+    pruneIntervalDays: 1
