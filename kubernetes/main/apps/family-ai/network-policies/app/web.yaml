@@ -1,0 +1,86 @@
+---
+# Controlled internet (chg-2026-09-26-001): searxng and web-extract may only
+# talk to egress-proxy; egress-proxy is the only pod with internet egress,
+# and only to PUBLIC addresses on 80/443 (the private ranges are excluded
+# here at L3 AND denied by squid on the resolved IP).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: egress-proxy
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: egress-proxy
+  ingress:
+    - fromEndpoints:
+        - matchLabels: {app.kubernetes.io/name: searxng}
+        - matchLabels: {app.kubernetes.io/name: web-extract}
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: family-ai-sandbox
+            app.kubernetes.io/name: sandbox
+      toPorts:
+        - ports: [{port: "3128", protocol: TCP}]
+  egress:
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 0.0.0.0/8
+            - 10.0.0.0/8
+            - 100.64.0.0/10
+            - 127.0.0.0/8
+            - 169.254.0.0/16
+            - 172.16.0.0/12
+            - 192.0.0.0/24
+            - 192.168.0.0/16
+            - 198.18.0.0/15
+            - 224.0.0.0/4
+            - 240.0.0.0/4
+      toPorts:
+        - ports:
+            - {port: "80", protocol: TCP}
+            - {port: "443", protocol: TCP}
+    # squid must resolve arbitrary public names. This is not an extra
+    # channel: whoever can make the proxy fetch a host can already make it
+    # resolve that host.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              - matchPattern: "*"
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: searxng-web-extract
+spec:
+  endpointSelector:
+    matchExpressions:
+      - {key: app.kubernetes.io/name, operator: In, values: [searxng, web-extract]}
+  ingress:
+    - fromEndpoints:
+        - matchLabels: {app.kubernetes.io/name: hermes}
+      toPorts:
+        - ports: [{port: "8080", protocol: TCP}]
+  egress:
+    - toEndpoints:
+        - matchLabels: {app.kubernetes.io/name: egress-proxy}
+      toPorts:
+        - ports: [{port: "3128", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              - matchPattern: "*.family-ai.svc.cluster.local"

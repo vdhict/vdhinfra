@@ -33,3 +33,4 @@ resources:
   - ./gezinsdienst.yaml
   - ./volsync-mover.yaml
   - ./chat-retention.yaml
+  - ./web.yaml   # controlled internet (search + fetch)

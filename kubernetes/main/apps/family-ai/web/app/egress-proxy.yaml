@@ -1,0 +1,95 @@
+---
+# egress-proxy: squid, the ONLY internet egress for searxng, web-extract and
+# the family-ai sandboxes (chg-2026-09-26-001). Policy in files/squid.conf.
+#
+# LOG PRIVACY: with web access for the children this is a log of their
+# browsing. Fields: time, source pod IP, method, destination host:port,
+# status, bytes - no paths, no query strings, no bodies (HTTPS: host only).
+# Lives ONLY on PVC egress-proxy-logs, 7 daily files (logfile_rotate 6 +
+# daily rotate), never on stdout, so the cluster log shipper does NOT send it
+# to Loki. NOT backed up. Readable by whoever can exec into this pod or
+# mount the PVC in family-ai = cluster admins; not Open WebUI admins, not
+# the agents. Which child made a request is NOT in it (shared services).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: egress-proxy-logs
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: rook-ceph-block
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: egress-proxy
+  labels:
+    app.kubernetes.io/name: egress-proxy
+spec:
+  selector:
+    app.kubernetes.io/name: egress-proxy
+  ports:
+    - {name: proxy, port: 3128, targetPort: proxy}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: egress-proxy
+  labels:
+    app.kubernetes.io/name: egress-proxy
+  annotations:
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: egress-proxy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: egress-proxy
+        app.kubernetes.io/part-of: family-ai
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 13          # 'proxy' in the Ubuntu image
+        runAsGroup: 13
+        fsGroup: 13
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: squid
+          image: docker.io/ubuntu/squid:6.13-25.04_edge@sha256:3de2e64f0ca6efdac3e98557607dc0f23050037f3885016d5d5bfcf9950501b8
+          command: ["/bin/sh", "/etc/egress-proxy/run.sh"]
+          ports:
+            - {name: proxy, containerPort: 3128}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {memory: 256Mi}
+          readinessProbe:
+            tcpSocket: {port: proxy}
+            periodSeconds: 10
+          volumeMounts:
+            - {name: conf, mountPath: /etc/egress-proxy, readOnly: true}
+            - {name: logs, mountPath: /var/log/squid}
+            - {name: tmp, mountPath: /tmp}
+            - {name: spool, mountPath: /var/spool/squid}
+            - {name: run, mountPath: /run}
+      volumes:
+        - name: conf
+          configMap: {name: egress-proxy-conf, defaultMode: 0555}
+        - name: logs
+          persistentVolumeClaim: {claimName: egress-proxy-logs}
+        - {name: tmp, emptyDir: {sizeLimit: 64Mi}}
+        - {name: spool, emptyDir: {sizeLimit: 64Mi}}
+        - {name: run, emptyDir: {sizeLimit: 1Mi}}

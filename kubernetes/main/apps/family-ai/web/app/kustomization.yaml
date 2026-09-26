@@ -1,0 +1,23 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./egress-proxy.yaml
+  - ./searxng.yaml
+  - ./web-extract.yaml
+configMapGenerator:
+  - name: egress-proxy-conf
+    files:
+      - squid.conf=./files/squid.conf
+      - run.sh=./files/squid-run.sh
+  - name: searxng-settings
+    files:
+      - settings.yml=./files/searxng-settings.yml
+  - name: web-extract-code
+    files:
+      - web_extract.py=./files/web_extract.py
+generatorOptions:
+  annotations:
+    # squid/searxng/python configs: Flux postBuild must not touch ${...} or $x
+    kustomize.toolkit.fluxcd.io/substitute: disabled

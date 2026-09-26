@@ -26,6 +26,16 @@ spec:
         - 172.16.2.200/32
       toPorts:
         - ports: [{port: "443", protocol: TCP}]
+    # Controlled internet (chg-2026-09-26-001): search and page fetch ONLY
+    # through these two in-namespace services; never the proxy or the
+    # internet directly (HTTPS_PROXY in the pod env is deliberately
+    # unreachable - it only makes Hermes defer DNS to "the proxy" in its
+    # SSRF pre-check, see hermes/base/deployment.yaml).
+    - toEndpoints:
+        - matchExpressions:
+            - {key: app.kubernetes.io/name, operator: In, values: [searxng, web-extract]}
+      toPorts:
+        - ports: [{port: "8080", protocol: TCP}]
     # Only profiel-2/-3 are admitted by gezinsdienst's ingress rule; the
     # egress side stays per-namespace-app so the pair is readable in one place.
     - toEndpoints:
