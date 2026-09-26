@@ -31,3 +31,10 @@ patches:
       - op: add
         path: /spec/template/spec/containers/0/env/-
         value: {name: FIRECRAWL_API_KEY, value: profiel-1}
+      # kennis plugin (Mack 8d8d27a, toolset `kennis`, tool kennis_zoeken):
+      # full FQDN on purpose - `kennisdienst.family-ai.svc` does NOT resolve
+      # here (ndots:1 + the hermes DNS allow-list, measured). Covered by
+      # NO_PROXY (.family-ai.svc.cluster.local). KENNIS_TOKEN via the ES.
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: KENNIS_URL, value: "http://kennisdienst.family-ai.svc.cluster.local:8088"}

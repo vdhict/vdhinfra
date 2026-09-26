@@ -1,0 +1,144 @@
+---
+# kennisdienst - Mack's retrieval service (kennisdienst.py, stdlib HTTP +
+# sentence-transformers), for hermes-profiel-1 only (chg-2026-09-26-001,
+# land-11).
+#
+# Image: the Open WebUI image ALREADY pinned in open-webui/app, NOT a build
+# of Mack's Dockerfile - we have no image pipeline or registry. Measured in
+# a throwaway pod on this exact digest (2026-09-26, hardened exactly as
+# below, no network): Python 3.11.16, sentence-transformers 5.5.1 and
+# transformers 5.5.4 (= Mack's pins), torch 2.9.1+cpu (Mack: 2.14.0),
+# numpy 2.4.6; the script needs only the stdlib + those. Result: 1178
+# units indexed in 39 s, reranked hits for NL + EN queries, 401 on a wrong
+# token, 403 on a foreign collection, VmHWM 2.0 GiB.
+#
+# No network at all: HF_HUB_OFFLINE, models from a local PVC, and the CNP
+# (network-policies/kennisdienst.yaml) allows NO egress, not even DNS.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kennisdienst
+  labels:
+    app.kubernetes.io/name: kennisdienst
+  annotations:
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 1
+  # RWO models PVC: never two pods at once.
+  strategy:
+    type: Recreate
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kennisdienst
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kennisdienst
+        app.kubernetes.io/part-of: family-ai
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: {type: RuntimeDefault}
+      initContainers:
+        # Fail-closed: every model file must match the land-8a SHA256SUMS
+        # (files/models.sha256, e4d43631...) before the service loads it.
+        # Also the "not filled yet" gate right after land-11 lands.
+        - name: models-check
+          image: ghcr.io/open-webui/open-webui:v0.11.4@sha256:9591b13f13843c7721c2b8eaf7382846c81b3ffe126526d1888d1fed50c6a33f
+          command:
+            - sh
+            - -c
+            - |
+              cd /models && sha256sum -c --strict --quiet /kennis/code/models.sha256 \
+                && echo "models-check: $(wc -l < /kennis/code/models.sha256) files OK"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 20m, memory: 64Mi}
+            limits: {memory: 256Mi}
+          volumeMounts:
+            - {name: models, mountPath: /models, readOnly: true}
+            - {name: code, mountPath: /kennis/code, readOnly: true}
+      containers:
+        - name: app
+          image: ghcr.io/open-webui/open-webui:v0.11.4@sha256:9591b13f13843c7721c2b8eaf7382846c81b3ffe126526d1888d1fed50c6a33f
+          command: ["python", "/kennis/code/kennisdienst.py"]
+          workingDir: /tmp
+          ports:
+            - name: http
+              containerPort: 8088
+          env:
+            - {name: KENNIS_DATA, value: /kennis/collecties}
+            - {name: KENNIS_POORT, value: "8088"}
+            - name: KENNIS_EMBED_MODEL
+              value: /models/models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2/snapshots/e8f8c211226b894fcb81acc59f3b34ba3efd5f42
+            - name: KENNIS_RERANK_MODEL
+              value: /models/models--cross-encoder--mmarco-mMiniLMv2-L12-H384-v1/snapshots/1427fd652930e4ba29e8149678df786c240d8825
+            # Mack's toegang.json: token env name -> collections it may search.
+            - {name: KENNIS_TOEGANG, value: '{"KENNIS_TOKEN_PROFIEL_1": ["zeevaart"]}'}
+            - {name: HOME, value: /tmp}
+            - {name: HF_HOME, value: /tmp/hf}
+            - {name: HF_HUB_OFFLINE, value: "1"}
+            - {name: TRANSFORMERS_OFFLINE, value: "1"}
+            - {name: OMP_NUM_THREADS, value: "2"}
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+            - {name: PYTHONUNBUFFERED, value: "1"}
+          envFrom:
+            - secretRef:
+                name: family-ai-kennisdienst
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            # Measured VmHWM 2.0 GiB / cgroup memory.peak 2.05 GiB (index
+            # build + queries); the request is the real steady state.
+            requests:
+              cpu: 50m
+              memory: 2Gi
+            limits:
+              memory: 2560Mi
+          # /gezond answers only once every index is built (~40 s measured).
+          startupProbe:
+            httpGet: {path: /gezond, port: http}
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: {path: /gezond, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /gezond, port: http}
+            periodSeconds: 30
+            failureThreshold: 4
+          volumeMounts:
+            - {name: code, mountPath: /kennis/code, readOnly: true}
+            # Mounted AT the collection dir, not its parent: the script
+            # treats every sub-directory of KENNIS_DATA as a collection, and
+            # a Secret volume's own ..data/..<timestamp> dirs would become
+            # empty "collections" (SystemExit) if mounted one level up.
+            - {name: zeevaart, mountPath: /kennis/collecties/zeevaart, readOnly: true}
+            - {name: models, mountPath: /models, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: code
+          configMap:
+            name: kennisdienst-code
+        - name: zeevaart
+          secret:
+            secretName: kennisdienst-collectie-zeevaart
+        - name: models
+          persistentVolumeClaim:
+            claimName: kennisdienst-models
+            readOnly: true
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi

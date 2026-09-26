@@ -1,0 +1,22 @@
+---
+# kennisdienst's OWN copy of the two land-8a models (~0.95 GB, HF cache
+# layout, SHA256SUMS e4d43631...). Not a mount of open-webui-models: that
+# PVC is RWO, and a second pod holding it pins Open WebUI to one node - a
+# Recreate of Open WebUI onto another node would hang on Multi-Attach until
+# kennisdienst is deleted. 2Gi of Ceph buys full decoupling.
+#
+# Filled ONCE after this lands, like open-webui-models: kubectl cp from
+# ~/family-ai-models on the Mac Mini into a throwaway loader pod on the
+# kennisdienst pod's node, then sha256sum -c in the pod. The models-check
+# init container re-verifies the full set on every start (fail-closed).
+# NOT backed up: reproducible cache. After DR: re-copy from staging.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kennisdienst-models
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: rook-ceph-block
+  resources:
+    requests:
+      storage: 2Gi

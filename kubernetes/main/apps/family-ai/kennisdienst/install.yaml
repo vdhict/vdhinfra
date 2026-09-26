@@ -1,0 +1,31 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app family-ai-kennisdienst
+  namespace: flux-system
+spec:
+  targetNamespace: family-ai
+  commonMetadata:
+    labels:
+      app.kubernetes.io/part-of: family-ai
+  dependsOn:
+    # CNPs first on every path (Themis B1), like the other family-ai apps.
+    - name: family-ai-network-policies
+    - name: external-secrets-stores
+    - name: rook-ceph-cluster
+  path: ./kubernetes/main/apps/family-ai/kennisdienst/app
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  # wait: false on purpose. kennisdienst-models is filled by a one-time
+  # verified copy AFTER this lands (see pvc.yaml); until then the pod waits
+  # in its models-check init container, and a waiting health check would
+  # only turn this Kustomization red for that window.
+  wait: false
+  interval: 30m
+  retryInterval: 1m
+  timeout: 5m

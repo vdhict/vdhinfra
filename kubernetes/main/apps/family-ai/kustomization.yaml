@@ -23,3 +23,4 @@ resources:
   - ./hermes/install.yaml
   - ./gezinsdienst/install.yaml
   - ./web/install.yaml
+  - ./kennisdienst/install.yaml

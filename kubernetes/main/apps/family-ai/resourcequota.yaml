@@ -12,6 +12,7 @@
 #   open-webui     250m / 1Gi    limit 3Gi
 #   hermes x3      100m / 384Mi  limit 1.5Gi each
 #   gezinsdienst    20m / 64Mi   limit 256Mi
+#   kennisdienst    50m / 2Gi    limit 2.5Gi  (land-11, measured HWM 2.0 GiB)
 #   => 570m / 2.2Gi requested, 7.75Gi memory limit
 # plus 4 VolSync movers (staggered schedule, 50m / 256Mi, limit 1Gi each)
 # and init containers (only during start).
@@ -27,7 +28,10 @@ metadata:
 spec:
   hard:
     requests.cpu: "2"
-    requests.memory: 6Gi
+    # 8Gi (was 6Gi) for kennisdienst (land-11): measured 2.0 GiB resident,
+    # requested as 2Gi. With land-9 that is ~5.5Gi requested steady state;
+    # 6Gi would leave <0.5Gi for a VolSync mover + the retention job.
+    requests.memory: 8Gi
     # 16Gi (was 14Gi) for RAG in open-webui (5Gi limit): worst case with a
     # mover and the retention job running left only ~190Mi (Themis).
     limits.memory: 16Gi
