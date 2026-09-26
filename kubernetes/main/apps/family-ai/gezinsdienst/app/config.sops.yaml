@@ -1,0 +1,26 @@
+# gezinsdienst config.json (Mack's delivery 5c3f3ab). Contains names and the
+# login->profile map: SOPS-encrypted, never in clear (public repo).
+apiVersion: v1
+kind: Secret
+metadata:
+    name: gezinsdienst-config
+    annotations:
+        kustomize.toolkit.fluxcd.io/substitute: disabled
+type: Opaque
+data:
+    config.json: ENC[AES256_GCM,data:jLGYa0VvXEqka5SGWWEpekRQlEVHqY7MYaBiRNzokpMy4mGjntjC5yeL1mk5nN9LmdbB9iGDFyd59OViUsz55f45vwdxPT2SyL/OoOqpJDEAvILbfMwUn/5K+nbRJkO/pxs5hXhreSj56j3ZTA/hcfDC4Bw+DdhWQIJips6gdSe8AvBbKSE2xxEWXhCgWo7ooKl89CWPGmiZNUCz0Id79D48rhrqhncp6VLYV7NYGR2GbZ4ZFfyuuGQODcMCQC0GVFBgdODWGE4MlquXc+dexWiRxAzfN35M+RMa4cAMKDY0ZhuJ+oTF2vZoB5e3KSGwI+ppwACdhT8Gj1lP+SYjsrmMwgJU8ezC/3b081ROjjG965hr6V0/rhkgdxbw+lR7rUtNkom1q3YD5TKwh9e5T9U2vPHMJZxvLIlNMAuCJU3NN44SB/VrRkO+u/sXyL3MwjFMR4FmHivz5ZTnWxiw6zhzyyXtrCqviZ8Fk1NYYqa1bH8ok/gjSSHZwy0HC2SzyKz/w6B+n+BVB4DAxy7iKKHeOIvA8R6I1x4Dpt5S/9nQNZI891/4b8fib8Wy7be9iISdyWLkk2xxDI4iQHY/g9W6BdWv5oPX7H452WYQSr3D+ll4XFce8dv5tqWUS81Z7zdP1zjKEPhuwwJjdG5ukyLx16N38WEZByiQQnTwR+ZcObTbf1CZEMDyX0acgBILacwpMfECMh1ekPg4nQQDUEfKnxT4s1jrNuRKsIfDoGtHBO5oZ10JIEAJSR86Mc0iDSNmkqwkR1+yRzwZ0zVQ3yE6iSpP0Tq8TQLHD4NuHmRb/xSvVma26f1zsEdmzLGha2npfOqI/MBYgqn1stOWb0eRynaLhyEHeo+7mRu57Pyh+CLqft9rGg86RFwYW2swj4M3Vq2slf7eHTNQ04WWoqK0sHPeABGGXX4UpJTp54/ybueNJ4CWSyDP2wXYvF2EiCJ+0PNfxkJ0kTNNEWwT6oSRGDSuP+Ra3pCSGPY+txXY6fs1/fFnRc9xQ1a4iP8GhnnjMIvUqaIThLNyFBXNfsFWO+EAB8czPZL8Cl3bLGYsTSfW03SqGuVq25+CVV2sCXpG1xZw9ugjvmgMU305NSEK6CqP4/m7lFe0BOKlC4Me2uccjBhqu7Ix4WcCEaoyXIaimkIGSjUwsCCkOVE5gdI3qvGyUf7L5R/77Jhjw2zYpHKcQnRKqz52i6f8cveSJ3OquT1//q2dWGNPtE96kZdePIYjs1eQkDFu9vwczAFvuxc3c76b8Tc3MOVO/1ddv44s/pmEV+8S5nMekJTcj2hjnVbdtUTCj57lPOl3oFQDL3JpDvLm5FnYu2v2jKJVQhCb0YRWxaOBc4vNZS26kCd/01SqRDtfAwY1Jw9n40rKT3oDZd0toxQbn89MbrI9QQgzFS61kJlsoVw+nvTZYFmlEzc+popm49L30/v4/ULrqhbdDlVpTEVNoL+Wf6T/l+Ch/PZznpaA59+lB5OeMRZPNIb8f2UcHWz6WXV+6EfHNPIFGQ8O4elPUPLl4li4Xi5FJw8oXLXOu33qCVdzO5YZ7DyCw7Ht8RVu5jH8qYqlDpu4KfMU9hJwfn9Lu8nQJCKNBsd7JHJXzwJ6jmvDcFRSJ6U0XRgBZTiOTPPsIwaPnSmtvX6Noe2iNwyjiA3Sss9a1W7ACL707kiqtkjTdPio4rcKgnAyy+LMyc0BmL738H1xUTPoJePi7B4g2A8ItTY2ELK6h/nyx2ScwM/iGZQh3nc/3agvF+XkRazRqbybEaXRFk3+cFABQo7Ocb9q,iv:dLSmnr+hZPHCz7hZI/B1B90KQ0B0d5pUqay6BLl6Wyo=,tag:kXiOvWcOcpga/RQ2VnzpCg==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBvNCtBQWpSTkFpVnhCdVlG
+            QVo0TkJmT2lGOEpVdzQvTDJRQ2xQKzJleFIwCklQMWQvaG11Y3JLa3dNczBnSWcz
+            QlRUcVVYNjk1bXBYc2kwcVQ5d0l4M2sKLS0tIDY4RFRCM3RTZEpQUytrOEJJWmtl
+            Ylo3UTNHVEZBMWRNSVJCZGNCaG00TjgK3uinSckJsI3iY+YRLz0UAlJIPCmtyLbc
+            mJSGoNucPsNUXom+P/LLSbbBN9hk3zi5NTREGPk+ytJNasgv75jaYQ==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1dfs2z6esr6rhm46pvh6l8xlualxsn756rkkt9432d5kk3k7s4pssmus4gk
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-09-26T07:18:57Z"
+    mac: ENC[AES256_GCM,data:HVHLMrV0o9INKoWZ62x4+nlEf1789ZaxWR4GoJh5toRi/KU+tC7rdESD+EF2opLax/qHQ4P46PH0kree331j72VceK8OviDfdKYIcmfpxPADLYdsExKcjLbELXbanNRd3tOuDolKvx3RVKChWhvLyP+MqwV/odOjEUspv3Za2AM=,iv:HJ+jBSKY5rdG8aR+zytZWNxIovy8+GpGvAsQH2j9V3k=,tag:4cyYOc0XbQ+lYr+7/91zig==,type:str]
+    version: 3.13.3

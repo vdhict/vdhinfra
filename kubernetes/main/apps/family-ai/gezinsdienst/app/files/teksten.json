@@ -1,0 +1,30 @@
+{
+  "_bron": "Tess, Deliverables/2026-09-26-family-teacher-and-safety-signal-design.md §5.10 (Text used) and §3.7. Drafts for Ezra's pass. Change a string here and nowhere else; bin/render-bundle and the service read this file. Gedrag labels and gedrag_zin: Tess §12.4 and §12.10 (Mijn ladder rows).",
+  "hulplijnen": {
+    "112": "Direct gevaar: bel 112.",
+    "113": "Denk je aan zelfmoord: 113 Zelfmoordpreventie, bel gratis 113, of kijk op 113.nl.",
+    "kindertelefoon": "Praten over alles wat je dwarszit: De Kindertelefoon, 0800-0432, elke dag van 11:00 tot 21:00, ook via chat op kindertelefoon.nl.",
+    "ouders": "En vooral: ga naar papa of mama. Ook 's nachts: maak ze wakker. Dat willen ze."
+  },
+  "signaal_zin": "Ik heb papa een seintje gegeven. Hij ziet alleen dát er iets is, welke soort, en hoe laat. Wat je hier schreef, ziet hij niet. Wil je zelf met papa of mama praten? Dat is het beste.",
+  "signaal_zin_niet_verstuurd": "Het seintje is nu niet aangekomen. Ga daarom zelf naar papa of mama, ook als ze slapen. Ik probeer het seintje straks opnieuw te versturen.",
+  "soorten": {
+    "A": "Zorgen om zichzelf",
+    "B": "Onveilig contact",
+    "C": "Direct gevaar",
+    "D": "Wil praten"
+  },
+  "deurbel_titel": "Studio",
+  "deurbel_tekst": "Veiligheidssignaal van een van de jongens. Bekijk het thuis.",
+  "deurbel_test_tekst": "TEST - geen echt signaal. Veiligheidssignaal (test). Bekijk het thuis.",
+  "wat_nu": "Wat nu? Praat vandaag met hem, rustig, op een moment dat het kan. Begin niet over het gesprek maar over hoe het met hem gaat, bijvoorbeeld: \"De Studio gaf een seintje. Ik wil niet weten wat je schreef. Ik wil weten hoe het met je gaat.\" Luister eerst. Direct gevaar: bel 112. Bij onveilig contact: laat hem de berichten bewaren, niet wissen.",
+  "gedrag": {
+    "huiswerk_doorgedrukt": "huiswerk laten maken, na twee keer nee",
+    "omzeilpoging": "proberen om de regels heen te komen",
+    "gevaarlijke_vraag": "vragen om een handleiding voor iets gevaarlijks",
+    "gegevens_van_anderen": "gegevens van iemand anders gedeeld",
+    "leerpad_stap_af": "leerpadstap af"
+  },
+  "gedrag_zin": "Genoteerd in je weekoverzicht: <soort>. Je kunt je overzicht altijd zelf bekijken.",
+  "weekpush_tekst": "Weekoverzicht van de jongens: er is iets om te bespreken."
+}

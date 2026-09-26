@@ -21,3 +21,4 @@ resources:
   - ./network-policies/install.yaml
   - ./open-webui/install.yaml
   - ./hermes/install.yaml
+  - ./gezinsdienst/install.yaml
