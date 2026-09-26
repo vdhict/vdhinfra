@@ -28,7 +28,9 @@ spec:
   hard:
     requests.cpu: "2"
     requests.memory: 6Gi
-    limits.memory: 14Gi
+    # 16Gi (was 14Gi) for RAG in open-webui (5Gi limit): worst case with a
+    # mover and the retention job running left only ~190Mi (Themis).
+    limits.memory: 16Gi
     pods: "16"
     persistentvolumeclaims: "16"
     # PVCs 10 + 3x5 + 1 = 26Gi; VolSync snapshot clones of the 4 backed-up
