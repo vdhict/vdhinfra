@@ -1,0 +1,65 @@
+---
+# On-prem VolSync for hermes-profiel-2. See open-webui/app/volsync.yaml for
+# why this is not components/volsync and which 1Password item it reads.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: hermes-profiel-volsync
+spec:
+  refreshInterval: 12h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword-connect
+  target:
+    name: hermes-profiel-2-volsync-secret
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        RESTIC_REPOSITORY: s3:http://minio.storage.svc.cluster.local:9000/family-ai-volsync/hermes-profiel-2
+        RESTIC_PASSWORD: "{{ .RESTIC_PASSWORD }}"
+        AWS_ACCESS_KEY_ID: "{{ .ACCESS_KEY }}"
+        AWS_SECRET_ACCESS_KEY: "{{ .SECRET_KEY }}"
+  data:
+    - secretKey: ACCESS_KEY
+      remoteRef: {key: minio-family-ai-volsync, property: ACCESS_KEY}
+    - secretKey: SECRET_KEY
+      remoteRef: {key: minio-family-ai-volsync, property: SECRET_KEY}
+    - secretKey: RESTIC_PASSWORD
+      remoteRef: {key: minio-family-ai-volsync, property: RESTIC_PASSWORD}
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/volsync.backube/replicationsource_v1alpha1.json
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationSource
+metadata:
+  name: hermes-profiel
+spec:
+  sourcePVC: hermes-profiel-data-2
+  trigger:
+    schedule: 30 * * * *
+  restic:
+    copyMethod: Snapshot
+    accessModes: [ReadWriteOnce]
+    cacheAccessModes: [ReadWriteOnce]
+    cacheCapacity: 2Gi
+    cacheStorageClassName: openebs-hostpath
+    storageClassName: rook-ceph-block
+    volumeSnapshotClassName: csi-ceph-blockpool
+    # Hermes drops to UID 10000 and stage2 chowns its tree to it.
+    moverSecurityContext:
+      runAsUser: 10000
+      runAsGroup: 10000
+      fsGroup: 10000
+    moverPodLabels:
+      family-ai/role: volsync-mover
+    moverResources:
+      requests: {cpu: 50m, memory: 256Mi}
+      limits: {memory: 1Gi}
+    repository: hermes-profiel-2-volsync-secret
+    # ≤ ~30 days (Sander: Hermes keeps conversation copies 30 days; a longer
+    # backup tail would quietly outlive that decision).
+    retain:
+      hourly: 24
+      daily: 7
+      weekly: 3
+    pruneIntervalDays: 7
