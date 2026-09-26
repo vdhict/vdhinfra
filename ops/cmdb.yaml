@@ -564,6 +564,16 @@ components:
     group: devtools
     sla_tier: ops-only
     health_source: prometheus://ALERTS{component=~"forge.*"}
+  k8s.ns.family-ai:
+    type: k8s-app
+    owner_agent: k8s-engineer
+    description: "family-ai namespace (chg-2026-09-26-001): Open WebUI (chat.bluejungle.net, own login), 3x Hermes Agent profiles (cluster-only, no route), gezinsdienst (gezin.bluejungle.net behind Authelia ext-authz; trusts Remote-User/Remote-Groups). HOLDS CHILDREN'S CONVERSATIONS. PSA enforce=baseline (open-webui runs 0:0, hermes starts root -> UID 10000). Default-deny CiliumNetworkPolicy; egress to api.bluejungle.net is written against the envoy-internal POD identity on 10443 (LB IP is DNAT'ed before policy). VolSync ON-PREM: s3://family-ai-volsync/ with scoped MinIO user family-ai-volsync, NOT s3://volsync/ (Azure-mirrored). gezinsdienst PVC has NO backup by decision."
+    depends_on: [k8s.storage.rook-ceph, k8s.secrets.external-secrets, k8s.gateway.envoy-internal, storage.minio]
+    sensitive: true
+    tier: 5
+    group: family-ai
+    sla_tier: ops-only
+    health_source: k8s://ks/flux-system/family-ai-open-webui
 
   # ── Home Assistant + automations ─────────────────────────────────────
   ha.pod:

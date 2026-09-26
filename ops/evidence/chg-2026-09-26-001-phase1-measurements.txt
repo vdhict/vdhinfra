@@ -1,0 +1,97 @@
+# chg-2026-09-26-001 Phase 1 measurements (Heph, read-only). Collected 2026-09-26T06:07:26Z, context admin@vdhinfra-local
+
+## M-a nodes: kubectl describe nodes (Allocatable + Allocated resources)
+== node/vdhclu01master01
+  cpu:                3950m
+  memory:             13395348Ki
+  cpu                760m (19%)    2200m (55%)
+  memory             1354Mi (10%)  1664Mi (12%)
+== node/vdhclu01master02
+  cpu:                3950m
+  memory:             13395344Ki
+  cpu                460m (11%)   1 (25%)
+  memory             1098Mi (8%)  5248Mi (40%)
+== node/vdhclu01master03
+  cpu:                3950m
+  memory:             13395348Ki
+  cpu                360m (9%)   1 (25%)
+  memory             970Mi (7%)  1152Mi (8%)
+== node/vdhclu01node01
+  cpu:                            7950m
+  gpu.intel.com/i915:             3
+  gpu.intel.com/i915_monitoring:  1
+  memory:                         62871660Ki
+  cpu                            4236m (53%)        2900m (36%)
+  memory                         34684786944 (53%)  56763633408 (88%)
+  gpu.intel.com/i915             2                  2
+  gpu.intel.com/i915_monitoring  0                  0
+== node/vdhclu01node02
+  cpu:                            7950m
+  gpu.intel.com/i915:             3
+  gpu.intel.com/i915_monitoring:  1
+  memory:                         62871656Ki
+  cpu                            4115m (51%)    1200m (15%)
+  memory                         14593Mi (23%)  30438Mi (49%)
+  gpu.intel.com/i915             0              0
+  gpu.intel.com/i915_monitoring  0              0
+== node/vdhclu01node03
+  cpu:                            7950m
+  gpu.intel.com/i915:             3
+  gpu.intel.com/i915_monitoring:  1
+  memory:                         62871664Ki
+  cpu                            5265m (66%)        8100m (101%)
+  memory                         19980093184 (31%)  44492654336 (69%)
+  gpu.intel.com/i915             0                  0
+  gpu.intel.com/i915_monitoring  0                  0
+
+$ kubectl get nodes -o custom-columns=N:.metadata.name,TAINTS:.spec.taints
+N                  TAINTS
+vdhclu01master01   [map[effect:NoSchedule key:node-role.kubernetes.io/control-plane]]
+vdhclu01master02   [map[effect:NoSchedule key:node-role.kubernetes.io/control-plane]]
+vdhclu01master03   [map[effect:NoSchedule key:node-role.kubernetes.io/control-plane]]
+vdhclu01node01     <none>
+vdhclu01node02     <none>
+vdhclu01node03     <none>
+
+$ ceph df (rook-ceph-tools)
+--- RAW STORAGE ---
+CLASS     SIZE    AVAIL     USED  RAW USED  %RAW USED
+ssd    2.7 TiB  2.5 TiB  229 GiB   229 GiB       8.19
+TOTAL  2.7 TiB  2.5 TiB  229 GiB   229 GiB       8.19
+ 
+--- POOLS ---
+POOL                      ID  PGS   STORED  OBJECTS     USED  %USED  MAX AVAIL
+ceph-blockpool             1   32   74 GiB   22.02k  222 GiB   8.38    809 GiB
+ceph-filesystem-metadata   2   16  265 MiB      101  794 MiB   0.03    809 GiB
+ceph-filesystem-data0      3   32   18 MiB      173   54 MiB      0    809 GiB
+.mgr                       4    1   24 MiB        8   73 MiB      0    809 GiB
+
+$ kubectl get gpudeviceplugin; i915 consumers
+N                         SHARED   READY
+intel-device-plugin-gpu   3        3
+home-automation/scrypted-58c44d7df5-wjbt9 vdhclu01node01
+media/plex-5bf7b8cbd-shk4c vdhclu01node01
+
+## M-b: throwaway pod default/heph-mb-probe, 2026-09-26T05:46:11Z (curlimages/curl:8.16.0, non-root, deleted after)
+nslookup api.bluejungle.net  -> Server 10.43.0.10, Address: 172.16.2.241
+resolv.conf: nameserver 10.43.0.10, search default.svc.cluster.local svc.cluster.local cluster.local, ndots:5
+curl https://api.bluejungle.net/v1/models (no key)       -> 401 ip=172.16.2.241 alpn=2
+curl ... -H 'Authorization: Bearer invalid'              -> 401
+response headers: HTTP/2 401, server: Caddy, x-household-mode: live, alt-svc: clear
+hubble observe --pod default/heph-mb-probe (cilium-agent), captured live at 05:47Z (Hubble ring buffer had rotated by the time this file was written, so pasted from that session):
+Sep 26 05:46:11.849: default/heph-mb-probe:35960 (ID:99856) -> network/envoy-network-envoy-internal-1102ed95-656cb6d7fc-pnk4z:10443 (ID:82782) to-network FORWARDED (TCP Flags: SYN)
+Sep 26 05:46:11.849: default/heph-mb-probe:35960 (ID:99856) -> network/envoy-network-envoy-internal-1102ed95-656cb6d7fc-pnk4z:10443 (ID:82782) to-endpoint FORWARDED (TCP Flags: SYN)
+=> the pod's connection to LB IP 172.16.2.241:443 is DNAT'ed to the envoy-internal POD :10443 before egress policy (kube-proxy-replacement=true, bpf-lb-sock-hostns-only=true).
+
+## M-c: PSA
+{"kubernetes.io/metadata.name":"devtools","kustomize.toolkit.fluxcd.io/name":"cluster-apps","kustomize.toolkit.fluxcd.io/namespace":"flux-system","kustomize.toolkit.fluxcd.io/prune":"disabled","pod-security.kubernetes.io/audit":"restricted","pod-security.kubernetes.io/enforce":"baseline","pod-security.kubernetes.io/warn":"restricted"}
+talos patches/controller/cluster.yaml: apiServer.admissionControl: $$patch: delete  (no cluster-wide PSA default -> unlabelled ns = privileged)
+image config open-webui v0.11.3@sha256:41daa0cf...: User=0:0 Cmd=[bash start.sh] (registry manifest, linux/amd64)
+image config hermes-agent@sha256:fca358f1...: User=root Entrypoint=[/opt/hermes/docker/entrypoint-dispatch.sh] revision f97608f; main-wrapper.sh exits 1 if uid not in {0,10000}
+image config python:3.13-slim@sha256:7c61056e...: User=<none> (root) Cmd=[python3] PYTHON_VERSION=3.13.15
+server dry-run of the pod specs in devtools (enforce=baseline): all 5 admitted; restricted warnings for open-webui + hermes only
+
+## M-d: ceph-blockpool
+pool 1 'ceph-blockpool' replicated size 3 min_size 2 crush_rule 1 object_hash rjenkins pg_num 32 pgp_num 32 autoscale_mode on last_change 96824 lfor 0/0/50 flags hashpspool,selfmanaged_snaps stripe_width 0 application rbd read_balance_score 1.22
+host size=3
+HEALTH_OK
