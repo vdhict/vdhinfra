@@ -112,9 +112,9 @@ spec:
             #    web.search_backend: searxng + web.extract_backend: firecrawl.
             - {name: SEARXNG_URL, value: "http://searxng:8080"}
             - {name: FIRECRAWL_API_URL, value: "http://web-extract:8080"}
-            # the in-cluster shim ignores it; set because the Firecrawl SDK
-            # may insist on a non-empty key
-            - {name: FIRECRAWL_API_KEY, value: "self-hosted-no-key"}
+            # FIRECRAWL_API_KEY is set per profile (= "profiel-N", not a
+            # secret): web-extract uses it only to pick that profile's proxy
+            # port, so the proxy log says whose fetch it was.
             # UNREACHABLE on purpose (CNP): its only effect is that Hermes'
             # SSRF pre-check (tools/url_safety.py) defers DNS of public
             # names to "the proxy" instead of failing closed on this pod's

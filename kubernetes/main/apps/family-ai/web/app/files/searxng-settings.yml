@@ -16,17 +16,24 @@ server:
   image_proxy: false
   method: GET
 search:
-  # STRICT for everyone. Per-request overrides are not reachable: the Hermes
-  # provider sends no safesearch parameter, and nothing else can reach this
-  # service (CNP ingress = Hermes pods only).
+  # STRICT (2) for everyone - the cheapest sound option: one instance, no
+  # per-profile routing. The Hermes provider sends only q/format/pageno, the
+  # value is also LOCKED below so a request parameter or cookie cannot lower
+  # it, and nothing but the Hermes pods can reach this service (CNP).
+  # Trade-off: profiel-1 gets strict results too (a 2nd instance would lift
+  # that; not worth the extra pod now).
   safe_search: 2
   autocomplete: ""
   formats: [html, json]
+preferences:
+  lock:
+    - safesearch
 outgoing:
   request_timeout: 6.0
   enable_http2: false
-  # ALL engine traffic goes through the logging egress proxy; searxng has no
-  # direct internet route (CNP).
+  # ALL engine traffic goes through the logging egress proxy (port 3128 =
+  # the "search" port, which squid limits to the three engines' domains);
+  # searxng has no direct internet route (CNP).
   proxies:
     all://:
       - http://egress-proxy.family-ai.svc.cluster.local:3128

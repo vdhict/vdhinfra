@@ -21,7 +21,10 @@ import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-PROXY = os.environ["EGRESS_PROXY"]
+# EGRESS_PROXY_BASE = "http://egress-proxy.family-ai.svc.cluster.local"; each profile has
+# its own squid port (3131..3133) so the proxy log records WHICH profile fetched.
+PROXY_BASE = os.environ["EGRESS_PROXY_BASE"].rstrip("/")
+PROFILE_PORTS = {"profiel-1": 3131, "profiel-2": 3132, "profiel-3": 3133}
 MAX_URL = int(os.environ.get("MAX_URL_CHARS", "512"))       # caps data smuggling in URLs
 MAX_BYTES = int(os.environ.get("MAX_BYTES", str(2 * 1024 * 1024)))
 MAX_CHARS = int(os.environ.get("MAX_CHARS", "60000"))
@@ -29,20 +32,34 @@ RATE_PER_MIN = int(os.environ.get("RATE_PER_MIN", "30"))
 TIMEOUT = float(os.environ.get("FETCH_TIMEOUT", "20"))
 UA = "Mozilla/5.0 (compatible; family-ai-fetch/1.0)"
 
-opener = urllib.request.build_opener(urllib.request.ProxyHandler({"http": PROXY, "https": PROXY}))
+OPENERS = {
+    prof: urllib.request.build_opener(urllib.request.ProxyHandler(
+        {"http": f"{PROXY_BASE}:{port}", "https": f"{PROXY_BASE}:{port}"}))
+    for prof, port in PROFILE_PORTS.items()}
 _lock = threading.Lock()
-_window = []
+_windows = {prof: [] for prof in PROFILE_PORTS}
 
 
-def rate_ok() -> bool:
+def rate_ok(prof: str) -> bool:
+    """Per-profile budget, so one person cannot use up another's."""
     now = time.time()
     with _lock:
-        while _window and now - _window[0] > 60:
-            _window.pop(0)
-        if len(_window) >= RATE_PER_MIN:
+        w = _windows[prof]
+        while w and now - w[0] > 60:
+            w.pop(0)
+        if len(w) >= RATE_PER_MIN:
             return False
-        _window.append(now)
+        w.append(now)
         return True
+
+
+def profile_of(headers) -> str:
+    """Hermes' Firecrawl SDK sends FIRECRAWL_API_KEY as a bearer token; each hermes-profiel-N
+    has FIRECRAWL_API_KEY=profiel-N. NOT a secret - it only selects the proxy port (log
+    attribution). Unknown or missing -> refused (fail closed)."""
+    auth = headers.get("Authorization") or ""
+    tok = auth[7:].strip() if auth[:7].lower() == "bearer " else ""
+    return tok if tok in PROFILE_PORTS else ""
 
 
 class Text(html.parser.HTMLParser):
@@ -82,10 +99,10 @@ class Text(html.parser.HTMLParser):
         return re.sub(r"\n\s*\n+", "\n\n", t).strip()
 
 
-def fetch(url: str):
+def fetch(url: str, prof: str):
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "text/html,text/plain;q=0.9,*/*;q=0.1"})
     try:
-        r = opener.open(req, timeout=TIMEOUT)
+        r = OPENERS[prof].open(req, timeout=TIMEOUT)
         code, final = r.status, r.geturl()
     except urllib.error.HTTPError as e:
         r, code, final = e, e.code, url
@@ -120,6 +137,10 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path not in ("/v2/scrape", "/v1/scrape"):
             return self._send(404, {"success": False, "error": "not found"})
+        prof = profile_of(self.headers)
+        if not prof:
+            print(json.dumps({"event": "scrape", "status": 401}), flush=True)
+            return self._send(401, {"success": False, "error": "unknown caller"})
         try:
             body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), 65536)) or b"{}")
             url = str(body.get("url", ""))
@@ -129,11 +150,11 @@ class H(BaseHTTPRequestHandler):
         if u.scheme not in ("http", "https") or not u.hostname or len(url) > MAX_URL or u.username or u.password:
             print(json.dumps({"event": "scrape", "status": "rejected"}), flush=True)
             return self._send(400, {"success": False, "error": f"only plain http(s) URLs up to {MAX_URL} chars"})
-        if not rate_ok():
+        if not rate_ok(prof):
             print(json.dumps({"event": "scrape", "status": 429}), flush=True)
             return self._send(429, {"success": False, "error": "rate limit"})
         try:
-            code, final, title, text = fetch(url)
+            code, final, title, text = fetch(url, prof)
         except Exception as e:  # proxy denial (403) and network errors land here
             print(json.dumps({"event": "scrape", "status": "error", "kind": type(e).__name__}), flush=True)
             return self._send(502, {"success": False, "error": "fetch failed or blocked by policy"})
