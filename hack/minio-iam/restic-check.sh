@@ -24,7 +24,8 @@ if [ -e "$ROOT_MC_DIR" ]; then echo "FATAL: root-isolation: $ROOT_MC_DIR is VISI
 echo "root-isolation: $ROOT_MC_DIR absent"
 
 TS=$(date -u +%Y%m%dT%H%M%SZ)
-export RESTIC_REPOSITORY="s3:${MINIO_ENDPOINT}/forge-volsync/_iam-verify/restic-$TS"
+RESTIC_BUCKET="${RESTIC_BUCKET:-forge-volsync}"
+export RESTIC_REPOSITORY="s3:${MINIO_ENDPOINT}/${RESTIC_BUCKET}/_iam-verify/restic-$TS"
 RESTIC_PASSWORD=$(head -c 32 /dev/urandom | base64 | tr -d '\n'); export RESTIC_PASSWORD
 RESTIC_CACHE_DIR=$(mktemp -d); export RESTIC_CACHE_DIR
 export RESTIC_PROGRESS_FPS=0

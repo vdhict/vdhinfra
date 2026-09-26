@@ -1,0 +1,117 @@
+---
+# One-shot: create family-ai's scoped MinIO identity, then prove it.
+# Same structure and isolation as ../job.yaml (the forge set):
+#   init 1  iam-apply        ROOT. mb family-ai-volsync, policy, user,
+#                            attach, post-check. The ONLY container with root.
+#   init 2  restic-check     family-ai-volsync creds ONLY; VolSync's own
+#                            restic replays the mover's command sequence.
+#   main    verify           family-ai-volsync creds ONLY. Positive on its
+#                            own bucket, 403 on every other bucket.
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/batch/job_v1.json
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-iam-family-ai
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: minio-iam-family-ai
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile: {type: RuntimeDefault}
+      volumes:
+        - name: iam
+          configMap:
+            name: minio-iam-family-ai-scripts
+            defaultMode: 0555
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+        # Root-only, memory-backed; mounted in iam-apply ONLY (Argus sec-A1).
+        - name: tmp-root
+          emptyDir:
+            medium: Memory
+            sizeLimit: 16Mi
+      initContainers:
+        - name: iam-apply
+          image: quay.io/minio/mc:RELEASE.2024-09-09T07-53-10Z@sha256:782e3b2caa88fb565d5c78b15575939ea9778754a4577794922c1d359c06f422
+          command: ["/bin/bash", "/iam/iam-apply.sh", "apply"]
+          env:
+            - {name: HOME, value: /tmp}
+            - {name: TMPDIR, value: /tmp}
+            - {name: MINIO_ENDPOINT, value: "http://minio.storage.svc.cluster.local:9000"}
+            - {name: POLICY_DIR, value: /iam}
+            - {name: MC_CONFIG_DIR, value: /tmp/mc-apply}
+            - {name: IDENTITIES, value: "family-ai-volsync-rw:family-ai-volsync:FAMILY_AI_VOLSYNC:family-ai-volsync"}
+            - {name: RB_IF_EMPTY, value: "family-ai-volsync"}
+            - name: MINIO_ROOT_USER
+              valueFrom: {secretKeyRef: {name: minio-secret, key: MINIO_ROOT_USER}}
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom: {secretKeyRef: {name: minio-secret, key: MINIO_ROOT_PASSWORD}}
+            - name: FAMILY_AI_VOLSYNC_ACCESS_KEY
+              valueFrom: {secretKeyRef: {name: minio-iam-family-ai, key: FAMILY_AI_VOLSYNC_ACCESS_KEY}}
+            - name: FAMILY_AI_VOLSYNC_SECRET_KEY
+              valueFrom: {secretKeyRef: {name: minio-iam-family-ai, key: FAMILY_AI_VOLSYNC_SECRET_KEY}}
+          volumeMounts:
+            - {name: iam, mountPath: /iam, readOnly: true}
+            - {name: tmp-root, mountPath: /tmp}
+          securityContext: &csc
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {memory: 256Mi}
+
+        - name: restic-check
+          image: quay.io/backube/volsync:0.13.1@sha256:b2e36d392fa557383066f41828b9737cde0433250b65e1a9fc2301568979a1e4
+          command: ["/bin/bash", "/iam/restic-check.sh"]
+          env:
+            - {name: HOME, value: /tmp}
+            - {name: TMPDIR, value: /tmp}
+            - {name: MINIO_ENDPOINT, value: "http://minio.storage.svc.cluster.local:9000"}
+            - {name: RESTIC_BUCKET, value: family-ai-volsync}
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom: {secretKeyRef: {name: minio-iam-family-ai, key: FAMILY_AI_VOLSYNC_ACCESS_KEY}}
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom: {secretKeyRef: {name: minio-iam-family-ai, key: FAMILY_AI_VOLSYNC_SECRET_KEY}}
+          volumeMounts: &mounts
+            - {name: iam, mountPath: /iam, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+          securityContext: *csc
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {memory: 512Mi}
+
+      containers:
+        - name: verify-family-ai-volsync
+          image: quay.io/minio/mc:RELEASE.2024-09-09T07-53-10Z@sha256:782e3b2caa88fb565d5c78b15575939ea9778754a4577794922c1d359c06f422
+          command: ["/bin/bash", "/iam/iam-verify.sh"]
+          # own bucket first, then every bucket it must NOT reach - incl. the
+          # Azure-mirrored `volsync` and both forge buckets.
+          args: [family-ai-volsync, cnpg-backups, volsync, mac-mini-backups, thanos, forge-backups, forge-volsync]
+          env:
+            - {name: HOME, value: /tmp}
+            - {name: TMPDIR, value: /tmp}
+            - {name: MINIO_ENDPOINT, value: "http://minio.storage.svc.cluster.local:9000"}
+            - {name: MC_CONFIG_DIR, value: /tmp/mc-verify-fa}
+            - name: S3_ACCESS_KEY
+              valueFrom: {secretKeyRef: {name: minio-iam-family-ai, key: FAMILY_AI_VOLSYNC_ACCESS_KEY}}
+            - name: S3_SECRET_KEY
+              valueFrom: {secretKeyRef: {name: minio-iam-family-ai, key: FAMILY_AI_VOLSYNC_SECRET_KEY}}
+          volumeMounts: *mounts
+          securityContext: *csc
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {memory: 256Mi}

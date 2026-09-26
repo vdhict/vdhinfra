@@ -20,9 +20,26 @@
 set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 NS=storage
-JOB=minio-iam-forge
 MODE="${1:-}"
 EVIDENCE="${2:-}"
+
+# IAM_SET selects which identity set to operate on. Default `forge` keeps
+# every existing caller (DR 00-prereqs.sh, the DR runbook) byte-identical.
+#   forge      forge-pg + forge-volsync         (chg-2026-09-23-002)
+#   family-ai  family-ai-volsync                (chg-2026-09-26-001)
+IAM_SET="${IAM_SET:-forge}"
+case "$IAM_SET" in
+  forge)
+    KDIR="$DIR"; KFLAGS=()
+    WANT=('"accessKey":"forge-pg","policyName":"forge-backups-rw","userStatus":"enabled"'
+          '"accessKey":"forge-volsync","policyName":"forge-volsync-rw","userStatus":"enabled"') ;;
+  family-ai)
+    # family-ai/ reuses the scripts one level up, hence the load restrictor.
+    KDIR="$DIR/family-ai"; KFLAGS=(--load-restrictor LoadRestrictionsNone)
+    WANT=('"accessKey":"family-ai-volsync","policyName":"family-ai-volsync-rw","userStatus":"enabled"') ;;
+  *) echo "run.sh: unknown IAM_SET '$IAM_SET' (forge|family-ai)" >&2; exit 1 ;;
+esac
+JOB="minio-iam-$IAM_SET"
 
 die() { echo "run.sh: $*" >&2; exit 1; }
 command -v kubectl >/dev/null || die "kubectl not on PATH"
@@ -30,28 +47,28 @@ command -v kubectl >/dev/null || die "kubectl not on PATH"
 render() {
   if [ "$MODE" = remove ]; then
     # Same objects; the Job runs only iam-apply.sh remove (no verify, no restic).
-    kubectl kustomize "$DIR" | yq '
-      (select(.kind == "Job") | .metadata.name) = "minio-iam-forge-remove" |
+    kubectl kustomize "${KFLAGS[@]+"${KFLAGS[@]}"}" "$KDIR" | yq '
+      (select(.kind == "Job") | .metadata.name) = "'"$JOB"'-remove" |
       (select(.kind == "Job") | .spec.template.spec.containers) =
         [ (select(.kind == "Job") | .spec.template.spec.initContainers[0]) | .command = ["/bin/bash", "/iam/iam-apply.sh", "remove"] ] |
       (select(.kind == "Job") | .spec.template.spec.initContainers) = []'
   else
-    kubectl kustomize "$DIR"
+    kubectl kustomize "${KFLAGS[@]+"${KFLAGS[@]}"}" "$KDIR"
   fi
 }
 
 cleanup() {
   echo "── cleanup ──"
   kubectl -n "$NS" delete job "$JOB" "$JOB-remove" --ignore-not-found --wait=true >/dev/null 2>&1 || true
-  kubectl -n "$NS" delete pod -l app.kubernetes.io/name=minio-iam-forge --ignore-not-found --wait=true >/dev/null 2>&1 || true
-  kubectl -n "$NS" delete configmap minio-iam-forge-scripts --ignore-not-found >/dev/null 2>&1 || true
-  kubectl -n "$NS" delete externalsecret minio-iam-forge --ignore-not-found --wait=true >/dev/null 2>&1 || true
+  kubectl -n "$NS" delete pod -l "app.kubernetes.io/name=$JOB" --ignore-not-found --wait=true >/dev/null 2>&1 || true
+  kubectl -n "$NS" delete configmap "$JOB-scripts" --ignore-not-found >/dev/null 2>&1 || true
+  kubectl -n "$NS" delete externalsecret "$JOB" --ignore-not-found --wait=true >/dev/null 2>&1 || true
   # Owner GC removes the Secret; wait for it and SAY if it is still there.
   for _ in $(seq 1 30); do
-    kubectl -n "$NS" get secret minio-iam-forge >/dev/null 2>&1 || { echo "cleanup: Job, ConfigMap, ExternalSecret and Secret gone"; return 0; }
+    kubectl -n "$NS" get secret "$JOB" >/dev/null 2>&1 || { echo "cleanup: Job, ConfigMap, ExternalSecret and Secret gone"; return 0; }
     sleep 2
   done
-  echo "cleanup: WARNING Secret storage/minio-iam-forge still present - delete it by hand" >&2
+  echo "cleanup: WARNING Secret storage/$JOB still present - delete it by hand" >&2
 }
 
 case "$MODE" in
@@ -68,11 +85,10 @@ case "$MODE" in
     kubectl -n "$NS" delete pod minio-iam-check --ignore-not-found >/dev/null 2>&1
     echo "$out"
     missing=0
-    for want in '"accessKey":"forge-pg","policyName":"forge-backups-rw","userStatus":"enabled"' \
-                '"accessKey":"forge-volsync","policyName":"forge-volsync-rw","userStatus":"enabled"'; do
+    for want in "${WANT[@]}"; do
       case "$out" in *"$want"*) ;; *) echo "MISSING: $want"; missing=1;; esac
     done
-    [ $missing -eq 0 ] && echo "MinIO IAM: forge identities present" || { echo "MinIO IAM: forge identities MISSING - run: hack/minio-iam/run.sh apply <evidence-file>"; exit 3; }
+    [ $missing -eq 0 ] && echo "MinIO IAM: $IAM_SET identities present" || { echo "MinIO IAM: $IAM_SET identities MISSING - run: IAM_SET=$IAM_SET hack/minio-iam/run.sh apply <evidence-file>"; exit 3; }
     exit 0
     ;;
   apply|remove)
@@ -86,7 +102,7 @@ if kubectl -n "$NS" get job "$JOB" "$JOB-remove" >/dev/null 2>&1; then die "a pr
 
 mkdir -p "$(dirname "$EVIDENCE")"
 exec > >(tee -a "$EVIDENCE") 2>&1
-echo "# minio-iam run.sh $MODE  $(date -u +%FT%TZ)  context=$(kubectl config current-context)"
+echo "# minio-iam run.sh $MODE  set=$IAM_SET  $(date -u +%FT%TZ)  context=$(kubectl config current-context)"
 echo "# git: $(git -C "$DIR" rev-parse --short HEAD 2>/dev/null || echo n/a)  rendered sha256: $(render | shasum -a 256 | cut -c1-16)"
 
 echo "── server-side dry-run ──"
@@ -96,9 +112,9 @@ trap cleanup EXIT
 
 echo "── ExternalSecret ──"
 render | yq 'select(.kind == "ExternalSecret")' | kubectl apply -f -
-if ! kubectl -n "$NS" wait externalsecret/minio-iam-forge --for=condition=Ready --timeout=120s; then
+if ! kubectl -n "$NS" wait "externalsecret/$JOB" --for=condition=Ready --timeout=120s; then
   echo "ExternalSecret NOT Ready. Status (no secret material):"
-  kubectl -n "$NS" get externalsecret minio-iam-forge -o jsonpath='{range .status.conditions[*]}{.type}={.status} {.reason}: {.message}{"\n"}{end}'
+  kubectl -n "$NS" get externalsecret "$JOB" -o jsonpath='{range .status.conditions[*]}{.type}={.status} {.reason}: {.message}{"\n"}{end}'
   die "1Password items missing or a field label is wrong - nothing was changed in MinIO"
 fi
 
