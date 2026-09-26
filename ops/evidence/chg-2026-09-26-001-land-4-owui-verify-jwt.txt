@@ -1,0 +1,41 @@
+# family-ai land-4 evidence (C5), 2026-09-26 16:48 CEST, https://chat.bluejungle.net
+# Open WebUI: 0.11.4
+
+## owui-apply --verify-only (exit code on the last line)
+owui-apply: 4 modellen gecontroleerd, 0 fouten
+exit=0
+
+## GET /api/v1/auths/admin/config (ADMIN_EMAIL masked)
+{
+  "ADMIN_EMAIL": null,
+  "API_KEYS_ALLOWED_ENDPOINTS": "",
+  "AUTOMATION_MAX_COUNT": "",
+  "AUTOMATION_MIN_INTERVAL": "",
+  "CHANNEL_MODEL_RESPONSE_MODE": "thread",
+  "DEFAULT_GROUP_ID": "",
+  "DEFAULT_INTERFACE_SETTINGS": {},
+  "DEFAULT_USER_ROLE": "pending",
+  "ENABLE_API_KEYS": false,
+  "ENABLE_API_KEYS_ENDPOINT_RESTRICTIONS": false,
+  "ENABLE_AUTOMATIONS": true,
+  "ENABLE_CALENDAR": true,
+  "ENABLE_CHANNELS": false,
+  "ENABLE_COMMUNITY_SHARING": false,
+  "ENABLE_FOLDERS": true,
+  "ENABLE_LOGIN_FORM": true,
+  "ENABLE_MEMORIES": false,
+  "ENABLE_MEMORY_SYSTEM_CONTEXT": true,
+  "ENABLE_MESSAGE_RATING": false,
+  "ENABLE_NOTES": true,
+  "ENABLE_SIGNUP": false,
+  "ENABLE_USER_STATUS": true,
+  "ENABLE_USER_WEBHOOKS": false,
+  "FOLDER_MAX_FILE_COUNT": "",
+  "I18N": {},
+  "JWT_EXPIRES_IN": "90d",
+  "PENDING_USER_OVERLAY_CONTENT": "",
+  "PENDING_USER_OVERLAY_TITLE": "",
+  "RESPONSE_WATERMARK": "",
+  "SHOW_ADMIN_DETAILS": true,
+  "WEBUI_URL": "https://chat.bluejungle.net"
+}
