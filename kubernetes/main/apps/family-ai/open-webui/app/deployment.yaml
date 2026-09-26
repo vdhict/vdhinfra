@@ -155,14 +155,17 @@ spec:
             # Argus R2: the 30-day retention job deletes chats, not uploaded
             # files; with uploads off nothing outlives the retention window.
             - {name: USER_PERMISSIONS_CHAT_FILE_UPLOAD, value: "false"}
-            # Sander 2026-09-26: ~30 days for the family, longer for keuken -
-            # NOT expressible: ONE global setting for ALL users
+            # Sander 2026-09-26 (in session): 90 days for EVERYONE. ONE global
+            # setting for ALL users
             # (Open WebUI has no per-user lifetime), so it also applies to the
             # admin and the shared keuken account; an OIDC login also gets an
             # Open WebUI JWT with this same lifetime (utils/oauth.py:2154). It is
             # a PersistentConfig key
-            # (auth.jwt_expiry): read on FIRST start, then the DB wins.
-            - {name: JWT_EXPIRES_IN, value: "30d"}
+            # (auth.jwt_expiry): read on FIRST start, then the DB wins. land-2
+            # started with 30d, so the RUNNING value is changed separately in
+            # Admin Panel > Settings > General > "JWT Expiration" (POST
+            # /api/v1/auths/admin/config); this env keeps rebuilds/DR at 90d.
+            - {name: JWT_EXPIRES_IN, value: "90d"}
             # ── login via Authelia OIDC (Mack addendum 1 §1, names checked in
             #    v0.11.4 config.py). OAuth settings are NOT persistent config
             #    (ENABLE_OAUTH_PERSISTENT_CONFIG defaults False): env wins on
