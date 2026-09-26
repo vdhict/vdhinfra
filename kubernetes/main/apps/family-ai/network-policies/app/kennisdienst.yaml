@@ -1,0 +1,44 @@
+---
+# kennisdienst: in from hermes-profiel-1 ONLY, on 8088; out NOTHING.
+# It needs no DNS: models and collections are local, HF is offline, and it
+# never opens a connection. Kubelet probes still pass (host identity).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kennisdienst
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: kennisdienst
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: hermes
+            app.kubernetes.io/instance: hermes-profiel-1
+      toPorts:
+        - ports: [{port: "8088", protocol: TCP}]
+  # Explicit empty rule: default-deny for egress even if default-deny.yaml
+  # is ever changed.
+  egress:
+    - {}
+---
+# hermes-profiel-1 -> kennisdienst:8088. A separate policy so profiel-2/-3
+# never get this egress (CNPs are additive; hermes.yaml stays shared).
+# Resolution uses the existing hermes DNS rule (*.family-ai.svc.cluster.local).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: hermes-profiel-1-kennis
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: hermes
+      app.kubernetes.io/instance: hermes-profiel-1
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: kennisdienst
+      toPorts:
+        - ports: [{port: "8088", protocol: TCP}]

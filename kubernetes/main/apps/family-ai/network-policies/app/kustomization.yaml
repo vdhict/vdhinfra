@@ -34,3 +34,4 @@ resources:
   - ./volsync-mover.yaml
   - ./chat-retention.yaml
   - ./web.yaml   # controlled internet (search + fetch)
+  - ./kennisdienst.yaml   # knowledge search, hermes-profiel-1 only

@@ -1,0 +1,22 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+# kennisdienst (Mack): read-only search over citable Markdown collections
+# (BM25 + multilingual embeddings + reranker), for hermes-profiel-1 only.
+# Imported by hack/family-ai/import-kennis.sh (verifies the delivery's
+# SHA256SUMS, writes files/ and the SOPS collection Secret).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./externalsecret.yaml
+  - ./collectie-zeevaart.sops.yaml
+  - ./pvc.yaml
+  - ./deployment.yaml
+  - ./service.yaml
+configMapGenerator:
+  - name: kennisdienst-code
+    files:
+      - ./files/kennisdienst.py
+      - ./files/models.sha256
+generatorOptions:
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled
