@@ -158,6 +158,14 @@ spec:
             # the reranker is only used in hybrid search (BM25 + vectors)
             - {name: ENABLE_RAG_HYBRID_SEARCH, value: "true"}
             - {name: TRANSFORMERS_OFFLINE, value: "1"}
+            # Never execute model-repo Python (Argus). Env-only module
+            # variables in v0.11.4 (not PersistentConfig): apply every start.
+            - {name: RAG_EMBEDDING_MODEL_TRUST_REMOTE_CODE, value: "false"}
+            - {name: RAG_RERANKING_MODEL_TRUST_REMOTE_CODE, value: "false"}
+            # No "attach a web page" in chat (server-side fetch). Part of the
+            # PersistentConfig user.permissions: set in the DB too (Admin >
+            # Users > Groups > Default permissions, see chg evidence).
+            - {name: USER_PERMISSIONS_CHAT_WEB_UPLOAD, value: "false"}
             - {name: ANONYMIZED_TELEMETRY, value: "false"}
             - {name: SCARF_NO_ANALYTICS, value: "true"}
             - {name: DO_NOT_TRACK, value: "true"}
