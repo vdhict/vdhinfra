@@ -1,0 +1,147 @@
+chg-2026-09-26-001 land-12j post-land (k8s-engineer), 2026-09-27 11:40-11:55Z. Push by user via relay (19ec4b7 verified on origin/main by atlas).
+
+== 1 Live state: PASS
+Flux family-ai-hermes Applied refs/heads/main@sha1:19ec4b7e; hermes-profiel-1-6cbb66876c-xdxsd started 11:42:21Z (Reloader).
+seed-once: bundle sha256 8e9d63b2aaeab619e254881ced462bd9f9ab8e68dbde03760093422ce9b5d366 verified; per-file SHA256SUMS verified (9 files).
+in-pod == 8d8d27a-web4 SHA256SUMS: SOUL.md 6c7c575b...f80fe262; config.yaml (minus runtime _config_version) 8ddc8200...91ae457f; agent.max_turns: 6.
+profiel-2/3 untouched: same pods 54d4bfb96c-6jknj / 767f48f6b6-z2mfv (started 2026-09-26T22:19:18Z); seed bundle hashes c95ffedb... / 68c27af4... == Git.
+
+== 2 Live round: ONE session atlas-test-20260927T114308Z via Hermes API :8642 (synthetic questions; Z1-Z6 composed by k8s-engineer from the Zeevaart collection titles - no fixed question list was in the delivery)
+BEFORE memories: exists []
+BEFORE state.db sessions/messages: (1, 50)
+SESSION atlas-test-20260927T114308Z
+
+== W1 2026-09-27T11:43:08Z..2026-09-27T11:43:32Z (24s)
+Q: Wat zijn de openingstijden van het Rijksmuseum in Amsterdam? Zoek het op.
+A: Het Rijksmuseum in Amsterdam is elke dag, inclusief feestdagen, open van **09:00 tot 17:00 uur**.
+
+== W2 2026-09-27T11:43:34Z..2026-09-27T11:44:21Z (47s)
+Q: Vat de eerste alinea samen van https://en.wikipedia.org/wiki/Photosynthesis
+A: De eerste alinea van de Wikipedia-pagina over fotosynthesis (via web_extract opgehaald van https://en.wikipedia.org/wiki/Photosynthesis) luidt:
+
+> "Photosynthesis is a system of biological processes by which photopigment-bearing autotrophic organisms, such as most plants, algae and cyanobacteria, convert light energy—typically from sunlight—into the chemical energy necessary to fuel their metabolism. The term photosynthesis usually refers to oxygenic photosynthesis, a process that releases oxygen as a byproduct of water splitting. Photosynthetic organisms store the converted chemical energy within the bonds of intracellular organic compounds (complex compounds containing carbon), typically carbohydrates like sugars (mainly glucose, fructose and sucrose), starches, phytoglycogen and cellulose. When needing to use this stored energy, an organism's cells then metabolize the organic compounds through cellular respiration. Photosynthesis plays a critical role in producing and maintaining the oxygen content of the Earth's atmosphere, and it supplies most of the biological energy necessary for complex life on Earth."
+
+Korte samenvatting: fotosynthesis is het proces waarbij organismen zoal
+
+== W3 2026-09-27T11:44:23Z..2026-09-27T11:45:05Z (42s)
+Q: Zoek op internet naar 'xqzvbnm plofkwartel 7731' en vertel wat je vindt.
+A: Ik vond niets over die specifieke combinatie. De zoekopdracht leverde enkel willekeurige resultaten op die de nummers "7731" of andere losse woorden bevatten, maar geen relevante informatie over "xqzvbnm plofkwartel 7731".
+
+== W4 2026-09-27T11:45:07Z..2026-09-27T11:46:18Z (71s)
+Q: Vat https://en.wikipedia.org/wiki/Prompt_injection samen in drie zinnen.
+A: Prompt injection is een cyberaanval waarbij schijnbaar onschuldige invoer (prompts) zo is ontworpen dat groot taalmodel (LLM) onbedoeld gedrag vertoont. Het exploit maakt gebruik van het onvermogen van het model om ontwikkelaar-instructies te onderscheiden van gebruikersinvoer, waardoor beveiligingsmaatregelen kunnen worden omzeild. Er zijn twee hoofdtypen: directe injectie waarbij gebruikersinvoer wordt verward met ontwikkelaar-instructies, en indirecte injectie waarbij schadelijke prompts worden verborgen in externe bronnen zoals websites of documenten die het model verwerkt.
+
+== Z1 2026-09-27T11:46:20Z..2026-09-27T11:47:53Z (93s)
+Q: Hoeveel uur rust moet een zeevarende minimaal krijgen volgens het MLC-verdrag? Noem de precieze bepaling.
+A: Zeevaart:
+
+Volgens **MLC 2006, Standard A2.3, paragraph 5, sub (b)** moet een zeevarende minimaal de volgende rusttijden krijgen:
+
+*   **10 uur in elke periode van 24 uur**; en
+*   **77 uur in elke periode van zeven dagen**.
+
+Daarnaast bepaalt **paragraph 6** dat deze rusttijden in maximaal twee perioden mogen worden verdeeld, waarvan er één minimaal zes uur moet duren en het interval tussen twee rustperioden niet meer dan 14 uur mag bedragen.
+
+== Z2 2026-09-27T11:47:55Z..2026-09-27T11:48:30Z (35s)
+Q: Een zeevarende zit 8 maanden aan boord en de reder wil het contract met nog 8 maanden verlengen zonder dat hij naar huis gaat. Mag dat volgens het MLC? Noem de bepaling.
+A: Zeevaart:
+
+Volgens **MLC 2006, Regulation 2.1, Standard A2.3, paragraph 1** (en de bijbehorende bepalingen over uiterste duur van dienst aan boord) mag een zeevarende niet onbeperkt lang aan boord blijven.
+
+Het MLC stelt dat de **maximale duur van een dienstcontract aan boord niet langer mag zijn dan één jaar**, tenzij aan bepaalde voorwaarden wordt voldaan (zoals het garanderen dat de zeevarende na het verlenen van diensten van ten minste zes maanden aan boord, aan land kan gaan).
+
+Een contract van 8 maanden + verlenging met 8 maanden (totaal 16 maanden) zonder verlof schendt dus het principe van **maximale duur van dienst** en het recht op **thuiskeer** (repatriëring), zoals neergelegd in:
+
+*   **MLC 2006, Standard A2.3, paragraph 1** (over de duur van het dienstcontract).
+*   **MLC 2006, Standard A2.7** (over Repatriëring).
+
+De reder mag het contract niet eenzijdig verlengen zonder dat de zeevarende het recht heeft om na 1 jaar (of na 6 maanden, afhankelijk van het contract en nationale wetgeving) aan land te gaan.
+
+== Z3 2026-09-27T11:48:32Z..2026-09-27T11:49:05Z (33s)
+Q: Hoe vaak moet het loon van een zeevarende minimaal worden uitbetaald volgens het MLC? Noem de bepaling.
+A: Zeevaart:
+
+Volgens **MLC 2006, Standard A2.5, paragraph 3** moet het loon van een zeevarende minimaal **eenmaal per maand** worden uitbetaald.
+
+De precieze tekst luidt:
+> "Seafarers shall be paid at least monthly."
+
+Dit betekent dat de reder verplicht is het loon maandelijks uit te betalen, ongeacht of het contract andere afspraken bevat (tenzij er binnenlands recht of een cao geldt die frequenter uitbetalen voorschrijft, wat wel mag, maar minder dan maandelijks niet).
+
+== Z4 2026-09-27T11:49:07Z..2026-09-27T11:49:40Z (33s)
+Q: Wat is de minimumleeftijd om op een zeeschip te werken volgens het MLC? Noem de bepaling.
+A: Zeevaart:
+
+Volgens **MLC 2006, Standard A1.1, paragraph 1** is de minimumleeftijd om als zeevarende te werken **16 jaar**.
+
+De precieze bepaling luidt:
+> "Each Member shall have the authority to set a minimum age for seafarers who work on board ships flying its flag. The minimum age shall be 16 years."
+
+Opmerking: Voor nachtarbeid geldt een hogere leeftijdsgrens; volgens **paragraph 2** van dezelfde Standard mag het nachtarbeid van zeevarenden onder de 18 jaar niet worden toegestaan.
+
+== Z5 2026-09-27T11:49:42Z..2026-09-27T11:50:18Z (36s)
+Q: Hoe lang is een medische verklaring van een zeevarende maximaal geldig volgens het MLC? Noem de bepaling.
+A: Zeevaart:
+
+Volgens **MLC 2006, Standard A2.1, paragraph 6** (alsmede bijbehorende eisen aan de medische certificering van zeevarenden) moet een zeevarende in het bezit zijn van een **medische verklaring** die aantoont dat hij/zij fysiek en psychisch geschikt is voor het werk op zee.
+
+De maximale geldigheid van deze medische verklaring is **twee jaar**, tenzij:
+
+*   de zeevarende jonger is dan 18 jaar: dan is de verklaring **maximaal één jaar** geldig.
+*   er een medische aandoening is vastgesteld: dan kan de geldigheid korter zijn, afhankelijk van het oordeel van de gecertificeerde arts.
+
+De precieze bepaling staat in:
+
+*   **MLC 2006, Standard A2.1, paragraph 6** (over medische certificaten en medische attesten).
+
+Bijna alle vlagstaten en rederijen hanteren dit tweejarig beleid, mits de zeevarende geen medische beperkingen heeft die een kortere geldigheid rechtvaardigen.
+
+== Z6 2026-09-27T11:50:20Z..2026-09-27T11:50:53Z (34s)
+Q: Op hoeveel dagen jaarlijkse vakantie heeft een zeevarende recht volgens het MLC? Noem de bepaling.
+A: Zeevaart:
+
+Volgens **MLC 2006, Standard A2.4, paragraph 1** heeft een zeevarende recht op **minimaal 4 weken** jaarlijkse betaald verlof.
+
+De precieze bepaling luidt:
+> "Each Member shall ensure that seafarers employed on board ships flying its flag are entitled to leave of at least 4 weeks per year of service."
+
+Deze 4 weken worden berekend op basis van 30 dagen per maand (dus totaal 120 dagen aan betaald verlof per jaar). Als het contract korter is dan een jaar, wordt dit verlof evenredig toegekend.
+
+== C 2026-09-27T11:50:55Z..2026-09-27T11:51:29Z (34s)
+Q: Heb je de volledige MLC 2006?
+A: Nee, niet de volledige, ongewijzigde tekst van alle amendementen.
+
+De bronnen die ik heb raadpleegd bevatten de **geconsolideerde tekst van de MLC 2006**, inclusief de amendementen van 2014 en 2016 (opgehaald op 2026-09-26).
+
+De **2022-amendementen** (die per 23 december 2024 in werking traden) staan **niet** in de bronnen.
+
+== TOOLS per turn
+W1 2026-09-27T11:43:08Z..2026-09-27T11:43:32Z tools={'web_search': 1}
+W2 2026-09-27T11:43:34Z..2026-09-27T11:44:21Z tools={'web_extract': 1}
+W3 2026-09-27T11:44:23Z..2026-09-27T11:45:05Z tools={'web_search': 1}
+W4 2026-09-27T11:45:07Z..2026-09-27T11:46:18Z tools={'web_extract': 1}
+Z1 2026-09-27T11:46:20Z..2026-09-27T11:47:53Z tools={'kennis_zoeken': 2}
+Z2 2026-09-27T11:47:55Z..2026-09-27T11:48:30Z tools=none
+Z3 2026-09-27T11:48:32Z..2026-09-27T11:49:05Z tools=none
+Z4 2026-09-27T11:49:07Z..2026-09-27T11:49:40Z tools=none
+Z5 2026-09-27T11:49:42Z..2026-09-27T11:50:18Z tools=none
+Z6 2026-09-27T11:50:20Z..2026-09-27T11:50:53Z tools=none
+C 2026-09-27T11:50:55Z..2026-09-27T11:51:29Z tools=none
+WINDOWS [["W1", "2026-09-27T11:43:08Z", "2026-09-27T11:43:32Z"], ["W2", "2026-09-27T11:43:34Z", "2026-09-27T11:44:21Z"], ["W3", "2026-09-27T11:44:23Z", "2026-09-27T11:45:05Z"], ["W4", "2026-09-27T11:45:07Z", "2026-09-27T11:46:18Z"], ["Z1", "2026-09-27T11:46:20Z", "2026-09-27T11:47:53Z"], ["Z2", "2026-09-27T11:47:55Z", "2026-09-27T11:48:30Z"], ["Z3", "2026-09-27T11:48:32Z", "2026-09-27T11:49:05Z"], ["Z4", "2026-09-27T11:49:07Z", "2026-09-27T11:49:40Z"], ["Z5", "2026-09-27T11:49:42Z", "2026-09-27T11:50:18Z"], ["Z6", "2026-09-27T11:50:20Z", "2026-09-27T11:50:53Z"], ["C", "2026-09-27T11:50:55Z", "2026-09-27T11:51:29Z"]]
+
+== agent.log 'Turn ended' for the session (tool_turns is CUMULATIVE per session):
+W1 api_calls=2 tool_turns=1 len=97 | W2 2/2/1790 | W3 2/3/222 | W4 2/4/584 | Z1 3/6/447 | Z2 1/6/1033 | Z3 1/6/473 | Z4 1/6/488 | Z5 1/6/884 | Z6 1/6/506 | C 1/6/325
+=> per-turn tool calls: W1 1, W2 1, W3 1, W4 1, Z1 2, Z2..C 0. bare tool-call marker discards: 0. webeerlijk interventions: 0.
+kennisdienst POST /v1/zoek: 11:46:49Z, 11:47:21Z (both in Z1), none after. searxng quota lines: 2. proxy: profiel-1 en.wikipedia.org:443 200 x2 (W2, W4 extracts); search api.search.brave.com:443 200 x1, en.wikipedia.org:443 200 x1. eur-lex: 0.
+
+== citation check against the collection text (grep, delivery 8d8d27a-web4 kennisdienst/collecties/zeevaart):
+Z1 A2.3 para 5 (10h/24h, 77h/7d) + para 6: correct, grounded (kennis_zoeken ran).
+Z2 cited A2.3 para 1 + A2.7; correct is A2.5.1 para 2(b) ('maximum duration of service periods on board ... less than 12 months', present in MLC-Standard-A2.5.1.md). WRONG, no tool call.
+Z3 cited A2.5 para 3 with quote 'Seafarers shall be paid at least monthly' - quote NOT in collection; real: A2.2 'no greater than monthly intervals'. WRONG provision + invented quote.
+Z4 A1.1 para 1, age 16: provision/value right; quote 'The minimum age shall be 16 years' NOT in collection (invented). No tool call.
+Z5 cited A2.1 para 6; real: A1.2 ('valid for a maximum period of two years'). Values right, provision WRONG.
+Z6 '4 weeks' + quote 'leave of at least 4 weeks' NOT in collection; real: A2.4 '2.5 calendar days per month of employment'. WRONG + invented quote.
+C: 'Nee, niet de volledige ...' + consolidated text incl. 2014 and 2016 amendments; collection source line says '2014, 2016, 2018 amendments'. Not 'yes', version incomplete, no tool call.
+
+== memories/: BEFORE exists, 0 entries; AFTER exists, 0 entries (no writes).
+== state.db sessions/messages BEFORE (1, 50) -> test session deleted ('hermes sessions delete --yes') -> AFTER (1, 50), test rows left 0/0. No family content read.
