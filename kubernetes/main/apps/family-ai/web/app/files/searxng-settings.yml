@@ -26,12 +26,17 @@ engines:
   - name: bing
     disabled: false     # disabled in SearXNG's defaults
     timeout: 5.0
+    weight: 1.0
   - name: wikipedia
     timeout: 4.0
   - name: braveapi
     inactive: false      # inactive in SearXNG's defaults (needs a key)
     api_key: "@@BRAVE_SEARCH_API_KEY@@"   # filled by searxng_render.py
     timeout: 5.0
+    # core engine; ranked above bing. NB braveapi sends no country/search_lang
+    # at d8ae3abd5 (upstream PR #6763 closed unmerged) - Dutch quality is a
+    # test item, default_lang below does not reach it
+    weight: 1.5
 general:
   instance_name: family-ai
   # never debug: debug mode logs every engine request with its query
@@ -57,6 +62,10 @@ search:
   # Trade-off: profiel-1 gets strict results too (a 2nd instance would lift
   # that; not worth the extra pod now).
   safe_search: 2
+  # Dutch by default (bing mkt/wikipedia nl). Not "all": for duckduckgo that
+  # means kl=wt-wt, which always gets a CAPTCHA (upstream issue #6779);
+  # duckduckgo stays off anyway (no strict safe search, land-9 T-SAFE fail)
+  default_lang: nl-NL
   autocomplete: ""
   formats: [html, json]
 # NO plugins (the user list REPLACES the defaults). In particular not

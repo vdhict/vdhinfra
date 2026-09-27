@@ -37,7 +37,7 @@ spec:
           name: searxng-secret
 ---
 # Brave Search API key (land-12g). Value only in 1Password:
-#   BRAVE_SEARCH_API_KEY <- vault home-infra, item "family-ai",
+#   BRAVE_SEARCH_API_KEY <- vault home-infra, item "brave",
 #                           field BRAVE_SEARCH_API_KEY
 # Guard: the render FAILS on an empty / whitespace / implausible value (Brave
 # keys are ~31 chars [A-Za-z0-9_-]); ESO then keeps the last good Secret, or
@@ -63,7 +63,7 @@ spec:
           {{ .BRAVE_SEARCH_API_KEY }}
   data:
     - secretKey: BRAVE_SEARCH_API_KEY
-      remoteRef: {key: family-ai, property: BRAVE_SEARCH_API_KEY}
+      remoteRef: {key: brave, property: BRAVE_SEARCH_API_KEY}
 ---
 apiVersion: v1
 kind: Service
