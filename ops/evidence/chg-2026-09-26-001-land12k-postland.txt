@@ -1,0 +1,163 @@
+chg-2026-09-26-001 land-12k post-land (k8s-engineer), 2026-09-27 19:50-20:10Z. Push by user via relay: 2c868ac (parent c322c20, rebase of 0a4bbb0, bundle blob 545d35dc unchanged).
+Closure criterion stated beforehand: Z1-Z6 all correct with verified provisions -> PASS; any Z mismatch -> FAIL.
+
+== A Live: PASS
+Flux family-ai-hermes Applied 2c868ac0 (Secret applied 19:50:52Z); Reloader rolled hermes-profiel-1-b997d545b-4w7lp at 19:50:55Z.
+seed-once: bundle sha256 5e66bd108695b5a7ae6b71b768b4ce4acae82feaa45f61a2190976ff0a002e5d verified, 9 files verified.
+in-pod: SOUL.md e0c0e66d, plugins/kennis/__init__.py fb5c21fb, plugins/kennis/plugin.yaml e1c78aff, config.yaml (minus _config_version) 8ddc8200, max_turns 6.
+profiel-2/3 untouched: pods 54d4bfb96c-6jknj / 767f48f6b6-z2mfv (2026-09-26T22:19:18Z), seed bundles c95ffedb / 68c27af4.
+
+== B Live round: ONE session atlas-test-20260927T195148Z via :8642 (synthetic; W1-W4, Z1-Z6, C identical to land-12j + N1 + topic switch T)
+BEFORE memories: exists []
+BEFORE sessions/messages: (1, 50)
+SESSION atlas-test-20260927T195148Z
+
+== W1 19:51:48..19:52:33Z (45.3s) usage={'prompt_tokens': 24594, 'completion_tokens': 259, 'total_tokens': 24853}
+Q: Wat zijn de openingstijden van het Rijksmuseum in Amsterdam? Zoek het op.
+A: Het Rijksmuseum in Amsterdam is elke dag van het jaar open van 09:00 tot 17:00 uur, inclusief nationale feestdagen.
+
+Belangrijk om te weten:
+- Je moet altijd een toegangskaartje met een vaste starttijd reserveren.
+- Entree is gratis voor iedereen tot en met 18 jaar.
+- Na 17:00 uur sluit het museum, maar de shop en het café blijven tot 18:00 uur open (alleen toegankelijk met entreebewijs tot 17:00).
+
+== W2 19:52:35..19:53:18Z (42.6s) usage={'prompt_tokens': 24193, 'completion_tokens': 184, 'total_tokens': 24377}
+Q: Vat de eerste alinea samen van https://en.wikipedia.org/wiki/Photosynthesis
+A: De eerste alinea van de Wikipedia-pagina over fotosynthese (via https://en.wikipedia.org/wiki/Photosynthesis) gaat hierover:
+
+Fotosynthese is een systeem van biologische processen waarbij lichtpigment-dragende autotrofe organismen, zoals de meeste planten, algen en cyanobacteriën, energie uit licht — meestal van de zon — omzetten in chemische energie. Ze slaan deze energie op in koolhydraten (zoals glucose). Fotosynthese zorgt voor het zuurstofgehalte in de atmosfeer en levert de energie voor complex leven op aarde.
+
+== W3 19:53:20..19:54:13Z (53.0s) usage={'prompt_tokens': 31493, 'completion_tokens': 136, 'total_tokens': 31629}
+Q: Zoek op internet naar 'xqzvbnm plofkwartel 7731' en vertel wat je vindt.
+A: Ik vond niets over die specifieke combinatie. De zoektermen komen niet overeen met iets herkenbaars op internet. De nummers "7731" komen wel ergens voor — het LEGO City setnummer van een postbus — maar de rest van de zoektermen ("xqzvbnm plofkwartel") leveren geen resultaten op.
+
+== W4 19:54:15..19:55:19Z (64.4s) usage={'prompt_tokens': 37362, 'completion_tokens': 191, 'total_tokens': 37553}
+Q: Vat https://en.wikipedia.org/wiki/Prompt_injection samen in drie zinnen.
+A: Prompt injection is een cybersecurity-aanval waarbij kwaadaardig ogende invoer wordt gebruikt om onbedoeld gedrag te veroorzaken in machine learning-modellen, vooral grote taalmodellen (LLM's). De aanval maakt gebruik van het feit dat AI-modellen niet kunnen onderscheiden tussen ontwikkelaar-instructies en gebruikersinput, waardoor ze worden omgeleid tot het uitvoeren van onbedoelde acties. Prompt injection wordt door cybersecurity-agentschappen wereldwijd geclassificeerd als een kritieke beveiligingsdreiging met potentieel ernstige gevolgen, waaronder datamanipulatie, phishing en desinformatie.
+
+== N1 19:55:21..19:55:58Z (37.4s) usage={'prompt_tokens': 21398, 'completion_tokens': 127, 'total_tokens': 21525}
+Q: Hoe lang moet ik spaghetti koken voor al dente?
+A: Het hangt af van het gewicht en het merk, maar voor de meeste standaard spaghetti geldt:
+
+- **Bijna alle pasta uit de supermarkt:** 8–12 minuten. Proef vanaf minuut 8.
+- **Biologische/bronze vormgiet-pasta (geel):** vaak 14–16 minuten.
+
+Al dente betekent dat de pasta gaar is, maar nog een stevige pit (het witte coretje) in het midden heeft. Gooi 1 minuut af van de tijd op de verpakking en proef.
+
+== Z1 19:56:00..19:57:38Z (97.7s) usage={'prompt_tokens': 44991, 'completion_tokens': 148, 'total_tokens': 45139}
+Q: Hoeveel uur rust moet een zeevarende minimaal krijgen volgens het MLC-verdrag? Noem de precieze bepaling.
+A: Zeevaart:
+
+Een zeevarende moet minimaal **10 uur rust per 24 uur** en **77 uur rust per zeven dagen** krijgen.
+
+Dit staat in **MLC 2006, Standard A2.3, paragraph 5, onder (b)(i) en (ii)**.
+
+== Z2 19:57:40..19:59:26Z (105.8s) usage={'prompt_tokens': 48083, 'completion_tokens': 198, 'total_tokens': 48281}
+Q: Een zeevarende zit 8 maanden aan boord en de reder wil het contract met nog 8 maanden verlengen zonder dat hij naar huis gaat. Mag dat volgens het MLC? Noem de bepaling.
+A: Zeevaart:
+
+Nee, dat mag niet. Het MLC schrijft voor dat de maximale diensttijd aan boord **minder dan 12 maanden** mag zijn.
+
+Dit staat in **MLC 2006, Standard A2.5.1, paragraph 2, onder (b)**.
+
+Een contract van 16 maanden (8 + 8) overschrijdt die grens. De reder mag het contract niet zomaar verlengen zonder dat de zeevarende naar huis gaat (repatriëring).
+
+== Z3 19:59:28..20:00:11Z (43.3s) usage={'prompt_tokens': 25019, 'completion_tokens': 54, 'total_tokens': 25073}
+Q: Hoe vaak moet het loon van een zeevarende minimaal worden uitbetaald volgens het MLC? Noem de bepaling.
+A: Zeevaart:
+
+Het loon van een zeevarende moet minimaal **maandelijks** worden uitbetaald.
+
+Dit staat in **MLC 2006, Standard A2.2, paragraph 1**.
+
+== Z4 20:00:13..20:00:57Z (43.5s) usage={'prompt_tokens': 25497, 'completion_tokens': 89, 'total_tokens': 25586}
+Q: Wat is de minimumleeftijd om op een zeeschip te werken volgens het MLC? Noem de bepaling.
+A: Zeevaart:
+
+De minimumleeftijd om op een zeeschip te werken is **16 jaar**.
+
+Dit staat in **MLC 2006, Standard A1.1, paragraph 1**.
+
+Voor 18-jarigen gelden extra beperkingen: nachtarbeid is verboden en ze mogen geen werk doen dat hun gezondheid of veiligheid in gevaar brengt.
+
+== Z5 20:00:59..20:01:44Z (45.0s) usage={'prompt_tokens': 26117, 'completion_tokens': 77, 'total_tokens': 26194}
+Q: Hoe lang is een medische verklaring van een zeevarende maximaal geldig volgens het MLC? Noem de bepaling.
+A: Zeevaart:
+
+Een medische verklaring is maximaal **twee jaar** geldig. Voor zeevarenden jonger dan 18 jaar is de maximale geldigheidsperiode **één jaar**.
+
+Dit staat in **MLC 2006, Standard A1.2, paragraph 7, onder (a)**.
+
+== Z6 20:01:46..20:03:20Z (94.6s) usage={'prompt_tokens': 54565, 'completion_tokens': 151, 'total_tokens': 54716}
+Q: Op hoeveel dagen jaarlijkse vakantie heeft een zeevarende recht volgens het MLC? Noem de bepaling.
+A: Zeevaart:
+
+Een zeevarende heeft recht op een jaarlijkse betaalde vakantie van minimaal **2,5 kalenderdag per maand** arbeid.
+
+Dit staat in **MLC 2006, Standard A2.4, paragraph 2**.
+
+Over een fulltime jaar van 12 maanden komt dat neer op **30 kalenderdagen** vakantie.
+
+== T 20:03:22..20:05:03Z (100.6s) usage={'prompt_tokens': 57395, 'completion_tokens': 155, 'total_tokens': 57550}
+Q: Hoeveel minuten moet een zacht gekookt ei koken? Waar staat dat?
+A: Een zachtgekookt ei moet **4 tot 5 minuten** koken, vanaf het moment dat het water kookt.
+
+Waar dat staat: dit is een kooktip, geen regel uit het MLC-verdrag. Ik heb het opgezocht via web_search. De meeste Nederlandse kooksites (zoals Uit Paulines Keuken en Lekker van bij ons) geven 4 à 5 minuten aan voor een zachtgekookt ei.
+
+== C 20:05:05..20:05:58Z (52.9s) usage={'prompt_tokens': 29685, 'completion_tokens': 104, 'total_tokens': 29789}
+Q: Heb je de volledige MLC 2006?
+A: Nee, ik heb de volledige tekst niet als één bestand. Ik heb wel de volledige tekst van de MLC 2006 (inclusief de 2014- en 2016-amendementen) in mijn bronnen, opgehaald op 26 september 2026.
+
+Ik kan elke bepaling voor je opzoeken en citeren via kennis_zoeken. Geef gewoon door welke regel of paragraaf je nodig hebt.
+
+== TOOLS per turn (+ stored user msg len content/api_content)
+W1 tools={'web_search': 1, 'web_extract': 1} user_len=(73, 1439)
+W2 tools={'web_extract': 1} user_len=(75, 2000)
+W3 tools={'web_search': 1} user_len=(72, 2658)
+W4 tools={'web_extract': 1} user_len=(72, 1769)
+N1 tools=none user_len=(47, 2004)
+Z1 tools={'kennis_zoeken': 1} user_len=(105, 2090)
+Z2 tools={'kennis_zoeken': 1} user_len=(169, 2102)
+Z3 tools=none user_len=(103, 1482)
+Z4 tools=none user_len=(89, 1500)
+Z5 tools=none user_len=(105, 1982)
+Z6 tools={'kennis_zoeken': 1} user_len=(98, 2843)
+T tools={'web_search': 1} user_len=(64, 1968)
+C tools=none user_len=(29, 2190)
+
+== per turn: tools | tool_turns (per turn) | kennisdienst POST (hook latency = POST log ts - turn start, upper bound) | api_calls | usage.prompt_tokens (sum over api_calls) -> per call
+W1 web_search+web_extract | 2 | hook 19:51:50.6 (+2.6s)            | 3 | 24594 -> ~8.2k/call
+W2 web_extract            | 1 | hook 19:52:37.3 (+2.3s)            | 2 | 24193 -> ~12.1k
+W3 web_search             | 1 | hook 19:53:21.8 (+1.8s)            | 2 | 31493 -> ~15.7k
+W4 web_extract            | 1 | hook 19:54:16.9 (+1.9s)            | 2 | 37362 -> ~18.7k
+N1 none                   | 0 | hook 19:55:23.1 (+2.1s)            | 1 | 21398 -> 21.4k
+Z1 kennis_zoeken          | 1 | hook 19:56:02.6 (+2.6s), tool 19:56:40.0 | 2 | 44991 -> ~22.5k
+Z2 kennis_zoeken          | 1 | hook 19:57:42.5 (+2.5s), tool 19:58:21.9 | 2 | 48083 -> ~24.0k
+Z3 none                   | 0 | hook 19:59:30.1 (+2.1s)            | 1 | 25019
+Z4 none                   | 0 | hook 20:00:15.4 (+2.4s)            | 1 | 25497
+Z5 none                   | 0 | hook 20:01:00.96 (+2.0s)           | 1 | 26117
+Z6 kennis_zoeken          | 1 | hook 20:01:47.6 (+1.6s), tool 20:02:34.3 | 2 | 54565 -> ~27.3k
+T  web_search             | 1 | hook 20:03:24.4 (+2.4s)            | 2 | 57395 -> ~28.7k
+C  none                   | 0 | hook 20:05:06.7 (+1.7s)            | 1 | 29685
+kennisdienst: 16 POST /v1/zoek lines in window = 13 hooks (every turn) + 3 tool calls; every line exactly 3 fields ('POST /v1/zoek 200'). Max hook latency 2.6s (<5s flag threshold, 0 flagged). Answer times 37-106 s (model).
+tokens: per-call prompt grows ~8.2k (turn 1) -> 29.7k (turn 13) = ~45% of context_length 65536. Injected pre-search context IS persisted per user message in state.db messages.api_content (stored user len 1.4k-2.8k chars vs 29-169 chars typed) and replayed in history: ~+0.5k tokens/turn from Z3->Z5 (25.0k, 25.5k, 26.1k). Web tool results add more (W2-W4 jumps).
+
+== Provision check against the collection (delivery 8d8d27a-web5 kennisdienst/collecties/zeevaart; answers paraphrase, no literal quotes given):
+Z1 A2.3 para 5(b)(i)(ii): header present; 'ten hours in any 24-hour period' + '77 hours in any seven-day period' under para 5 -> CORRECT
+Z2 A2.5.1 para 2(b): 'maximum duration of service periods' + 'less than 12 months' under para 2 -> CORRECT
+Z3 A2.2 para 1: 'monthly' under para 1 -> CORRECT
+Z4 A1.1 para 1: '16' under para 1 -> CORRECT (extra sentence says 'Voor 18-jarigen' where A1.1 says 'under the age of 18': wording slip)
+Z5 A1.2 para 7(a): 'two years', 'under the age of 18', 'one year' under para 7 -> CORRECT
+Z6 A2.4 para 2: '2.5 calendar days per month' under para 2 -> CORRECT
+W1-W4, N1: 0 MLC/Standard/Regulation citations, 0 mentions of zeevaart/bronnen/fragment. T: 0 provision citations, 0 source mentions, 1 negated MLC mention ('geen regel uit het MLC-verdrag'), answered via web_search.
+C: 'Nee ... wel de volledige tekst ... inclusief de 2014- en 2016-amendementen'; collection source line: '2014, 2016, 2018 amendments'. Known limitation.
+bracket-only answers 0; answers starting with '[' 0.
+
+== C Argus conditions (counts only)
+C1 kennisdienst POST lines not exactly 3 fields: 0. hermes-profiel-1 container stdout since 19:50Z: markers (ZEEVAART-BRONNEN|hook context spill|hook_outputs|pre_llm_call hook failed) 0, test words 0. agent.log markers 0, errors.log 0/0. Loki namespace family-ai 20m: baseline 267, markers 0, test words 0. kennisdienst test words 0.
+C1 FINDING: hermes agent.log (PVC /opt/data/logs, NOT shipped to Loki) holds 8 lines with test words, all logger agent.turn_context INFO 'conversation turn <preview of the user text>' (agent/turn_context.py:1052). Pre-existing Hermes behaviour, not from the plugin (0 log calls): 36 such lines today, 23 before this land. It logs a preview of every user message, family ones included, on the PVC.
+C2 hook_outputs directories under /opt/data (HERMES_HOME; spill default <HERMES_HOME>/hook_outputs): 0 before and after the round.
+C3 live CNP spec == repo (origin/main kustomize build, sorted-JSON sha256): kennisdienst 51671b41110c EQUAL; hermes-profiel-1-kennis a3fb579b2975 EQUAL.
+Pod exec was NOT denied for k8s-engineer; all checks ran.
+
+== memories/: BEFORE exists, 0 entries; AFTER exists, 0 entries (no writes). state.db (1, 50) before -> test session deleted -> (1, 50); test rows left 0/0. No family content read.
