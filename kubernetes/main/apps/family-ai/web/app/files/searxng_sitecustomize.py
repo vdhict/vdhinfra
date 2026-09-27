@@ -53,3 +53,88 @@ logging.setLogRecordFactory(_factory)
 # engine request failures are WARNING in searx.network / searx.engines: not needed at all
 for _name in ("searx.network", "searx.engines", "searx.search", "httpx", "httpcore", "curl_cffi"):
     logging.getLogger(_name).setLevel(logging.ERROR)
+
+
+# --- Brave API quota line (land-12h) ------------------------------------------
+# ONE log line per Brave API call, e.g.
+#   family-ai quota: braveapi ts=2026-09-27T08:00:00Z calls=3 status=200 remaining_month=1994
+# remaining_month = the LAST value of Brave's own X-RateLimit-Remaining header
+# ("<per-second>, <per-month>"), digits only. calls = count since pod start.
+# No query, no URL, no key. Brave-side remaining is authoritative; count in
+# Loki: {namespace="family-ai"} |= "family-ai quota: braveapi".
+# Engines are loaded with load_module (no import hook possible), so this wraps
+# OnlineProcessor._send_http_request right after that module is imported.
+# Re-check on every searxng image bump (the method name/signature is internal).
+import datetime as _dt
+import importlib.abc as _iabc
+import importlib.machinery as _imach
+import sys as _sys
+import threading as _th
+
+_QUOTA_MODULE = "searx.search.processors.online"
+_quota_log = logging.getLogger("family_ai.quota")
+_quota_lock = _th.Lock()
+_quota_calls = 0
+
+
+def _quota_line(status: str, remaining: str) -> None:
+    global _quota_calls
+    with _quota_lock:
+        _quota_calls += 1
+        n = _quota_calls
+    ts = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _quota_log.warning("family-ai quota: braveapi ts=%s calls=%d status=%s remaining_month=%s", ts, n, status, remaining)
+
+
+def _remaining(headers) -> str:
+    try:
+        raw = headers.get("X-RateLimit-Remaining") or ""
+    except Exception:
+        return "unknown"
+    last = raw.split(",")[-1].strip()
+    return last if last.isdigit() else "unknown"
+
+
+def _patch_online(module) -> None:
+    cls = getattr(module, "OnlineProcessor", None)
+    orig = getattr(cls, "_send_http_request", None)
+    if orig is None or getattr(orig, "_family_ai_quota", False):
+        _quota_log.warning("family-ai quota: hook NOT installed (OnlineProcessor._send_http_request missing)")
+        return
+
+    def _send_http_request(self, params):
+        if getattr(getattr(self, "engine", None), "name", None) != "braveapi":
+            return orig(self, params)
+        try:
+            resp = orig(self, params)
+        except Exception:
+            _quota_line("error", "unknown")  # HTTP 4xx/5xx raise before returning
+            raise
+        _quota_line(str(getattr(resp, "status_code", "")), _remaining(getattr(resp, "headers", {})))
+        return resp
+
+    _send_http_request._family_ai_quota = True
+    cls._send_http_request = _send_http_request
+
+
+class _QuotaFinder(_iabc.MetaPathFinder):
+    def find_spec(self, fullname, path, target=None):
+        if fullname != _QUOTA_MODULE:
+            return None
+        spec = _imach.PathFinder.find_spec(fullname, path)
+        if spec is None or spec.loader is None:
+            return spec
+        loader_exec = spec.loader.exec_module
+
+        def exec_module(module):
+            loader_exec(module)
+            try:
+                _patch_online(module)
+            except Exception as exc:  # never break searxng
+                _quota_log.warning("family-ai quota: hook failed [%s]", type(exc).__name__)
+
+        spec.loader.exec_module = exec_module
+        return spec
+
+
+_sys.meta_path.insert(0, _QuotaFinder())
