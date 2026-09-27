@@ -1,7 +1,8 @@
 ---
 # searxng: the ONLY search service for the Hermes agents. Strict safe search
-# for everyone; engines duckduckgo, wikipedia, brave; all engine traffic via
-# egress-proxy (files/searxng-settings.yml). No route, cluster-only.
+# for everyone; engines bing, wikipedia and (land-12g) braveapi = Brave's
+# official Search API; all engine traffic via egress-proxy
+# (files/searxng-settings.yml). No route, cluster-only.
 # yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/generators.external-secrets.io/password_v1alpha1.json
 apiVersion: generators.external-secrets.io/v1alpha1
 kind: Password
@@ -34,6 +35,35 @@ spec:
           apiVersion: generators.external-secrets.io/v1alpha1
           kind: Password
           name: searxng-secret
+---
+# Brave Search API key (land-12g). Value only in 1Password:
+#   BRAVE_SEARCH_API_KEY <- vault home-infra, item "family-ai",
+#                           field BRAVE_SEARCH_API_KEY
+# Guard: the render FAILS on an empty / whitespace / implausible value (Brave
+# keys are ~31 chars [A-Za-z0-9_-]); ESO then keeps the last good Secret, or
+# none - and without the Secret searxng still starts with braveapi inactive
+# (files/searxng_render.py). Only the render-settings init container sees it.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: family-ai-searxng-brave
+spec:
+  refreshInterval: 12h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword-connect
+  target:
+    name: family-ai-searxng-brave
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        BRAVE_SEARCH_API_KEY: >-
+          {{- if not (regexMatch "^[A-Za-z0-9_-]{20,64}$" .BRAVE_SEARCH_API_KEY) -}}{{- fail "family-ai-searxng-brave: BRAVE_SEARCH_API_KEY empty or not 20..64 [A-Za-z0-9_-]" -}}{{- end -}}
+          {{ .BRAVE_SEARCH_API_KEY }}
+  data:
+    - secretKey: BRAVE_SEARCH_API_KEY
+      remoteRef: {key: family-ai, property: BRAVE_SEARCH_API_KEY}
 ---
 apiVersion: v1
 kind: Service
@@ -77,6 +107,28 @@ spec:
       dnsConfig:
         options:
           - {name: ndots, value: "1"}
+      initContainers:
+        # renders settings.yml + the Brave key into the memory-only etc
+        # emptyDir (files/searxng_render.py); the key never enters git, the
+        # ConfigMap, the main container's env or any log
+        - name: render-settings
+          image: docker.io/searxng/searxng:2026.9.25-d8ae3abd5@sha256:38ed750807fb00c26047e51896b50f83e7843d120d9e65f950770305f62c7111
+          command: ["/usr/local/searxng/.venv/bin/python", "/opt/family-ai-render/render.py"]
+          env:
+            - name: BRAVE_SEARCH_API_KEY
+              valueFrom:
+                secretKeyRef: {name: family-ai-searxng-brave, key: BRAVE_SEARCH_API_KEY, optional: true}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 128Mi}
+          volumeMounts:
+            - {name: etc, mountPath: /etc/searxng}
+            - {name: settings, mountPath: /opt/family-ai-tmpl, readOnly: true}
+            - {name: render, mountPath: /opt/family-ai-render, readOnly: true}
       containers:
         - name: searxng
           image: docker.io/searxng/searxng:2026.9.25-d8ae3abd5@sha256:38ed750807fb00c26047e51896b50f83e7843d120d9e65f950770305f62c7111
@@ -102,12 +154,12 @@ spec:
             periodSeconds: 15
           volumeMounts:
             - {name: etc, mountPath: /etc/searxng}
-            - {name: settings, mountPath: /etc/searxng/settings.yml, subPath: settings.yml, readOnly: true}
             - {name: cache, mountPath: /var/cache/searxng}
             - {name: tmp, mountPath: /tmp}
             - {name: pylog, mountPath: /opt/family-ai-py, readOnly: true}
       volumes:
-        - {name: etc, emptyDir: {sizeLimit: 8Mi}}
+        # memory-backed: holds the rendered settings incl. the Brave key
+        - {name: etc, emptyDir: {medium: Memory, sizeLimit: 8Mi}}
         - name: settings
           configMap: {name: searxng-settings}
         - {name: cache, emptyDir: {sizeLimit: 64Mi}}
@@ -117,3 +169,8 @@ spec:
             name: searxng-sitecustomize
             items:
               - {key: sitecustomize.py, path: sitecustomize.py}
+        - name: render
+          configMap:
+            name: searxng-render
+            items:
+              - {key: render.py, path: render.py}

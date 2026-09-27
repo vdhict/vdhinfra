@@ -17,6 +17,9 @@ configMapGenerator:
   - name: searxng-sitecustomize
     files:
       - sitecustomize.py=./files/searxng_sitecustomize.py
+  - name: searxng-render
+    files:
+      - render.py=./files/searxng_render.py
   - name: web-extract-code
     files:
       - web_extract.py=./files/web_extract.py

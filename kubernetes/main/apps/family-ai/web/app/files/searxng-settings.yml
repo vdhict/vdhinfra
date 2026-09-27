@@ -9,17 +9,29 @@
 #               returns 0 for an adult query -> added
 #   wikipedia   API 200 via the proxy -> kept (SearXNG's own requests got
 #               429 earlier; re-measure after landing)
+# land-12g: + braveapi = Brave's OFFICIAL Search API (api.search.brave.com,
+#   key in X-Subscription-Token), not the scraped `brave` engine above. Any
+#   safe_search > 0 is sent as safesearch=strict (engine source at d8ae3abd5).
+#   The key is NOT here: api_key below is a placeholder that the render-settings
+#   init container (files/searxng_render.py) fills from Secret
+#   family-ai-searxng-brave into a memory-only emptyDir. No key -> the engine
+#   is rendered inactive and bing + wikipedia keep working.
 use_default_settings:
   engines:
     keep_only:
       - bing
       - wikipedia
+      - braveapi
 engines:
   - name: bing
     disabled: false     # disabled in SearXNG's defaults
     timeout: 5.0
   - name: wikipedia
     timeout: 4.0
+  - name: braveapi
+    inactive: false      # inactive in SearXNG's defaults (needs a key)
+    api_key: "@@BRAVE_SEARCH_API_KEY@@"   # filled by searxng_render.py
+    timeout: 5.0
 general:
   instance_name: family-ai
   # never debug: debug mode logs every engine request with its query
@@ -59,7 +71,7 @@ outgoing:
   request_timeout: 6.0
   enable_http2: false
   # ALL engine traffic goes through the logging egress proxy (port 3128 =
-  # the "search" port, which squid limits to the three engines' domains);
+  # the "search" port, which squid limits to the engines' domains);
   # searxng has no direct internet route (CNP).
   proxies:
     all://:
