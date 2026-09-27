@@ -1,0 +1,121 @@
+chg-2026-09-26-001 land-12m post-land (k8s-engineer), 2026-09-27 20:45-20:55Z. Push by user via relay, two-step (7851f23 collection, gate zeevaart=1236, c1ec1d2 SOUL).
+Closure criterion stated beforehand: Z1-Z6 correct + B1 correct with caveat + NEG not 'Ja' + M22 A4.1 para 5 + W1 real web call -> PASS.
+
+== A Live: PASS
+Flux family-ai-kennisdienst and family-ai-hermes Applied c1ec1d23.
+kennisdienst-54c8448fb-f4zlm started 20:45:54Z, log 'klaar: {"zeevaart": 1236}' 20:46:41Z, Ready 20:46:44Z; /gezond {"ok": true, "collecties": {"zeevaart": 1236}}.
+hermes-profiel-1-599578fd5f-hvkc5 started 20:47:24Z, Ready 20:47:36Z; seed bundle 5a69d36a3be2c94d10c47ae35ac64d7788a60736a3c35ccf81502ed7aff6d238; SOUL.md b2c75b33; config.yaml (minus _config_version) 8ddc8200, max_turns 6; kennis __init__ fb5c21fb, plugin.yaml e1c78aff, webeerlijk 5158000d (unchanged from 12k).
+profiel-2/3 untouched (54d4bfb96c-6jknj / 767f48f6b6-z2mfv, seeds c95ffedb / 68c27af4).
+Argus C4: test round started 20:48:04Z, after both restarts were Ready.
+
+== B Live round: ONE session atlas-test-20260927T204804Z via :8642 (synthetic; W1, Z1-Z6 identical to land-12k)
+BEFORE memories: exists []
+BEFORE sessions/messages: (1, 50)
+SESSION atlas-test-20260927T204804Z
+
+== W1 20:48:04..20:48:18Z (14.1s) prompt_tokens=7611
+Q: Wat zijn de openingstijden van het Rijksmuseum in Amsterdam? Zoek het op.
+A: web_search(query="Rijksmuseum Amsterdam openingstijden 2026")
+
+== Z1 20:48:20..20:48:35Z (15.0s) prompt_tokens=8188
+Q: Hoeveel uur rust moet een zeevarende minimaal krijgen volgens het MLC-verdrag? Noem de precieze bepaling.
+A: kennis_zoeken(vraag="MLC minimum hours of rest per 24 hours per 7 days", collectie="zeevaart")
+
+== Z2 20:48:37..20:48:53Z (16.1s) prompt_tokens=8848
+Q: Een zeevarende zit 8 maanden aan boord en de reder wil het contract met nog 8 maanden verlengen zonder dat hij naar huis gaat. Mag dat volgens het MLC? Noem de bepaling.
+A: kennis_zoeken(vraag="MLC maximum period of time on board without shore leave", collectie="zeevaart")
+
+== Z3 20:48:55..20:49:14Z (19.1s) prompt_tokens=9299
+Q: Hoe vaak moet het loon van een zeevarende minimaal worden uitbetaald volgens het MLC? Noem de bepaling.
+A: Zeevaart:
+
+Volgens **MLC 2006, Standard A2.2, paragraph 1** moet het loon van een zeevarende **minimaal maandelijks** worden uitbetaald ("at no greater than monthly intervals").
+
+Uit de gevonden fragmenten blijkt ook dat:
+- De zeevarende recht heeft op een **maandelijk overzicht** van de verschuldigde en betaalde bedragen (Standard A2.2, paragraph 2).
+- Het loon **regelmatig en in full** moet worden betaald volgens de arbeidsovereenkomst (Regulation 2.2, paragraph 1).
+
+Kortom: het loon moet **maandelijks** worden overgemaakt.
+
+== Z4 20:49:16..20:49:36Z (19.8s) prompt_tokens=9887
+Q: Wat is de minimumleeftijd om op een zeeschip te werken volgens het MLC? Noem de bepaling.
+A: Zeevaart:
+
+Volgens **MLC 2006, Standard A1.1, paragraph 1** mag de minimumleeftijd voor het werken op een zeeschip **16 jaar** niet worden onderschreden.
+
+De precieze tekst luidt: *"The employment, engagement or work on board a ship of any person under the age of 16 shall be prohibited."*
+
+Daarnaast geldt:
+- Personen onder de **18 jaar** mogen geen werk doen dat hun gezondheid of veiligheid bedreigt (Standard A1.1, paragraph 4).
+- Jongeren onder de 18 jaar mogen **niet nachtdienst** doen (Standard A1.1, paragraph 2).
+
+== Z5 20:49:38..20:49:59Z (20.7s) prompt_tokens=10569
+Q: Hoe lang is een medische verklaring van een zeevarende maximaal geldig volgens het MLC? Noem de bepaling.
+A: Zeevaart:
+
+Volgens **MLC 2006, Standard A1.2, paragraph 7, sub a** is een medische verklaring maximaal **twee jaar** geldig.
+
+Er geldt een uitzondering voor jongeren:
+- Voor zeevarenden **jonger dan 18 jaar** bedraagt de maximale geldigheid **één jaar**.
+
+Daarnaast geldt (paragraph 9): als de geldigheidsperiode verstrijkt tijdens een reis, blijft de verklaring geldig tot de volgende haven waar een nieuwe verklaring kan worden verkregen, maximaal **drie maanden**.
+
+== Z6 20:50:01..20:50:21Z (19.9s) prompt_tokens=11399
+Q: Op hoeveel dagen jaarlijkse vakantie heeft een zeevarende recht volgens het MLC? Noem de bepaling.
+A: kennis_zoeken(vraag="MLC paid annual leave seafarers number of days", collectie="zeevaart")
+
+== B1 20:50:23..20:50:46Z (23.3s) prompt_tokens=12025
+Q: Heb je de volledige MLC 2006?
+A: Ja. Ik heb de verzameling "zeevaart" met de **Maritime Labour Convention, 2006, as amended up to and including the 2022 amendments** (ILO consolidated text incl. 2014, 2016, 2018 and 2022 amendments; 2022 amendments in force 23 Dec 2024; opgehaald 2026-09-27).
+
+Wat er **niet** in zit:
+- **Part B** van de Code (niet-bindende richtlijnen).
+- De **modelformulieren** (Appendices A5-II, B4-I, B5-I).
+
+== NEG 20:50:48..20:51:12Z (24.4s) prompt_tokens=12853
+Q: Heb je de volledige STCW?
+A: Nee. De **STCW-tekst zelf** (de International Convention on Standards of Training, Certification and Watchkeeping for Seafarers) is een betaalde publicatie van de IMO en staat **niet** in de verzameling "zeevaart".
+
+Wat ik wel kan zeggen, staat in de andere bronnen (bijvoorbeeld via de **MLC 2006**, die naar STCW verwijst, of via de **Richtlijn (EU) 2022/993**). Wil je iets over STCW, dan kan ik daarover zoeken op internet of kijken wat de MLC-bronnen daarover zeggen.
+
+== M22 20:51:14..20:51:38Z (24.0s) prompt_tokens=13573
+Q: Moet de havenstaat een zieke zeevarende snel van boord laten?
+A: kennis_zoeken(vraag="MLC medical care on board ashore repatriation sick seafarer port state", collectie="zeevaart")
+
+== TOOLS per turn
+W1 tools=none
+Z1 tools=none
+Z2 tools=none
+Z3 tools=none
+Z4 tools=none
+Z5 tools=none
+Z6 tools=none
+B1 tools=none
+NEG tools=none
+M22 tools=none
+== pre-search fragment HEADERS (public references only):
+B1 ['MLC 2006, Preamble (deel 1/6)', 'MLC 2006, Standard A1.2, paragraph 4 (Medical certificate; NL: medische verklaring, keuring)', 'MLC 2006, Standard A5.1.2, paragraph 1 (Authorization of recognized organizations; NL: verantwoordelijkheden van de vlaggenstaat, inspectie, certificaat) (deel 2/2)', 'MLC 2006, Preamble (deel 6/6)']
+NEG ['MLC 2006, Standard A1.2, paragraph 3 (Medical certificate; NL: medische verklaring, keuring)', 'MLC 2006, Preamble (deel 1/6)', 'MLC 2006, Standard A1.2, paragraph 7 (Medical certificate; NL: medische verklaring, keuring)', 'MLC 2006, Standard A5.1.2, paragraph 1 (Authorization of recognized organizations; NL: verantwoordelijkheden van de vlaggenstaat, inspectie, certificaat) (deel 2/2)']
+M22 ['BW Boek 7, artikel 7:724, lid 1', 'Richtlijn (EU) 2022/993, artikel 6, lid 6 – Wederzijdse erkenning van door lidstaten afgegeven bewijzen van zeevarenden', 'BW Boek 7, artikel 7:698', 'MLC 2006, Regulation 4.1 – Medical care on board ship and ashore']
+
+== agent.log 'Turn ended' per turn: ALL 10 turns reason=text_response(finish_reason=stop) api_calls=1/6 tool_turns=0; response_len W1 61, Z1 94, Z2 100, Z3 531, Z4 522, Z5 467, Z6 91, B1 397, NEG 472, M22 115. 0 WARNING lines (no bare-marker discard).
+kennisdienst POST /v1/zoek: 10 lines (20:48:07.8 ... 20:51:16.4), one per turn = pre-search only; all exactly 3 fields. Hook latency (POST ts - turn start) 2.0-3.8 s, 0 turns > 5 s.
+prompt_tokens per turn (single call each): 7611, 8188, 8848, 9299, 9887, 10569, 11399, 12025, 12853, 13573 (~+0.6k/turn; 21% of 65536 at turn 10).
+
+== Verdicts against the collection (web6 kennisdienst/collecties/zeevaart)
+W1 FAIL: answer is the literal text 'web_search(query=...)'; no tool executed, 0 proxy/searxng involvement expected.
+Z1 FAIL, Z2 FAIL, Z6 FAIL: answer is the literal text 'kennis_zoeken(vraag=..., collectie="zeevaart")'; no provision given.
+Z3 PASS: A2.2 para 1; quote 'at no greater than monthly intervals' present under A2.2 para 1.
+Z4 PASS: A1.1 para 1; quote 'The employment, engagement or work on board a ship of any person under the age of 16 shall be prohibited' present verbatim under para 1; para 2 night work and para 4 health/safety also present.
+Z5 PASS: A1.2 para 7(a) two years / one year under 18 present; para 9 three months present.
+B1 PASS: starts with 'Ja', names 'as amended up to and including the 2022 amendments (2014, 2016, 2018 and 2022)' (80 collection files carry this line), and states Part B and the model forms (Appendices A5-II, B4-I, B5-I) are missing - those appendix files are absent (only A2-I, A4-I, A5-I, A5-III present).
+NEG PASS: answers 'Nee'; STCW text not in the collection.
+M22 FAIL: answer is the literal text 'kennis_zoeken(vraag=...)'. The target exists: header 'MLC 2006, Standard A4.1, paragraph 5 (...; 2022 amendment, in force 23 Dec 2024 ...)'. The pre-search for this turn returned BW 7:724 lid 1, Richtlijn 2022/993 art 6 lid 6, BW 7:698, MLC Regulation 4.1 - NOT A4.1 para 5.
+Bracket-only answers 0, but 5/10 answers consist only of a textual tool call 'name(args)' (same failure class as the earlier '[kennis_zoeken]').
+
+== C Argus counts
+C1 kennisdienst since 20:45Z: non-3-field POST lines 0, test words 0. hermes-profiel-1 stdout since 20:47Z: markers 0, test words 0. Loki family-ai 15m: baseline 212, markers 0, test words 0.
+Known agent.log (PVC) turn-preview lines (agent.turn_context 'conversation turn'): 10 in the window (one per test turn); fix land-12l pending.
+C2 hook_outputs directories under /opt/data: 0. C3 live CNP == repo: kennisdienst 51671b41110c EQUAL, hermes-profiel-1-kennis a3fb579b2975 EQUAL.
+
+== memories/: 0 entries before and after (no writes). state.db (1, 50) -> test session deleted -> (1, 50), test rows left 0/0. No family content read.
