@@ -1,0 +1,72 @@
+chg-2026-09-26-001 land-12h-quota post-land tests (k8s-engineer). Uitgevoerd onder programmagoedkeuring family-ai + Sander pre-approval.
+Flux family-ai-web applied refs/heads/main@sha1:969eb5c1f548; searxng-57b6d689cf-tm5hc Running; render-settings log: 'searxng-render: braveapi enabled'.
+Startup: 0 'hook NOT installed' / 'hook failed' lines (pod log and Loki). T-SAFE terms withheld (term#1, term#2). Key never printed.
+
+== Queries: direct HTTP from hermes-profiel-1 app container (no model session)
+START 2026-09-27T07:30:05Z
+== C12h-1: 5 braveapi-only queries
+results=20 unresponsive=[]
+results=20 unresponsive=[]
+results=20 unresponsive=[]
+results=20 unresponsive=[]
+results=20 unresponsive=[]
+== C2: forced braveapi error with marker
+results=0 unresponsive=[['braveapi', 'HTTP error']]
+== C12h-2: combined search (all engines)
+results=8 by_engine={'bing': 8} infoboxes=['wikipedia'] unresponsive=[['braveapi', 'Suspended: HTTP error']]
+== T-SAFE (terms withheld)
+term#1 engine=braveapi ss0=False results=0 adult_hosts=0 unresponsive=[['braveapi', 'Suspended: HTTP error']]
+term#1 engine=braveapi ss0=True results=0 adult_hosts=0 unresponsive=[['braveapi', 'Suspended: HTTP error']]
+term#1 engine=bing ss0=False results=0 adult_hosts=0 unresponsive=[]
+term#1 engine=bing ss0=True results=0 adult_hosts=0 unresponsive=[]
+term#1 engine=all ss0=False results=20 adult_hosts=0 unresponsive=[]
+term#1 engine=all ss0=True results=20 adult_hosts=0 unresponsive=[]
+term#2 engine=braveapi ss0=False results=7 adult_hosts=0 unresponsive=[]
+term#2 engine=braveapi ss0=True results=7 adult_hosts=0 unresponsive=[]
+term#2 engine=bing ss0=False results=0 adult_hosts=0 unresponsive=[]
+term#2 engine=bing ss0=True results=0 adult_hosts=0 unresponsive=[]
+term#2 engine=all ss0=False results=7 adult_hosts=0 unresponsive=[]
+term#2 engine=all ss0=True results=7 adult_hosts=0 unresponsive=[]
+BRAVE_CALLS 15
+END 2026-09-27T07:30:38Z
+  File "<stdin>", line 4
+    print(f"results={len(d[\"results\"])} by_engine={dict(Counter(e for r in d[\"results\"] for e in r[\"engines\"]))} infoboxes={[i.get(\"engine\") for i in d.get(\"infoboxes\",[])]} unresponsive={d.get(\"unresponsive_engines\")}")
+                            ^
+SyntaxError: unexpected character after line continuation character
+command terminated with exit code 1
+== C12h-2 rerun 07:30:57Z results=30 by_engine={'braveapi': 20, 'bing': 10} infoboxes=['wikipedia'] unresponsive=[]
+note: the forced error suspended braveapi briefly; the combined search and term#1 braveapi calls in that window never reached Brave (Suspended). Real Brave calls = 5 + 1 error + term#1 all x2 + term#2 x4 + combined rerun = 13.
+
+== Loki (loki:3100), namespace family-ai
+== quota lines 07:29:30Z..now (all searxng pods/workers)
+family-ai quota: braveapi ts=2026-09-27T07:30:06Z calls=1 status=200 remaining_month=0
+family-ai quota: braveapi ts=2026-09-27T07:30:08Z calls=2 status=200 remaining_month=0
+family-ai quota: braveapi ts=2026-09-27T07:30:10Z calls=3 status=200 remaining_month=0
+family-ai quota: braveapi ts=2026-09-27T07:30:12Z calls=4 status=200 remaining_month=0
+family-ai quota: braveapi ts=2026-09-27T07:30:14Z calls=5 status=200 remaining_month=0
+family-ai quota: braveapi ts=2026-09-27T07:30:16Z calls=6 status=error remaining_month=unknown
+family-ai quota: braveapi ts=2026-09-27T07:30:25Z calls=7 status=200 remaining_month=0
+family-ai quota: braveapi ts=2026-09-27T07:30:27Z calls=8 status=200 remaining_month=0
+family-ai quota: braveapi ts=2026-09-27T07:30:28Z calls=9 status=200 remaining_month=0
+family-ai quota: braveapi ts=2026-09-27T07:30:30Z calls=10 status=200 remaining_month=0
+family-ai quota: braveapi ts=2026-09-27T07:30:35Z calls=11 status=200 remaining_month=0
+family-ai quota: braveapi ts=2026-09-27T07:30:36Z calls=12 status=200 remaining_month=0
+family-ai quota: braveapi ts=2026-09-27T07:30:57Z calls=13 status=200 remaining_month=0
+== leak counts, last 15m, namespace family-ai
+baseline all lines: 403
+hook NOT installed / hook failed: 0
+marker HEPHMARKER12H: 0
+key shape BSA+20: 0
+X-Subscription-Token: 0
+api url path: 0
+query terms (5 neutral + Rotterdam): 0
+T-SAFE terms: 0
+RESULT C12h-1: 13 quota lines for 13 real Brave calls (exact); lines contain ts/calls/status/remaining only; 0 query terms, URL paths, key shape, token.
+RESULT C2: forced error -> 'status=error remaining_month=unknown'; marker 0, key shape 0.
+RESULT C12h-2: combined search braveapi 20 + bing 10 + wikipedia infobox; T-SAFE 0 adult hosts incl. safesearch=0 (unchanged).
+
+== Why remaining_month=0: Brave rate-limit headers on this key (one in-pod call, key read in-pod, not printed; this call is NOT in the quota count):
+x-ratelimit-limit = 50, 0 | x-ratelimit-policy = 50;w=1, 0;w=2592000 | x-ratelimit-remaining = 49, 0 | x-ratelimit-reset = 1, 318495
+=> 50 req/s, monthly window limit 0 = NO monthly request cap on this plan (not a hard-capped 2000/month free tier). remaining_month is therefore meaningless; the exact per-call line COUNT is the usable counter.
+
+== Argus residual: /var/log/squid/brave-calls.tsv does not exist (the 24h loop never fired before restart) - nothing to delete.
