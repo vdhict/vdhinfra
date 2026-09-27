@@ -1,0 +1,73 @@
+chg-2026-09-26-001 land-12i post-land (k8s-engineer), 2026-09-27 08:50-09:00Z. Uitgevoerd onder programmagoedkeuring family-ai + Sander pre-approval.
+Flux family-ai-hermes applied 3a9319e (reconcile triggered); Reloader rolled ONLY hermes-profiel-1 (profiel-2/3 untouched, 10h). No wipe.
+
+== C12i-2 / Argus C1
+seed-once: bundle sha256 6f0b681654d143546a86cbcdf3c5c27a5cee5c211bc344b6a62f482a153eba42 verified; per-file SHA256SUMS verified (9 files)
+in-pod == web3 SHA256SUMS: SOUL.md 687367c4...ddcdc99f, plugins/webeerlijk/__init__.py 5158000d...7adb8672, config.yaml (minus runtime _config_version) 8ddc8200...91ae457f
+config.yaml: agent.max_turns: 6 (line 16). web2->web3 config diff = that line only.
+webeerlijk loaded: agent.log 10:50:22 local capability_check plugin=webeerlijk (new pod start), same path as kennis
+T1 (hermes tools list --platform api_server): web, memory, session_search, kennis - unchanged vs land-12e
+
+== Mack a-c + C12i-4: ONE dedicated session atlas-test-20260927T085156Z (my synthetic questions; answers quoted in full below)
+SESSION atlas-test-20260927T085156Z START 08:51:56Z
+== (a) 26s at 08:52:22Z
+Q: Hoeveel uur rust moet een zeevarende minimaal krijgen volgens het MLC-verdrag? Noem de precieze bepaling.
+A: [Zeevaart]
+
+Volgens de Maritime Labour Convention 2006 (MLC 2006), zoals vastgelegd in **Standard A2.3, paragraph 5**, is het minimum aantal rusturen:
+
+*   **Minimaal 10 uur** in elke periode van 24 uur; en
+*   **Minimaal 77 uur** in elke periode van zeven dagen.
+
+Let wel op de indeling van deze rust (paragraph 6): de rust mag in maximaal twee stukken worden gesplitst, waarvan één stuk minimaal 6 uur moet zijn, en de pauze tussen de twee rustperiodes mag niet langer zijn dan 14 uur.
+== (b) 14s at 08:52:36Z
+Q: Heb je de volledige MLC 2006?
+A: Nee, ik heb geen volledige, losse tekst van het MLC-verdrag. Ik heb alleen de specifieke fragmenten uit de verzameling "zeevaart" die relevant zijn voor de vraag van de gebruiker. De volledige tekst is niet beschikbaar in de beschikbare bronnen. Ik kan alleen de fragmenten gebruiken die zijn opgehaald via kennis_zoeken.
+== (c) 13s at 08:52:49Z
+Q: Wat zijn de openingstijden van het Rijksmuseum in Amsterdam?
+A: [Planner]
+
+Ik kan op dit moment geen live internetgegevens ophalen, dus ik kan je de actuele openingstijden van het Rijksmuseum niet controleren.
+
+Ik weet uit mijn kennisbank dat het museum doorgaans geopend is van 09:00 tot 17:00 uur, maar dit kan wijzigen door feestdagen of speciale evenementen. Voor de exacte, actuele tijden verwijs ik je naar de officiële website van het Rijksmuseum.
+state.db session rows: ['atlas-test-20260927T085156Z']
+  user  
+  assistant  ['kennis_zoeken']
+  tool kennis_zoeken 
+  assistant  
+  user  
+  assistant  
+  user  
+  assistant  
+END 08:52:49Z
+== (d) start 08:53:31Z 13s
+Q: Kun je het even op internet opzoeken? Ik wil de actuele openingstijden van het Rijksmuseum.
+A: [Planner]
+
+Ik kan helaas geen live internetgegevens ophalen, dus ik kan de actuele openingstijden van het Rijksmuseum niet voor je controleren. Ik kan je wel zeggen dat het museum doorgaans geopend is van 09:00 tot 17:00 uur. Voor de meest actuele informatie raad ik je aan de officiële website van het Rijksmuseum te raadplegen.
+  user  
+  assistant  
+message_count: 10
+kennisdienst log since 08:51:50Z: 1x POST /v1/zoek 200 (turn a)
+proxy 08:51:50Z..08:54:30Z: 0 profiel-1 lines, 0 search-port lines, 0 eur-lex (only 16 unrelated '- error:transaction-end-before-headers' probe lines); searxng quota lines in window: 0
+RESULT (a): kennis_zoeken ran, no eur-lex fetch, answer grounded: MLC 2006 Standard A2.3 para 5 (+ para 6). NOT A2.5.1 - A2.5.1 is Repatriation; for an hours-of-rest question A2.3 is the correct provision. Expectation mismatch to resolve with Mack.
+RESULT (b): FAIL - 'Nee, ik heb geen volledige ... tekst', no tool call, no version. (No copyright refusal.)
+RESULT (c): FAIL/REGRESSION - no web_search/web_extract; model says it cannot fetch live internet data and gives hours from its own knowledge (honest wording, so webeerlijk correctly did not intervene). Turn (d) explicit 'zoek het op internet' in the same session: again no web tool. land-12e same question: web_search+web_extract ran. web toolset still enabled for api_server; config diff is max_turns only -> remaining changed input is SOUL.md (not read: persona content) -> for Mack.
+
+== Argus C2 webeerlijk hooks called directly (separate process, synthetic texts, no model session)
+hooks: ['post_tool_call', 'pre_llm_call', 'transform_llm_output']
+  log: webeerlijk WARNING webeerlijk: answer replaced (claims a lookup without a web call in this turn)
+PASS case 1 claim, no tool: REPLACED
+PASS case 2 honest negated, no tool: UNCHANGED
+PASS case 3 kennis ran, source claim (web3 change): UNCHANGED
+  log: webeerlijk WARNING webeerlijk: answer replaced (claims a lookup without a web call in this turn)
+PASS case 4 kennis ran, web-specific claim: REPLACED
+PASS case 5 web ran, known link: UNCHANGED
+  log: webeerlijk WARNING webeerlijk: 1 line(s) with 1 unknown link(s) dropped
+PASS case 6 web ran, unknown link: FILTERED: Open 9-17. |  | (Ik heb een of meer links weggelaten die niet uit de zoekresultaten kwamen.)
+PASS case 7 web ran, claim ok: UNCHANGED
+FAILS 0
+
+== Mack (d): profiel-1 session started 07:35:47Z (09:35 local, last activity 09:59 local; the only session this morning; contains the 07:40/07:41Z profiel-1 eur-lex fetches): messages=50 (user 7, assistant 25, tool 18). Counts only; no content read.
+
+== C12i-3 privacy: only my test session's rows and window logs read. Test session deleted with 'hermes sessions delete --yes' (it could otherwise surface via session_search): sessions rows 0, messages rows 0, messages_fts hits 0; no memory tool was called in it.
