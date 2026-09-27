@@ -1,0 +1,21 @@
+== before
+.clean_shutdown .env .family-ai-seeded .install_id.lock .local .tirith-install-failed SOUL.md audio_cache auth.lock backups bin cache channel_directory.json config.yaml cron gateway-starts.log gateway.lock gateway_state.json home hooks image_cache install_id kanban kanban.db kanban.db-shm kanban.db-wal kanban.db.dispatch.lock kanban.db.init.lock lazy-packages logs lost+found memories pairing pending_messages plans platforms plugins response_store.db runs_idempotency.db sandboxes sessions shared-state.db skills skins state state.db state.db.auto-maintenance.lock state.db.fts_rebuild.lock workspace 
+state.db: state.db state.db.auto-maintenance.lock state.db.fts_rebuild.lock 
+sessions files: 0  memories files: 0
+agent.log bytes: 441053  errors.log bytes: 15984
+== wipe
+== verify
+gone: state.db
+gone: state.db-wal
+gone: state.db-shm
+gone: sessions
+gone: memories
+agent.log bytes: 0  errors.log bytes: 0
+agent.log container-boot.log curator errors.log gateway-exit-diag.log gateway-shutdown-diag.log gateway.log gateway_faulthandler.log gateways 
+e7acb4e5477f43cfc78a56dbff2a8a229c652dad8831748d0c5eebf037391618  config.yaml
+2405f35d95bce23e285508709287d360bc3396e1fe80da2466c777b3541ff505  SOUL.md
+kennis
+model-providers
+webeerlijk
+.lock .python-abi firecrawl firecrawl_py-4.17.0.dist-info nest_asyncio-1.6.0.dist-info nest_asyncio.py tests 
+== done
