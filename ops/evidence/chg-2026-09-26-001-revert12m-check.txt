@@ -1,0 +1,44 @@
+chg-2026-09-26-001 post-revert check (k8s-engineer), 2026-09-27 21:02-21:06Z. Revert 5d0e418 (parent c1ec1d2) pushed by user via relay.
+Live: Flux family-ai-hermes + family-ai-kennisdienst Applied 5d0e4185; hermes-profiel-1-b997d545b-5ksxx started 21:02:40Z, Ready 21:02:51Z; seed bundle 5e66bd108695b5a7ae6b71b768b4ce4acae82feaa45f61a2190976ff0a002e5d (web5, same as land-12k); SOUL.md e0c0e66d; config 8ddc8200, max_turns 6; kennisdienst /gezond zeevaart 1236 (web6 collection kept). Round started 21:03:11Z, after the restart.
+
+BEFORE memories: exists []
+BEFORE sessions/messages: (1, 50)
+SESSION atlas-test-20260927T210311Z
+
+== W1 21:03:11..21:03:24Z (13.3s) prompt_tokens=7510
+Q: Wat zijn de openingstijden van het Rijksmuseum in Amsterdam? Zoek het op.
+A: web_search(query="Rijksmuseum Amsterdam openingstijden 2026")
+
+== Z1 21:03:26..21:03:41Z (14.7s) prompt_tokens=8087
+Q: Hoeveel uur rust moet een zeevarende minimaal krijgen volgens het MLC-verdrag? Noem de precieze bepaling.
+A: kennis_zoeken(vraag="MLC minimum hours of rest per day", collectie="zeevaart")
+
+== Z2 21:03:43..21:03:59Z (15.9s) prompt_tokens=8740
+Q: Een zeevarende zit 8 maanden aan boord en de reder wil het contract met nog 8 maanden verlengen zonder dat hij naar huis gaat. Mag dat volgens het MLC? Noem de bepaling.
+A: kennis_zoeken(vraag="MLC maximum period of time on board", collectie="zeevaart")
+
+== Z6 21:04:01..21:04:18Z (16.9s) prompt_tokens=9456
+Q: Op hoeveel dagen jaarlijkse vakantie heeft een zeevarende recht volgens het MLC? Noem de bepaling.
+A: kennis_zoeken(vraag="MLC paid annual leave seafarers", collectie="zeevaart")
+
+== M22 21:04:20..21:04:38Z (18.0s) prompt_tokens=10064
+Q: Moet de havenstaat een zieke zeevarende snel van boord laten?
+A: kennis_zoeken(vraag="MLC medical care shore health insurance port state", collectie="zeevaart")
+
+== TOOLS per turn
+W1 tools=none
+Z1 tools=none
+Z2 tools=none
+Z6 tools=none
+M22 tools=none
+== pre-search fragment HEADERS (public references only):
+M22 ['BW Boek 7, artikel 7:724, lid 1', 'Richtlijn (EU) 2022/993, artikel 6, lid 6 – Wederzijdse erkenning van door lidstaten afgegeven bewijzen van zeevarenden', 'BW Boek 7, artikel 7:698', 'MLC 2006, Regulation 4.1 – Medical care on board ship and ashore']
+
+agent.log Turn ended per turn: W1 api_calls=1 tool_turns=0 len=61 | Z1 1/0/78 | Z2 1/0/80 | Z6 1/0/76 | M22 1/0/95. kennisdienst POST /v1/zoek in round: 5 (pre-search only). searxng quota lines: 0.
+RESULT: FAIL 5/5 - every answer is a textual tool call name(args); no tool executed. W1, Z1, Z2, Z6 expectations not met. M22: no citation (textual kennis_zoeken(...)); pre-search headers BW 7:724 lid 1, Richtlijn 2022/993 art 6 lid 6, BW 7:698, MLC Regulation 4.1 (not A4.1 para 5).
+FINDING: the identical web5 bundle (5e66bd10) passed land-12k at 19:51-20:06Z with real tool calls; it fails now. The web6 SOUL is therefore NOT the cause. Changed between 20:06Z and 20:48Z outside the profiel-1 bundle: kennisdienst collection web5->web6 (pre-search fragments), and possibly the model/template behind household-chat on the Studio (not observable from the cluster; the bare-endpoint probe at ~20:57Z returned structured tool calls on a 295-token prompt).
+
+AFTER memories: exists, entries=0
+Deleted session 'atlas-test-20260927T210311Z'.
+AFTER sessions/messages: (1, 50) | test rows left: 0 0
+No family content read.
