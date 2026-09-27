@@ -1,0 +1,69 @@
+chg-2026-09-26-001 land-12g post-land tests (k8s-engineer). Uitgevoerd onder programmagoedkeuring family-ai + Sander pre-approval.
+Flux family-ai-web applied refs/heads/main@sha1:ee438e5b2306; ExternalSecret family-ai-searxng-brave SecretSynced=True; searxng-6557fff58c-jkbc5 Running.
+T-SAFE query terms are withheld here (term#1, term#2). The key is never printed; checks use prefix via stdin or a shape regex.
+
+== C1 (Argus): render log + settings file
+render-settings log: 'searxng-render: braveapi enabled' (only line)
+/etc/searxng/settings.yml: -r-------- uid 977 gid 977; mount: tmpfs /etc/searxng tmpfs
+
+== C2 (Argus): key prefix (first 12 chars, fed via stdin) in hermes /opt/data + /tmp + /proc/*/environ (no /config in hermes)
+hermes-profiel-1: files_with_prefix=0 env_hits=0
+hermes-profiel-2: files_with_prefix=0 env_hits=0
+hermes-profiel-3: files_with_prefix=0 env_hits=0
+
+== C12g-2/3/4 + forced error: direct HTTP from hermes-profiel-1 app container to searxng (no model session)
+== T-BRAVE (neutral query, engines=braveapi)
+results=20 unresponsive=[] secs=2.28 engines=Counter({'braveapi': 20})
+== T-NL (Dutch query, per engine)
+braveapi: results=20 top10_nl_hosts=5/10 unresponsive=[] hosts=['www.eefkooktzo.nl', 'www.libelle-lekker.be', 'njam.tv', 'dagelijksekost.vrt.be', 'www.eefkooktzo.nl', 'uitpaulineskeuken.nl', 'deliciousmagazine.nl', 'www.jumbo.com', 'www.smaakt.bio', 'www.erwtensoeprecept.nl']
+bing: results=10 top10_nl_hosts=10/10 unresponsive=[] hosts=['www.eefkooktzo.nl', 'www.ah.nl', 'receptenvanoma.nl', 'www.leukerecepten.nl', 'miljuschka.nl', 'www.24kitchen.nl', 'brendakookt.nl', 'www.keukenliefde.nl', 'www.ah.nl', 'www.eefkooktzo.nl']
+wikipedia: results=0 top10_nl_hosts=0/0 unresponsive=[] hosts=[]
+== T-SAFE (adult query, term withheld) per engine, default and safesearch=0
+term#1 engine=braveapi ss0=False results=20 adult_hosts=0 [] unresponsive=[]
+term#1 engine=braveapi ss0=True results=20 adult_hosts=0 [] unresponsive=[]
+term#1 engine=bing ss0=False results=0 adult_hosts=0 [] unresponsive=[]
+term#1 engine=bing ss0=True results=0 adult_hosts=0 [] unresponsive=[]
+term#1 engine=wikipedia ss0=False results=0 adult_hosts=0 [] unresponsive=[]
+term#1 engine=wikipedia ss0=True results=0 adult_hosts=0 [] unresponsive=[]
+term#1 engine=all ss0=False results=20 adult_hosts=0 [] unresponsive=[]
+term#1 engine=all ss0=True results=20 adult_hosts=0 [] unresponsive=[]
+term#2 engine=braveapi ss0=False results=7 adult_hosts=0 [] unresponsive=[]
+term#2 engine=braveapi ss0=True results=7 adult_hosts=0 [] unresponsive=[]
+term#2 engine=bing ss0=False results=0 adult_hosts=0 [] unresponsive=[]
+term#2 engine=bing ss0=True results=0 adult_hosts=0 [] unresponsive=[]
+term#2 engine=wikipedia ss0=False results=0 adult_hosts=0 [] unresponsive=[]
+term#2 engine=wikipedia ss0=True results=0 adult_hosts=0 [] unresponsive=[]
+term#2 engine=all ss0=False results=7 adult_hosts=0 [] unresponsive=[]
+term#2 engine=all ss0=True results=7 adult_hosts=0 [] unresponsive=[]
+== forced braveapi error (overlong query with marker)
+results=0 unresponsive=[['braveapi', 'HTTP error']]
+BRAVE_TEST_CALLS=11
+END_UTC 2026-09-27T07:19:22Z
+
+== C12g-4 proxy search port (egress-proxy access.log, since 07:15Z, at 07:23:34Z)
+      2 en.wikipedia.org:443 200
+      1 www.bing.com:443 200   (fallback test pod, tunnel closed on delete)
+  api.search.brave.com:443 -> no line yet: the live searxng tunnel was still open (CONNECT lines are written on tunnel close). No host outside bing/wikipedia/api.search.brave.com.
+
+== C12g-5 / Argus C3 T-LOG: Loki sum(count_over_time({namespace="family-ai"} <filter> [30m])) via loki:3100, ~07:23Z
+baseline all family-ai lines: 327  (status success)
+baseline searxng render line: 3  (status success)
+key shape BSA+20 key chars: 0  (status success)
+X-Subscription-Token: 2  (status success)
+marker: 0  (status success)
+api url path: 1  (status success)
+query term erwtensoep: 0  (status success)
+query term haven van Rotterdam: 0  (status success)
+T-SAFE term 1: 0  (status success)
+T-SAFE term 2: 0  (status success)
+attribution: all X-Subscription-Token and /res/v1/web/search hits = pod heph-brave-render-test3 (synthetic fake-key render test, lines already [redacted]); token lines NOT redacted = 0; live searxng/hermes pods = 0.
+
+== C12g-7 T-FALLBACK: throwaway pod heph-searxng-fallback (live template, key env removed, readiness always false -> never a Service endpoint; verified endpoints = searxng-6557fff58c-jkbc5 only); deleted
+render: braveapi INACTIVE (no or implausible key)
+recept erwtensoep default: results=10 by_engine={bing:10} unresponsive=[]
+Rotterdam engines=wikipedia: results=0 infoboxes=1 unresponsive=[]  (wikipedia answers as infobox; no 429)
+recept erwtensoep engines=braveapi (inactive): results=10 by_engine={bing:10} (falls back to default engines)
+
+== C12g-6 T-QUOTA: FAIL
+11 braveapi calls made; live awk count (run.sh logic) = 0 at 07:23:34Z. curl keeps the CONNECT tunnel to api.search.brave.com alive, so squid logs ONE line per tunnel at close; a warm tunnel can carry many calls for hours. The tunnel count is not a usable quota counter.
+Proposed fix (not implemented): sitecustomize hook wraps braveapi.response() and logs one line per call 'family-ai quota: braveapi remaining=<X-RateLimit-Remaining monthly value>' (no query, no URL) -> authoritative Brave-side count, countable in Loki; drop the squid tsv.
