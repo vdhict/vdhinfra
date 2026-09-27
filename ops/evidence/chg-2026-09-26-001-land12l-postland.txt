@@ -1,0 +1,37 @@
+chg-2026-09-26-001 land-12l post-land (k8s-engineer), 2026-09-27 22:35-22:40Z. Push 9f90228 (parent 5d0e418) by user via relay.
+
+== E1: PASS
+Flux family-ai-hermes Ready, Applied refs/heads/main@sha1:9f902289.
+hermes-logscrub-1/2/3 each contain "agent.turn_context" and "tools.web_result_cache"; applied 22:35:54Z.
+pods hermes-profiel-1-5777868d9c-sqjh8, hermes-profiel-2-54f9c8c46b-gxdk5, hermes-profiel-3-dcd46fd7-7rw44: created 22:35:58Z (after the cm apply), Ready.
+sha256 /opt/family-ai-py/sitecustomize.py = 297840ad69809d4f... in all 3 pods == origin/main hermes/base/logscrub_sitecustomize.py (297840ad69809d4f...). Before the roll the pods had 3a68902a (old).
+
+== E2: PASS (one synthetic turn per profile, own atlas-test session; question 'Wat is twaalf keer zeven?' -> '84')
+profiel-1: Turn ended 1, tool_turns 0; since pod start: agent.conversation_loop INFO 7, agent.turn_context INFO 0, tools.web_result_cache INFO 0, tools.web_tools INFO 0; stdout turn_context 0, web_result_cache 0
+profiel-2: Turn ended 1, tool_turns 0; conversation_loop INFO 2, agent.turn_context INFO 0, web_result_cache INFO 0, web_tools INFO 0; stdout 0/0
+profiel-3: Turn ended 1, tool_turns 0; conversation_loop INFO 2, agent.turn_context INFO 0, web_result_cache INFO 0, web_tools INFO 0; stdout 0/0
+
+== C12la-3 cache positive control (profiel-1, session ...-cache): NOT EXECUTABLE
+  atlas-test-20260927T223649Z-cache 22:37:04Z Q: Zoek de openingstijden van het Rijksmuseum | A[257]: 'Het Rijksmuseum is elke dag open van 09:00 tot 17:00 uur, ook op nationale feestdagen. De laatste entree is om 16:30 uur. Toegang is gratis voor bezoekers jonger dan 18 jaar.\n\nBron: https://www.rijksmuseum.nl/en/visit/practical-info/opening-hours-and-prices'
+  atlas-test-20260927T223649Z-cache 22:37:36Z Q: Zoek de openingstijden van het Rijksmuseum | A[207]: 'Het Rijksmuseum is elke dag open van 09:00 tot 17:00 uur, inclusief nationale feestdagen. De laatste entree is om 16:30 uur.\n\nBron: https://www.rijksmuseum.nl/en/visit/practical-info/opening-hours-and-prices'
+  atlas-test-20260927T223649Z-e2 tool calls: none
+  atlas-test-20260927T223649Z-cache tool calls: [['web_search']]
+SIDS ["atlas-test-20260927T223649Z-e2", "atlas-test-20260927T223649Z-cache"]
+turn 1: real structured web_search (1 tool call; searxng quota line 22:37:19Z status 200); turn 2: no tool call (cumulative tool_turns stayed 1) - the model answered from the conversation, so the cache path was never reached. tools.web_result_cache INFO lines: 0 (none could be produced). No forcing attempted.
+Side observation: profiel-1 made a real structured tool call this time (web5 SOUL, web6 collection) - the textual-tool-call symptom did not occur in this turn.
+
+== memories/state.db
+profiel-1 Deleted session 'atlas-test-20260927T223649Z-e2'.
+profiel-1 Deleted session 'atlas-test-20260927T223649Z-cache'.
+profiel-1 AFTER memories: exists, entries=0
+profiel-1 AFTER sessions/messages: (1, 50) | atlas-test rows left: 0
+profiel-2 Deleted session 'atlas-test-20260927T223751Z-e2'.
+profiel-2 AFTER memories: exists, entries=0
+profiel-2 AFTER sessions/messages: (0, 0) | atlas-test rows left: 0
+profiel-3 Deleted session 'atlas-test-20260927T223802Z-e2'.
+profiel-3 AFTER memories: exists, entries=0
+profiel-3 AFTER sessions/messages: (0, 0) | atlas-test rows left: 0
+profiel-1 BEFORE ([], (1, 50))
+profiel-2 BEFORE ([], (0, 0))
+profiel-3 BEFORE ([], (0, 0))
+All test sessions deleted; counts equal BEFORE. No family content read.
