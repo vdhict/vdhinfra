@@ -94,7 +94,11 @@ spec:
           oidc-proxy:
             image:
               repository: docker.io/nginxinc/nginx-unprivileged
-              tag: 1.29.2-alpine@sha256:031d8c8ab79d2d171a2a383aa50a06f527791c05ba1aeae9ca05d7b9779caf8e
+              # Re-pinned per Argus (chg-2026-09-28-003): 1.29.2-alpine
+              # @sha256:031d8c8a had CRITICAL CVE-2026-31789 (libssl3). This
+              # digest (alpine 3.24.2) scanned 0 HIGH/CRITICAL; verified
+              # read-only on Docker Hub 2026-09-28 (OCI index, linux/amd64).
+              tag: 1.31.6-alpine@sha256:26b0bf6fbf07297983cb341998d79c831508787de26627dd2a112321b9c3a4af
             restartPolicy: Always
             command: ["nginx", "-c", "/etc/oidc-proxy/nginx.conf", "-g", "daemon off;"]
             securityContext:
@@ -138,6 +142,16 @@ spec:
               VIKUNJA_SERVICE_ENABLEREGISTRATION: "false"
               # No mailer, so reminders by e-mail could never be delivered.
               VIKUNJA_SERVICE_ENABLEEMAILREMINDERS: "false"
+              # ── Authelia bypasses OFF (Argus, chg-2026-09-28-003) ────────
+              # Link shares: /api/v1/shares/<hash>/auth mints a JWT with no
+              # Authelia session and no 2FA (default true, config.go:387).
+              VIKUNJA_SERVICE_ENABLELINKSHARING: "false"
+              # CalDAV: /dav takes basic auth with caldav or tk_ API tokens
+              # (default true, config.go:382). Mack's sync uses the API only.
+              VIKUNJA_SERVICE_ENABLECALDAV: "false"
+              # Long-lived session 7 d instead of the 30 d default, so a
+              # Vikunja session cannot far outlive the Authelia 2FA session.
+              VIKUNJA_SERVICE_JWTTTLLONG: "604800"
               # VIKUNJA_SERVICE_SECRET comes from vikunja-secret (envFrom).
               # ── database: postgres16 (Sander 2026-09-28, NOT SQLite) ───
               # host, database, user and password come from vikunja-secret
