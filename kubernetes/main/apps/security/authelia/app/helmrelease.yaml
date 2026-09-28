@@ -77,6 +77,10 @@ spec:
               # (oidc-open-webui-secret.yaml, chg-2026-09-26-001)
               - secretRef:
                   name: authelia-oidc-open-webui
+              # bcrypt digest of the vikunja OIDC client secret
+              # (oidc-vikunja-secret.yaml, chg-2026-09-28-003)
+              - secretRef:
+                  name: authelia-oidc-vikunja
             args: [--config, /config/configuration.yaml, --config.experimental.filters, expand-env]
             probes:
               liveness: &probes

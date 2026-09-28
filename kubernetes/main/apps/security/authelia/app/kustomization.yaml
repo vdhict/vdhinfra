@@ -6,6 +6,7 @@ resources:
   - ./helmrelease.yaml
   - ./secrets.yaml
   - ./oidc-open-webui-secret.yaml   # chg-2026-09-26-001 v4
+  - ./oidc-vikunja-secret.yaml      # chg-2026-09-28-003
 configMapGenerator:
   - name: authelia-configmap
     files:
