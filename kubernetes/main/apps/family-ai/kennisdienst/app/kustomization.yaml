@@ -10,6 +10,7 @@ resources:
   - ./externalsecret.yaml
   - ./collectie-zeevaart.sops.yaml
   - ./pvc.yaml
+  - ./pvc-prive.yaml   # land-12q: private sources, read-only at /prive, no backup
   - ./deployment.yaml
   - ./service.yaml
 configMapGenerator:

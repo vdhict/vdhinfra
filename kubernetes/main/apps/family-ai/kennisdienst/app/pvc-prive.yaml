@@ -1,0 +1,21 @@
+---
+# kennis-prive: privately supplied sources for the kennisdienst (land-12q,
+# Mack web7m). These texts are a personal paid copy: they may NOT be in Git,
+# SOPS, an image, MinIO or any backup. Hence:
+#   - NO VolSync / ReplicationSource, deliberately. After DR the volume is
+#     empty and the kennisdienst runs on the public collections only; refill
+#     from the Mac Mini with the fill script.
+#   - Mounted read-only at /prive (KENNIS_EXTRA) by the kennisdienst; written
+#     only by the one-off seed pod kennis-prive-vullen, pinned to the
+#     kennisdienst's node (RWO = one node) while the kennisdienst keeps running.
+# Remove every private text: delete this PVC (and this file).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kennis-prive
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: rook-ceph-block
+  resources:
+    requests:
+      storage: 1Gi

@@ -24,7 +24,8 @@ metadata:
     reloader.stakater.com/auto: "true"
 spec:
   replicas: 1
-  # RWO models PVC: never two pods at once.
+  # RWO PVCs (models, kennis-prive): never two pods at once - a rolling
+  # update would hang on Multi-Attach (land-12q, review point 1).
   strategy:
     type: Recreate
   revisionHistoryLimit: 2
@@ -78,6 +79,10 @@ spec:
               containerPort: 8088
           env:
             - {name: KENNIS_DATA, value: /kennis/collecties}
+            # land-12q (web7m): second root with privately supplied sources
+            # (PVC kennis-prive, read-only). Empty, unreadable or absent:
+            # the service runs on the public collections exactly as before.
+            - {name: KENNIS_EXTRA, value: /prive}
             - {name: KENNIS_POORT, value: "8088"}
             - name: KENNIS_EMBED_MODEL
               value: /models/models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2/snapshots/e8f8c211226b894fcb81acc59f3b34ba3efd5f42
@@ -102,11 +107,14 @@ spec:
           resources:
             # Measured VmHWM 2.0 GiB / cgroup memory.peak 2.05 GiB (index
             # build + queries); the request is the real steady state.
+            # land-12q: live VmHWM was 2390 MiB at 1236 units (2026-09-28),
+            # 170 MiB under the old 2560Mi limit; the fill adds 1520 units
+            # (2756 total), so the limit goes to 3Gi.
             requests:
               cpu: 50m
               memory: 2Gi
             limits:
-              memory: 2560Mi
+              memory: 3Gi
           # /gezond answers only once every index is built (~40 s measured).
           startupProbe:
             httpGet: {path: /gezond, port: http}
@@ -127,6 +135,7 @@ spec:
             # empty "collections" (SystemExit) if mounted one level up.
             - {name: zeevaart, mountPath: /kennis/collecties/zeevaart, readOnly: true}
             - {name: models, mountPath: /models, readOnly: true}
+            - {name: prive, mountPath: /prive, readOnly: true}
             - {name: tmp, mountPath: /tmp}
       volumes:
         - name: code
@@ -138,6 +147,13 @@ spec:
         - name: models
           persistentVolumeClaim:
             claimName: kennisdienst-models
+            readOnly: true
+        # Filled only by the one-off seed pod kennis-prive-vullen, pinned to
+        # this pod's node (RWO = one node); never written by this pod, which
+        # re-reads /prive only on a restart.
+        - name: prive
+          persistentVolumeClaim:
+            claimName: kennis-prive
             readOnly: true
         - name: tmp
           emptyDir:

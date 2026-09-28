@@ -35,3 +35,4 @@ resources:
   - ./chat-retention.yaml
   - ./web.yaml   # controlled internet (search + fetch)
   - ./kennisdienst.yaml   # knowledge search, hermes-profiel-1 only
+  - ./kennis-prive-vullen.yaml   # land-12q seed pod: no ingress, no egress

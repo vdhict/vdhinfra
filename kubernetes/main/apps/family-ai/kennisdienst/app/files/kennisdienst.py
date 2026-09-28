@@ -13,7 +13,11 @@ var (a k8s Secret). A request needs "Authorization: Bearer <token>" and may only
   GET  /gezond    200 once all indexes are built (readiness/liveness), no auth, counts only.
 
 Env: KENNIS_DATA, KENNIS_EMBED_MODEL, KENNIS_RERANK_MODEL (local dirs, read-only PVC), KENNIS_TOEGANG,
-     KENNIS_ADRES (default 0.0.0.0), KENNIS_POORT (default 8088).
+     KENNIS_ADRES (default 0.0.0.0), KENNIS_POORT (default 8088),
+     KENNIS_EXTRA (optional; web7l): a second root, e.g. a read-only volume with privately supplied sources that may not
+     be in the image (STCW). $KENNIS_EXTRA/<collectie>/*.md joins the collection of that name (or forms a new one).
+     Absent, empty or unset: the service runs exactly as without it. Dot-directories (a fill in progress) and
+     lost+found are skipped. A file name present in both roots refuses the start (no silent duplicates).
 """
 from __future__ import annotations
 
@@ -61,9 +65,38 @@ class BM25:
         return out
 
 
-def lees_units(map_: Path) -> list:
+def collectie_mappen(data: Path, extra: str | None) -> dict:
+    """{collectie: ([dirs under KENNIS_DATA], [dirs under KENNIS_EXTRA])}; extra dirs without *.md are skipped."""
+    mappen = {d.name: ([d], []) for d in sorted(data.iterdir()) if d.is_dir()}
+    root = Path(extra) if extra else None
+    if root is None or not root.is_dir():
+        return mappen
+    try:
+        inhoud = sorted(root.iterdir())
+    except OSError as e:   # review caa1f61: an unreadable /prive must not stop the public collections
+        sys.stderr.write(f"KENNIS_EXTRA {root} niet leesbaar ({e.__class__.__name__}); overgeslagen\n")
+        return mappen
+    for d in inhoud:
+        if not d.is_dir() or d.name.startswith(".") or d.name == "lost+found":
+            continue
+        try:
+            if not any(d.glob("*.md")):
+                continue
+        except OSError:
+            continue
+        mappen.setdefault(d.name, ([], []))[1].append(d)
+    return mappen
+
+
+def lees_units(*mappen: Path) -> list:
+    bestanden: dict = {}
+    for map_ in mappen:
+        for f in map_.glob("*.md"):
+            if f.name in bestanden:
+                raise SystemExit(f"{f.name} staat zowel in {bestanden[f.name].parent} als in {map_}")
+            bestanden[f.name] = f
     units = []
-    for f in sorted(map_.glob("*.md")):
+    for f in (bestanden[n] for n in sorted(bestanden)):   # one sorted order across roots = same order as one dir
         tekst = f.read_text(encoding="utf-8")
         titel = tekst.split("\n", 1)[0].lstrip("# ").strip()
         delen = re.split(r"(?m)^## ", tekst)
@@ -78,11 +111,13 @@ def lees_units(map_: Path) -> list:
 
 
 class Collectie:
-    def __init__(self, naam: str, map_: Path, embed, rerank):
+    def __init__(self, naam: str, mappen: tuple, embed, rerank):
         self.naam, self.embed, self.rerank = naam, embed, rerank
-        self.units = lees_units(map_)
+        basis, extra = mappen
+        self.units = lees_units(*basis, *extra)
+        self.extra = len(lees_units(*extra)) if extra else 0   # units that came from KENNIS_EXTRA (shown in /gezond)
         if not self.units:
-            raise SystemExit(f"collectie {naam}: geen units in {map_}")
+            raise SystemExit(f"collectie {naam}: geen units in {[str(m) for m in basis + extra]}")
         teksten = [self._index_tekst(u) for u in self.units]
         self.bm25 = BM25([tokens(t) for t in teksten])
         self.vec = embed.encode(teksten, batch_size=32, normalize_embeddings=True, convert_to_numpy=True)
@@ -117,7 +152,8 @@ class Dienst:
         data = Path(os.environ["KENNIS_DATA"])
         embed = SentenceTransformer(os.environ["KENNIS_EMBED_MODEL"], device="cpu")
         rerank = CrossEncoder(os.environ["KENNIS_RERANK_MODEL"], device="cpu", max_length=512)
-        self.collecties = {d.name: Collectie(d.name, d, embed, rerank) for d in sorted(data.iterdir()) if d.is_dir()}
+        self.collecties = {n: Collectie(n, m, embed, rerank)
+                           for n, m in collectie_mappen(data, os.environ.get("KENNIS_EXTRA")).items()}
         self.toegang = []   # [(token bytes, set(collecties))]
         for env, cols in json.loads(os.environ.get("KENNIS_TOEGANG", "{}")).items():
             tok = os.environ.get(env, "")
@@ -159,7 +195,8 @@ class H(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/gezond":
-            return self._j(200, {"ok": True, "collecties": {n: len(c.units) for n, c in DIENST.collecties.items()}})
+            return self._j(200, {"ok": True, "collecties": {n: len(c.units) for n, c in DIENST.collecties.items()},
+                                 "extra": {n: c.extra for n, c in DIENST.collecties.items() if c.extra}})
         self._j(404, {"fout": "onbekend pad"})
 
     def do_POST(self):
@@ -189,7 +226,8 @@ class H(BaseHTTPRequestHandler):
 def main() -> None:
     global DIENST
     DIENST = Dienst()
-    sys.stderr.write("klaar: " + json.dumps({n: len(c.units) for n, c in DIENST.collecties.items()}) + "\n")
+    sys.stderr.write("klaar: " + json.dumps({n: len(c.units) for n, c in DIENST.collecties.items()})
+                     + " extra: " + json.dumps({n: c.extra for n, c in DIENST.collecties.items() if c.extra}) + "\n")
     ThreadingHTTPServer((os.environ.get("KENNIS_ADRES", "0.0.0.0"), int(os.environ.get("KENNIS_POORT", "8088"))),
                         H).serve_forever()
 

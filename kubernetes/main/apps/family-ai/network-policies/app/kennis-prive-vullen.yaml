@@ -1,0 +1,21 @@
+---
+# kennis-prive-vullen: the one-off seed pod that fills PVC kennis-prive
+# (land-12q). Nothing in, nothing out: the package arrives through
+# `kubectl exec -i` (API server -> kubelet -> container runtime), which is
+# not pod networking, so it needs no network at all. default-deny.yaml
+# already covers this pod; this policy says it explicitly and keeps it that
+# way even if default-deny ever changes. The pod itself is NOT in Git: the
+# fill script applies it and deletes it afterwards.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kennis-prive-vullen
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: kennis-prive-vullen
+  ingress:
+    - {}
+  egress:
+    - {}
