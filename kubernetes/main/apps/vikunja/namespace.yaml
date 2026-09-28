@@ -1,0 +1,40 @@
+---
+# vikunja (chg-2026-09-28-003): a 2-week trial of Vikunja as Mack's task
+# board. HOLDS CLIENT WORK CODES in task titles and comments. The vault is
+# the record; this is a working copy.
+#
+# Why a namespace of its own, not `tools`:
+#   * tools (it-tools, tour) has no Pod Security label and no network
+#     policy. A default-deny CiliumNetworkPolicy there would also enrol
+#     it-tools and tour, which this change has no mandate to touch.
+#   * Same separation as devtools (client repos) and family-ai (children's
+#     chats): client data sits behind its own default-deny boundary, its own
+#     on-prem backup bucket and its own Renovate rule.
+#   * Rollback is one namespace, deleted by hand as a recorded step.
+#
+# Pod Security Admission: `restricted` is ENFORCED. This is the first
+# namespace in the estate where that works. Measured against the images,
+# not guessed:
+#   * vikunja/vikunja@sha256:6e2f353d... (linux/amd64) has image config
+#     User "1000", a scratch filesystem (the binary, /tmp and CA certs), and
+#     needs no capabilities.
+#   * The oidc-proxy sidecar, nginx-unprivileged, runs as uid 101. It binds
+#     127.0.0.1:443 through the pod sysctl net.ipv4.ip_unprivileged_port_start,
+#     which is in the PSA "safe" sysctl set that restricted admits.
+#   * VolSync 0.13.1 mover containers set allowPrivilegeEscalation false,
+#     drop ALL, privileged false and a read-only root
+#     (internal/controller/mover/restic/mover.go:479). runAsNonRoot and
+#     seccompProfile come from moverSecurityContext in volsync.yaml.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vikunja
+  labels:
+    # Removing this directory from Git must NOT delete the namespace and
+    # with it the PVC. Rollback deletes the namespace BY HAND, after Mack's
+    # drain sync.
+    kustomize.toolkit.fluxcd.io/prune: disabled
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

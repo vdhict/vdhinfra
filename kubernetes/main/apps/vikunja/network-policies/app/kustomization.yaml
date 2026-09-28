@@ -1,0 +1,22 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+#
+# vikunja network policy (chg-2026-09-28-003). Same model as family-ai:
+#   default-deny for every pod in the namespace, then
+#   vikunja        in:  envoy-internal only, TCP 3456
+#                  out: DNS (two names) + the Authelia pods on 8888
+#                       (OIDC back-channel via the pod-local oidc-proxy)
+#   volsync-mover  out: MinIO 9000 + DNS (cluster.local only)
+#
+# There is deliberately NO egress to envoy-internal (172.16.2.241 or its
+# pods): that path lets a pod reach every internal hostname by SNI/Host
+# (inc-2026-09-26-001). There is also no internet egress, so Vikunja
+# webhooks are dead until a later change adds a named toFQDNs rule for a
+# specific target. webhooks.enabled stays true (Mack's spec) so that change
+# needs no restart.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./default-deny.yaml
+  - ./vikunja.yaml
+  - ./volsync-mover.yaml

@@ -1,0 +1,79 @@
+---
+# OIDC back-channel for Vikunja (chg-2026-09-28-003). A copy of the
+# family-ai/open-webui design, measured there on 2026-09-26.
+#
+# Vikunja's SERVER must reach the issuer https://auth.bluejungle.net for
+# discovery, JWKS, token and userinfo. Going through envoy-internal would
+# open the SNI/Host fronting path (inc-2026-09-26-001): a pod that can reach
+# envoy-internal can reach every internal hostname. A plain call to
+# http://authelia:8888 gives the wrong issuer, because Authelia derives it
+# from Host + X-Forwarded-Proto.
+#
+# So an nginx sidecar in the vikunja pod listens on 127.0.0.1:443 with a
+# certificate for auth.bluejungle.net from a PRIVATE CA that only this pod
+# trusts. hostAlias maps auth.bluejungle.net to 127.0.0.1, and the sidecar
+# forwards ONLY the four OIDC back-channel calls to the Authelia pods, with
+# Host auth.bluejungle.net + X-Forwarded-Proto https.
+#
+# Vikunja is Go: SSL_CERT_FILE points at this CA ALONE (helmrelease.yaml),
+# which replaces the system roots. The app then trusts nothing but its own
+# sidecar. That is intended, because it has no other TLS peer.
+#
+# The BROWSER still goes to https://auth.bluejungle.net through
+# envoy-internal with the real wildcard certificate.
+#
+# cert-manager objects: a self-signed root (10 y) and a 90-day leaf. The CA
+# key never leaves the vikunja namespace. cert-manager rotates the leaf 15
+# days before expiry; Reloader restarts the pod on the Secret change.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cert-manager.io/issuer_v1.json
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: vikunja-selfsigned
+spec:
+  selfSigned: {}
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cert-manager.io/certificate_v1.json
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: vikunja-oidc-proxy-ca
+spec:
+  isCA: true
+  commonName: vikunja oidc-proxy local CA
+  secretName: vikunja-oidc-proxy-ca
+  duration: 87600h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    kind: Issuer
+    name: vikunja-selfsigned
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cert-manager.io/issuer_v1.json
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: vikunja-oidc-proxy-ca
+spec:
+  ca:
+    secretName: vikunja-oidc-proxy-ca
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cert-manager.io/certificate_v1.json
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: oidc-proxy-tls
+spec:
+  secretName: oidc-proxy-tls
+  dnsNames: [auth.bluejungle.net]
+  duration: 2160h
+  renewBefore: 360h
+  usages: [server auth, digital signature]
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    kind: Issuer
+    name: vikunja-oidc-proxy-ca

@@ -1,0 +1,12 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+#
+# Namespace-level resource list for `vikunja` (chg-2026-09-28-003, 2-week
+# trial). Picked up by cluster-apps through the directory scan of
+# ./kubernetes/main/apps, like every other namespace.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./namespace.yaml
+  - ./network-policies/install.yaml
+  - ./vikunja/install.yaml

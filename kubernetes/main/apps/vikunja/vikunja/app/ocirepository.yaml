@@ -1,0 +1,18 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/ocirepository_v1.json
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: vikunja
+spec:
+  interval: 15m
+  layerSelector:
+    mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
+    operation: copy
+  ref:
+    # bjw-s app-template, the same version as components/app-template and
+    # mealie. Pulled and read before authoring: 4.6.2 supports native
+    # sidecars (initContainers restartPolicy), hostAliases, dnsConfig and
+    # pod sysctls, which the oidc-proxy needs.
+    tag: 4.6.2
+  url: oci://ghcr.io/bjw-s-labs/helm/app-template

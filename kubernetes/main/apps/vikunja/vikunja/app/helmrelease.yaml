@@ -1,0 +1,263 @@
+---
+# Vikunja 2-week trial (chg-2026-09-28-003, Mack's request, adjusted by
+# Sander). Task board for Mack. HOLDS CLIENT WORK CODES in task titles and
+# comments; the vault is the record, this is a working copy.
+#
+# Every config key below was checked against upstream pkg/config/config.go
+# (main, 2026-09-28) and against the key strings in the pinned binary.
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: vikunja
+spec:
+  interval: 30m
+  maxHistory: 2
+  chartRef:
+    kind: OCIRepository
+    name: vikunja
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  uninstall:
+    keepHistory: false
+  values:
+    defaultPodOptions:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      # ndots 1: absolute names are tried as-is FIRST, so the sidecar's
+      # upstream lookup never fans out into search-domain queries that the
+      # Cilium DNS allow-list would have to anticipate.
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+      # OIDC back-channel: the oidc-proxy sidecar on loopback (see
+      # oidc-proxy.yaml). /etc/hosts wins over DNS for the Go resolver in a
+      # scratch image (no nsswitch.conf means files first). Browsers are
+      # unaffected, because they use real DNS.
+      hostAliases:
+        - ip: 127.0.0.1
+          hostnames: [auth.bluejungle.net]
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: {type: RuntimeDefault}
+        # Lets the non-root oidc-proxy bind 127.0.0.1:443. A "safe" sysctl,
+        # namespaced to this pod, admitted by PSA restricted.
+        sysctls:
+          - {name: net.ipv4.ip_unprivileged_port_start, value: "0"}
+
+    controllers:
+      vikunja:
+        type: deployment
+        replicas: 1
+        # RWO PVC + SQLite: never two pods on the data at once.
+        strategy: Recreate
+        annotations:
+          reloader.stakater.com/auto: "true"
+
+        initContainers:
+          # Native sidecar (restartPolicy Always): started before the app.
+          oidc-proxy:
+            image:
+              repository: docker.io/nginxinc/nginx-unprivileged
+              tag: 1.29.2-alpine@sha256:031d8c8ab79d2d171a2a383aa50a06f527791c05ba1aeae9ca05d7b9779caf8e
+            restartPolicy: Always
+            command: ["nginx", "-c", "/etc/oidc-proxy/nginx.conf", "-g", "daemon off;"]
+            securityContext:
+              runAsUser: 101
+              runAsGroup: 101
+              runAsNonRoot: true
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: {drop: ["ALL"]}
+            # No probe: nginx listens on loopback only. Vikunja retries
+            # discovery itself (openid.RegisterProviderAvailabilityCron), so
+            # a start-up race with the sidecar heals without a restart.
+            resources:
+              requests: {cpu: 10m, memory: 16Mi}
+              limits: {memory: 64Mi}
+
+        containers:
+          app:
+            image:
+              # ── PINNED: vikunja "unstable" (API + frontend in one binary) ──
+              # Resolved index digest, verified read-only against Docker Hub
+              # on 2026-09-28: multi-arch OCI index with a linux/amd64 child
+              # (sha256:053b3240...), image created 2026-09-28T15:32:20Z,
+              # config User "1000", WorkingDir /app/vikunja, port 3456.
+              #
+              # FALLBACK (NOT a rollback path): 2.6.0 =
+              #   sha256:417ada6f94e81f0267aa2f007d0a811fc82d38dd2aa58351e3ea520ca01c2ea5
+              # An unstable build can migrate the SQLite schema forward, and
+              # 2.6.0 does not downgrade it. Going back = a Vikunja dump from
+              # this instance, then an import into a fresh 2.6.0. Sander
+              # accepted this ("no way back to 2.6.x without dump").
+              #
+              # Renovate is DISABLED for this image (.renovaterc.json5).
+              # Re-pinning is a deliberate change, never a bot bump.
+              repository: docker.io/vikunja/vikunja
+              tag: unstable@sha256:6e2f353d2bdceba4b3b9413caf769ab512e6e748d97c84f54e99378e79f10738
+            env:
+              # ── service ─────────────────────────────────────────────────
+              VIKUNJA_SERVICE_PUBLICURL: https://vikunja.${SECRET_DOMAIN}/
+              VIKUNJA_SERVICE_TIMEZONE: Europe/Amsterdam   # tzdata is embedded in the binary
+              VIKUNJA_SERVICE_ENABLEREGISTRATION: "false"
+              # No mailer, so reminders by e-mail could never be delivered.
+              VIKUNJA_SERVICE_ENABLEEMAILREMINDERS: "false"
+              # VIKUNJA_SERVICE_SECRET comes from vikunja-secret (envFrom).
+              # ── storage: one PVC at /data (see vikunja-pvc.yaml) ───────
+              VIKUNJA_DATABASE_TYPE: sqlite
+              VIKUNJA_DATABASE_PATH: /data/vikunja.db
+              VIKUNJA_FILES_BASEPATH: /data/files
+              # ── no mail, no telemetry ────────────────────────────────────
+              VIKUNJA_MAILER_ENABLED: "false"
+              # sentry.enabled has no default (= off). It is set anyway,
+              # because the DSN defaults point at Vikunja's own Sentry.
+              VIKUNJA_SENTRY_ENABLED: "false"
+              VIKUNJA_SENTRY_FRONTENDENABLED: "false"
+              # ── auth: Authelia only ──────────────────────────────────────
+              # Local accounts off. With exactly one OIDC provider and no
+              # local/LDAP login, the frontend redirects straight to
+              # Authelia (frontend/src/helpers/redirectToProvider.ts
+              # getAutoRedirectProvider). The live check may flip this.
+              VIKUNJA_AUTH_LOCAL_ENABLED: "false"
+              VIKUNJA_AUTH_OPENID_ENABLED: "true"
+              VIKUNJA_AUTH_OPENID_PROVIDERS_AUTHELIA_NAME: Authelia
+              # Issuer URL, NO trailing slash: go-oidc requires the discovered
+              # issuer to equal this string exactly.
+              VIKUNJA_AUTH_OPENID_PROVIDERS_AUTHELIA_AUTHURL: https://auth.bluejungle.net
+              VIKUNJA_AUTH_OPENID_PROVIDERS_AUTHELIA_CLIENTID: vikunja
+              VIKUNJA_AUTH_OPENID_PROVIDERS_AUTHELIA_SCOPE: openid profile email
+              # ..._CLIENTSECRET comes from vikunja-secret (envFrom).
+              # Redirect URI (built by the frontend):
+              #   https://vikunja.${SECRET_DOMAIN}/auth/openid/authelia
+              # ── webhooks with the SSRF guard ON ─────────────────────────
+              VIKUNJA_WEBHOOKS_ENABLED: "true"
+              # outgoingrequests.* is the live key. webhooks.allownonroutableips
+              # is a deprecated alias that would switch the guard OFF if it
+              # were true (config.go migration block). Both are pinned false.
+              VIKUNJA_OUTGOINGREQUESTS_ALLOWNONROUTABLEIPS: "false"
+              VIKUNJA_WEBHOOKS_ALLOWNONROUTABLEIPS: "false"
+              # ratelimit: upstream defaults (global limiter off; the per-IP
+              # pre-auth floor of 10/min always applies). Behind Envoy every
+              # client shares Envoy's pod IP (ipextractionmethod direct).
+              # ── TLS trust: the pod-local oidc-proxy CA ONLY ─────────────
+              # Replaces the system roots, so the app trusts nothing but its
+              # own sidecar. It has no other TLS peer (no egress).
+              SSL_CERT_FILE: /etc/vikunja-ca/ca.crt
+            envFrom:
+              - secretRef:
+                  name: vikunja-secret
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 1000
+              runAsGroup: 1000
+              allowPrivilegeEscalation: false
+              # The image is scratch: the binary, /tmp and CA certs. It
+              # writes only to /data (PVC) and /tmp (emptyDir below).
+              readOnlyRootFilesystem: true
+              capabilities: {drop: ["ALL"]}
+            probes:
+              # /health = a DB ping only (pkg/health/health.go). It does not
+              # depend on Authelia, so an Authelia outage never restarts it.
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet: {path: /health, port: &port 3456}
+                  periodSeconds: 30
+                  timeoutSeconds: 3
+                  failureThreshold: 4
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet: {path: /health, port: *port}
+                  periodSeconds: 10
+                  timeoutSeconds: 3
+                  failureThreshold: 3
+              startup:
+                # First start runs the schema migrations.
+                enabled: true
+                custom: true
+                spec:
+                  httpGet: {path: /health, port: *port}
+                  periodSeconds: 5
+                  failureThreshold: 60
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 512Mi
+
+    service:
+      app:
+        controller: vikunja
+        ports:
+          http:
+            port: *port
+
+    # The route is a standalone file (httproute.yaml), NOT the chart's
+    # route block, so it can be reverted without a Helm upgrade.
+
+    persistence:
+      data:
+        type: persistentVolumeClaim
+        existingClaim: vikunja-data
+        advancedMounts:
+          vikunja:
+            app:
+              - path: /data
+      tmp:
+        type: emptyDir
+        sizeLimit: 256Mi
+        advancedMounts:
+          vikunja:
+            app:
+              - path: /tmp
+      oidc-ca:
+        type: secret
+        name: oidc-proxy-tls
+        items:
+          - {key: ca.crt, path: ca.crt}
+        advancedMounts:
+          vikunja:
+            app:
+              - path: /etc/vikunja-ca
+                readOnly: true
+      oidc-proxy-tls:
+        type: secret
+        name: oidc-proxy-tls
+        items:
+          - {key: tls.crt, path: tls.crt}
+          - {key: tls.key, path: tls.key}
+        advancedMounts:
+          vikunja:
+            oidc-proxy:
+              - path: /tls
+                readOnly: true
+      oidc-proxy-conf:
+        type: configMap
+        name: vikunja-oidc-proxy
+        advancedMounts:
+          vikunja:
+            oidc-proxy:
+              - path: /etc/oidc-proxy
+                readOnly: true
+      oidc-proxy-tmp:
+        type: emptyDir
+        sizeLimit: 16Mi
+        advancedMounts:
+          vikunja:
+            oidc-proxy:
+              - path: /tmp

@@ -27,6 +27,7 @@ EVIDENCE="${2:-}"
 # every existing caller (DR 00-prereqs.sh, the DR runbook) byte-identical.
 #   forge      forge-pg + forge-volsync         (chg-2026-09-23-002)
 #   family-ai  family-ai-volsync                (chg-2026-09-26-001)
+#   vikunja    vikunja-volsync                  (chg-2026-09-28-003)
 IAM_SET="${IAM_SET:-forge}"
 case "$IAM_SET" in
   forge)
@@ -37,7 +38,10 @@ case "$IAM_SET" in
     # family-ai/ reuses the scripts one level up, hence the load restrictor.
     KDIR="$DIR/family-ai"; KFLAGS=(--load-restrictor LoadRestrictionsNone)
     WANT=('"accessKey":"family-ai-volsync","policyName":"family-ai-volsync-rw","userStatus":"enabled"') ;;
-  *) echo "run.sh: unknown IAM_SET '$IAM_SET' (forge|family-ai)" >&2; exit 1 ;;
+  vikunja)
+    KDIR="$DIR/vikunja"; KFLAGS=(--load-restrictor LoadRestrictionsNone)
+    WANT=('"accessKey":"vikunja-volsync","policyName":"vikunja-volsync-rw","userStatus":"enabled"') ;;
+  *) echo "run.sh: unknown IAM_SET '$IAM_SET' (forge|family-ai|vikunja)" >&2; exit 1 ;;
 esac
 JOB="minio-iam-$IAM_SET"
 

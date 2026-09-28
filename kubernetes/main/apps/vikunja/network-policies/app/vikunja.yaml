@@ -1,0 +1,58 @@
+---
+# vikunja: in from envoy-internal only (the vikunja.bluejungle.net route);
+# out to the Authelia pods (OIDC back-channel) and DNS. Nothing else.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: vikunja
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: vikunja
+      app.kubernetes.io/controller: vikunja
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            gateway.envoyproxy.io/owning-gateway-name: envoy-internal
+      toPorts:
+        - ports: [{port: "3456", protocol: TCP}]
+  egress:
+    # OIDC back-channel: discovery, JWKS, token and userinfo, server-side.
+    # Same shape as family-ai/open-webui: the oidc-proxy sidecar terminates
+    # TLS for auth.bluejungle.net on 127.0.0.1:443 (hostAlias, pod-local
+    # private CA) and forwards to the Authelia pods with Host
+    # auth.bluejungle.net + X-Forwarded-Proto https, so the issuer stays
+    # https://auth.bluejungle.net.
+    #
+    # DELIBERATELY L4. A Cilium L7 `rules.http` block here sends the request
+    # through Cilium's embedded Envoy, which overwrites X-Forwarded-Proto.
+    # Authelia then answers 500. Measured on family-ai land-2 (2026-09-26);
+    # see family-ai/network-policies/app/open-webui.yaml.
+    # Scope: the Authelia POD selector and TCP 8888 only. Not the metrics
+    # port, and not the rest of the security namespace.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: security
+            app.kubernetes.io/name: authelia
+            app.kubernetes.io/component: authelia
+      toPorts:
+        - ports: [{port: "8888", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              # The oidc-proxy sidecar resolves its upstream once at start.
+              - matchName: authelia.security.svc.cluster.local
+              # auth.bluejungle.net comes from /etc/hosts (hostAlias). The Go
+              # resolver in a scratch image reads files before DNS (no
+              # nsswitch.conf). Anything that bypassed the hosts file gets
+              # REFUSED, instead of learning the envoy-internal IP.
+              - matchPattern: "*.vikunja.svc.cluster.local"

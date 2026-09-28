@@ -1,0 +1,33 @@
+---
+# ONE PVC for the SQLite database AND the attachments (chg-2026-09-28-003).
+#
+#   /data/vikunja.db   database.path   (+ -wal / -shm, WAL mode)
+#   /data/files/       files.basepath  (Vikunja creates it: localStorage.Ensure)
+#
+# Why one volume and not two:
+#   * VolSync snapshots one PVC atomically. The DB rows and the attachment
+#     files referenced by them are therefore always captured at the SAME
+#     instant, and a restore can never pair a DB with a newer or older file
+#     set.
+#   * No subPath. A kubelet-created subPath directory is root-owned and
+#     would not be writable by uid 1000. Mounting the volume root at /data
+#     lets fsGroup 1000 apply.
+# 2Gi = the 1Gi + 1Gi from the spec, on one volume.
+#
+# prune disabled: taking this file out of Git must NOT delete the task data.
+# Rollback deletes the PVC BY HAND, after Mack's drain sync, as a recorded
+# step.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/v1/persistentvolumeclaim.json
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vikunja-data
+  labels:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: rook-ceph-block
+  resources:
+    requests:
+      storage: 2Gi

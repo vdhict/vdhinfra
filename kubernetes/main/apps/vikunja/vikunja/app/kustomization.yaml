@@ -1,0 +1,22 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./ocirepository.yaml
+  - ./externalsecret.yaml
+  - ./vikunja-pvc.yaml
+  - ./oidc-proxy.yaml
+  - ./helmrelease.yaml
+  - ./volsync.yaml
+  - ./httproute.yaml
+configMapGenerator:
+  - name: vikunja-oidc-proxy
+    files:
+      - nginx.conf=./oidc-proxy-nginx.conf
+generatorOptions:
+  disableNameSuffixHash: true
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+# NOTE: components/volsync is deliberately NOT used. See the header of
+# volsync.yaml (the shared component writes to the Azure-mirrored bucket).

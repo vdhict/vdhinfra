@@ -1,0 +1,102 @@
+---
+# ─────────────────────────────────────────────────────────────────────────
+# WHY THIS IS NOT ../../../../components/volsync
+#
+# The shared component hardcodes s3://volsync/${APP}, and the `volsync`
+# bucket is one of the two buckets storage/minio-offsite-mirror rclone-syncs
+# to Azure every night (`for bucket in cnpg-backups volsync`). Vikunja holds
+# client work codes, so it follows the forge / family-ai pattern: its OWN
+# bucket, NOT in the mirror loop, and a scoped MinIO identity instead of
+# the root-bearing `minio` item.
+#
+# PREREQUISITE (a MinIO IAM change, HIGH, not GitOps): bucket
+# `vikunja-volsync` + user `vikunja-volsync` with policy vikunja-volsync-rw
+# must exist BEFORE this lands. Prepared in hack/minio-iam (IAM_SET=vikunja),
+# NOT run. Until it is run, the mover fails on 403 and no backup exists.
+#
+# CONSEQUENCE, stated plainly: Vikunja has NO off-site backup. A fire that
+# takes the rack also takes the Synology. That is the same interim stance as
+# the forge (ar-002). For a 2-week trial whose record is the vault, that is
+# acceptable, but it is Sander's call.
+# ─────────────────────────────────────────────────────────────────────────
+# 1Password item "minio-vikunja-volsync" (vault home-infra), created by
+# Sander:
+#   ACCESS_KEY       = vikunja-volsync   (not a secret)
+#   SECRET_KEY       40 characters, [A-Za-z0-9]
+#   RESTIC_PASSWORD  this repo's OWN password. It is the only key to
+#                    s3://vikunja-volsync/vikunja; lose it and the backups
+#                    are unrecoverable.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/external-secrets.io/externalsecret_v1.json
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: vikunja-volsync
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+spec:
+  refreshInterval: 12h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword-connect
+  target:
+    name: vikunja-volsync-secret
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        RESTIC_REPOSITORY: s3:http://minio.storage.svc.cluster.local:9000/vikunja-volsync/vikunja
+        RESTIC_PASSWORD: "{{ .RESTIC_PASSWORD }}"
+        AWS_ACCESS_KEY_ID: "{{ .ACCESS_KEY }}"
+        AWS_SECRET_ACCESS_KEY: "{{ .SECRET_KEY }}"
+  data:
+    - secretKey: ACCESS_KEY
+      remoteRef: {key: minio-vikunja-volsync, property: ACCESS_KEY}
+    - secretKey: SECRET_KEY
+      remoteRef: {key: minio-vikunja-volsync, property: SECRET_KEY}
+    - secretKey: RESTIC_PASSWORD
+      remoteRef: {key: minio-vikunja-volsync, property: RESTIC_PASSWORD}
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/volsync.backube/replicationsource_v1alpha1.json
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationSource
+metadata:
+  name: vikunja
+spec:
+  sourcePVC: vikunja-data
+  trigger:
+    # :40. Staggered from the estate's :00 sources, forgejo :15, open-webui
+    # :20 and hermes :25/:30/:35.
+    schedule: 40 * * * *
+  restic:
+    # Snapshot: VolSync clones the PVC through a VolumeSnapshot, so DB and
+    # files are captured at one instant. SQLite runs in WAL mode, so a
+    # crash-consistent snapshot recovers on open.
+    copyMethod: Snapshot
+    accessModes: [ReadWriteOnce]
+    cacheAccessModes: [ReadWriteOnce]
+    cacheCapacity: 1Gi
+    cacheStorageClassName: openebs-hostpath
+    storageClassName: rook-ceph-block
+    volumeSnapshotClassName: csi-ceph-blockpool
+    # PSA restricted: runAsNonRoot + seccomp here; VolSync itself sets
+    # drop ALL, no privilege escalation and a read-only root on the
+    # container. uid/gid 1000 = the Vikunja image, so the mover can read
+    # the clone.
+    moverSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      seccompProfile: {type: RuntimeDefault}
+    # Selected by network-policies/app/volsync-mover.yaml (MinIO + DNS only).
+    moverPodLabels:
+      vikunja/role: volsync-mover
+    moverResources:
+      requests: {cpu: 50m, memory: 128Mi}
+      limits: {memory: 512Mi}
+    repository: vikunja-volsync-secret
+    # Trial length is 2 weeks: 24 hourly + 14 daily covers the whole trial.
+    retain:
+      hourly: 24
+      daily: 14
+    pruneIntervalDays: 7

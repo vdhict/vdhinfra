@@ -1,0 +1,45 @@
+---
+# https://vikunja.${SECRET_DOMAIN} -> envoy-internal (172.16.2.241:443,
+# wildcard cert) -> vikunja:3456. LAN (and WireGuard) only.
+#
+# NEVER envoy-external, never the Cloudflare tunnel: task titles carry
+# client work codes.
+#
+# NO forward-auth. Measured by Atlas on 2026-09-28 (C1): no SecurityPolicy,
+# EnvoyExtensionPolicy or ClientTrafficPolicy exists anywhere, and Vikunja's
+# API tokens on /api/v2 must pass without an Authelia session. Login is
+# Vikunja's own OIDC client against Authelia (two_factor, one LLDAP group).
+#
+# DNS, same as devtools/forgejo:
+#   * external-dns.alpha.kubernetes.io/controller: none keeps BOTH
+#     Cloudflare instances off. Without it external-dns-cloudflare-internal
+#     would publish a PUBLIC CNAME vikunja -> internal.${SECRET_DOMAIN} plus
+#     a world-readable TXT naming this route.
+#   * external-dns-unifi does NOT read that key (its annotation prefix is
+#     external-dns-unifi.bluejungle.net/), so it DOES write the LAN record
+#     vikunja.${SECRET_DOMAIN} A 172.16.2.241 on the UDM, and removes it on
+#     revert. Do NOT also hand-write a static A record.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/gateway.networking.k8s.io/httproute_v1.json
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: vikunja
+  annotations:
+    external-dns.alpha.kubernetes.io/controller: none
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: envoy-internal
+      namespace: network
+      sectionName: https
+  hostnames:
+    - vikunja.${SECRET_DOMAIN}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: vikunja
+          port: 3456
