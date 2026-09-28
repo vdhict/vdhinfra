@@ -161,7 +161,7 @@
       // Vikunja trial (chg-2026-09-28-003): the image is the `unstable` tag
       // pinned by digest. The digest moves on every upstream build, so the
       // generic "auto-merge patch/digest" rule above would roll the task
-      // board forward daily - and an unstable build can migrate the SQLite
+      // board forward daily - and an unstable build can migrate the DB
       // schema with no way back. Re-pinning is a deliberate change, never a
       // bot bump. Must stay BELOW the auto-merge rules (later rules win).
       description: "vikunja: never auto-update the pinned unstable image (deliberate re-pin only)",

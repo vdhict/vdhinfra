@@ -4,8 +4,9 @@
 # vikunja network policy (chg-2026-09-28-003). Same model as family-ai:
 #   default-deny for every pod in the namespace, then
 #   vikunja        in:  envoy-internal only, TCP 3456
-#                  out: DNS (two names) + the Authelia pods on 8888
+#                  out: DNS (three names) + the Authelia pods on 8888
 #                       (OIDC back-channel via the pod-local oidc-proxy)
+#                       + postgres16 instances on 5432
 #   volsync-mover  out: MinIO 9000 + DNS (cluster.local only)
 #
 # There is deliberately NO egress to envoy-internal (172.16.2.241 or its

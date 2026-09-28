@@ -1,0 +1,26 @@
+---
+# Vikunja attachments ONLY (chg-2026-09-28-003, Sander 2026-09-28): mounted
+# at /app/vikunja/files (= files.basepath). The database is in postgres16,
+# not on this volume.
+#
+# Backed up by the shared components/volsync (restic, AES-256) to
+# s3://volsync/vikunja. That bucket is mirrored to Azure; the content is
+# encrypted, so Sander accepted it.
+#
+# prune disabled: taking this file out of Git must NOT delete the
+# attachments. Rollback deletes the PVC BY HAND, after Mack's drain sync, as
+# a recorded step.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/v1/persistentvolumeclaim.json
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vikunja-files
+  labels:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: rook-ceph-block
+  resources:
+    requests:
+      storage: 1Gi

@@ -14,10 +14,20 @@ spec:
     # The CNPs must exist before any vikunja pod, on every path.
     - name: vikunja-network-policies
     - name: external-secrets-stores
+    - name: cloudnative-pg   # postgres16 (init-db + app DB)
     - name: rook-ceph-cluster
     - name: volsync
     - name: cert-manager   # oidc-proxy CA + leaf
   path: ./kubernetes/main/apps/vikunja/vikunja/app
+  postBuild:
+    substitute:
+      # components/volsync
+      APP: *app
+      VOLSYNC_CLAIM: vikunja-files
+      VOLSYNC_CAPACITY: 1Gi
+      # the Vikunja image's uid/gid, so the mover can read the clone
+      VOLSYNC_PUID: "1000"
+      VOLSYNC_PGID: "1000"
   sourceRef:
     kind: GitRepository
     name: flux-system

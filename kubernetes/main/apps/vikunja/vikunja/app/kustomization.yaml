@@ -5,11 +5,44 @@ kind: Kustomization
 resources:
   - ./ocirepository.yaml
   - ./externalsecret.yaml
-  - ./vikunja-pvc.yaml
+  - ./vikunja-files-pvc.yaml
   - ./oidc-proxy.yaml
   - ./helmrelease.yaml
-  - ./volsync.yaml
   - ./httproute.yaml
+# Backup of vikunja-files: the shared component, s3://volsync/vikunja
+# (restic AES-256; the bucket is mirrored to Azure, Sander 2026-09-28).
+# Variables (APP, VOLSYNC_CLAIM, VOLSYNC_PUID/PGID, VOLSYNC_CAPACITY) come
+# from postBuild in ../install.yaml.
+components:
+  - ../../../../components/volsync
+patches:
+  # The component's moverSecurityContext sets only uid/gid/fsGroup. The
+  # vikunja namespace ENFORCES PSA restricted, which also requires
+  # runAsNonRoot and a seccompProfile, or the mover pod is rejected at
+  # admission and no backup is ever written. VolSync 0.13.1 already sets
+  # drop ALL, allowPrivilegeEscalation false and a read-only root on the
+  # mover container (mover/restic/mover.go:479).
+  # moverPodLabels: selected by network-policies/app/volsync-mover.yaml
+  # (MinIO + DNS only) under the namespace default-deny.
+  # :40 staggers it from the :00 component sources and the forge/family-ai
+  # movers.
+  - target:
+      group: volsync.backube
+      version: v1alpha1
+      kind: ReplicationSource
+    patch: |-
+      - op: replace
+        path: /spec/trigger/schedule
+        value: "40 * * * *"
+      - op: add
+        path: /spec/restic/moverSecurityContext/runAsNonRoot
+        value: true
+      - op: add
+        path: /spec/restic/moverSecurityContext/seccompProfile
+        value: {type: RuntimeDefault}
+      - op: add
+        path: /spec/restic/moverPodLabels
+        value: {vikunja/role: volsync-mover}
 configMapGenerator:
   - name: vikunja-oidc-proxy
     files:
@@ -18,5 +51,3 @@ generatorOptions:
   disableNameSuffixHash: true
   annotations:
     kustomize.toolkit.fluxcd.io/substitute: disabled
-# NOTE: components/volsync is deliberately NOT used. See the header of
-# volsync.yaml (the shared component writes to the Azure-mirrored bucket).

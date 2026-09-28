@@ -8,8 +8,9 @@
 #     policy. A default-deny CiliumNetworkPolicy there would also enrol
 #     it-tools and tour, which this change has no mandate to touch.
 #   * Same separation as devtools (client repos) and family-ai (children's
-#     chats): client data sits behind its own default-deny boundary, its own
-#     on-prem backup bucket and its own Renovate rule.
+#     chats): client data sits behind its own default-deny boundary and its
+#     own Renovate rule. (The DB itself lives in postgres16 - Sander
+#     2026-09-28, off-site risk accepted as ar-005.)
 #   * Rollback is one namespace, deleted by hand as a recorded step.
 #
 # Pod Security Admission: `restricted` is ENFORCED. This is the first
@@ -24,14 +25,16 @@
 #   * VolSync 0.13.1 mover containers set allowPrivilegeEscalation false,
 #     drop ALL, privileged false and a read-only root
 #     (internal/controller/mover/restic/mover.go:479). runAsNonRoot and
-#     seccompProfile come from moverSecurityContext in volsync.yaml.
+#     seccompProfile are patched onto the shared components/volsync
+#     ReplicationSource in vikunja/app/kustomization.yaml.
+#   * postgres-init (init-db) runs as uid 1000, read-only, drop ALL.
 apiVersion: v1
 kind: Namespace
 metadata:
   name: vikunja
   labels:
     # Removing this directory from Git must NOT delete the namespace and
-    # with it the PVC. Rollback deletes the namespace BY HAND, after Mack's
+    # with it the files PVC. Rollback deletes the namespace BY HAND, after Mack's
     # drain sync.
     kustomize.toolkit.fluxcd.io/prune: disabled
     pod-security.kubernetes.io/enforce: restricted

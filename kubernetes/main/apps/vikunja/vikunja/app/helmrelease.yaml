@@ -59,12 +59,37 @@ spec:
       vikunja:
         type: deployment
         replicas: 1
-        # RWO PVC + SQLite: never two pods on the data at once.
+        # RWO files PVC: never two pods on it at once.
         strategy: Recreate
         annotations:
           reloader.stakater.com/auto: "true"
 
         initContainers:
+          # postgres-init (mealie pattern): creates role + database "vikunja"
+          # on postgres16 if absent, and re-sets the role password on every
+          # pod start. It is the ONLY container that sees the postgres16
+          # superuser password (Secret vikunja-initdb). It writes no files,
+          # so it runs read-only as uid 1000 (image default user: nobody).
+          init-db:
+            image:
+              repository: ghcr.io/onedr0p/postgres-init
+              # :16 resolved read-only on ghcr.io 2026-09-28 (multi-arch
+              # index, linux/amd64 child). Same tag as mealie/authelia,
+              # pinned here because this namespace is manual-review only.
+              tag: 16@sha256:217c47c886965474f5c234b5a35ed008f53b39ea90a3088b31c0da98e1f9284d
+            envFrom:
+              - secretRef:
+                  name: vikunja-initdb
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 1000
+              runAsGroup: 1000
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: {drop: ["ALL"]}
+            resources:
+              requests: {cpu: 10m, memory: 32Mi}
+              limits: {memory: 128Mi}
           # Native sidecar (restartPolicy Always): started before the app.
           oidc-proxy:
             image:
@@ -97,7 +122,7 @@ spec:
               #
               # FALLBACK (NOT a rollback path): 2.6.0 =
               #   sha256:417ada6f94e81f0267aa2f007d0a811fc82d38dd2aa58351e3ea520ca01c2ea5
-              # An unstable build can migrate the SQLite schema forward, and
+              # An unstable build can migrate the DB schema forward, and
               # 2.6.0 does not downgrade it. Going back = a Vikunja dump from
               # this instance, then an import into a fresh 2.6.0. Sander
               # accepted this ("no way back to 2.6.x without dump").
@@ -114,10 +139,16 @@ spec:
               # No mailer, so reminders by e-mail could never be delivered.
               VIKUNJA_SERVICE_ENABLEEMAILREMINDERS: "false"
               # VIKUNJA_SERVICE_SECRET comes from vikunja-secret (envFrom).
-              # ── storage: one PVC at /data (see vikunja-pvc.yaml) ───────
-              VIKUNJA_DATABASE_TYPE: sqlite
-              VIKUNJA_DATABASE_PATH: /data/vikunja.db
-              VIKUNJA_FILES_BASEPATH: /data/files
+              # ── database: postgres16 (Sander 2026-09-28, NOT SQLite) ───
+              # host, database, user and password come from vikunja-secret
+              # (externalsecret.yaml). TLS on the wire: CNPG always serves
+              # TLS; "require" encrypts without verifying the CNPG CA, which
+              # matters because SSL_CERT_FILE below trusts only the
+              # oidc-proxy CA.
+              VIKUNJA_DATABASE_TYPE: postgres
+              VIKUNJA_DATABASE_SSLMODE: require
+              # ── attachments on vikunja-files (see vikunja-files-pvc.yaml)
+              VIKUNJA_FILES_BASEPATH: /app/vikunja/files
               # ── no mail, no telemetry ────────────────────────────────────
               VIKUNJA_MAILER_ENABLED: "false"
               # sentry.enabled has no default (= off). It is set anyway,
@@ -163,12 +194,14 @@ spec:
               runAsGroup: 1000
               allowPrivilegeEscalation: false
               # The image is scratch: the binary, /tmp and CA certs. It
-              # writes only to /data (PVC) and /tmp (emptyDir below).
+              # writes only to /app/vikunja/files (PVC) and /tmp (emptyDir).
               readOnlyRootFilesystem: true
               capabilities: {drop: ["ALL"]}
             probes:
               # /health = a DB ping only (pkg/health/health.go). It does not
               # depend on Authelia, so an Authelia outage never restarts it.
+              # A postgres16 outage DOES fail it: liveness tolerates 2 min
+              # (4 x 30 s) before a restart.
               liveness:
                 enabled: true
                 custom: true
@@ -211,13 +244,13 @@ spec:
     # route block, so it can be reverted without a Helm upgrade.
 
     persistence:
-      data:
+      files:
         type: persistentVolumeClaim
-        existingClaim: vikunja-data
+        existingClaim: vikunja-files
         advancedMounts:
           vikunja:
             app:
-              - path: /data
+              - path: /app/vikunja/files
       tmp:
         type: emptyDir
         sizeLimit: 256Mi

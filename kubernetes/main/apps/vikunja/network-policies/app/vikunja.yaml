@@ -1,6 +1,7 @@
 ---
 # vikunja: in from envoy-internal only (the vikunja.bluejungle.net route);
-# out to the Authelia pods (OIDC back-channel) and DNS. Nothing else.
+# out to the Authelia pods (OIDC back-channel), postgres16 and DNS. Nothing
+# else.
 # yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -39,6 +40,17 @@ spec:
             app.kubernetes.io/component: authelia
       toPorts:
         - ports: [{port: "8888", protocol: TCP}]
+    # postgres16 (Sander 2026-09-28): the app DB and the init-db
+    # initContainer (same pod, same identity). All postgres16 instances,
+    # not only the current primary: postgres16-rw follows the primary, and
+    # a failover must not need a policy change. TCP 5432 only.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: database
+            cnpg.io/cluster: postgres16
+            cnpg.io/podRole: instance
+      toPorts:
+        - ports: [{port: "5432", protocol: TCP}]
     - toEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: kube-system
@@ -51,6 +63,8 @@ spec:
             dns:
               # The oidc-proxy sidecar resolves its upstream once at start.
               - matchName: authelia.security.svc.cluster.local
+              # Vikunja (DATABASE_HOST) and init-db (INIT_POSTGRES_HOST).
+              - matchName: postgres16-rw.database.svc.cluster.local
               # auth.bluejungle.net comes from /etc/hosts (hostAlias). The Go
               # resolver in a scratch image reads files before DNS (no
               # nsswitch.conf). Anything that bypassed the hosts file gets
