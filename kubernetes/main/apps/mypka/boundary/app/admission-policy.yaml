@@ -208,3 +208,68 @@ spec:
     namespaceSelector:
       matchLabels:
         kubernetes.io/metadata.name: mypka
+---
+# ── 5. CNP port guard (chg-2026-10-05-004, inc-2026-10-05-002) ──────────
+# Cilium 1.19.4's embedded Envoy aborts (RELEASE_ASSERT "duplicate entry at
+# end when explicitly adding a new range!", cilium/cilium#45811) when one
+# endpoint's policy holds two different TCP/ANY port keys that both contain
+# port 65535. The platform CCNP already holds one (10444-65535; see its
+# PORT-RANGE INVARIANT). Without this guard, a single tenant CNP port entry
+# that reaches 65535 would abort Envoy for the WHOLE NODE and stop every new
+# mypka endpoint, in any of these forms:
+#   - endPort 65535, or port "65535";
+#   - a named port: the agent resolves names to whatever number a pod
+#     declares, and a tenant pod may declare containerPort 65535.
+# So, in every CNP in mypka (spec and specs[], all four rule directions),
+# each toPorts entry must be a numeric port below 65535, and any endPort
+# must be below 65535. Applies to every requester in mypka, platform too;
+# the platform CNPs (53 only) comply. Remove once Cilium >= 1.19.5 (fixed
+# proxy) is live AND the tenant actually needs these forms.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/admissionregistration.k8s.io/validatingadmissionpolicy_v1.json
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: mypka-tenant-cnp-ports
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["cilium.io"]
+        apiVersions: ["*"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["ciliumnetworkpolicies"]
+  variables:
+    - name: specs
+      expression: >-
+        (has(object.spec) ? [object.spec] : []) +
+        (has(object.specs) ? object.specs : [])
+  validations:
+    - expression: >-
+        variables.specs.all(s,
+          (!has(s.egress) || s.egress.all(r, !has(r.toPorts) || r.toPorts.all(t, !has(t.ports) || t.ports.all(p,
+            (!has(p.port) || (p.port.matches('^[0-9]+$') && int(p.port) < 65535)) &&
+            (!has(p.endPort) || p.endPort < 65535))))) &&
+          (!has(s.egressDeny) || s.egressDeny.all(r, !has(r.toPorts) || r.toPorts.all(t, !has(t.ports) || t.ports.all(p,
+            (!has(p.port) || (p.port.matches('^[0-9]+$') && int(p.port) < 65535)) &&
+            (!has(p.endPort) || p.endPort < 65535))))) &&
+          (!has(s.ingress) || s.ingress.all(r, !has(r.toPorts) || r.toPorts.all(t, !has(t.ports) || t.ports.all(p,
+            (!has(p.port) || (p.port.matches('^[0-9]+$') && int(p.port) < 65535)) &&
+            (!has(p.endPort) || p.endPort < 65535))))) &&
+          (!has(s.ingressDeny) || s.ingressDeny.all(r, !has(r.toPorts) || r.toPorts.all(t, !has(t.ports) || t.ports.all(p,
+            (!has(p.port) || (p.port.matches('^[0-9]+$') && int(p.port) < 65535)) &&
+            (!has(p.endPort) || p.endPort < 65535))))))
+      message: "mypka: CNP toPorts must use numeric ports below 65535 and endPort below 65535 (no named ports). Cilium 1.19.4 Envoy aborts on overlapping ranges that reach 65535 (inc-2026-10-05-002)."
+      reason: Forbidden
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/admissionregistration.k8s.io/validatingadmissionpolicybinding_v1.json
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: mypka-tenant-cnp-ports
+spec:
+  policyName: mypka-tenant-cnp-ports
+  validationActions: ["Deny"]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: mypka

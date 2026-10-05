@@ -12,6 +12,29 @@
 #     [kube-system, devtools, network, mypka], then, inside those three, deny
 #     every pod that is NOT the excepted pod, and on the excepted pods deny
 #     every port that is NOT the excepted port (port ranges via endPort).
+#
+# PORT-RANGE INVARIANT (inc-2026-10-05-002, chg-2026-10-05-004). Do not
+# break this when editing the port lists below:
+#   Every port range in this file is taken from ONE fixed set of disjoint
+#   "atoms" that partitions 1-65535 at the excepted ports:
+#     1-52 | 53 | 54-2221 | 2222 | 2223-10079 | 10080 | 10081-10442 | 10443 | 10444-65535
+#   Each deny rule lists every atom except its own hole(s). Never write a
+#   complement such as "54-65535" per rule.
+#   Why: Cilium 1.19.4 ships cilium-envoy b87d1e32 (1.36.6). Its NPDS port
+#   splitting (cilium/proxy cilium/network_policy.cc, PortNetworkPolicy ctor)
+#   overflows uint16 when a range ending at 65535 is inserted over an
+#   existing entry that also ends at 65535 (65535+1 -> 0). It then hits
+#   RELEASE_ASSERT "duplicate entry at end when explicitly adding a new
+#   range!", which aborts the node's embedded Envoy, and no pod in mypka
+#   gets an endpoint. The old file had three such ranges (54-, 2223-,
+#   10444-65535). Upstream: cilium/cilium#45811, fixed by cilium/proxy#1918
+#   (b5910cd7; v1.36 backport 35a39c4d), first shipped in Cilium 1.19.5.
+#   The agent merges identical (port, endPort, protocol) keys
+#   (pkg/policy/l4.go portProtoKey), so the single atom 10444-65535 shared
+#   by all rules reaches Envoy exactly once. Keep protocol ANY on every
+#   atom: an ANY and a TCP filter with the same range are two NPDS entries.
+#   Tenant CNPs could reintroduce the overflow, so the admission policy
+#   mypka-tenant-cnp-ports keeps port 65535 and named ports out of them.
 #   * A selector "key NotIn [...]" also matches identities that do NOT HAVE
 #     the key at all. For the namespace rule that would include reserved
 #     identities such as world, i.e. the whole internet. The extra
@@ -96,10 +119,17 @@ spec:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: kube-system
             k8s:k8s-app: kube-dns
+      #    Atoms (see PORT-RANGE INVARIANT): all except 53.
       toPorts:
         - ports:
             - {port: "1", endPort: 52, protocol: ANY}
-            - {port: "54", endPort: 65535, protocol: ANY}
+            - {port: "54", endPort: 2221, protocol: ANY}
+            - {port: "2222", protocol: ANY}
+            - {port: "2223", endPort: 10079, protocol: ANY}
+            - {port: "10080", protocol: ANY}
+            - {port: "10081", endPort: 10442, protocol: ANY}
+            - {port: "10443", protocol: ANY}
+            - {port: "10444", endPort: 65535, protocol: ANY}
     # 5. devtools: every pod that is not forgejo (two rules = NOT (A AND B);
     #    catches forge-pg and anything added later) ...
     - toEndpoints:
@@ -121,10 +151,17 @@ spec:
             k8s:io.kubernetes.pod.namespace: devtools
             k8s:app.kubernetes.io/name: forgejo
             k8s:app.kubernetes.io/instance: forgejo
+      #    Atoms (see PORT-RANGE INVARIANT): all except 2222.
       toPorts:
         - ports:
-            - {port: "1", endPort: 2221, protocol: ANY}
-            - {port: "2223", endPort: 65535, protocol: ANY}
+            - {port: "1", endPort: 52, protocol: ANY}
+            - {port: "53", protocol: ANY}
+            - {port: "54", endPort: 2221, protocol: ANY}
+            - {port: "2223", endPort: 10079, protocol: ANY}
+            - {port: "10080", protocol: ANY}
+            - {port: "10081", endPort: 10442, protocol: ANY}
+            - {port: "10443", protocol: ANY}
+            - {port: "10444", endPort: 65535, protocol: ANY}
     # 6. network: every pod that is not an envoy-internal proxy (the gateway
     #    controller, envoy-external, cloudflared, external-dns, ...) ...
     - toEndpoints:
@@ -147,8 +184,13 @@ spec:
             k8s:io.kubernetes.pod.namespace: network
             k8s:gateway.envoyproxy.io/owning-gateway-name: envoy-internal
             k8s:gateway.envoyproxy.io/owning-gateway-namespace: network
+      #    Atoms (see PORT-RANGE INVARIANT): all except 10080 and 10443.
       toPorts:
         - ports:
-            - {port: "1", endPort: 10079, protocol: ANY}
+            - {port: "1", endPort: 52, protocol: ANY}
+            - {port: "53", protocol: ANY}
+            - {port: "54", endPort: 2221, protocol: ANY}
+            - {port: "2222", protocol: ANY}
+            - {port: "2223", endPort: 10079, protocol: ANY}
             - {port: "10081", endPort: 10442, protocol: ANY}
             - {port: "10444", endPort: 65535, protocol: ANY}
