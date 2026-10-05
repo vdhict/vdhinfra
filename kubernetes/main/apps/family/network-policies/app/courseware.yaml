@@ -1,0 +1,48 @@
+---
+# courseware: in from envoy-internal only (the cursus.${SECRET_DOMAIN} route),
+# on the nginx port. Out ONLY to github.com:22 (the git-fetch init container,
+# read-only deploy key) and DNS for that one name. No npm registry: the
+# course build is zero-dependency (`node build.mjs`, no npm ci).
+#
+# Cilium policy is per pod, not per container: the nginx container shares
+# the pod identity and so COULD reach github.com:22 as well. It holds no key
+# (the Secret is mounted in git-fetch only) and its config is static.
+# Accepted; the alternative (a separate build Job + RWX volume) adds state
+# for a 30 ms build.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: courseware
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: courseware
+      app.kubernetes.io/controller: courseware
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            gateway.envoyproxy.io/owning-gateway-name: envoy-internal
+      toPorts:
+        - ports: [{port: "8080", protocol: TCP}]
+  egress:
+    # git fetch over SSH, deploy key, host key pinned (StrictHostKeyChecking
+    # yes against the known_hosts in the courseware-git Secret).
+    - toFQDNs:
+        - matchName: github.com
+      toPorts:
+        - ports: [{port: "22", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              # ndots 1 (helmrelease dnsConfig): "github.com" is tried as an
+              # absolute name first, no search-domain fan-out.
+              - matchName: github.com

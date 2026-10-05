@@ -1,0 +1,17 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+#
+# Namespace-level resource list for `family` (chg-2026-09-21-004,
+# tsk-2026-09-15-018). Picked up by cluster-apps through the directory scan
+# of ./kubernetes/main/apps, like every other namespace.
+#
+# `family` is NOT `family-ai`: it holds static, household-facing web content
+# (the family AI course), no conversations and no models. Own namespace so
+# the course gets PSA restricted ENFORCED and its own default-deny without
+# enrolling anything else.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./namespace.yaml
+  - ./network-policies/install.yaml
+  - ./courseware/install.yaml

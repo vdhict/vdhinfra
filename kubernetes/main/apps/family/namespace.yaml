@@ -1,0 +1,21 @@
+---
+# family (chg-2026-09-21-004): household web content. First tenant is
+# courseware (the family AI course at cursus.${SECRET_DOMAIN}, LAN only).
+#
+# Pod Security Admission `restricted` is ENFORCED. Every container in
+# courseware runs non-root, read-only root FS, drop ALL, seccomp
+# RuntimeDefault, no ServiceAccount token (see courseware/app/helmrelease.yaml).
+#
+# Stateless: no PVCs. prune stays disabled anyway (estate pattern) so a
+# directory removal never races the Kustomizations inside it; rollback
+# deletes the namespace BY HAND as a recorded step.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: family
+  labels:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

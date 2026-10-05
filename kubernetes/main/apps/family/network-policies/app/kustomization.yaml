@@ -1,0 +1,16 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+#
+# CiliumNetworkPolicy, not networking.k8s.io/NetworkPolicy:
+#   1. github.com:22 needs FQDN egress (toFQDNs). A plain NetworkPolicy can
+#      only say "any IP on 22", i.e. the whole internet.
+#   2. A per-workload DNS allow-list (Cilium DNS proxy), so the pod cannot use
+#      DNS as a side channel to arbitrary names.
+#
+# No egress to envoy-internal / envoy-external (inc-2026-09-26-001 pattern:
+# that path reaches every internal hostname by SNI/Host).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./default-deny.yaml
+  - ./courseware.yaml

@@ -1,0 +1,262 @@
+---
+# courseware (chg-2026-09-21-004, tsk-2026-09-15-018): the family AI course,
+# a static site built from a PRIVATE GitHub repo at a PINNED commit.
+#
+#   git-fetch (init)  alpine/git: shallow fetch of exactly COURSE_REF over SSH
+#                     with the read-only deploy key; refuses any other HEAD.
+#   build (init)      node: `node build.mjs`. Zero-dependency generator: no
+#                     npm ci, no registry, no network at all. Copies dist/ and
+#                     the repo's own nginx config (deploy/nginx/) to `site`.
+#   app               nginx-unprivileged on 8080 serving `site`, read-only.
+#
+# Content update = bump COURSE_REF in Git (reviewed commit). The pod template
+# changes, a new pod fetches + builds, and RollingUpdate keeps the old pod
+# serving until the new one is Ready. If GitHub is down the new pod waits in
+# Init and the old one keeps serving.
+#
+# Images: vendor images only, pinned by index digest (linux/amd64 children
+# and config User checked on registry-1.docker.io, 2026-10-05):
+#   alpine/git 2.54.0                       child sha256:174d2d4d..., User root
+#   library/node 26.10.0-alpine3.24         child sha256:b341ca66..., User root
+#   nginxinc/nginx-unprivileged 1.30.5-alpine3.24
+#                                           child sha256:4483b2e4..., User 101
+# node and alpine/git default to root, so both run as nobody (65534) here,
+# which exists in both images' /etc/passwd (OpenSSH refuses a uid without a
+# passwd entry). nginx keeps its image user 101.
+#
+# No ${VAR} needed in this file, so Flux substitution is OFF: the shell
+# scripts below use $VAR freely.
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: courseware
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+spec:
+  interval: 30m
+  maxHistory: 2
+  chartRef:
+    kind: OCIRepository
+    name: courseware
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  uninstall:
+    keepHistory: false
+  values:
+    defaultPodOptions:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: {type: RuntimeDefault}
+
+    controllers:
+      courseware:
+        type: deployment
+        replicas: 1
+        strategy: RollingUpdate
+        # maxUnavailable is left at the Deployment default (25%, rounds DOWN
+        # to 0 of 1 replica): the chart drops an explicit 0 as falsy.
+        rollingUpdate:
+          surge: 1
+        # A Secret change (rotated deploy key) needs no restart: the key is
+        # only read at pod start. No reloader annotation on purpose.
+
+        initContainers:
+          git-fetch:
+            image:
+              repository: docker.io/alpine/git
+              tag: 2.54.0@sha256:a4bb51f1a3553df194ce679fc1db721d8bfba2046fa1a88fe9d4ac551ffbce25
+            command: ["/bin/sh", "-ec"]
+            args:
+              - |
+                git init -q /work/src
+                cd /work/src
+                git remote add origin "$COURSE_REPO_URL"
+                git fetch --quiet --depth 1 origin "$COURSE_REF"
+                git -c advice.detachedHead=false checkout --quiet FETCH_HEAD
+                head="$(git rev-parse HEAD)"
+                if [ "$head" != "$COURSE_REF" ]; then
+                  echo "courseware: fetched $head, expected $COURSE_REF" >&2
+                  exit 1
+                fi
+                rm -rf .git
+                echo "courseware: fetched $COURSE_REF"
+            env:
+              # The approved content commit (redacted content, chapter locks
+              # removed; chg-2026-09-21-004). Bump only in a reviewed commit.
+              COURSE_REF: 56aa74636f0974c52107aa4b8766f06c950aa5ea
+              COURSE_REPO_URL:
+                valueFrom:
+                  secretKeyRef:
+                    name: courseware-git
+                    key: COURSE_REPO_URL
+              HOME: /tmp
+              GIT_TERMINAL_PROMPT: "0"
+              GIT_SSH_COMMAND: >-
+                ssh -F /dev/null
+                -i /etc/courseware-git/identity -o IdentitiesOnly=yes
+                -o UserKnownHostsFile=/etc/courseware-git/known_hosts
+                -o StrictHostKeyChecking=yes -o BatchMode=yes
+                -o ConnectTimeout=20
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 65534
+              runAsGroup: 65534
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: {drop: ["ALL"]}
+            resources:
+              requests: {cpu: 10m, memory: 32Mi}
+              limits: {memory: 256Mi}
+
+          build:
+            # app-template renders init containers alphabetically unless told
+            # otherwise; "build" < "git-fetch" would run first on an empty
+            # /work. Caught in the helm template render, 2026-10-05.
+            dependsOn: [git-fetch]
+            image:
+              repository: docker.io/library/node
+              tag: 26.10.0-alpine3.24@sha256:0b36e8c136b94cd4fcf02188228e76c31ad5872eef3fec8cbd2eee500cfd9e80
+            command: ["/bin/sh", "-ec"]
+            args:
+              - |
+                cd /work/src
+                node build.mjs
+                test -s dist/index.html
+                mkdir -p /site/html /site/conf.d /site/snippets
+                cp -R dist/. /site/html/
+                cp deploy/nginx/default.conf /site/conf.d/default.conf
+                cp deploy/nginx/security-headers.conf /site/snippets/security-headers.conf
+                echo "courseware: built $(find /site/html -type f | wc -l) files"
+            env:
+              HOME: /tmp
+              NODE_ENV: production
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 65534
+              runAsGroup: 65534
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: {drop: ["ALL"]}
+            resources:
+              requests: {cpu: 50m, memory: 64Mi}
+              limits: {memory: 256Mi}
+
+        containers:
+          app:
+            image:
+              repository: docker.io/nginxinc/nginx-unprivileged
+              # Stable 1.30 line (the content repo's Dockerfile choice).
+              tag: 1.30.5-alpine3.24@sha256:15c994d10d6d78658721c3bcafff14cb281fba2a4bdf9d5ba92c416a472516e3
+            # Skip /docker-entrypoint.sh: its scripts try to edit conf.d,
+            # which is a read-only mount here.
+            command: ["nginx", "-g", "daemon off;"]
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 101
+              runAsGroup: 101
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: {drop: ["ALL"]}
+            probes:
+              # /healthz is served by the repo's default.conf (return 200).
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet: {path: /healthz, port: &port 8080}
+                  periodSeconds: 30
+                  timeoutSeconds: 3
+                  failureThreshold: 3
+              readiness:
+                # The index page, not /healthz: Ready means the BUILD is
+                # being served, not only that nginx is up.
+                enabled: true
+                custom: true
+                spec:
+                  httpGet: {path: /, port: *port}
+                  periodSeconds: 10
+                  timeoutSeconds: 3
+                  failureThreshold: 3
+            resources:
+              requests: {cpu: 10m, memory: 16Mi}
+              limits: {memory: 64Mi}
+
+    service:
+      app:
+        controller: courseware
+        ports:
+          http:
+            port: *port
+
+    # The route is a standalone file (httproute.yaml), NOT the chart's route
+    # block, so it can be reverted without a Helm upgrade.
+
+    persistence:
+      # Clone + build scratch. Never mounted in nginx.
+      work:
+        type: emptyDir
+        sizeLimit: 256Mi
+        advancedMounts:
+          courseware:
+            git-fetch:
+              - path: /work
+            build:
+              - path: /work
+      # What nginx serves, written once by `build`, read-only in nginx.
+      site:
+        type: emptyDir
+        sizeLimit: 64Mi
+        advancedMounts:
+          courseware:
+            build:
+              - path: /site
+            app:
+              - path: /usr/share/nginx/html
+                subPath: html
+                readOnly: true
+              - path: /etc/nginx/conf.d
+                subPath: conf.d
+                readOnly: true
+              - path: /etc/nginx/snippets
+                subPath: snippets
+                readOnly: true
+      # The deploy key + pinned known_hosts. git-fetch ONLY.
+      git-ssh:
+        type: secret
+        name: courseware-git
+        defaultMode: 0440
+        items:
+          - {key: identity, path: identity}
+          - {key: known_hosts, path: known_hosts}
+        advancedMounts:
+          courseware:
+            git-fetch:
+              - path: /etc/courseware-git
+                readOnly: true
+      tmp:
+        type: emptyDir
+        sizeLimit: 16Mi
+        advancedMounts:
+          courseware:
+            git-fetch:
+              - path: /tmp
+            build:
+              - path: /tmp
+            app:
+              - path: /tmp
