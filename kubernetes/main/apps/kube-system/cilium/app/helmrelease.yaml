@@ -98,6 +98,11 @@ spec:
       annotations:
         grafana_folder: Cilium
     rollOutCiliumPods: true
+    # chg-2026-10-05-015: roll agents one node at a time (chart default 2).
+    updateStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 1
     routingMode: native
     securityContext:
       capabilities:
