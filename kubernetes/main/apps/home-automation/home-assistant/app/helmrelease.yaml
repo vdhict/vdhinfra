@@ -90,9 +90,17 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
 
     route:
+      # LAN-only since chg-2026-10-05-020 (public tunnel decommissioned).
+      # Remote access is Nabu Casa (HA external_url, set in HA's own config,
+      # not here). controller:none keeps both Cloudflare external-dns
+      # instances off; external-dns-unifi still writes the LAN A record
+      # (hass -> envoy-internal LB IP), owner TXT resource unchanged because
+      # the route keeps its name (home-assistant-main).
       main:
+        annotations:
+          external-dns.alpha.kubernetes.io/controller: none
         parentRefs:
-          - name: envoy-external
+          - name: envoy-internal
             namespace: network
             sectionName: https
         hostnames:
