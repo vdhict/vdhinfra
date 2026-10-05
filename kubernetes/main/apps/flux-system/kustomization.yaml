@@ -6,4 +6,3 @@ resources:
   - ./flux-operator/install.yaml
   - ./flux-instance/install.yaml
   - ./weave-gitops/install.yaml
-  - ./webhooks/install.yaml
