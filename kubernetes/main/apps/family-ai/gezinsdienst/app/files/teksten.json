@@ -1,10 +1,10 @@
 {
-  "_bron": "Tess, Deliverables/2026-09-26-family-teacher-and-safety-signal-design.md §5.10 (Text used) and §3.7. Drafts for Ezra's pass. Change a string here and nowhere else; bin/render-bundle and the service read this file. Gedrag labels and gedrag_zin: Tess §12.4 and §12.10 (Mijn ladder rows). hulp_standaard/hulp_thuis: Tess §13.2 (Sunday), Offlimits hours removed per Larry 2026-09-26 (Pax: hours unconfirmed for the phone line).",
+  "_bron": "Tess, Deliverables/2026-09-26-family-teacher-and-safety-signal-design.md §5.10 (Text used) and §3.7. Drafts for Ezra's pass. Change a string here and nowhere else; bin/render-bundle and the service read this file. Gedrag labels and gedrag_zin: Tess §12.4 and §12.10 (Mijn ladder rows). hulp_standaard/hulp_thuis: Tess §13.2 (Sunday), Offlimits hours removed per Larry 2026-09-26 (Pax: hours unconfirmed for the phone line). web7m6 (Atlas d0f2 #1b, 1 Oct): the parent line (hulplijnen.ouders and the last hulp_standaard line) is one sentence instead of three, same meaning, because \"Ook 's nachts: maak ze wakker.\" survived the home-turn strip live; for Tess to confirm the wording.",
   "hulplijnen": {
     "112": "Direct gevaar: bel 112.",
     "113": "Denk je aan zelfmoord: 113 Zelfmoordpreventie, bel gratis 113, of kijk op 113.nl.",
     "kindertelefoon": "Praten over alles wat je dwarszit: De Kindertelefoon, 0800-0432, elke dag van 11:00 tot 21:00, ook via chat op kindertelefoon.nl.",
-    "ouders": "En vooral: ga naar papa of mama. Ook 's nachts: maak ze wakker. Dat willen ze."
+    "ouders": "En vooral: ga naar papa of mama, ook 's nachts als je ze wakker moet maken, want dat willen ze."
   },
   "signaal_zin": "Ik heb papa een seintje gegeven. Hij ziet alleen dát er iets is, welke soort, en hoe laat. Wat je hier schreef, ziet hij niet. Wil je zelf met papa of mama praten? Dat is het beste.",
   "signaal_zin_niet_verstuurd": "Het seintje is nu niet aangekomen. Ga daarom zelf naar papa of mama, ook als ze slapen. Ik probeer het seintje straks opnieuw te versturen.",
@@ -32,7 +32,7 @@
     "Denk je aan zelfmoord: 113 Zelfmoordpreventie, dag en nacht, bel gratis 113 of chat op 113.nl.",
     "Iemand online wil foto's van je of dreigt iets te verspreiden: Hulplijn Offlimits, gratis en anoniem, 0800-0033 of chat op chathulplijn.offlimits.nl.",
     "Praten over alles wat je dwarszit: De Kindertelefoon, 0800-0432, elke dag van 11:00 tot 21:00, ook via chat op kindertelefoon.nl.",
-    "En vooral: ga naar papa of mama. Ook 's nachts: maak ze wakker. Dat willen ze."
+    "En vooral: ga naar papa of mama, ook 's nachts als je ze wakker moet maken, want dat willen ze."
   ],
   "hulp_thuis": [
     "Levensgevaar of direct gevaar: bel 112.",
