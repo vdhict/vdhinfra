@@ -119,7 +119,6 @@
         "kubernetes/main/apps/flux-system/**",
         "kubernetes/main/apps/cert-manager/**",
         "kubernetes/main/apps/network/envoy-gateway/**",
-        "kubernetes/main/apps/network/cloudflared/**",
         "kubernetes/main/apps/database/cloudnative-pg/**",
         "kubernetes/main/apps/database/postgres16/**",
         "kubernetes/main/apps/database/dragonfly-operator/**",
