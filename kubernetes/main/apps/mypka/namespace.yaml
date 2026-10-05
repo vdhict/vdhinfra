@@ -1,0 +1,24 @@
+---
+# mypka (chg-2026-10-05-003): the myPKA tenant namespace. Workloads are
+# delivered by Mack from Forgejo repo VDHICT/cluster-wires and applied by Flux
+# as the namespace-scoped ServiceAccount mypka-tenant (see wires/).
+#
+# Selectors that must not be forgeable use the API-server-owned label
+# kubernetes.io/metadata.name (ESO store conditions, admission policy
+# bindings) or Cilium's k8s:io.kubernetes.pod.namespace. The tenant has no
+# rights on Namespace objects, so neither it nor vdhinfra.io/tenant below can
+# be changed from inside. vdhinfra.io/tenant is an inventory label.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mypka
+  labels:
+    vdhinfra.io/tenant: mypka
+    # Removing this directory from Git must NOT delete the namespace and the
+    # tenant's PVCs with it. Rollback deletes the namespace BY HAND, as a
+    # recorded step, after the tenant Kustomization has pruned.
+    kustomize.toolkit.fluxcd.io/prune: disabled
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

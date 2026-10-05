@@ -1,0 +1,31 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# The platform boundary for the mypka tenant. Applied with OUR rights (this
+# Kustomization has no serviceAccountName), and it lands BEFORE the tenant
+# Kustomization (mypka-wires dependsOn this), so no tenant object is ever
+# applied without RBAC, quota, network deny and admission policies in place.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app mypka-boundary
+  namespace: flux-system
+spec:
+  # NO targetNamespace: this path mixes cluster-scoped objects (CCNP, VAPs)
+  # with namespaced ones. kustomize's namespace transformer does not know
+  # that a CRD kind like CiliumClusterwideNetworkPolicy is cluster-scoped,
+  # so every namespaced object carries an explicit `namespace: mypka`
+  # instead (same pattern as devtools' quota).
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+      app.kubernetes.io/part-of: mypka
+  path: ./kubernetes/main/apps/mypka/boundary/app
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: true
+  interval: 30m
+  retryInterval: 1m
+  timeout: 5m

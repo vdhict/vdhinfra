@@ -72,3 +72,9 @@ spec:
       target:
         group: kustomize.toolkit.fluxcd.io
         kind: Kustomization
+        # chg-2026-10-05-003: tenant Kustomizations (mypka-wires) must NOT
+        # get these defaults: the SOPS decryption and the cluster-secrets
+        # substitution would let a tenant repo decrypt/substitute home-infra
+        # secrets. Kustomizations without the label (all of ours) match the
+        # set-based selector exactly as before.
+        labelSelector: vdhinfra.io/tenant notin (mypka)

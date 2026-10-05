@@ -1,0 +1,26 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/source.toolkit.fluxcd.io/gitrepository_v1.json
+# Mack's tenant repo on the in-cluster forge. Fetched by source-controller
+# (flux-system) over the forgejo-ssh Service (port 22 -> pod 2222); the
+# tenant pods never see this key.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: cluster-wires
+spec:
+  interval: 30m
+  url: ssh://git@forgejo-ssh.devtools.svc.cluster.local:22/VDHICT/cluster-wires.git
+  # Branch and path confirmed from the delivery (cluster-wires@db7a9a0,
+  # docs/atlas-namespace-handoff.md): branch main, manifests under /deploy/.
+  # Mack proposed the external name forge-ssh.<domain> (172.16.2.248); we use
+  # the in-cluster Service name instead, so the fetch does not depend on LAN
+  # DNS or LB hairpin. Same Service, same host key.
+  ref:
+    branch: main
+  # Fetch only what the tenant Kustomization applies (as Mack proposed).
+  ignore: |
+    /*
+    !/deploy/
+  secretRef:
+    name: cluster-wires-deploy-key
+  timeout: 60s

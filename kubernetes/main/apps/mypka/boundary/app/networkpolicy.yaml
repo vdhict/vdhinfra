@@ -1,0 +1,50 @@
+---
+# Baseline for every pod in mypka: nothing in, nothing out, unless a policy
+# allows it. An empty rule ({}) enrols the endpoint in default-deny for that
+# direction without allowing any peer. Kubelet probes still work (Cilium
+# allows the local host identity for ingress).
+#
+# The tenant manages its OWN CiliumNetworkPolicies in this namespace (allow
+# rules are additive). These two are platform-owned (label below): the
+# admission policy mypka-tenant-guardrails stops the tenant from changing or
+# deleting them. The real boundary does not depend on them anyway: the
+# clusterwide policy mypka-tenant-egress-boundary denies the forbidden
+# destinations whatever the tenant allows, and itself keeps egress in
+# default-deny.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: platform-default-deny
+  namespace: mypka
+  labels:
+    vdhinfra.io/boundary: platform
+spec:
+  endpointSelector: {}
+  ingress:
+    - {}
+  egress:
+    - {}
+---
+# DNS for every pod in mypka: CoreDNS only, port 53 only.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: platform-allow-dns
+  namespace: mypka
+  labels:
+    vdhinfra.io/boundary: platform
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP

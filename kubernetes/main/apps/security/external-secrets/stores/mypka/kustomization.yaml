@@ -1,0 +1,13 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+# The myPKA tenant's store (chg-2026-10-05-003). Applied by its OWN Flux
+# Kustomization (external-secrets-stores-mypka), NOT by
+# external-secrets-stores: until the owner has created 1P item
+# home-infra/onepassword-mypka this store is not Ready, and 28 Kustomizations
+# dependOn external-secrets-stores - a not-Ready store there would hold all
+# of them at their dependency gate.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./externalsecret.yaml
+  - ./onepassword-mypka.yaml

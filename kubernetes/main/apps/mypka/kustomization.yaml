@@ -1,0 +1,26 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+#
+# Namespace-level resource list for `mypka`, the myPKA tenant namespace
+# (chg-2026-10-05-003, tsk-2026-10-05-012). Picked up by cluster-apps through
+# the directory scan of ./kubernetes/main/apps, like every other namespace
+# (there is no central namespace list).
+#
+# Two layers:
+#   boundary/  OURS. The platform boundary: tenant identity + RBAC, quota,
+#              baseline CNPs, the clusterwide egress deny, the admission
+#              policies. Applied by cluster-apps' child `mypka-boundary` with
+#              our (cluster-admin) rights. The tenant cannot change any of it.
+#   wires/     The tenant's GitOps entry: the cluster-wires GitRepository (in
+#              flux-system, ours) and the `mypka-wires` Kustomization that
+#              applies the tenant repo AS the mypka-tenant ServiceAccount.
+#
+# NOTE: everything in THIS directory is still built by cluster-apps, i.e.
+# SOPS-decrypted and ${VAR}-substituted with the home-infra settings. That is
+# intended for our own files. The tenant's files never come through here.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./namespace.yaml
+  - ./boundary/install.yaml
+  - ./wires/install.yaml

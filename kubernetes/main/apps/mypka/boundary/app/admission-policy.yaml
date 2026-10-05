@@ -1,0 +1,210 @@
+---
+# Admission guards for the mypka tenant. ValidatingAdmissionPolicy is GA
+# (admissionregistration.k8s.io/v1, since Kubernetes 1.30); measured
+# 2026-10-05 on the live 1.35.3 API server: validatingadmissionpolicies and
+# validatingadmissionpolicybindings are served at admissionregistration.k8s.io/v1.
+# In-process CEL, no webhook to run or to fail open.
+#
+# All bindings select the namespace by kubernetes.io/metadata.name, which
+# the API server sets and nobody can change. failurePolicy Fail: if a
+# policy cannot be evaluated, the request is rejected.
+#
+# NOTE: this file is built by the mypka-boundary Kustomization, which gets
+# cluster-apps' postBuild substitution: ${SECRET_DOMAIN} below is
+# intentional and resolved from cluster-secrets.
+#
+# ── 1. Services: ClusterIP only ─────────────────────────────────────────
+# Quota already caps LoadBalancer and NodePort at 0, but quota cannot see
+# ExternalName or externalIPs (CVE-2020-8554: externalIPs let a namespace
+# intercept traffic to arbitrary IPs cluster-wide).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/admissionregistration.k8s.io/validatingadmissionpolicy_v1.json
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: mypka-tenant-services
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["services"]
+  validations:
+    - expression: "!has(object.spec.type) || object.spec.type == 'ClusterIP'"
+      message: "mypka: only Services of type ClusterIP are allowed (no LoadBalancer, NodePort or ExternalName)."
+      reason: Forbidden
+    - expression: "!has(object.spec.externalIPs) || size(object.spec.externalIPs) == 0"
+      message: "mypka: spec.externalIPs is not allowed."
+      reason: Forbidden
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/admissionregistration.k8s.io/validatingadmissionpolicybinding_v1.json
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: mypka-tenant-services
+spec:
+  policyName: mypka-tenant-services
+  validationActions: ["Deny"]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: mypka
+---
+# ── 2. HTTPRoutes: envoy-internal only, own hostnames only ──────────────
+# envoy-external accepts routes from ALL namespaces, so without this a
+# tenant route on it would be published to the internet.
+#
+# Hostnames (ADDITION beyond the brief, chg-2026-10-05-003): Gateway API
+# MERGES routes that share a hostname, and the more specific path wins. A
+# tenant route for an EXISTING hostname with a narrow path (say /auth/...)
+# would take that path over from the real app on envoy-internal; a route
+# with NO hostnames attaches to every hostname the listener serves. So
+# every hostname must be set and must be a single label "mypka-<name>"
+# directly under the cluster domain (covered by the existing wildcard cert;
+# a deeper level such as x.mypka.<domain> would not be).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/admissionregistration.k8s.io/validatingadmissionpolicy_v1.json
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: mypka-tenant-httproutes
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["gateway.networking.k8s.io"]
+        apiVersions: ["*"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["httproutes"]
+  variables:
+    - name: suffix
+      expression: "'.${SECRET_DOMAIN}'"
+  validations:
+    - expression: >-
+        has(object.spec.parentRefs) && size(object.spec.parentRefs) > 0 &&
+        object.spec.parentRefs.all(p,
+          (!has(p.group) || p.group == 'gateway.networking.k8s.io') &&
+          (!has(p.kind) || p.kind == 'Gateway') &&
+          has(p.namespace) && p.namespace == 'network' &&
+          p.name == 'envoy-internal')
+      message: "mypka: HTTPRoute parentRefs must all be Gateway network/envoy-internal (namespace set explicitly)."
+      reason: Forbidden
+    - expression: >-
+        has(object.spec.hostnames) && size(object.spec.hostnames) > 0 &&
+        object.spec.hostnames.all(h,
+          h.endsWith(variables.suffix) &&
+          h.substring(0, size(h) - size(variables.suffix)).matches('^mypka-[a-z0-9]([-a-z0-9]*[a-z0-9])?$'))
+      message: "mypka: HTTPRoute hostnames must be set and each must be mypka-<name> directly under the cluster domain."
+      reason: Forbidden
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/admissionregistration.k8s.io/validatingadmissionpolicybinding_v1.json
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: mypka-tenant-httproutes
+spec:
+  policyName: mypka-tenant-httproutes
+  validationActions: ["Deny"]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: mypka
+---
+# ── 3. Guardrails (ADDITION beyond the brief, chg-2026-10-05-003) ───────
+#   a. No Secret of type service-account-token: the tenant may create
+#      Secrets, and such a Secret makes the token controller mint a
+#      long-lived token for any SA in mypka - including mypka-tenant, the
+#      GitOps identity - usable against the LAN-reachable API VIP.
+#   b. No pod runs AS mypka-tenant (same identity, via the projected token).
+#   c. No PVC created with spec.volumeName: binding a claim to a named,
+#      pre-existing PV could attach another namespace's released data.
+#      (CREATE only: the PV controller sets volumeName on bind via UPDATE.)
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/admissionregistration.k8s.io/validatingadmissionpolicy_v1.json
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: mypka-tenant-guardrails
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["secrets", "pods", "persistentvolumeclaims"]
+  validations:
+    - expression: >-
+        request.kind.kind != 'Secret' || !has(object.type) ||
+        object.type != 'kubernetes.io/service-account-token'
+      message: "mypka: Secrets of type kubernetes.io/service-account-token are not allowed."
+      reason: Forbidden
+    - expression: >-
+        request.kind.kind != 'Pod' || !has(object.spec.serviceAccountName) ||
+        object.spec.serviceAccountName != 'mypka-tenant'
+      message: "mypka: pods may not run as the mypka-tenant ServiceAccount (the GitOps identity)."
+      reason: Forbidden
+    - expression: >-
+        request.kind.kind != 'PersistentVolumeClaim' || request.operation != 'CREATE' ||
+        !has(object.spec.volumeName) || object.spec.volumeName == ''
+      message: "mypka: PVCs may not name a pre-existing PersistentVolume (spec.volumeName)."
+      reason: Forbidden
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/admissionregistration.k8s.io/validatingadmissionpolicybinding_v1.json
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: mypka-tenant-guardrails
+spec:
+  policyName: mypka-tenant-guardrails
+  validationActions: ["Deny"]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: mypka
+---
+# ── 4. Platform-owned objects (ADDITION beyond the brief) ───────────────
+# The tenant may manage ServiceAccounts and CNPs in mypka, which would
+# otherwise include OUR mypka-tenant SA and the baseline CNPs. Objects we
+# label vdhinfra.io/boundary=platform cannot be changed or deleted by the
+# tenant identity. Only requests made AS the tenant are matched, so Flux
+# (cluster-apps / mypka-boundary) still manages them.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/admissionregistration.k8s.io/validatingadmissionpolicy_v1.json
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: mypka-platform-objects
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["UPDATE", "DELETE"]
+        resources: ["serviceaccounts"]
+      - apiGroups: ["cilium.io"]
+        apiVersions: ["*"]
+        operations: ["UPDATE", "DELETE"]
+        resources: ["ciliumnetworkpolicies"]
+  matchConditions:
+    - name: is-tenant
+      expression: "request.userInfo.username == 'system:serviceaccount:mypka:mypka-tenant'"
+  validations:
+    - expression: >-
+        !has(oldObject.metadata.labels) ||
+        !('vdhinfra.io/boundary' in oldObject.metadata.labels) ||
+        oldObject.metadata.labels['vdhinfra.io/boundary'] != 'platform'
+      message: "mypka: platform-owned objects (vdhinfra.io/boundary=platform) cannot be changed by the tenant."
+      reason: Forbidden
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/admissionregistration.k8s.io/validatingadmissionpolicybinding_v1.json
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: mypka-platform-objects
+spec:
+  policyName: mypka-platform-objects
+  validationActions: ["Deny"]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: mypka

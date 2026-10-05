@@ -1,0 +1,102 @@
+---
+# The tenant identity. Flux's kustomize-controller impersonates this
+# ServiceAccount for the mypka-wires Kustomization, so everything in the
+# tenant repo is applied with exactly these rights and no more.
+#
+# No workload may run AS this account and no token Secret may be minted for
+# it: that would hand the GitOps identity to a pod (and, via the LAN-reachable
+# API VIP, to whoever the pod gives it to). Enforced by the admission policy
+# mypka-tenant-guardrails. The label marks it platform-owned: the tenant can
+# neither change nor delete it.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mypka-tenant
+  namespace: mypka
+  labels:
+    vdhinfra.io/boundary: platform
+automountServiceAccountToken: false
+---
+# Namespace-scoped rights for the tenant, exactly the list agreed with myPKA
+# (prikbord 012): workloads, ClusterIP services, config, secrets, PVCs,
+# service accounts, ExternalSecrets, HTTPRoutes, CNPs and PDBs.
+#
+# DELIBERATELY ABSENT:
+#   * endpoints, endpointslices: a selector-less Service plus a hand-made
+#     EndpointSlice would let Envoy (via an HTTPRoute) connect to ANY IP on
+#     the tenant's behalf - the LAN, IoT, the API server - from outside the
+#     tenant's own network policy.
+#   * backends.gateway.envoyproxy.io: same thing for Envoy Gateway's Backend
+#     kind (arbitrary FQDN/IP backends).
+#   * referencegrants: would let routes in other namespaces point into
+#     mypka, or open cross-namespace references we have not reviewed.
+#   * Flux objects (Kustomization, HelmRelease, GitRepository, OCIRepository,
+#     HelmRepository): a tenant-created Kustomization without
+#     serviceAccountName runs as kustomize-controller, i.e. cluster-admin.
+#   * roles, rolebindings, and the bind/escalate/impersonate verbs: see the
+#     note on the Role below.
+#   * pods, pods/exec, pods/log, serviceaccounts/token, events, Namespaces,
+#     any cluster-scoped resource.
+#
+# Roles/RoleBindings - why they are left out (owner's condition was "only if
+# escalation is impossible"):
+#   Kubernetes' RBAC escalation check (no bind/escalate granted) does stop the
+#   tenant from creating a Role with more than it holds, or binding a role it
+#   does not fully hold. So privilege ESCALATION is blocked. But a RoleBinding
+#   may name ANY subject: system:unauthenticated, system:authenticated, a
+#   ServiceAccount in another namespace. The tenant could hand its own rights
+#   (including reading every Secret in mypka) to an identity outside the
+#   namespace and outside GitOps, and the API VIP 172.16.2.240:6443 is
+#   reachable from the LAN. And there is no consumer for in-namespace roles:
+#   the clusterwide CNP denies mypka pods the kube-apiserver entirely. So the
+#   safe answer is "not needed, not granted". If a real need appears, grant
+#   them together with a VAP that pins subjects to ServiceAccounts in mypka
+#   and roleRef.kind to Role.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/rbac.authorization.k8s.io/role_v1.json
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mypka-tenant
+  namespace: mypka
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: &rw ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: *rw
+  - apiGroups: [""]
+    resources:
+      - services
+      - configmaps
+      - secrets
+      - persistentvolumeclaims
+      - serviceaccounts
+    verbs: *rw
+  - apiGroups: ["external-secrets.io"]
+    resources: ["externalsecrets"]
+    verbs: *rw
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["httproutes"]
+    verbs: *rw
+  - apiGroups: ["cilium.io"]
+    resources: ["ciliumnetworkpolicies"]
+    verbs: *rw
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets"]
+    verbs: *rw
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/rbac.authorization.k8s.io/rolebinding_v1.json
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mypka-tenant
+  namespace: mypka
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mypka-tenant
+subjects:
+  - kind: ServiceAccount
+    name: mypka-tenant
+    namespace: mypka

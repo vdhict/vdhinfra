@@ -1,0 +1,56 @@
+---
+# Quota for the myPKA tenant, sized for waves 1-3 so wave 2 and 3 need no
+# follow-up change (prikbord 012b). Generous but bounded.
+#
+# Headroom measured 2026-10-05 (read-only, kubectl describe node):
+#   workers  3 x ~7950m CPU, 57/57/66% requested  => ~9.3 cores free
+#            memory 55/31/30% requested           => ~100 GiB free
+#   existing quotas: devtools 4 CPU/8Gi, family-ai 2 CPU/8Gi
+# This quota takes at most ~1/3 of the free CPU and ~1/12 of the free memory.
+#
+# DELIBERATELY ABSENT: limits.cpu (same reason as devtools: a quoted CPU
+# limit forces a CPU limit onto every container via the LimitRange, and CFS
+# throttling is the wrong default). Memory is what harms a node, so
+# limits.memory IS quoted.
+#
+# `namespace:` is explicit (see ../install.yaml for why).
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: mypka
+  namespace: mypka
+spec:
+  hard:
+    requests.cpu: "3"
+    requests.memory: 8Gi
+    limits.memory: 16Gi
+    pods: "30"
+    persistentvolumeclaims: "15"
+    requests.storage: 150Gi
+    services: "20"
+    secrets: "60"
+    configmaps: "60"
+    # Hard guards. The Cilium l2-pool is 172.16.2.0/23, which overlaps the
+    # CLIENT-VLAN DHCP range: a tenant LoadBalancer would claim a household
+    # address and expose the tenant on the LAN. NodePort would expose it on
+    # every node IP. Neither is ever allowed. (Quota cannot stop ExternalName
+    # or externalIPs - the admission policy mypka-tenant-services does.)
+    services.loadbalancers: "0"
+    services.nodeports: "0"
+---
+# No pod in mypka may use the system priority classes: they preempt
+# household workloads (Home Assistant, Ceph) under pressure. A quota of zero
+# pods scoped to those classes makes admission reject them.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: mypka-no-system-priority
+  namespace: mypka
+spec:
+  hard:
+    pods: "0"
+  scopeSelector:
+    matchExpressions:
+      - scopeName: PriorityClass
+        operator: In
+        values: ["system-node-critical", "system-cluster-critical"]

@@ -1,0 +1,154 @@
+---
+# THE platform egress boundary for the mypka tenant. A CiliumClusterwide
+# policy, so the tenant (which can only manage namespaced CNPs in mypka)
+# cannot see, change or delete it.
+#
+# Semantics (Cilium 1.19, measured live 2026-10-05: cilium v1.19.4,
+# kube-proxy-replacement=true, bpf-lb-sock-hostns-only=true,
+# policy-cidr-match-mode="" (CIDR rules do not match nodes), enable-ipv6=false):
+#   * Deny ALWAYS wins over allow, from any policy. So an exception cannot be
+#     written as "deny X, then allow Y". Each exception is instead carved out
+#     of the deny selectors themselves: deny every namespace NOT IN
+#     [kube-system, devtools, network, mypka], then, inside those three, deny
+#     every pod that is NOT the excepted pod, and on the excepted pods deny
+#     every port that is NOT the excepted port (port ranges via endPort).
+#   * A selector "key NotIn [...]" also matches identities that do NOT HAVE
+#     the key at all. For the namespace rule that would include reserved
+#     identities such as world, i.e. the whole internet. The extra
+#     "key Exists" pins that rule to pod identities only. Inside a namespace
+#     the "pod label NotIn [...]" rules rely on exactly that behaviour: a pod
+#     without the label is denied.
+#   * Service VIPs (ClusterIP, and the forgejo-ssh / envoy LB IPs) are
+#     translated to the backend pod in the pod's own datapath BEFORE egress
+#     policy is evaluated, so the policy sees the backend pod identity and
+#     the TARGET port (forgejo-ssh 22 -> pod 2222; envoy 443 -> 10443).
+#   * CIDR rules never match pods or nodes (both have their own identity),
+#     so a deny on 10.0.0.0/8 does not touch the pod CIDR 10.42.0.0/16 and
+#     cannot break DNS. That is also why nodes and the API server are denied
+#     as ENTITIES, not as CIDRs.
+#   * Internet: NOT denied here. World egress stays in default-deny (below)
+#     and the tenant opens what it needs (e.g. 443, toFQDNs) with its own
+#     CNPs. Those allows can never reach anything denied here.
+#
+# Allowed holes, and nothing else, outside mypka:
+#   kube-system  CoreDNS (k8s-app=kube-dns), port 53 only
+#   devtools     forgejo pods (app.kubernetes.io/name=forgejo AND
+#                app.kubernetes.io/instance=forgejo), port 2222 (SSH) only;
+#                NOT 3000 (HTTP), NOT forge-pg
+#   network      envoy-internal proxy pods, listener ports 10080/10443 only
+#                (not the 19001 stats port). NOTE: through envoy-internal the
+#                tenant reaches every hostname routed there, behind that
+#                route's own auth (Authelia / app login).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumclusterwidenetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: mypka-tenant-egress-boundary
+spec:
+  description: "mypka tenant egress boundary (chg-2026-10-05-003). Platform-owned; deny wins over any tenant CNP."
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: mypka
+  # Egress stays default-deny from THIS policy alone, so it holds even if the
+  # namespaced baseline CNP were removed. Ingress default-deny is the
+  # namespaced baseline's job (this policy has no ingress rules).
+  enableDefaultDeny:
+    egress: true
+  egressDeny:
+    # 1. Nodes and the control plane, whatever port. host = the local node
+    #    (kubelet 10250, Talos apid 50000, KubePrism 7445), remote-node =
+    #    every other node, kube-apiserver = the API server (also behind
+    #    10.43.0.1). health/ingress = Cilium's own endpoints.
+    - toEntities:
+        - kube-apiserver
+        - host
+        - remote-node
+        - health
+        - ingress
+    # 2. Every private / non-internet range: the LAN and its VLANs (incl.
+    #    172.16.0.0/16 - CLIENT, IoT, SERVER - and the API VIP .2.240), the
+    #    NAS, the Mac Studio, CGNAT and link-local.
+    - toCIDRSet:
+        - cidr: 10.0.0.0/8
+        - cidr: 172.16.0.0/12
+        - cidr: 192.168.0.0/16
+        - cidr: 100.64.0.0/10
+        - cidr: 169.254.0.0/16
+    # 3. Every pod in every other namespace, except the three namespaces
+    #    that hold an exception (handled below) and mypka itself.
+    - toEndpoints:
+        - matchExpressions:
+            - key: k8s:io.kubernetes.pod.namespace
+              operator: Exists
+            - key: k8s:io.kubernetes.pod.namespace
+              operator: NotIn
+              values: ["kube-system", "devtools", "network", "mypka"]
+    # 4. kube-system: everything except CoreDNS ...
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+          matchExpressions:
+            - key: k8s:k8s-app
+              operator: NotIn
+              values: ["kube-dns"]
+    #    ... and on CoreDNS every port except 53 (metrics 9153, health 8080/8181).
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "1", endPort: 52, protocol: ANY}
+            - {port: "54", endPort: 65535, protocol: ANY}
+    # 5. devtools: every pod that is not forgejo (two rules = NOT (A AND B);
+    #    catches forge-pg and anything added later) ...
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: devtools
+          matchExpressions:
+            - key: k8s:app.kubernetes.io/name
+              operator: NotIn
+              values: ["forgejo"]
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: devtools
+          matchExpressions:
+            - key: k8s:app.kubernetes.io/instance
+              operator: NotIn
+              values: ["forgejo"]
+    #    ... and on forgejo every port except 2222 (so not HTTP 3000).
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: devtools
+            k8s:app.kubernetes.io/name: forgejo
+            k8s:app.kubernetes.io/instance: forgejo
+      toPorts:
+        - ports:
+            - {port: "1", endPort: 2221, protocol: ANY}
+            - {port: "2223", endPort: 65535, protocol: ANY}
+    # 6. network: every pod that is not an envoy-internal proxy (the gateway
+    #    controller, envoy-external, cloudflared, external-dns, ...) ...
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+          matchExpressions:
+            - key: k8s:gateway.envoyproxy.io/owning-gateway-name
+              operator: NotIn
+              values: ["envoy-internal"]
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+          matchExpressions:
+            - key: k8s:gateway.envoyproxy.io/owning-gateway-namespace
+              operator: NotIn
+              values: ["network"]
+    #    ... and on envoy-internal every port except the listeners
+    #    10080 (http-80) and 10443 (https-443).
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            k8s:gateway.envoyproxy.io/owning-gateway-name: envoy-internal
+            k8s:gateway.envoyproxy.io/owning-gateway-namespace: network
+      toPorts:
+        - ports:
+            - {port: "1", endPort: 10079, protocol: ANY}
+            - {port: "10081", endPort: 10442, protocol: ANY}
+            - {port: "10444", endPort: 65535, protocol: ANY}

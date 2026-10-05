@@ -1,0 +1,28 @@
+---
+# Companion to the ResourceQuota: once requests.cpu / requests.memory /
+# limits.memory are quoted, every container must carry them or admission
+# fails. These defaults let the tenant's pods in without each manifest
+# having to name them; workloads that need more set their own.
+#
+# No cpu `max` and no default cpu limit (see resourcequota.yaml). PVC size is
+# bounded per claim so one claim cannot take the whole storage quota.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: mypka
+  namespace: mypka
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: 25m
+        memory: 64Mi
+      default:
+        memory: 512Mi
+      max:
+        memory: 8Gi
+    - type: PersistentVolumeClaim
+      min:
+        storage: 1Gi
+      max:
+        storage: 50Gi

@@ -1,0 +1,81 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# The cluster-wires source (ours, in flux-system): the GitRepository and the
+# ExternalSecret holding its read-only deploy key. The deploy key lives in
+# 1Password vault home-infra, which only the onepassword-connect store (and
+# never namespace mypka) can read, so the source stays in flux-system and
+# the tenant Kustomization references it cross-namespace.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app mypka-wires-source
+  namespace: flux-system
+spec:
+  targetNamespace: flux-system
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+      app.kubernetes.io/part-of: mypka
+  dependsOn:
+    - name: external-secrets-stores
+  path: ./kubernetes/main/apps/mypka/wires/source
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: true
+  interval: 30m
+  retryInterval: 1m
+  timeout: 5m
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# THE TENANT KUSTOMIZATION. Applies the tenant repo (cluster-wires) into
+# mypka AS the mypka-tenant ServiceAccount, so it can do only what
+# boundary/app/rbac.yaml grants, inside mypka only (targetNamespace).
+#
+# It lives in namespace mypka on purpose: kustomize-controller resolves
+# serviceAccountName in the Kustomization's OWN namespace.
+#
+# The label vdhinfra.io/tenant=mypka EXCLUDES it from the defaults patch in
+# cluster/cluster-apps.yaml. NEVER add to this object:
+#   * spec.decryption - kustomize-controller runs with
+#     --sops-age-secret=sops-age (a GLOBAL age key), so even
+#     `decryption: {provider: sops}` without a secretRef would decrypt with
+#     the HOME age key. The tenant could then copy any *.sops.yaml from this
+#     PUBLIC repo (cluster-secrets!) into cluster-wires and have Flux decrypt
+#     it into a Secret in mypka.
+#   * spec.postBuild.substituteFrom cluster-settings / cluster-secrets - the
+#     same leak through ${VAR} substitution.
+#   * spec.kubeConfig, or a serviceAccountName other than mypka-tenant.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: mypka-wires
+  namespace: mypka
+  labels:
+    vdhinfra.io/tenant: mypka
+    app.kubernetes.io/part-of: mypka
+spec:
+  serviceAccountName: mypka-tenant
+  targetNamespace: mypka
+  dependsOn:
+    # The boundary (RBAC, quota, CNPs, CCNP, VAPs) must be Ready first.
+    - name: mypka-boundary
+      namespace: flux-system
+    - name: mypka-wires-source
+      namespace: flux-system
+  sourceRef:
+    kind: GitRepository
+    name: cluster-wires
+    namespace: flux-system
+  # Confirmed from cluster-wires@db7a9a0: the tenant manifests are in
+  # ./deploy (6 CronJobs landed suspend: true, 5 ConfigMaps, 5
+  # ExternalSecrets on onepassword-mypka, 4 PVCs, 1 ServiceAccount).
+  # Mack's platform/mypka/ is NOT applied: the boundary is ours (boundary/).
+  path: ./deploy
+  prune: true
+  wait: true
+  interval: 30m
+  retryInterval: 2m
+  timeout: 5m
