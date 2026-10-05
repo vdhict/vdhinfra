@@ -5,7 +5,6 @@ kind: Kustomization
 resources:
   - ./namespace.yaml
   - ./cloudflared/install.yaml
-  - ./echo-server/install.yaml
   - ./envoy-gateway/install.yaml
   - ./external-dns-cloudflare-internal/install.yaml
   - ./external-dns-cloudflare-external/install.yaml
