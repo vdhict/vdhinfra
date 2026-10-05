@@ -39,8 +39,14 @@ spec:
               tag: 1.43.3.10896@sha256:4f1d88882a9883cc525e7c84b22c67c57416b7d3b35c3412329eeb07786433a7
             env:
               TZ: Europe/Amsterdam
-              PLEX_ADVERTISE_URL: https://plex.${SECRET_DOMAIN}:443,http://172.16.2.236:32400
-              PLEX_NO_AUTH_NETWORKS: 10.42.0.0/16, 10.43.0.0/16, 172.16.2.0/23
+              # LAN-only advertise URL; remote access goes via Plex's own path /
+              # plex.tv (chg-2026-10-05-020).
+              PLEX_ADVERTISE_URL: http://172.16.2.236:32400
+              # Loopback only. NOT the pod/svc CIDRs and NOT 172.16.2.0/23:
+              # internet traffic to 32400 arrives SNAT'ed as a node IP inside
+              # that range (Cilium eTP=Cluster). Must not be empty: the
+              # entrypoint skips empty values and the old list would survive.
+              PLEX_NO_AUTH_NETWORKS: 127.0.0.1/32
             probes:
               liveness: &probes
                 enabled: true
@@ -89,36 +95,6 @@ spec:
         ports:
           http:
             port: 32400
-    route:
-      main:
-        parentRefs:
-          - name: envoy-external
-            namespace: network
-            sectionName: https
-        hostnames:
-          - "plex.${SECRET_DOMAIN}"
-        rules:
-          - # Ref: https://forums.plex.tv/t/external-srt-subtitles-are-not-working-w-reverse-proxy/886540
-            backendRefs:
-              - name: plex
-                port: *port
-            filters:
-              - type: RequestHeaderModifier
-                requestHeaderModifier:
-                  remove: ["Range"]
-            matches:
-              - path:
-                  type: PathPrefix
-                  value: /library/streams
-            timeouts:
-              request: "0s"
-              backendRequest: "0s"
-          - backendRefs:
-              - name: plex
-                port: *port
-            timeouts:
-              request: "0s"
-              backendRequest: "0s"
     persistence:
       config:
         existingClaim: plex
