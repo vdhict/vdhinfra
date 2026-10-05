@@ -2,9 +2,11 @@
 # yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
 # The cluster-wires source (ours, in flux-system): the GitRepository and the
 # ExternalSecret holding its read-only deploy key. The deploy key lives in
-# 1Password vault home-infra, which only the onepassword-connect store (and
-# never namespace mypka) can read, so the source stays in flux-system and
-# the tenant Kustomization references it cross-namespace.
+# 1Password vault mypka-cluster (item cluster-wires, field flux-key), read
+# through store onepassword-mypka, whose conditions admit flux-system for
+# exactly this. The GitRepository and its Secret stay in flux-system (the
+# tenant pods never see the key) and the tenant Kustomization references the
+# source cross-namespace.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -17,7 +19,9 @@ spec:
       app.kubernetes.io/name: *app
       app.kubernetes.io/part-of: mypka
   dependsOn:
-    - name: external-secrets-stores
+    # onepassword-mypka must be Ready (its token synced) before the deploy-key
+    # ExternalSecret can sync. Transitively waits for external-secrets-stores.
+    - name: external-secrets-stores-mypka
   path: ./kubernetes/main/apps/mypka/wires/source
   sourceRef:
     kind: GitRepository
