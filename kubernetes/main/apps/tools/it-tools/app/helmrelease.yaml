@@ -29,7 +29,7 @@ spec:
           app:
             image:
               repository: ghcr.io/corentinth/it-tools
-              tag: 2024.5.13-a0bc346
+              tag: 2024.5.13-a0bc346@sha256:c191615f23eb6a18b8faca4dba15fc11caefea250ce3a8e29d249757544092eb
             env:
               TZ: "Europe/Amsterdam"
             probes:
@@ -49,10 +49,19 @@ spec:
           http:
             port: 80
     route:
+      # LAN-only since chg-2026-10-05-020 (public tunnel decommissioned).
+      # controller:none keeps both Cloudflare external-dns instances off;
+      # external-dns-unifi still writes the LAN A record.
       main:
+        annotations:
+          external-dns.alpha.kubernetes.io/controller: none
         parentRefs:
-          - name: envoy-external
+          - name: envoy-internal
             namespace: network
             sectionName: https
         hostnames:
           - "it-tools.${SECRET_DOMAIN}"
+        rules:
+          - backendRefs:
+              - name: it-tools
+                port: 80
