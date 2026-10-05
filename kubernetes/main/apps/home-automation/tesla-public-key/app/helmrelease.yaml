@@ -96,22 +96,10 @@ spec:
           http:
             port: *port
 
-    route:
-      main:
-        parentRefs:
-          - name: envoy-external
-            namespace: network
-            sectionName: https
-        hostnames:
-          - "tesla.${SECRET_DOMAIN}"
-        rules:
-          - matches:
-              - path:
-                  type: Exact
-                  value: /.well-known/appspecific/com.tesla.3p.public-key.pem
-            backendRefs:
-              - name: tesla-public-key
-                port: *port
+    # Public route removed in chg-2026-10-05-020 (tunnel decommissioned).
+    # The key only needs to be public during Tesla Fleet partner
+    # (re-)registration or key rotation: re-add a route for that window
+    # (git revert of the commit that removed it) and remove it afterwards.
 
     persistence:
       pubkey:
