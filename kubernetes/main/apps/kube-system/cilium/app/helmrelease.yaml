@@ -8,6 +8,10 @@ spec:
     kind: OCIRepository
     name: cilium
   interval: 1h
+  # chg-2026-10-05-015: one-node-at-a-time agent roll (6 nodes) does not fit
+  # the 5m default wait; a timeout triggers RemediateOnFailure -> rollback
+  # mid-roll (cf. helm rev 3, 2026-04-05, timed out at 5m with maxUnavailable 2).
+  timeout: 15m
   install:
     remediation:
       retries: 3
