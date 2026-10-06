@@ -10,7 +10,7 @@
 #     out/lab/*.env by hack/passkey-point/render-env.py); explicit env below wins.
 #   * secrets only as read-only 0440 files / one secretKeyRef, from the scoped
 #     SecretStore onepassword-lab-passkey. No dataFrom.
-#   * NODE_ENV=production (below); PSA restricted, uid 10001, drop
+#   * NODE_ENV unset (lab; TLS at envoy-internal); PSA restricted, uid 10001, drop
 #     ALL, ro rootfs, automount false; replicas 1 + Recreate (SQLite on RWO).
 # yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/apps/deployment_v1.json
 apiVersion: apps/v1
@@ -65,15 +65,6 @@ spec:
                   optional: false
             - name: PP_MODE
               value: "entra"
-            # NODE_ENV production (M14 decision, statically verified on a184498): the api
-            # serves its own TLS/mTLS, so tls.ts:49 (plain HTTP refused) does not bite;
-            # the production guards then hold in-app: client secret refused
-            # (credential.ts:32), https origin (config.ts:678), delegated refused
-            # (:707), sqlite not under /tmp (:816), PP_POPULATION_AU required (:928),
-            # and the SEC-13 self-check (:937) that pp-roster is NOT writable for the
-            # api (passes on our readOnly mount: tryCreate -> EROFS, chmod -> EROFS).
-            - name: NODE_ENV
-              value: "production"
             - name: PP_DATA_DIR
               value: "/var/lib/passkey-point"
             - name: HOME
