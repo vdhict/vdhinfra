@@ -1,6 +1,6 @@
 ---
-# ClusterIP only (quota: no LB, no NodePort). Entra: web, api and portal;
-# the roster sync gets no Service (nothing reaches it).
+# ClusterIP only (quota: no LB, no NodePort). The portal and roster get no
+# Service: nothing reaches them.
 apiVersion: v1
 kind: Service
 metadata:
@@ -27,19 +27,4 @@ spec:
     - name: https
       port: 8443
       targetPort: 8443
-      protocol: TCP
----
-# Portal (entra): reached through envoy-internal as passkey-point-portal-lab.
-apiVersion: v1
-kind: Service
-metadata:
-  name: passkey-point-portal
-spec:
-  type: ClusterIP
-  selector:
-    app.kubernetes.io/name: passkey-point-portal
-  ports:
-    - name: http
-      port: 8080
-      targetPort: 8080
       protocol: TCP
