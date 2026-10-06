@@ -1,6 +1,22 @@
 ---
-# web: in from envoy-internal only (the passkey-point-lab route), TCP 8080.
-# out: the api pods on 8443 (mTLS), and DNS for the api Service name only.
+# ENTRA mode egress, measured from the a184498 source (not guessed):
+#   * every https host in src/ and scripts/: login.microsoftonline.com
+#     (MSAL authority, src/auth/credential.ts; token, OIDC metadata, JWKS),
+#     graph.microsoft.com (src/graph/allowlist.ts GRAPH_BASE, app-only
+#     .default in src/auth/app-only.ts + entra-api.ts), monitor.azure.com
+#     (log shipper, only with PP_LOGS_INGESTION_*: NOT granted, render-env
+#     refuses those keys). MSAL's built-in metadata covers
+#     login.microsoftonline.com, so no instance-discovery host is needed;
+#     no azureRegion is configured (no regional host, no IMDS).
+#   * web in two-tier app mode calls only the token endpoint (src/app.ts: Graph
+#     from web only in delegated mode) -> login only.
+#   * api, roster sync, portal (read-only directory checks) -> login + graph.
+# toFQDNs need the DNS rule to see the query (Cilium DNS proxy); pods set
+# ndots 1 so the names are queried as-is. TCP 443 only, no port ranges, no
+# deny rules (inc-2026-10-05-002), nothing to the LAN, envoy-internal or
+# another namespace.
+#
+# web: in from envoy-internal only :8080; out api :8443 + Entra login.
 # yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -34,8 +50,13 @@ spec:
           rules:
             dns:
               - matchName: passkey-point-api.lab-passkey.svc.cluster.local
+              - matchName: login.microsoftonline.com
+    - toFQDNs:
+        - matchName: login.microsoftonline.com
+      toPorts:
+        - ports: [{port: "443", protocol: TCP}]
 ---
-# api: in from the web pods only, TCP 8443. MOCK mode: no egress at all.
+# api: in from web only :8443; out Entra login + Graph.
 # yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -51,3 +72,87 @@ spec:
             app.kubernetes.io/name: passkey-point-web
       toPorts:
         - ports: [{port: "8443", protocol: TCP}]
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              - matchName: login.microsoftonline.com
+              - matchName: graph.microsoft.com
+    - toFQDNs:
+        - matchName: login.microsoftonline.com
+        - matchName: graph.microsoft.com
+      toPorts:
+        - ports: [{port: "443", protocol: TCP}]
+---
+# roster sync: no ingress; out Entra login + Graph.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: passkey-point-roster
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: passkey-point-roster
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              - matchName: login.microsoftonline.com
+              - matchName: graph.microsoft.com
+    - toFQDNs:
+        - matchName: login.microsoftonline.com
+        - matchName: graph.microsoft.com
+      toPorts:
+        - ports: [{port: "443", protocol: TCP}]
+---
+# portal: in from envoy-internal only :8080 (passkey-point-portal-lab route);
+# out Entra login (list-owner sign-in) + Graph (read-only directory checks).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: passkey-point-portal
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: passkey-point-portal
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            gateway.envoyproxy.io/owning-gateway-name: envoy-internal
+      toPorts:
+        - ports: [{port: "8080", protocol: TCP}]
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              - matchName: login.microsoftonline.com
+              - matchName: graph.microsoft.com
+    - toFQDNs:
+        - matchName: login.microsoftonline.com
+        - matchName: graph.microsoft.com
+      toPorts:
+        - ports: [{port: "443", protocol: TCP}]

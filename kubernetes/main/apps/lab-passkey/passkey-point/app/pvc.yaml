@@ -1,15 +1,31 @@
 ---
-# SQLite (PP_DB_ENGINE default). MOCK mode: one data dir for api, roster
-# and portal (today's list lives in it; the api seeds the fictional demo
-# list there). ReadWriteOnce rook-ceph-block: roster and portal follow the
-# api onto its node (required podAffinity), so all three share one kernel
-# and normal SQLite file locking. No VolSync: lab data, teardown by
-# 2026-10-31, loss on rollback accepted.
+# SQLite (PP_DB_ENGINE default), entra mode, two volumes (SEC-13):
+#   pp-data    the api's repo (data, audit trail, key register). api only.
+#   pp-roster  today's list (roster.db) + the roster sync's own repo
+#              (its PP_DATA_DIR). Writers: roster sync and portal.
+#              The api mounts it READ-ONLY (it must not be able to write the
+#              list; the app also opens it ro in entra mode).
+# Separate PVCs (not subPaths: kubelet creates subPath dirs root:root 0750,
+# which uid 10001 could not write). ReadWriteOnce rook-ceph-block: roster
+# and portal follow the api onto its node (required podAffinity). No
+# VolSync: lab data, synthetic people only, teardown by 2026-10-31.
 # yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/v1/persistentvolumeclaim_v1.json
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: pp-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: rook-ceph-block
+  resources:
+    requests:
+      storage: 1Gi
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/v1/persistentvolumeclaim_v1.json
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pp-roster
 spec:
   accessModes: ["ReadWriteOnce"]
   storageClassName: rook-ceph-block
