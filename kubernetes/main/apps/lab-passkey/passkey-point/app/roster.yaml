@@ -10,7 +10,7 @@
 #     out/lab/*.env by hack/passkey-point/render-env.py); explicit env below wins.
 #   * secrets only as read-only 0440 files / one secretKeyRef, from the scoped
 #     SecretStore onepassword-lab-passkey. No dataFrom.
-#   * NODE_ENV unset (lab; TLS at envoy-internal); PSA restricted, uid 10001, drop
+#   * NODE_ENV=production (below); PSA restricted, uid 10001, drop
 #     ALL, ro rootfs, automount false; replicas 1 + Recreate (SQLite on RWO).
 # yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/apps/deployment_v1.json
 apiVersion: apps/v1
@@ -72,6 +72,11 @@ spec:
                   optional: false
             - name: PP_MODE
               value: "entra"
+            # NODE_ENV production (M14 decision): no listener (tls.ts never runs);
+            # in-app guards active: client secret refused (app-only.ts:38), https
+            # origin, delegated refused, data dir not under /tmp.
+            - name: NODE_ENV
+              value: "production"
             # Own repo on the roster volume, NOT the api's pp-data (supplier layout
             # out/lab/passkey-point.lab.roster-sync.env; scripts/roster.ts opens its
             # repo in PP_DATA_DIR): least privilege, the sync never touches the api data.
