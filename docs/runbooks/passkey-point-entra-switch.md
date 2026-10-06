@@ -178,7 +178,7 @@ Order matters. The suspend comes BEFORE the revert push, so Flux never starts MO
    the 2026-10-05 Spelregels: Atlas-approved, logged)
 5. Revert and push by explicit SHA:
    - `git fetch origin`
-   - `git revert --no-edit a9a0114..<render-sha>` (reverts render, docs, fix and delta, newest first; tree = a9a0114, push the resulting HEAD SHA)
+   - `git revert --no-edit <render-sha> <delta-sha>`
    - check the fast-forward
    - `git push origin <revert-sha>:refs/heads/main`
 6. `flux resume ks lab-passkey-app`. MOCK comes back with fresh PVCs. Re-run T0/T1 of the MOCK plan.
