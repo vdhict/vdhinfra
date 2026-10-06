@@ -1,7 +1,7 @@
 ---
 # passkey-point-roster (entra): scope sync, image default `node scripts/roster.ts
 # sync --every 300`. Graph app-only as its OWN app registration (roster-sync-entra-key).
-# Writes today's list and its own repo, both on pp-roster; no pp-data. No listener.
+# Writes today's list (pp-roster) and the api's repo (pp-data). No listener.
 #
 # Common (chg-2026-10-05-009, a184498, ENTRA dev tenant, pod network):
 #   * image tag@INDEX digest; gate PASS: cosign key 6ad2a90a..66e9 3/3, SLSA 3/3,
@@ -72,11 +72,8 @@ spec:
                   optional: false
             - name: PP_MODE
               value: "entra"
-            # Own repo on the roster volume, NOT the api's pp-data (supplier layout
-            # out/lab/passkey-point.lab.roster-sync.env; scripts/roster.ts opens its
-            # repo in PP_DATA_DIR): least privilege, the sync never touches the api data.
             - name: PP_DATA_DIR
-              value: "/var/lib/passkey-point-roster"
+              value: "/var/lib/passkey-point"
             - name: HOME
               value: "/tmp"
             - name: PP_ROSTER_DIR
@@ -100,6 +97,8 @@ spec:
             - name: entra
               mountPath: /etc/passkey-point/entra
               readOnly: true
+            - name: data
+              mountPath: /var/lib/passkey-point
             - name: roster
               mountPath: /var/lib/passkey-point-roster
       volumes:
@@ -110,6 +109,9 @@ spec:
           secret:
             secretName: passkey-point-roster-sync-entra
             defaultMode: 0440
+        - name: data
+          persistentVolumeClaim:
+            claimName: pp-data
         - name: roster
           persistentVolumeClaim:
             claimName: pp-roster
