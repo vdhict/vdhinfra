@@ -117,6 +117,9 @@ nodes:
           - network: 0.0.0.0/0
             gateway: "172.16.2.1"
         mtu: 1500
+    # LAB VLAN 60: address-less enp89s0.60 + IPv6 off (chg-2026-10-05-012)
+    patches:
+      - "@./patches/node/lab-vlan60.yaml"
 
   - hostname: "vdhclu01node03"
     ipAddress: "172.16.2.83"
@@ -134,6 +137,9 @@ nodes:
           - network: 0.0.0.0/0
             gateway: "172.16.2.1"
         mtu: 1500
+    # LAB VLAN 60: address-less enp89s0.60 + IPv6 off (chg-2026-10-05-012)
+    patches:
+      - "@./patches/node/lab-vlan60.yaml"
 
 # Global patches (applied to all nodes)
 patches:

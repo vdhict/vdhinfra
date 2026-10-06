@@ -1,0 +1,42 @@
+# LAB VLAN 60 (docs/design/lab-vlan.md rev 2, section 2.1; chg-2026-10-05-012).
+# Applied ONLY to vdhclu01node02 and vdhclu01node03 via nodes[].patches.
+#
+# An address-less VLAN link enp89s0.60 on the worker NIC, so that:
+#   - Cilium's bpf VLAN filter can admit VID 60 (vlanBypass [60], chg-2026-10-05-010), and
+#   - Multus macvlan (bridge) children can sit on it (chg-2026-10-05-009).
+#
+# RULE: enp89s0.60 NEVER gets an address, route, or DHCP document.
+#   An address would let Cilium auto-detect it as a device and give the node L3 on LAB.
+#
+# The link is named explicitly (not through talhelper `vlans:`), because talhelper
+# would render it as ethSel0.60. `parent` resolves the LinkAliasConfig alias ethSel0
+# (= enp89s0, MAC-selected per node).
+#
+# "No address" is NOT "no L3" (Argus S1 on chg-2026-10-05-012): the link inherits
+# conf/default at creation, live node02 = rp_filter 0, arp_ignore 0, forwarding 1. With
+# those the node would ARP-reply on VLAN 60 for 172.16.2.82/.83 (weak host model) and
+# route frames sent to its MAC from LAB onto CLIENT-VLAN, around the UDM Lab zone.
+# Per-link hardening (kernel ip-sysctl.rst; effective = max(all, dev) for rp_filter and
+# arp_ignore, so dev=1/8 wins over all=0):
+#   rp_filter  1  strict RPF: enp89s0.60 has no routes, so every IPv4 source fails
+#   arp_ignore 8  never answer ARP on this link, for any local address
+#   forwarding 0  never forward what arrives on this link
+#   disable_ipv6 1  no link-local, no tagged-60 NDP/MLD, no [::]-listener reachability
+# macvlan children (Multus) are unaffected: their frames are stolen by the macvlan
+# rx_handler before the lower device's IP stack.
+# R2: Talos applies these after the link exists (ENOENT -> controller backoff), so a
+# short window exists at boot; 04-try.sh measures it (sysctl-window.sh).
+# Slash form = dotted ifname (sysctl.d(5), pkg/machinery/kernel Param.Path).
+machine:
+  sysctls:
+    net.ipv4.conf.enp89s0/60.rp_filter: "1"
+    net.ipv4.conf.enp89s0/60.arp_ignore: "8"
+    net.ipv4.conf.enp89s0/60.forwarding: "0"
+    net.ipv6.conf.enp89s0/60.disable_ipv6: "1"
+---
+apiVersion: v1alpha1
+kind: VLANConfig
+name: enp89s0.60
+vlanID: 60
+parent: ethSel0
+up: true
