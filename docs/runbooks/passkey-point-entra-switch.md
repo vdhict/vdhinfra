@@ -36,13 +36,13 @@ push while any lab-passkey reconcile is in progress.
 
 ## 0. Preconditions (each one recorded with a timestamp, Themis M7)
 
-1. 1Password vault `lab-passkey` exists. Item `passkey-point-lab` is MOVED into it with all 7 fields:
+1. 1Password vault `passkey-point-lab` exists. Item `passkey-point-lab` is MOVED into it with all 7 fields:
    - `web-entra-key`, `api-entra-key`, `roster-sync-entra-key`, `portal-entra-key`;
    - `PP_PORTAL_MAC_KEY`;
    - `registry-username`, `registry-token`. The registry token is a Forgejo token with `read:package` ONLY.
-2. The Connect server `security/onepassword-connect` has access to vault `lab-passkey`.
-3. A Connect token with READ on vault `lab-passkey` only is stored in home-infra item
-   `onepassword-connect-lab-passkey`, field `token`.
+2. The Connect server `security/onepassword-connect` has access to vault `passkey-point-lab`.
+3. A Connect token with READ on vault `passkey-point-lab` only is stored in home-infra item
+   `op-connect-token-passkey-point-lab`, field `credential` (to confirm).
 4. Entra (Mack step A, Sander's sign-in), Argus R3 and R4:
    - All four apps are single-tenant and use certificate credentials only, with no client secrets.
    - web redirect URIs: exactly `https://passkey-point-lab.bluejungle.net/auth/callback` and `/signed-out`.
@@ -112,7 +112,7 @@ git cat-file -e origin/main:kubernetes/main/apps/lab-passkey/passkey-point/app/r
   - every secret volume has `defaultMode: 288` (0440);
   - each pod's env shows `PP_ENV_RENDERED_FROM` equal to the rendered sha256 (Themis C3);
   - no pod mounts or references `onepassword-connect-lab-passkey`. Only `secretstore.yaml` uses it.
-- **R7:** the scoped token can read vault `lab-passkey` only (1P token detail, or the Connect `/v1/vaults`
+- **R7:** the scoped token can read vault `passkey-point-lab` only (1P token detail, or the Connect `/v1/vaults`
   listing via that token). The SecretStore is Ready.
 - **C3:** the ConfigMaps have fixed names. After ANY re-render: commit, re-gate, push, then
   `kubectl -n lab-passkey rollout restart deploy/<affected>`. Then confirm the pods' `PP_ENV_RENDERED_FROM`
@@ -198,8 +198,8 @@ Break-glass if Flux itself is impaired:
 - Teardown, in this order:
   1. Remove the directory (one commit).
   2. Remove the four certificate credentials from the Entra app registrations (Mack, `devtenant` teardown).
-  3. Revoke the `lab-passkey` Connect token, and delete the home-infra item `onepassword-connect-lab-passkey`.
-  4. Delete vault `lab-passkey`.
+  3. Revoke the `passkey-point-lab` Connect token, and delete the home-infra item `op-connect-token-passkey-point-lab`.
+  4. Delete vault `passkey-point-lab`.
   5. Revoke the read:package Forgejo token.
 - Follow-ups: F-A (ClusterSecretStore with conditions, plus `lab-passkey` in the NotIn list of
   `onepassword-connect`), F-B (portal needs its own read-only directory app, supplier PP-F3), F-C
@@ -211,6 +211,6 @@ Break-glass if Flux itself is impaired:
   `ROSTER_SYNC_*` keys in the portal's allow-list in `render-env.py`. A separate read-only directory app
   means changing that one volume's secretName, one ExternalSecret and the portal's allow-list entries.
 - **Tenant and client IDs in the public repo:** they live only in the four rendered ConfigMaps. The
-  alternative is to keep them in vault `lab-passkey` and feed them through per-workload ExternalSecrets
+  alternative is to keep them in vault `passkey-point-lab` and feed them through per-workload ExternalSecrets
   (`envFrom: secretRef`). Same keys, same allow-list check run before writing to 1Password; only the
   render target changes.
