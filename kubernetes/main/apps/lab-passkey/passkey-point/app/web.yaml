@@ -1,15 +1,17 @@
 ---
-# passkey-point-web: the BFF/UI (node src/web/server.ts). Plain HTTP on 8080
-# behind envoy-internal (TLS ends at Envoy, wildcard cert); PP_ALLOW_PLAIN_HTTP
-# is accepted by the app outside NODE_ENV=production only (src/tls.ts). Calls
-# the api over mTLS. Holds the mock IdP PRIVATE key (signs api tokens).
+# passkey-point-web (entra): BFF/UI behind envoy-internal (plain 8080, TLS at Envoy).
+# Signs users in against Entra (login.microsoftonline.com only; app mode: no Graph
+# from web), calls the api over mTLS. Own Entra key file (web-entra-key).
 #
-# Common (chg-2026-10-05-009, Passkey Point a184498, MOCK mode):
-#   * image tag@INDEX digest (gate: tag->digest via the forge pull secret,
-#     cosign key verify, SLSA provenance, our own trivy).
-#   * PSA restricted: uid/gid 10001, drop ALL, ro rootfs, /tmp emptyDir,
-#     automount false. replicas 1 + Recreate (SQLite on RWO).
-#   * CNPs in ../../network-policies (default-deny first).
+# Common (chg-2026-10-05-009, a184498, ENTRA dev tenant, pod network):
+#   * image tag@INDEX digest; gate PASS: cosign key 6ad2a90a..66e9 3/3, SLSA 3/3,
+#     trivy + grype recorded (9 High no-fix OpenSSL/zlib, lab acceptance PP-F2).
+#   * envFrom = this workload's OWN non-secret ConfigMap (rendered from Mack's
+#     out/lab/*.env by hack/passkey-point/render-env.py); explicit env below wins.
+#   * secrets only as read-only 0440 files / one secretKeyRef, from the scoped
+#     SecretStore onepassword-lab-passkey. No dataFrom.
+#   * NODE_ENV unset (lab; TLS at envoy-internal); PSA restricted, uid 10001, drop
+#     ALL, ro rootfs, automount false; replicas 1 + Recreate (SQLite on RWO).
 # yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/apps/deployment_v1.json
 apiVersion: apps/v1
 kind: Deployment
@@ -29,12 +31,8 @@ spec:
     spec:
       automountServiceAccountToken: false
       enableServiceLinks: false
-      # ndots 1 (Themis B1): PP_API_URL passkey-point-api.lab-passkey.svc.cluster.local
-      # has 4 dots < the default ndots 5, so musl (node:24-alpine) would first
-      # try the search-expanded names; the Cilium DNS proxy answers those
-      # REFUSED (only the exact api name is allowed) and musl stops the search
-      # on any rcode other than NXDOMAIN. With ndots 1 the name is queried
-      # as-is first. Same fix as family-ai (open-webui, gezinsdienst, ...).
+      # ndots 1 (Themis B1): absolute names are queried as-is first, so the Cilium
+      # DNS allow-list never sees search-expanded variants.
       dnsConfig:
         options:
           - {name: ndots, value: "1"}
@@ -52,9 +50,12 @@ spec:
       containers:
         - name: web
           image: forge.bluejungle.net/vdhict/passkey-point:web-a184498@sha256:51c243f89b6083867ba5a14793c07844b0ffe95f63f216c5d512ebfa04da2b9f
+          envFrom:
+            - configMapRef:
+                name: passkey-point-web-env
           env:
             - name: PP_MODE
-              value: "mock"
+              value: "entra"
             - name: PP_DATA_DIR
               value: "/var/lib/passkey-point"
             - name: HOME
@@ -75,11 +76,8 @@ spec:
               value: "/tls/client/tls.crt"
             - name: PP_API_CLIENT_KEY_FILE
               value: "/tls/client/tls.key"
-            - name: PP_MOCK_IDP_PRIVATE_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: passkey-point-mock-idp
-                  key: PP_MOCK_IDP_PRIVATE_KEY
+            - name: ENTRA_CERT_PRIVATE_KEY_PATH
+              value: "/etc/passkey-point/entra/key.pem"
           ports:
             - name: http
               containerPort: 8080
@@ -117,6 +115,9 @@ spec:
             - name: tls-client
               mountPath: /tls/client
               readOnly: true
+            - name: entra
+              mountPath: /etc/passkey-point/entra
+              readOnly: true
             - name: data
               mountPath: /var/lib/passkey-point
       volumes:
@@ -126,6 +127,10 @@ spec:
         - name: tls-client
           secret:
             secretName: passkey-point-web-client-tls
+            defaultMode: 0440
+        - name: entra
+          secret:
+            secretName: passkey-point-web-entra
             defaultMode: 0440
         - name: data
           emptyDir:
