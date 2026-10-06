@@ -31,6 +31,15 @@ spec:
     spec:
       automountServiceAccountToken: false
       enableServiceLinks: false
+      # ndots 1 (Themis B1): PP_API_URL passkey-point-api.lab-passkey.svc.cluster.local
+      # has 4 dots < the default ndots 5, so musl (node:24-alpine) would first
+      # try the search-expanded names; the Cilium DNS proxy answers those
+      # REFUSED (only the exact api name is allowed) and musl stops the search
+      # on any rcode other than NXDOMAIN. With ndots 1 the name is queried
+      # as-is first. Same fix as family-ai (open-webui, gezinsdienst, ...).
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
       terminationGracePeriodSeconds: 20
       imagePullSecrets:
         - name: passkey-point-lab-pull
