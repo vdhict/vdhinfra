@@ -1,11 +1,26 @@
 ---
-# PLACEHOLDER, NOT RENDERED. hack/passkey-point/render-env.py replaces this file from
-# Mack's passkey-point.lab.*.env. Deliberately WITHOUT the guard key PP_ENV_RENDERED_FROM:
-# passkey-point-portal references it with optional: false, so a push of this placeholder
-# stops the pod with CreateContainerConfigError before any supplier code runs (Themis B2).
+# RENDERED by hack/passkey-point/render-env.py from passkey-point.lab.portal.env (non-secret, allow-listed).
+# Do not edit by hand: re-render, commit, then `kubectl rollout restart` the Deployment (fixed name).
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: passkey-point-portal-env
 data:
-  PP_ENV_PLACEHOLDER: "not rendered"
+  PP_ENV_RENDERED_FROM: "sha256:87e00910f36858460a14460812072e056154cb5cc9449cd986833f70535e2713"
+  PORTAL_CERT_THUMBPRINT_SHA256: "03c3764bfa5c26bee012a326d04facfe4d3494c43e5009724558be2e85671628"
+  PP_API_CLIENT_ID: "97b351a0-bb06-4776-8ec8-1240a3a7fcd6"
+  PP_MANAGER_SCOPE: "{\"name\":\"My team\"}"
+  PP_MANAGER_SOURCE: "entra"
+  PP_POPULATION_AU: "46803c2e-abad-4594-993f-7b29cd6fbd43"
+  PP_PORTAL_CLIENT_ID: "a8605c68-118c-49fb-9b90-6d1afab90176"
+  PP_PRIVILEGE_MODE: "app"
+  PP_REQUIRED_AUTH_CONTEXT: "c1"
+  PP_ROSTER_OWNER_AUDIENCE: "682f5851-5557-4a4a-9eda-0195d4fa7471"
+  PP_ROSTER_OWNER_TENANT_ID: "95cf7dac-b898-4b02-a22a-1379e2fde497"
+  PP_SITES: "[{\"id\":\"north\",\"name\":\"Site North\",\"auId\":\"82b84d1b-942b-4d98-87df-1dfe78502db4\",\"championGroupId\":\"fcd1fe16-df5f-4dc2-aae0-608a51ecce59\",\"tapPreset\":\"pilot\",\"bu\":\"PP-DEV\",\"listSources\":[\"hr-import\",\"bu-coordinator\"],\"campaignFrom\":\"2026-10-05T06:00:00Z\",\"campaignUntil\":\"2026-10-12T05:00:00Z\"},{\"id\":\"south\",\"name\":\"Site South\",\"auId\":\"2c7f75dd-85cd-4e39-9ac0-c3d34214d4a9\",\"championGroupId\":\"e3dd048b-d37c-400a-a77a-3b12313e0509\",\"tapPreset\":\"nist\",\"bu\":\"PP-DEV\",\"listSources\":[\"hr-import\",\"bu-coordinator\"],\"campaignFrom\":\"2026-10-05T06:00:00Z\",\"campaignUntil\":\"2026-10-12T05:00:00Z\"},{\"id\":\"east\",\"name\":\"Site East\",\"auId\":\"9ba15660-dd49-48f7-9f58-ebd8f6f71e35\",\"championGroupId\":\"d325a632-bead-4266-8bc0-029888003f93\",\"tapPreset\":\"pilot\",\"bu\":\"PP-DEV\",\"listSources\":[\"hr-import\",\"bu-coordinator\"],\"campaignFrom\":\"2026-10-05T06:00:00Z\",\"campaignUntil\":\"2026-10-12T05:00:00Z\"}]"
+  PP_TP_BU_ATTRIBUTE: "companyName"
+  PP_TP_EMPLOYEE_TYPES: "passkey-point-dev"
+  ROSTER_SYNC_CERT_THUMBPRINT_SHA256: "fa5b6a9a8a4b0d9265b506156f33bb2688da74498a17508099cd615be9296606"
+  ROSTER_SYNC_CLIENT_ID: "682f5851-5557-4a4a-9eda-0195d4fa7471"
+  ROSTER_SYNC_TENANT_ID: "95cf7dac-b898-4b02-a22a-1379e2fde497"
+  STEPUP_PER_TAP: "true"
