@@ -1,8 +1,8 @@
 ---
 # SQLite (PP_DB_ENGINE default), entra mode, two volumes (SEC-13):
-#   pp-data    the api's repo (data, audit trail, key register). api rw,
-#              roster sync rw (it updates the api's repo).
-#   pp-roster  today's list (roster.db). Writers: roster sync and portal.
+#   pp-data    the api's repo (data, audit trail, key register). api only.
+#   pp-roster  today's list (roster.db) + the roster sync's own repo
+#              (its PP_DATA_DIR). Writers: roster sync and portal.
 #              The api mounts it READ-ONLY (it must not be able to write the
 #              list; the app also opens it ro in entra mode).
 # Separate PVCs (not subPaths: kubelet creates subPath dirs root:root 0750,
