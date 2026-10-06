@@ -98,7 +98,7 @@ S = {  # key -> shape
     "PP_MANAGER_SCOPE": manager_scope,
     "PP_ROSTER_OWNER_AUDIENCE": rx(GUID + "|api://" + GUID),
     "PP_ROSTER_OWNER_TENANT_ID": rx(GUID),
-    "PP_TP_EMPLOYEE_TYPES": rx(r"[A-Za-z][A-Za-z ,]{0,199}"),
+    "PP_TP_EMPLOYEE_TYPES": rx(r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}(,[A-Za-z0-9 ][A-Za-z0-9 ._-]{0,63}){0,9}"),  # app: each <= 64
     "PP_TP_BU_ATTRIBUTE": rx(r"companyName|department|extensionAttribute([1-9]|1[0-5])"),
     "ENTRA_TENANT_ID": rx(GUID),
     "ENTRA_CLIENT_ID": rx(GUID),
@@ -155,8 +155,15 @@ OPTIONAL = {
 KEY_PATHS = {"ENTRA_CERT_PRIVATE_KEY_PATH": "/etc/passkey-point/entra/key.pem",
              "ROSTER_SYNC_CERT_PRIVATE_KEY_PATH": "/etc/passkey-point/entra/key.pem",
              "PORTAL_CERT_PRIVATE_KEY_PATH": "/etc/passkey-point/entra-portal/key.pem"}
-ORIGINS = {"PP_PUBLIC_ORIGIN": f"https://passkey-point-lab.{DOMAIN}",
-           "PP_PORTAL_PUBLIC_ORIGIN": f"https://passkey-point-portal-lab.{DOMAIN}"}
+WEB_O, PORTAL_O = f"https://passkey-point-lab.{DOMAIN}", f"https://passkey-point-portal-lab.{DOMAIN}"
+# Per workload: the portal's own PP_PUBLIC_ORIGIN is the portal origin (it reads PP_PORTAL_PUBLIC_ORIGIN first).
+ORIGINS = {"web": {"PP_PUBLIC_ORIGIN": WEB_O}, "api": {"PP_PUBLIC_ORIGIN": WEB_O}, "roster-sync": {"PP_PUBLIC_ORIGIN": WEB_O},
+           "portal": {"PP_PUBLIC_ORIGIN": PORTAL_O, "PP_PORTAL_PUBLIC_ORIGIN": PORTAL_O}}
+# Runtime keys the Deployments set explicitly: accepted ONLY with exactly our value, then dropped.
+RUNTIME = {"web": {"PORT": "8080", "PP_DATA_DIR": "/var/lib/passkey-point"},
+           "api": {"PORT": "8443", "PP_DATA_DIR": "/var/lib/passkey-point", "PP_ROSTER_DIR": "/var/lib/passkey-point-roster", "PP_DB_ENGINE": "sqlite"},
+           "roster-sync": {"PP_DATA_DIR": "/var/lib/passkey-point-roster", "PP_ROSTER_DIR": "/var/lib/passkey-point-roster", "PP_DB_ENGINE": "sqlite"},
+           "portal": {"PORT": "8080", "PP_DATA_DIR": "/var/lib/passkey-point", "PP_ROSTER_DIR": "/var/lib/passkey-point-roster", "PP_DB_ENGINE": "sqlite"}}
 DROP_ANY = {"PP_API_URL"}  # Mack's file carries the LAB address; ours = the in-cluster api Service
 
 HARD = re.compile(r"^(NODE_|MSAL_|AZURE_|HTTPS?_PROXY$|NO_PROXY$|ALL_PROXY$)|_PROXY$|AUTHORITY|_HOST$|SECRET|TOKEN|PASSW|PASSPHRASE|"
@@ -213,8 +220,12 @@ def main():
                 if v != KEY_PATHS[k]: errors.append(f"{f}: {k}={v} != mount path {KEY_PATHS[k]}")
                 else: notes.append(f"{f}: {k} checked + dropped (Deployment sets it)")
                 continue
-            if k in ORIGINS:
-                if v.rstrip("/") != ORIGINS[k]: errors.append(f"{f}: {k}={v} != route origin {ORIGINS[k]} (redirect URI)")
+            if k in ORIGINS[f]:
+                if v.rstrip("/") != ORIGINS[f][k]: errors.append(f"{f}: {k}={v} != route origin {ORIGINS[f][k]} (redirect URI)")
+                else: notes.append(f"{f}: {k} checked + dropped (Deployment sets it)")
+                continue
+            if k in RUNTIME[f]:
+                if v != RUNTIME[f][k]: errors.append(f"{f}: {k}={v} != the Deployment's {RUNTIME[f][k]}")
                 else: notes.append(f"{f}: {k} checked + dropped (Deployment sets it)")
                 continue
             if k in DROP_ANY:
