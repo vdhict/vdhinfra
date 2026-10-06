@@ -51,7 +51,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: web
-          image: forge.bluejungle.net/vdhict/passkey-point:web-a184498@sha256:51c243f89b6083867ba5a14793c07844b0ffe95f63f216c5d512ebfa04da2b9f
+          image: forge.bluejungle.net/vdhict/passkey-point:web-d3f4de5@sha256:d207d5b2e5cd09cb55ddd96ee20df24345847b30fb273c59e29de59d83aa9098
           envFrom:
             - configMapRef:
                 name: passkey-point-web-env

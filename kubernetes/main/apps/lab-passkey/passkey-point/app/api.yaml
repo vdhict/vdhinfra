@@ -49,7 +49,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: api
-          image: forge.bluejungle.net/vdhict/passkey-point:api-a184498@sha256:1d223dada89ac430af1a4a4ed642cdc0b901fcdf26f69bf6f98f476b5d46cdb9
+          image: forge.bluejungle.net/vdhict/passkey-point:api-d3f4de5@sha256:6f764d86e9f60cb3ab04f95a069b9d2bb9af55eda29ae628be59d3cefec089a8
           envFrom:
             - configMapRef:
                 name: passkey-point-api-env
