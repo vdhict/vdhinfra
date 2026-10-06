@@ -1,19 +1,15 @@
 ---
 # yaml-language-server: $schema=https://json.schemastore.org/kustomization
 #
-# lab-passkey network policy. Same model as vikunja / family-ai:
-#   default-deny for every pod in the namespace, then per workload:
-#   web     in:  envoy-internal only, TCP 8080
-#           out: the api pods TCP 8443 + DNS (the api Service name only)
-#   api     in:  the web pods TCP 8443          out: nothing
-#   portal  in:  nothing                         out: nothing
-#   (roster sync: ENTRA mode only; MOCK mode has no roster sync pod)
-# MOCK mode (this commit): the app talks to no tenant, so there is NO
-# internet egress at all. The ENTRA delta adds toFQDNs
-# login.microsoftonline.com / graph.microsoft.com :443 per workload.
-# Plain allow rules only: NO deny rules, NO port ranges (inc-2026-10-05-002).
-# NO egress to envoy-internal (inc-2026-09-26-001) and none to any other
-# namespace or the LAN.
+# lab-passkey network policy, ENTRA mode. default-deny for every pod, then:
+#   web     in:  envoy-internal :8080   out: api :8443, login.microsoftonline.com:443
+#   api     in:  web :8443              out: login.microsoftonline.com, graph.microsoft.com :443
+#   roster  in:  nothing                out: login.microsoftonline.com, graph.microsoft.com :443
+#   portal  in:  envoy-internal :8080   out: login.microsoftonline.com, graph.microsoft.com :443
+#   + DNS (kube-dns) for exactly those names. Hosts measured from the a184498
+#   source (see passkey-point.yaml). Plain allow rules only: NO deny rules, NO
+#   port ranges (inc-2026-10-05-002). NO egress to envoy-internal
+#   (inc-2026-09-26-001), to any other namespace or to the LAN.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:

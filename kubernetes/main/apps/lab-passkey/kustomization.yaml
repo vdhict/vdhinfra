@@ -6,8 +6,8 @@
 # LAB VLAN). chg-2026-10-05-009, owner priority 2026-10-06 (live demo).
 # NAMESPACE-SCOPED ONLY: no Multus, no NAD, no CRD, no cluster-wide VAP or
 # CCNP (those are LAB day 2a/2b, later).
-#   network-policies/  default-deny + per-workload CNPs, land FIRST
-#   passkey-point/     web, api, portal (+ roster sync in entra mode),
+#   network-policies/  default-deny + per-workload CNPs (entra: toFQDNs Entra), land FIRST
+#   passkey-point/     web, api, roster sync, portal (ENTRA dev tenant),
 #                      secrets, certs, PVC, route
 # TEMPORARY: decommission and delete by 2026-10-31 (owner). Teardown =
 # remove this directory in one commit (namespace is NOT prune-protected:

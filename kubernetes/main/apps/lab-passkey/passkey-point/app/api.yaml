@@ -1,15 +1,17 @@
 ---
-# passkey-point-api: the issuing service (node src/api/server.ts). TLS on 8443
-# with the namespace CA; /v1 requires the web client cert. Owns pp-data
-# (SQLite: data, audit trail, key register, and in MOCK mode today's list,
-# which it seeds with the fictional demo tenant). Mock IdP PUBLIC key only.
+# passkey-point-api (entra, app privilege mode): issues TAPs via Graph app-only.
+# TLS 8443 + mTLS from web. pp-data rw; pp-roster (today's list) READ-ONLY
+# (SEC-13). Own Entra key file (api-entra-key).
 #
-# Common (chg-2026-10-05-009, Passkey Point a184498, MOCK mode):
-#   * image tag@INDEX digest (gate: tag->digest via the forge pull secret,
-#     cosign key verify, SLSA provenance, our own trivy).
-#   * PSA restricted: uid/gid 10001, drop ALL, ro rootfs, /tmp emptyDir,
-#     automount false. replicas 1 + Recreate (SQLite on RWO).
-#   * CNPs in ../../network-policies (default-deny first).
+# Common (chg-2026-10-05-009, a184498, ENTRA dev tenant, pod network):
+#   * image tag@INDEX digest; gate PASS: cosign key 6ad2a90a..66e9 3/3, SLSA 3/3,
+#     trivy + grype recorded (9 High no-fix OpenSSL/zlib, lab acceptance PP-F2).
+#   * envFrom = this workload's OWN non-secret ConfigMap (rendered from Mack's
+#     out/lab/*.env by hack/passkey-point/render-env.py); explicit env below wins.
+#   * secrets only as read-only 0440 files / one secretKeyRef, from the scoped
+#     SecretStore onepassword-lab-passkey. No dataFrom.
+#   * NODE_ENV=production (below); PSA restricted, uid 10001, drop
+#     ALL, ro rootfs, automount false; replicas 1 + Recreate (SQLite on RWO).
 # yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/apps/deployment_v1.json
 apiVersion: apps/v1
 kind: Deployment
@@ -29,12 +31,8 @@ spec:
     spec:
       automountServiceAccountToken: false
       enableServiceLinks: false
-      # ndots 1 (Themis B1): PP_API_URL passkey-point-api.lab-passkey.svc.cluster.local
-      # has 4 dots < the default ndots 5, so musl (node:24-alpine) would first
-      # try the search-expanded names; the Cilium DNS proxy answers those
-      # REFUSED (only the exact api name is allowed) and musl stops the search
-      # on any rcode other than NXDOMAIN. With ndots 1 the name is queried
-      # as-is first. Same fix as family-ai (open-webui, gezinsdienst, ...).
+      # ndots 1 (Themis B1): absolute names are queried as-is first, so the Cilium
+      # DNS allow-list never sees search-expanded variants.
       dnsConfig:
         options:
           - {name: ndots, value: "1"}
@@ -52,9 +50,30 @@ spec:
       containers:
         - name: api
           image: forge.bluejungle.net/vdhict/passkey-point:api-a184498@sha256:1d223dada89ac430af1a4a4ed642cdc0b901fcdf26f69bf6f98f476b5d46cdb9
+          envFrom:
+            - configMapRef:
+                name: passkey-point-api-env
           env:
+            # B2 guard (Themis): only hack/passkey-point/render-env.py writes this key. A
+            # placeholder ConfigMap lacks it -> CreateContainerConfigError, so the
+            # supplier code never starts on an unrendered config.
+            - name: PP_ENV_RENDERED_FROM
+              valueFrom:
+                configMapKeyRef:
+                  name: passkey-point-api-env
+                  key: PP_ENV_RENDERED_FROM
+                  optional: false
             - name: PP_MODE
-              value: "mock"
+              value: "entra"
+            # NODE_ENV production (M14 decision, statically verified on a184498): the api
+            # serves its own TLS/mTLS, so tls.ts:49 (plain HTTP refused) does not bite;
+            # the production guards then hold in-app: client secret refused
+            # (credential.ts:32), https origin (config.ts:678), delegated refused
+            # (:707), sqlite not under /tmp (:816), PP_POPULATION_AU required (:928),
+            # and the SEC-13 self-check (:937) that pp-roster is NOT writable for the
+            # api (passes on our readOnly mount: tryCreate -> EROFS, chmod -> EROFS).
+            - name: NODE_ENV
+              value: "production"
             - name: PP_DATA_DIR
               value: "/var/lib/passkey-point"
             - name: HOME
@@ -71,11 +90,10 @@ spec:
               value: "/tls/server/tls.key"
             - name: PP_TLS_CLIENT_CA_FILE
               value: "/tls/server/ca.crt"
-            - name: PP_MOCK_IDP_PUBLIC_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: passkey-point-mock-idp
-                  key: PP_MOCK_IDP_PUBLIC_KEY
+            - name: PP_ROSTER_DIR
+              value: "/var/lib/passkey-point-roster"
+            - name: ENTRA_CERT_PRIVATE_KEY_PATH
+              value: "/etc/passkey-point/entra/key.pem"
           ports:
             - name: https
               containerPort: 8443
@@ -113,8 +131,14 @@ spec:
             - name: tls-server
               mountPath: /tls/server
               readOnly: true
+            - name: entra
+              mountPath: /etc/passkey-point/entra
+              readOnly: true
             - name: data
               mountPath: /var/lib/passkey-point
+            - name: roster
+              mountPath: /var/lib/passkey-point-roster
+              readOnly: true
       volumes:
         - name: tmp
           emptyDir:
@@ -123,6 +147,13 @@ spec:
           secret:
             secretName: passkey-point-api-tls
             defaultMode: 0440
+        - name: entra
+          secret:
+            secretName: passkey-point-api-entra
+            defaultMode: 0440
         - name: data
           persistentVolumeClaim:
             claimName: pp-data
+        - name: roster
+          persistentVolumeClaim:
+            claimName: pp-roster
