@@ -27,6 +27,13 @@ spec:
     bpf:
       masquerade: true
       hostLegacyRouting: false
+      # chg-2026-10-05-010 (LAB VLAN): let 802.1q VID 60 pass the VLAN filter
+      # in cil_from_netdev/cil_to_netdev on the native devices. Exactly [60],
+      # never 0 (= all tags; Argus K6). NOTE: Cilium only renders an allowed
+      # VID into VLAN_FILTER when a VLAN link with that VID exists in the
+      # HOST netns on a native device at agent start
+      # (pkg/datapath/linux/config/config.go vlanFilterMacros, v1.19.4).
+      vlanBypass: [60]
     cgroup:
       automount:
         enabled: false
