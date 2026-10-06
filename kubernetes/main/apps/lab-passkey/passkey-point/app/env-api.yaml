@@ -1,10 +1,11 @@
 ---
-# PLACEHOLDER, NOT RENDERED. Replaced by hack/passkey-point/render-env.py from Mack's
-# passkey-point.lab.*.env (non-secret ids/thumbprints/sites). This commit must NOT be
-# pushed until the render commit sits on top of it (Themis gates the pair).
+# PLACEHOLDER, NOT RENDERED. hack/passkey-point/render-env.py replaces this file from
+# Mack's passkey-point.lab.*.env. Deliberately WITHOUT the guard key PP_ENV_RENDERED_FROM:
+# passkey-point-api references it with optional: false, so a push of this placeholder
+# stops the pod with CreateContainerConfigError before any supplier code runs (Themis B2).
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: passkey-point-api-env
 data:
-  PP_ENV_RENDERED: "false"
+  PP_ENV_PLACEHOLDER: "not rendered"

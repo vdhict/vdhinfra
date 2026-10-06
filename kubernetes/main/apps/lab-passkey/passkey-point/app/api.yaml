@@ -54,6 +54,15 @@ spec:
             - configMapRef:
                 name: passkey-point-api-env
           env:
+            # B2 guard (Themis): only hack/passkey-point/render-env.py writes this key. A
+            # placeholder ConfigMap lacks it -> CreateContainerConfigError, so the
+            # supplier code never starts on an unrendered config.
+            - name: PP_ENV_RENDERED_FROM
+              valueFrom:
+                configMapKeyRef:
+                  name: passkey-point-api-env
+                  key: PP_ENV_RENDERED_FROM
+                  optional: false
             - name: PP_MODE
               value: "entra"
             - name: PP_DATA_DIR
