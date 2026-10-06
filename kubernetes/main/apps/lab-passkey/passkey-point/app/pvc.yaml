@@ -1,0 +1,18 @@
+---
+# SQLite (PP_DB_ENGINE default). MOCK mode: one data dir for api, roster
+# and portal (today's list lives in it; the api seeds the fictional demo
+# list there). ReadWriteOnce rook-ceph-block: roster and portal follow the
+# api onto its node (required podAffinity), so all three share one kernel
+# and normal SQLite file locking. No VolSync: lab data, teardown by
+# 2026-10-31, loss on rollback accepted.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/v1/persistentvolumeclaim_v1.json
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pp-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: rook-ceph-block
+  resources:
+    requests:
+      storage: 1Gi

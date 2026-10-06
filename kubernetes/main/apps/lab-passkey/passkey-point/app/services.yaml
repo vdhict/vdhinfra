@@ -1,0 +1,30 @@
+---
+# ClusterIP only (quota: no LB, no NodePort). The portal and roster get no
+# Service: nothing reaches them.
+apiVersion: v1
+kind: Service
+metadata:
+  name: passkey-point-web
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: passkey-point-web
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: passkey-point-api
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: passkey-point-api
+  ports:
+    - name: https
+      port: 8443
+      targetPort: 8443
+      protocol: TCP

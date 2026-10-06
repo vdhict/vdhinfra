@@ -1,0 +1,15 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./boundary.yaml
+  - ./externalsecret.yaml
+  - ./mock-idp.sops.yaml
+  - ./certificates.yaml
+  - ./pvc.yaml
+  - ./services.yaml
+  - ./httproute.yaml
+  - ./web.yaml
+  - ./api.yaml
+  - ./portal.yaml

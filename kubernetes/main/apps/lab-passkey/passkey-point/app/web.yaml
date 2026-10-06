@@ -1,0 +1,123 @@
+---
+# passkey-point-web: the BFF/UI (node src/web/server.ts). Plain HTTP on 8080
+# behind envoy-internal (TLS ends at Envoy, wildcard cert); PP_ALLOW_PLAIN_HTTP
+# is accepted by the app outside NODE_ENV=production only (src/tls.ts). Calls
+# the api over mTLS. Holds the mock IdP PRIVATE key (signs api tokens).
+#
+# Common (chg-2026-10-05-009, Passkey Point a184498, MOCK mode):
+#   * image tag@INDEX digest (gate: tag->digest via the forge pull secret,
+#     cosign key verify, SLSA provenance, our own trivy).
+#   * PSA restricted: uid/gid 10001, drop ALL, ro rootfs, /tmp emptyDir,
+#     automount false. replicas 1 + Recreate (SQLite on RWO).
+#   * CNPs in ../../network-policies (default-deny first).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/apps/deployment_v1.json
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: passkey-point-web
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: passkey-point-web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: passkey-point-web
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 20
+      imagePullSecrets:
+        - name: passkey-point-lab-pull
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: web
+          image: forge.bluejungle.net/vdhict/passkey-point:web-a184498@sha256:51c243f89b6083867ba5a14793c07844b0ffe95f63f216c5d512ebfa04da2b9f
+          env:
+            - name: PP_MODE
+              value: "mock"
+            - name: PP_DATA_DIR
+              value: "/var/lib/passkey-point"
+            - name: HOME
+              value: "/tmp"
+            - name: HOST
+              value: "0.0.0.0"
+            - name: PORT
+              value: "8080"
+            - name: PP_PUBLIC_ORIGIN
+              value: "https://passkey-point-lab.${SECRET_DOMAIN}"
+            - name: PP_ALLOW_PLAIN_HTTP
+              value: "true"
+            - name: PP_API_URL
+              value: "https://passkey-point-api.lab-passkey.svc.cluster.local:8443"
+            - name: PP_API_CA_FILE
+              value: "/tls/client/ca.crt"
+            - name: PP_API_CLIENT_CERT_FILE
+              value: "/tls/client/tls.crt"
+            - name: PP_API_CLIENT_KEY_FILE
+              value: "/tls/client/tls.key"
+            - name: PP_MOCK_IDP_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: passkey-point-mock-idp
+                  key: PP_MOCK_IDP_PRIVATE_KEY
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+              scheme: HTTP
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8080
+              scheme: HTTP
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 20m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: tls-client
+              mountPath: /tls/client
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/passkey-point
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+        - name: tls-client
+          secret:
+            secretName: passkey-point-web-client-tls
+            defaultMode: 0440
+        - name: data
+          emptyDir:
+            sizeLimit: 256Mi

@@ -1,0 +1,82 @@
+---
+# web -> api mTLS inside the namespace (src/tls.ts): the api serves TLS on
+# 8443 and requires the web client cert on /v1 (PP_TLS_CLIENT_CA_FILE); the
+# web verifies the api against the same CA (PP_API_CA_FILE). A
+# namespace-local CA: its key never leaves lab-passkey and dies with it.
+# The public side (passkey-point-lab.${SECRET_DOMAIN}) is terminated by
+# envoy-internal with the existing wildcard cert; envoy -> web is plain
+# HTTP on the pod network like every other app here (BackendTLSPolicy is
+# v1alpha3 on Envoy Gateway v1.3.0 and unmeasured).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cert-manager.io/issuer_v1.json
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: lab-passkey-selfsigned
+spec:
+  selfSigned: {}
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cert-manager.io/certificate_v1.json
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: lab-passkey-ca
+spec:
+  isCA: true
+  commonName: lab-passkey internal CA (chg-2026-10-05-009)
+  secretName: lab-passkey-ca
+  duration: 1440h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    kind: Issuer
+    name: lab-passkey-selfsigned
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cert-manager.io/issuer_v1.json
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: lab-passkey-ca
+spec:
+  ca:
+    secretName: lab-passkey-ca
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cert-manager.io/certificate_v1.json
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: passkey-point-api
+spec:
+  secretName: passkey-point-api-tls
+  commonName: passkey-point-api.lab-passkey.svc
+  dnsNames:
+    - passkey-point-api
+    - passkey-point-api.lab-passkey.svc
+    - passkey-point-api.lab-passkey.svc.cluster.local
+  usages: ["server auth"]
+  duration: 720h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    kind: Issuer
+    name: lab-passkey-ca
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cert-manager.io/certificate_v1.json
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: passkey-point-web-client
+spec:
+  secretName: passkey-point-web-client-tls
+  commonName: passkey-point-web
+  usages: ["client auth"]
+  duration: 720h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    kind: Issuer
+    name: lab-passkey-ca

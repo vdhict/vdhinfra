@@ -1,0 +1,28 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Passkey Point a184498 (chg-2026-10-05-009, CMDB app.passkey-point-lab).
+# dependsOn the CNPs: no pod runs before default-deny exists.
+# wait: true with a 10m timeout: the first start pulls 3 images and issues
+# the internal certificates; a failing pod shows up as a NotReady ks.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app lab-passkey-app
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: lab-passkey-network-policies
+  targetNamespace: lab-passkey
+  commonMetadata:
+    labels:
+      app.kubernetes.io/part-of: lab-passkey
+  path: ./kubernetes/main/apps/lab-passkey/passkey-point/app
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: true
+  interval: 30m
+  retryInterval: 2m
+  timeout: 10m

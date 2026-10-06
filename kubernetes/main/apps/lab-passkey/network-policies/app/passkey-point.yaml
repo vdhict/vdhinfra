@@ -1,0 +1,53 @@
+---
+# web: in from envoy-internal only (the passkey-point-lab route), TCP 8080.
+# out: the api pods on 8443 (mTLS), and DNS for the api Service name only.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: passkey-point-web
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: passkey-point-web
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            gateway.envoyproxy.io/owning-gateway-name: envoy-internal
+      toPorts:
+        - ports: [{port: "8080", protocol: TCP}]
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: passkey-point-api
+      toPorts:
+        - ports: [{port: "8443", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              - matchName: passkey-point-api.lab-passkey.svc.cluster.local
+---
+# api: in from the web pods only, TCP 8443. MOCK mode: no egress at all.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: passkey-point-api
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: passkey-point-api
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: passkey-point-web
+      toPorts:
+        - ports: [{port: "8443", protocol: TCP}]

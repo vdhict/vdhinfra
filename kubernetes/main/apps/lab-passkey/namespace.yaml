@@ -1,0 +1,14 @@
+---
+# PSA restricted ENFORCED, no exemption. Measured against the a184498 images
+# (linux/amd64 config): User "10001:0", node:24-alpine, Cmd node <file>,
+# no capabilities needed; all listeners >= 1024 (8080/8443).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lab-passkey
+  labels:
+    vdhinfra.io/tenant: lab-passkey
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

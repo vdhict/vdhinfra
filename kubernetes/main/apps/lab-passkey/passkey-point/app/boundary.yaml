@@ -1,0 +1,66 @@
+---
+# No API access for anything in this namespace: the default SA mounts no
+# token, and every pod also sets automountServiceAccountToken: false. No
+# Role/RoleBinding exists here (nothing in lab-passkey talks to the API).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+automountServiceAccountToken: false
+---
+# Small and hard. pods 4 = web, api, portal + 1 (Recreate rollouts have no
+# surge). MOCK mode runs no roster sync: it refuses PP_MODE=mock ("sync
+# talks to Entra", measured 2026-10-06); the ENTRA delta adds it (pods 5).
+# services 2 = web + api, ClusterIP only (no LB, no
+# NodePort). One PVC.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: lab-passkey
+spec:
+  hard:
+    requests.cpu: "1"
+    requests.memory: 2Gi
+    limits.memory: 4Gi
+    pods: "4"
+    persistentvolumeclaims: "1"
+    requests.storage: 5Gi
+    services: "2"
+    services.loadbalancers: "0"
+    services.nodeports: "0"
+    secrets: "20"
+    configmaps: "20"
+---
+# No system priority classes (they would preempt HA/Ceph under pressure).
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: lab-passkey-no-system-priority
+spec:
+  hard:
+    pods: "0"
+  scopeSelector:
+    matchExpressions:
+      - scopeName: PriorityClass
+        operator: In
+        values: ["system-node-critical", "system-cluster-critical"]
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: lab-passkey
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: 10m
+        memory: 32Mi
+      default:
+        memory: 256Mi
+      max:
+        memory: 1Gi
+    - type: PersistentVolumeClaim
+      min:
+        storage: 1Gi
+      max:
+        storage: 5Gi

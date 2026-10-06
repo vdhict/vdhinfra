@@ -1,0 +1,40 @@
+---
+# https://passkey-point-lab.${SECRET_DOMAIN} -> envoy-internal
+# (172.16.2.241:443, wildcard cert) -> passkey-point-web:8080.
+# LAN and WireGuard only. NEVER envoy-external.
+# NO forward-auth (owner design 2026-10-02 point 1): protected by the app's
+# own sign-in only (mock IdP in mock mode, Entra in entra mode).
+#
+# DNS, same as vikunja / devtools/forgejo:
+#   * external-dns.alpha.kubernetes.io/controller: none keeps BOTH
+#     Cloudflare instances off (no public CNAME, no world-readable TXT).
+#   * external-dns-unifi does NOT read that key, so it DOES write the LAN
+#     record passkey-point-lab.${SECRET_DOMAIN} A 172.16.2.241 on the UDM,
+#     and removes it on revert. Do NOT also hand-write a static A record.
+#   * Clients with Secure DNS / DoH (phones, some browsers) bypass the UDM
+#     and get NXDOMAIN for this LAN-only name: turn Secure DNS off for the
+#     demo device (memory udm-dns-interception).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/gateway.networking.k8s.io/httproute_v1.json
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: passkey-point-lab
+  annotations:
+    external-dns.alpha.kubernetes.io/controller: none
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: envoy-internal
+      namespace: network
+      sectionName: https
+  hostnames:
+    - passkey-point-lab.${SECRET_DOMAIN}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: passkey-point-web
+          port: 8080
