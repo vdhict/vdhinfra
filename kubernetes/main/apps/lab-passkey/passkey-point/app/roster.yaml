@@ -1,7 +1,7 @@
 ---
-# passkey-point-api (entra, app privilege mode): issues TAPs via Graph app-only.
-# TLS 8443 + mTLS from web. pp-data rw; pp-roster (today's list) READ-ONLY
-# (SEC-13). Own Entra key file (api-entra-key).
+# passkey-point-roster (entra): scope sync, image default `node scripts/roster.ts
+# sync --every 300`. Graph app-only as its OWN app registration (roster-sync-entra-key).
+# Writes today's list (pp-roster) and the api's repo (pp-data). No listener.
 #
 # Common (chg-2026-10-05-009, a184498, ENTRA dev tenant, pod network):
 #   * image tag@INDEX digest; gate PASS: cosign key 6ad2a90a..66e9 3/3, SLSA 3/3,
@@ -16,18 +16,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: passkey-point-api
+  name: passkey-point-roster
 spec:
   replicas: 1
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      app.kubernetes.io/name: passkey-point-api
+      app.kubernetes.io/name: passkey-point-roster
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: passkey-point-api
+        app.kubernetes.io/name: passkey-point-roster
     spec:
       automountServiceAccountToken: false
       enableServiceLinks: false
@@ -39,6 +39,13 @@ spec:
       terminationGracePeriodSeconds: 20
       imagePullSecrets:
         - name: passkey-point-lab-pull
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: passkey-point-api
+              topologyKey: kubernetes.io/hostname
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
@@ -48,11 +55,11 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
-        - name: api
-          image: forge.bluejungle.net/vdhict/passkey-point:api-a184498@sha256:1d223dada89ac430af1a4a4ed642cdc0b901fcdf26f69bf6f98f476b5d46cdb9
+        - name: roster
+          image: forge.bluejungle.net/vdhict/passkey-point:roster-a184498@sha256:27d0768f77cb02e1a8e4a9776cb55e286c6c968ea2871c7f60ff822bef9d263d
           envFrom:
             - configMapRef:
-                name: passkey-point-api-env
+                name: passkey-point-roster-env
           env:
             - name: PP_MODE
               value: "entra"
@@ -60,42 +67,10 @@ spec:
               value: "/var/lib/passkey-point"
             - name: HOME
               value: "/tmp"
-            - name: HOST
-              value: "0.0.0.0"
-            - name: PORT
-              value: "8443"
-            - name: PP_PUBLIC_ORIGIN
-              value: "https://passkey-point-lab.${SECRET_DOMAIN}"
-            - name: PP_TLS_CERT_FILE
-              value: "/tls/server/tls.crt"
-            - name: PP_TLS_KEY_FILE
-              value: "/tls/server/tls.key"
-            - name: PP_TLS_CLIENT_CA_FILE
-              value: "/tls/server/ca.crt"
             - name: PP_ROSTER_DIR
               value: "/var/lib/passkey-point-roster"
-            - name: ENTRA_CERT_PRIVATE_KEY_PATH
+            - name: ROSTER_SYNC_CERT_PRIVATE_KEY_PATH
               value: "/etc/passkey-point/entra/key.pem"
-          ports:
-            - name: https
-              containerPort: 8443
-              protocol: TCP
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: 8443
-              scheme: HTTPS
-            periodSeconds: 10
-            timeoutSeconds: 3
-            failureThreshold: 6
-          readinessProbe:
-            httpGet:
-              path: /readyz
-              port: 8443
-              scheme: HTTPS
-            periodSeconds: 10
-            timeoutSeconds: 3
-            failureThreshold: 3
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -110,9 +85,6 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
-            - name: tls-server
-              mountPath: /tls/server
-              readOnly: true
             - name: entra
               mountPath: /etc/passkey-point/entra
               readOnly: true
@@ -120,18 +92,13 @@ spec:
               mountPath: /var/lib/passkey-point
             - name: roster
               mountPath: /var/lib/passkey-point-roster
-              readOnly: true
       volumes:
         - name: tmp
           emptyDir:
             sizeLimit: 64Mi
-        - name: tls-server
-          secret:
-            secretName: passkey-point-api-tls
-            defaultMode: 0440
         - name: entra
           secret:
-            secretName: passkey-point-api-entra
+            secretName: passkey-point-roster-sync-entra
             defaultMode: 0440
         - name: data
           persistentVolumeClaim:

@@ -1,17 +1,18 @@
 ---
-# passkey-point-portal: the list portal, from the ROSTER image (package.json
-# start:portal = node --env-file-if-exists=.env src/portal/server.ts; run
-# directly: no npm, no .env). Plain HTTP 8080, NO Service and NO route:
-# unreachable by design tonight (opening it = its own route + review).
-# MOCK mode: generates its own mock IdP pair in-process. Shares pp-data with
-# the api (same node via podAffinity).
+# passkey-point-portal (entra): the list portal (roster image, src/portal/server.ts),
+# on envoy-internal as passkey-point-portal-lab (plain 8080, TLS at Envoy). Signs list
+# owners in with its own app (portal-entra-key); read-only directory checks with the
+# roster-sync key. Writes today's list (pp-roster). MAC key as env (portal only).
 #
-# Common (chg-2026-10-05-009, Passkey Point a184498, MOCK mode):
-#   * image tag@INDEX digest (gate: tag->digest via the forge pull secret,
-#     cosign key verify, SLSA provenance, our own trivy).
-#   * PSA restricted: uid/gid 10001, drop ALL, ro rootfs, /tmp emptyDir,
-#     automount false. replicas 1 + Recreate (SQLite on RWO).
-#   * CNPs in ../../network-policies (default-deny first).
+# Common (chg-2026-10-05-009, a184498, ENTRA dev tenant, pod network):
+#   * image tag@INDEX digest; gate PASS: cosign key 6ad2a90a..66e9 3/3, SLSA 3/3,
+#     trivy + grype recorded (9 High no-fix OpenSSL/zlib, lab acceptance PP-F2).
+#   * envFrom = this workload's OWN non-secret ConfigMap (rendered from Mack's
+#     out/lab/*.env by hack/passkey-point/render-env.py); explicit env below wins.
+#   * secrets only as read-only 0440 files / one secretKeyRef, from the scoped
+#     SecretStore onepassword-lab-passkey. No dataFrom.
+#   * NODE_ENV unset (lab; TLS at envoy-internal); PSA restricted, uid 10001, drop
+#     ALL, ro rootfs, automount false; replicas 1 + Recreate (SQLite on RWO).
 # yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/apps/deployment_v1.json
 apiVersion: apps/v1
 kind: Deployment
@@ -31,12 +32,8 @@ spec:
     spec:
       automountServiceAccountToken: false
       enableServiceLinks: false
-      # ndots 1 (Themis B1): PP_API_URL passkey-point-api.lab-passkey.svc.cluster.local
-      # has 4 dots < the default ndots 5, so musl (node:24-alpine) would first
-      # try the search-expanded names; the Cilium DNS proxy answers those
-      # REFUSED (only the exact api name is allowed) and musl stops the search
-      # on any rcode other than NXDOMAIN. With ndots 1 the name is queried
-      # as-is first. Same fix as family-ai (open-webui, gezinsdienst, ...).
+      # ndots 1 (Themis B1): absolute names are queried as-is first, so the Cilium
+      # DNS allow-list never sees search-expanded variants.
       dnsConfig:
         options:
           - {name: ndots, value: "1"}
@@ -62,9 +59,12 @@ spec:
         - name: portal
           image: forge.bluejungle.net/vdhict/passkey-point:roster-a184498@sha256:27d0768f77cb02e1a8e4a9776cb55e286c6c968ea2871c7f60ff822bef9d263d
           command: ["node", "src/portal/server.ts"]
+          envFrom:
+            - configMapRef:
+                name: passkey-point-portal-env
           env:
             - name: PP_MODE
-              value: "mock"
+              value: "entra"
             - name: PP_DATA_DIR
               value: "/var/lib/passkey-point"
             - name: HOME
@@ -73,8 +73,21 @@ spec:
               value: "0.0.0.0"
             - name: PORT
               value: "8080"
+            - name: PP_PORTAL_PUBLIC_ORIGIN
+              value: "https://passkey-point-portal-lab.${SECRET_DOMAIN}"
             - name: PP_ALLOW_PLAIN_HTTP
               value: "true"
+            - name: PP_ROSTER_DIR
+              value: "/var/lib/passkey-point-roster"
+            - name: PORTAL_CERT_PRIVATE_KEY_PATH
+              value: "/etc/passkey-point/entra-portal/key.pem"
+            - name: ROSTER_SYNC_CERT_PRIVATE_KEY_PATH
+              value: "/etc/passkey-point/entra/key.pem"
+            - name: PP_PORTAL_MAC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: passkey-point-portal-mac
+                  key: PP_PORTAL_MAC_KEY
           ports:
             - name: http
               containerPort: 8080
@@ -109,12 +122,31 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: entra
+              mountPath: /etc/passkey-point/entra
+              readOnly: true
+            - name: entra-portal
+              mountPath: /etc/passkey-point/entra-portal
+              readOnly: true
             - name: data
               mountPath: /var/lib/passkey-point
+            - name: roster
+              mountPath: /var/lib/passkey-point-roster
       volumes:
         - name: tmp
           emptyDir:
             sizeLimit: 64Mi
+        - name: entra
+          secret:
+            secretName: passkey-point-roster-sync-entra
+            defaultMode: 0440
+        - name: entra-portal
+          secret:
+            secretName: passkey-point-portal-entra
+            defaultMode: 0440
         - name: data
+          emptyDir:
+            sizeLimit: 256Mi
+        - name: roster
           persistentVolumeClaim:
-            claimName: pp-data
+            claimName: pp-roster
