@@ -77,11 +77,6 @@ spec:
             # origin, delegated refused, data dir not under /tmp.
             - name: NODE_ENV
               value: "production"
-            # inc-2026-10-06-005: production refuses a non-https PP_PUBLIC_ORIGIN
-            # (config.ts:678; default http://localhost:<PORT>). render-env.py drops the
-            # file value as "Deployment sets it", so THIS Deployment must set it.
-            - name: PP_PUBLIC_ORIGIN
-              value: "https://passkey-point-lab.${SECRET_DOMAIN}"
             # Own repo on the roster volume, NOT the api's pp-data (supplier layout
             # out/lab/passkey-point.lab.roster-sync.env; scripts/roster.ts opens its
             # repo in PP_DATA_DIR): least privilege, the sync never touches the api data.

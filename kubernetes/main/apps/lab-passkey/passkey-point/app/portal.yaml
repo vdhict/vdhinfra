@@ -84,10 +84,6 @@ spec:
               value: "0.0.0.0"
             - name: PORT
               value: "8080"
-            # inc-2026-10-06-005: render-env.py drops the file's PP_PUBLIC_ORIGIN as
-            # "Deployment sets it", so THIS Deployment sets it (portal origin, as in the file).
-            - name: PP_PUBLIC_ORIGIN
-              value: "https://passkey-point-portal-lab.${SECRET_DOMAIN}"
             - name: PP_PORTAL_PUBLIC_ORIGIN
               value: "https://passkey-point-portal-lab.${SECRET_DOMAIN}"
             - name: PP_ALLOW_PLAIN_HTTP
