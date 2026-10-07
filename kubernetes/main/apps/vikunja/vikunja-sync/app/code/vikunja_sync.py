@@ -69,8 +69,29 @@ BOT = os.environ.get("VIKUNJA_BOT", "bot-sync")
 
 
 def log(event, **kw):
+    """JSON lines on stdout, read by people AND by cloud-model agents (kubectl logs). So never an area
+    name, card name or slug, task title or an exception's text: those can name a client, and client
+    data stays on local models (Argus F1/F3, chg-2026-10-01-001). Keys go through log_key(), counts
+    per area through code_for('area', ...), failures as a type, an HTTP code or a constant reason.
+    tests/test_vikunja_sync.py::LogsNameNoClient pins it with the prikbord weigerlijst."""
     print(json.dumps({"ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                       "service": "vikunja-sync", "event": event, **kw}, ensure_ascii=False), flush=True)
+
+
+def log_key(key):
+    """'area:<name>' / 'card:<slug>' -> the same key with a meaningless code. Cards get the code their
+    tier-a project title already shows (code_for('project', slug)), so the owner can match them."""
+    kind, _, val = key.partition(":")
+    return f"{kind}:{code_for('project' if kind == 'card' else kind, val)}"
+
+
+def log_reason(ex):
+    """A Rejected carries a constant Dutch reason (vault_core); anything else only its type."""
+    return str(ex)[:120] if isinstance(ex, core.Rejected) else type(ex).__name__
+
+
+def log_error(ex):
+    return {"error": type(ex).__name__, **({"http": ex.code} if isinstance(ex, HTTPStatus) else {})}
 
 
 # ------------------------------------------------------------------ Vikunja client
@@ -232,6 +253,9 @@ def load_config(path):
     fs = slugs[fallback.strip()]
     if not SLUG_RE.fullmatch(fs) or not SLUG_RE.fullmatch("gebied-" + fs) or len(set(slugs.values())) != len(slugs):
         raise ConfigError("config: area-slugs ongeldig of dubbel")
+    all_names = [a["name"] for a in out] + [fallback.strip()]
+    if len({code_for("area", n) for n in all_names}) != len(all_names):
+        raise ConfigError("config: twee areas krijgen dezelfde logcode; hernoem er een")  # counts would merge
     return {"owner": owner, "fallback": fallback.strip(), "areas": out, "by_key_element": by_ke,
             "slugs": slugs, "area_names": tuple(a["name"] for a in out) + (fallback.strip(),)}
 
@@ -367,7 +391,7 @@ def ensure_project(vk, state, key, title, parent_id=0):
                    if (pr.get(k) or 0 if k == "parent_project_id" else pr.get(k)) != v]
             if ops:
                 vk.req("PATCH", f"/projects/{pid}", ops, ctype="application/json-patch+json")
-                log("project_reconciled", key=key, fields=[o_["path"] for o_ in ops])
+                log("project_reconciled", key=log_key(key), fields=[o_["path"] for o_ in ops])
             CHECKED.add(key)
             return pid
         except HTTPStatus as ex:
@@ -390,7 +414,7 @@ def ensure_project(vk, state, key, title, parent_id=0):
     state["projects"][key] = pid
     CHECKED.add(key)
     checkpoint(state)
-    log("project_created", key=key, id=pid)
+    log("project_created", key=log_key(key), id=pid)
     return pid
 
 
@@ -499,7 +523,7 @@ def pull(vk, state, vault, qdir, now, counts):
             counts["intents"] += pull_one(vk, state, rev, vt, qdir, counts)
         except (core.Rejected, ValueError) as ex:
             counts["skipped"] += 1  # one bad value never blocks the run (codex d19a0f9 P2)
-            log("skipped", vk=vt.get("id"), reason=str(ex)[:120])
+            log("skipped", vk=vt.get("id"), reason=log_reason(ex))
     state["last_poll_next"] = newest
 
 
@@ -553,7 +577,7 @@ def pull_one(vk, state, rev, vt, qdir, counts):
             n += emit_field(qdir, e, tsk, vt, f, cur, base)
         except (core.Rejected, ValueError) as ex:
             counts["skipped"] += 1
-            log("skipped_field", task=tsk, field=f, reason=str(ex)[:120])  # comments still run
+            log("skipped_field", task=tsk, field=f, reason=log_reason(ex))  # comments still run
     return n + pull_comments(vk, e, tsk, vt, qdir)
 
 
@@ -845,7 +869,9 @@ def run(vk, vault, intents_repo, state_path, now=None):
     push(vk, state, cards, tasks, closed, counts)
     reconcile_projects(vk, state, cards)
     save_state(state_path, state)
-    areas = {a: sum(1 for t in tasks.values() if t["area"] == a) for a in CONFIG["area_names"]}
+    # Coded, never named: this dict is logged every run (Argus F1). code_for('area', name) on the MacBook
+    # gives the name back for the owner.
+    areas = {code_for("area", a): sum(1 for t in tasks.values() if t["area"] == a) for a in CONFIG["area_names"]}
     return {**counts, "areas": areas, "pending": sum(len(e["pending"]) for e in state["tasks"].values())}
 
 
@@ -860,7 +886,10 @@ def main(argv=None):
     try:
         configure(load_config(a.config or ""))
     except ConfigError as ex:
-        log("config_error", detail=str(ex))
+        log("config_error", detail=str(ex))   # constant texts only (load_config)
+        return 78
+    except Exception as ex:  # noqa: BLE001  never a traceback with its text in the pod log
+        log("config_error", detail=type(ex).__name__)
         return 78
     url, tok = os.environ.get("VIKUNJA_URL", ""), os.environ.get("VIKUNJA_TOKEN", "")
     if not url.startswith(("https://", "http://127.0.0.1", "http://vikunja")) or not tok.startswith("tk_"):
@@ -871,7 +900,7 @@ def main(argv=None):
         res = run(VK(url, tok), a.vault, a.intents, a.state)
         log("run", **res)
     except Exception as ex:
-        ok, res = False, {"error": f"{type(ex).__name__}: {ex}"}
+        ok, res = False, log_error(ex)
         log("run_failed", **res)
     if a.health:
         prev = {}

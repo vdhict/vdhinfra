@@ -222,7 +222,10 @@ def task_from_file(p, status, log=_log_stderr):
     try:
         text = p.read_text(encoding="utf-8")
     except OSError as ex:
-        log("task_read_error", path=p.name, error=str(ex))
+        # The task id only: a filename slug or an OS error text can name a client (Argus F3).
+        m = TASK_REF_RE.match(p.stem)
+        log("task_read_error", task=m.group(0) if m else "unparsable", error=type(ex).__name__,
+            errno=getattr(ex, "errno", None))
         return None
     fm, _ = ri.parse_frontmatter(text)
     m = TASK_REF_RE.match(p.stem)
