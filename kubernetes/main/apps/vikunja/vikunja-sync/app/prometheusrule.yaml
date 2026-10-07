@@ -13,11 +13,14 @@
 # stated: these alerts PUSH TO THE OWNER'S HANDSET. Thresholds are chosen so a
 # single transient failure never pages.
 #
-# DAYTIME GATE: absolute rule "no alert with sound or vibration 23:00-07:00".
-# The HA push path is not shown to be silent at night, and this is a
-# nice-to-have sync, so both rules can only fire 05:00-20:59 UTC. That is
-# inside 07:00-23:00 Europe/Amsterdam in BOTH CEST (07-23) and CET (06-22).
-# A night failure that persists fires at ~07:10 local.
+# NIGHT QUIET (absolute rule: no sound/vibration 23:00-07:00) is enforced
+# in TWO layers, neither in PromQL (hour() is UTC and not DST-safe):
+#   1. Alertmanager: the child route `component = vikunja-sync` is only
+#      active 07:00-23:00 Europe/Amsterdam (alertmanager-secret.yaml), so
+#      nothing (firing or resolved) is sent at night.
+#   2. HA automation alertmanager_critical_notify: 23:00-07:00 both firing
+#      and resolved pushes go to the silent channel (chg-2026-10-05-026).
+# The `component: vikunja-sync` label below is what selects that route.
 #
 # Both fire ONLY while the CronJob exists AND is not suspended
 # (kube_cronjob_spec_suspend == 0). Suspended (rollback) or not yet
@@ -44,7 +47,6 @@ spec:
               (absent(kube_cronjob_status_last_successful_time{namespace="vikunja", cronjob="vikunja-sync"}) * 0 + 1)
             )
             and on() (max(kube_cronjob_spec_suspend{namespace="vikunja", cronjob="vikunja-sync"}) == 0)
-            and on() (hour() >= 5 < 21)
           for: 10m
           labels:
             severity: critical
@@ -72,7 +74,6 @@ spec:
               (time() - max(kube_cronjob_status_last_successful_time{namespace="vikunja", cronjob="vikunja-sync"})) > 900
             )
             and on() (max(kube_cronjob_spec_suspend{namespace="vikunja", cronjob="vikunja-sync"}) == 0)
-            and on() (hour() >= 5 < 21)
           for: 1m
           labels:
             severity: critical
