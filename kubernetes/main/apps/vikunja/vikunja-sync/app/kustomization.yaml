@@ -1,0 +1,41 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+#
+# vikunja-sync (chg-2026-10-01-001, addendum 2, bundle bb22df8). NO image
+# build: the vendor image python:3.13.15-bookworm runs the sync code, which
+# is mounted from the plain ConfigMap vikunja-sync-code.
+#
+# ./code/ holds EXACTLY the five SHIPPED files of
+# vikunja-sync-bb22df8.tar.gz (sha256 348afc5c...46620af), byte-identical to
+# the per-file hashes in its BUNDLE.txt:
+#   vikunja_sync.py  d72a4dcf...  vault_core.py  1ca29cbf...
+#   rebuild_index.py e16c0260...  run.sh         28961610...
+#   known_hosts      6b76c597...  (forgejo-ssh RSA-4096
+#                    SHA256:VRbRDnbepo8x5G5SnTmHBxvBqBvHxTKgQ6pJ4gct+pE,
+#                    re-measured from the Forgejo pod 2026-10-07)
+# The code names no person, client or home path; area names and the owner
+# slug are config.json, which comes from 1Password (externalsecret.yaml).
+# Change these files ONLY from a new named bundle; never hand-edit.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./externalsecret.yaml
+  - ./pvc.yaml
+  - ./cronjob.yaml
+  - ./prometheusrule.yaml
+configMapGenerator:
+  - name: vikunja-sync-code
+    files:
+      - ./code/vikunja_sync.py
+      - ./code/vault_core.py
+      - ./code/rebuild_index.py
+      - ./code/run.sh
+      - ./code/known_hosts
+generatorOptions:
+  # Fixed name, as in the bundle. Every run is a new pod, so a code change
+  # is picked up by the next Job without a hash-suffixed name.
+  disableNameSuffixHash: true
+  annotations:
+    # REQUIRED: run.sh contains ${VAULT_TASKS_URL:?}; Flux postBuild would
+    # otherwise try to substitute it and fail or blank it.
+    kustomize.toolkit.fluxcd.io/substitute: disabled

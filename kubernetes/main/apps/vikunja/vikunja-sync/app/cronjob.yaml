@@ -1,0 +1,119 @@
+---
+# vikunja-sync (chg-2026-10-01-001, bundle bb22df8): every 5 minutes a fresh
+# shallow clone of mypka/vault-tasks (READ key) + a clone of
+# mypka/vikunja-intents (WRITE key), reconciled with Vikunja over its API.
+# It NEVER writes the vault; the MacBook applies the intents.
+#
+# NO image build (vendor images only). python:3.13.15-bookworm ships git,
+# openssh-client and tzdata (verified from its layers 2026-09-30; the
+# digest was re-resolved 2026-10-07 and is unchanged).
+#
+# uid 65534 (nobody): it HAS a passwd entry in this image, and ssh refuses
+# to run for a uid without one. No passwd/group mount is needed.
+#
+# Pod Security: namespace vikunja ENFORCES restricted; every field that
+# restricted checks is set explicitly.
+#
+# Staged landing: suspend: true. First a manual Job
+# (kubectl create job --from=cronjob/vikunja-sync), then a follow-up commit
+# sets suspend: false.
+#
+# Alerting is the Job outcome: run.sh/vikunja_sync.py exit non-zero on any
+# failure (78 = config, 128 = clone), backoffLimit 0 makes that a failed
+# Job, and prometheusrule.yaml watches it via kube-state-metrics.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/batch/v1/cronjob.json
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vikunja-sync
+spec:
+  schedule: "*/5 * * * *"
+  timeZone: Europe/Amsterdam
+  suspend: true
+  concurrencyPolicy: Forbid          # never two runs against one state file
+  startingDeadlineSeconds: 240
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 0                # the next run, 5 min later, is the retry
+      activeDeadlineSeconds: 240
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: vikunja-sync
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          # ndots 1: the two in-cluster names are absolute, so they resolve
+          # first time instead of walking the search list (which the CNP's
+          # DNS rules answer REFUSED).
+          dnsConfig:
+            options:
+              - {name: ndots, value: "1"}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            fsGroup: 65534
+            fsGroupChangePolicy: OnRootMismatch
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+            - name: sync
+              image: docker.io/library/python:3.13.15-bookworm@sha256:227b6570d6ee07061ae6ca2eb04dedfb6d2b34045835f343065b9869e4d427ea
+              command: ["/bin/sh", "/srv/sync/run.sh"]
+              env:
+                - {name: HOME, value: /work}
+                - {name: TZ, value: Europe/Amsterdam}
+                - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+                - {name: PYTHONUNBUFFERED, value: "1"}
+                - {name: GIT_CONFIG_NOSYSTEM, value: "1"}
+                - {name: VIKUNJA_URL, value: "http://vikunja.vikunja.svc.cluster.local:3456"}
+                # The INTERNAL Forgejo SSH Service (port 22 -> pod 2222). The
+                # host key is checked under the alias forgejo-ssh
+                # (HostKeyAlias in run.sh, code/known_hosts), so this name
+                # does not have to match the pin.
+                - {name: VAULT_TASKS_URL, value: "ssh://git@forgejo-ssh.devtools.svc.cluster.local:22/mypka/vault-tasks.git"}
+                - {name: INTENTS_URL, value: "ssh://git@forgejo-ssh.devtools.svc.cluster.local:22/mypka/vikunja-intents.git"}
+                - name: VIKUNJA_TOKEN
+                  valueFrom:
+                    secretKeyRef: {name: vikunja-sync, key: VIKUNJA_TOKEN}
+              resources:
+                requests: {cpu: 20m, memory: 64Mi}
+                limits: {memory: 256Mi}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                privileged: false
+                capabilities: {drop: ["ALL"]}
+              volumeMounts:
+                - {name: code, mountPath: /srv/sync, readOnly: true}
+                - {name: secrets, mountPath: /secrets, readOnly: true}
+                - {name: work, mountPath: /work}
+                - {name: tmp, mountPath: /tmp}
+                - {name: state, mountPath: /state}
+          volumes:
+            - name: code
+              configMap:
+                name: vikunja-sync-code
+                defaultMode: 0444
+            # run.sh copies both keys to 0600 files under /tmp (memory) as
+            # uid 65534; 0440 + fsGroup lets it read them. The token stays an
+            # env var, not a file.
+            - name: secrets
+              secret:
+                secretName: vikunja-sync
+                defaultMode: 0440
+                items:
+                  - {key: vault_tasks_key, path: vault_tasks_key}
+                  - {key: intents_key, path: intents_key}
+                  - {key: config.json, path: config.json}
+            - name: work
+              emptyDir: {sizeLimit: 256Mi}
+            - name: tmp           # the keys' working copies: RAM only
+              emptyDir: {medium: Memory, sizeLimit: 64Mi}
+            - name: state
+              persistentVolumeClaim:
+                claimName: vikunja-sync-state

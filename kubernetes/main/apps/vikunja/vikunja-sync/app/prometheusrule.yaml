@@ -1,0 +1,87 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/prometheusrule_v1.json
+# vikunja-sync alerting, through the EXISTING path: kube-state-metrics ->
+# Prometheus -> Alertmanager -> (severity=critical) ha-critical -> HA push.
+#
+# The signal is the Job outcome (bundle bb22df8 writes no health.json):
+# any failure exits non-zero (1 run failed, 78 config, 128 clone), and
+# backoffLimit 0 makes that a failed Job. An image-pull or scheduling
+# failure hits activeDeadlineSeconds and also counts as a failed Job.
+#
+# severity: critical, deliberately. Only critical reaches anyone
+# (inc-2026-09-21-001: warning goes to the null receiver). Consequence,
+# stated: these alerts PUSH TO THE OWNER'S HANDSET. Thresholds are chosen so a
+# single transient failure never pages.
+#
+# DAYTIME GATE: absolute rule "no alert with sound or vibration 23:00-07:00".
+# The HA push path is not shown to be silent at night, and this is a
+# nice-to-have sync, so both rules can only fire 05:00-20:59 UTC. That is
+# inside 07:00-23:00 Europe/Amsterdam in BOTH CEST (07-23) and CET (06-22).
+# A night failure that persists fires at ~07:10 local.
+#
+# Both fire ONLY while the CronJob exists AND is not suspended
+# (kube_cronjob_spec_suspend == 0). Suspended (rollback) or not yet
+# created = silent. An `unless suspended` guard is NOT enough: with the
+# CronJob absent the suspend series is absent too, and the absent() branch
+# fired (measured against live Prometheus 2026-10-01 before this fix).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: vikunja-sync
+spec:
+  groups:
+    - name: vikunja-sync
+      interval: 1m
+      rules:
+        - alert: VikunjaSyncStale
+          # Request 5(a): the last successful Job is older than 30 minutes
+          # (about 6 missed runs). The absent() branch covers a CronJob
+          # that has never succeeded since it was unsuspended.
+          expr: |
+            (
+              (time() - kube_cronjob_status_last_successful_time{namespace="vikunja", cronjob="vikunja-sync"}) > 1800
+              or
+              (absent(kube_cronjob_status_last_successful_time{namespace="vikunja", cronjob="vikunja-sync"}) * 0 + 1)
+            )
+            and on() (max(kube_cronjob_spec_suspend{namespace="vikunja", cronjob="vikunja-sync"}) == 0)
+            and on() (hour() >= 5 < 21)
+          for: 10m
+          labels:
+            severity: critical
+            component: vikunja-sync
+          annotations:
+            summary: "vikunja-sync: no successful run for 30+ minutes"
+            description: |
+              The vault <-> Vikunja sync has not completed successfully for
+              more than 30 minutes. Vikunja is going stale; the vault is
+              unaffected (the sync never writes it). Check the last Job's
+              log (`kubectl -n vikunja logs job/<latest>`); the JSON log
+              lines carry the event and detail. Rollback: suspend the CronJob; nothing is lost.
+        - alert: VikunjaSyncFailing
+          # Request 5(b): 3 failed Jobs in a row. Failed Jobs are kept
+          # (failedJobsHistoryLimit 5, TTL 1h), so 3 or more failed Jobs
+          # present AND no success in the last 15 minutes (3 schedule slots)
+          # is three consecutive failures.
+          expr: |
+            (
+              # distinct Jobs: newer kube-state-metrics splits this series by `reason`
+              count(count by (job_name) (kube_job_status_failed{namespace="vikunja", job_name=~"vikunja-sync-[0-9]+"} > 0)) >= 3
+            )
+            and on()
+            (
+              (time() - max(kube_cronjob_status_last_successful_time{namespace="vikunja", cronjob="vikunja-sync"})) > 900
+            )
+            and on() (max(kube_cronjob_spec_suspend{namespace="vikunja", cronjob="vikunja-sync"}) == 0)
+            and on() (hour() >= 5 < 21)
+          for: 1m
+          labels:
+            severity: critical
+            component: vikunja-sync
+          annotations:
+            summary: "vikunja-sync: 3 failed runs in a row"
+            description: |
+              Three or more vikunja-sync Jobs failed with no success in
+              between. Look at the newest failed Job's log: exit 78 is a
+              config error (token/URL/config_json), an ssh/clone error is a deploy key,
+              known_hosts or the Forgejo SSH path. Rollback: suspend the
+              CronJob; pending intents stay in mypka/vikunja-intents.

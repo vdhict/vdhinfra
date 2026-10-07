@@ -1,7 +1,7 @@
 ---
-# vikunja: in from envoy-internal only (the vikunja.bluejungle.net route);
-# out to the Authelia pods (OIDC back-channel), postgres16 and DNS. Nothing
-# else.
+# vikunja: in from envoy-internal (the vikunja.bluejungle.net route) and
+# from the vikunja-sync CronJob pod (API, same namespace); out to the
+# Authelia pods (OIDC back-channel), postgres16 and DNS. Nothing else.
 # yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -17,6 +17,15 @@ spec:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: network
             gateway.envoyproxy.io/owning-gateway-name: envoy-internal
+      toPorts:
+        - ports: [{port: "3456", protocol: TCP}]
+    # vikunja-sync (chg-2026-10-01-001): the bot-sync API
+    # client, straight to the pod. It never goes through envoy-internal,
+    # so it needs no route or DNS name outside the cluster.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: vikunja
+            app.kubernetes.io/name: vikunja-sync
       toPorts:
         - ports: [{port: "3456", protocol: TCP}]
   egress:

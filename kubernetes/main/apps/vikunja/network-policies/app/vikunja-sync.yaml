@@ -1,0 +1,58 @@
+---
+# vikunja-sync: NO ingress (default-deny keeps it closed; nothing here adds
+# any). Egress to exactly three things:
+#   1. the Vikunja pod, TCP 3456 (the API; the pod's own ingress rule for
+#      this is in vikunja.yaml);
+#   2. the Forgejo pod in devtools, TCP 2222 - the container port behind
+#      Service forgejo-ssh (22 -> 2222). Cilium enforces AFTER service
+#      translation, so the rule names the backend pod and port. That is also
+#      why the LoadBalancer IP 172.16.2.248 is NOT used: from inside the
+#      cluster the LB IP is translated to the same backend anyway, so a
+#      toCIDR rule on it would never match, and going through the LAN name
+#      forge-ssh would add an external DNS dependency for nothing;
+#   3. kube-dns, for exactly the two names above.
+# No internet, no envoy-internal, no API server (automountServiceAccountToken
+# is false on the pod).
+#
+# devtools has NO network policy today (sec-03 default-deny still owed), so
+# Forgejo accepts this without a change there. When devtools gets its
+# default-deny, it MUST allow ingress from this pod on 2222 (recorded in the
+# CMDB entry app.vikunja-sync).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: vikunja-sync
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: vikunja-sync
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: vikunja
+            app.kubernetes.io/name: vikunja
+            app.kubernetes.io/controller: vikunja
+      toPorts:
+        - ports: [{port: "3456", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: devtools
+            app.kubernetes.io/name: forgejo
+            app.kubernetes.io/instance: forgejo
+      toPorts:
+        - ports: [{port: "2222", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              # Anything else gets REFUSED. The pod uses ndots 1, so these
+              # absolute names resolve without walking the search list.
+              - matchName: vikunja.vikunja.svc.cluster.local
+              - matchName: forgejo-ssh.devtools.svc.cluster.local

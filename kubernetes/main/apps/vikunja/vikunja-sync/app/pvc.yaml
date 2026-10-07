@@ -1,0 +1,16 @@
+---
+# The tsk <-> Vikunja id map (state.json). Rebuildable from the
+# "vault: tsk-..." trailer at the end of each Vikunja description, so NO
+# VolSync backup: losing it costs one rebuild run, not data. Stays in the
+# house (Ceph only), like the rest of tier B.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/v1/persistentvolumeclaim.json
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vikunja-sync-state
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: rook-ceph-block
+  resources:
+    requests:
+      storage: 100Mi

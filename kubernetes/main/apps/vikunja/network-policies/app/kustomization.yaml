@@ -8,6 +8,9 @@
 #                       (OIDC back-channel via the pod-local oidc-proxy)
 #                       + postgres16 instances on 5432
 #   volsync-mover  out: MinIO 9000 + DNS (cluster.local only)
+#   vikunja-sync   in:  nothing
+#                  out: vikunja pod 3456, Forgejo pod (devtools) 2222,
+#                       DNS (two names). vikunja also admits it on 3456.
 #
 # There is deliberately NO egress to envoy-internal (172.16.2.241 or its
 # pods): that path lets a pod reach every internal hostname by SNI/Host
@@ -21,3 +24,4 @@ resources:
   - ./default-deny.yaml
   - ./vikunja.yaml
   - ./volsync-mover.yaml
+  - ./vikunja-sync.yaml

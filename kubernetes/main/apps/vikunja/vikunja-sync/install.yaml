@@ -1,0 +1,39 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# vikunja-sync (chg-2026-10-01-001): the vault <-> Vikunja
+# CronJob. Separate Flux Kustomization so it can be removed or suspended
+# without touching the Vikunja app itself.
+#
+# dependsOn:
+#   * vikunja-network-policies - the sync CNP must exist before any sync pod.
+#   * vikunja                  - there is nothing to sync against without it.
+#   * external-secrets-stores  - the ExternalSecret needs the 1Password store.
+#   * rook-ceph-cluster        - the state PVC.
+# wait: true makes the ExternalSecret's Ready condition part of this
+# Kustomization's health, so missing 1Password fields show up as a failed
+# reconcile, not as a CronJob that fails every 5 minutes.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app vikunja-sync
+  namespace: flux-system
+spec:
+  targetNamespace: vikunja
+  commonMetadata:
+    labels:
+      app.kubernetes.io/part-of: vikunja
+  dependsOn:
+    - name: vikunja-network-policies
+    - name: vikunja
+    - name: external-secrets-stores
+    - name: rook-ceph-cluster
+  path: ./kubernetes/main/apps/vikunja/vikunja-sync/app
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: true
+  interval: 30m
+  retryInterval: 1m
+  timeout: 5m

@@ -10,3 +10,4 @@ resources:
   - ./namespace.yaml
   - ./network-policies/install.yaml
   - ./vikunja/install.yaml
+  - ./vikunja-sync/install.yaml
