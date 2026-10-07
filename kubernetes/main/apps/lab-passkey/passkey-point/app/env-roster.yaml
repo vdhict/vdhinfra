@@ -6,7 +6,7 @@ kind: ConfigMap
 metadata:
   name: passkey-point-roster-env
 data:
-  PP_ENV_RENDERED_FROM: "sha256:51cdc5ce44276a28271d7b9f9e1d30c5ac14bb7d80d5dc95d8c4bc9c893a92ec"
+  PP_ENV_RENDERED_FROM: "sha256:87e00910f36858460a14460812072e056154cb5cc9449cd986833f70535e2713"
   PP_API_CLIENT_ID: "97b351a0-bb06-4776-8ec8-1240a3a7fcd6"
   PP_MANAGER_SCOPE: "{\"name\":\"My team\"}"
   PP_MANAGER_SOURCE: "entra"
@@ -15,9 +15,9 @@ data:
   PP_REQUIRED_AUTH_CONTEXT: "c1"
   PP_ROSTER_OWNER_AUDIENCE: "682f5851-5557-4a4a-9eda-0195d4fa7471"
   PP_ROSTER_OWNER_TENANT_ID: "95cf7dac-b898-4b02-a22a-1379e2fde497"
-  PP_SITES: "[{\"id\":\"north\",\"name\":\"Site North\",\"auId\":\"82b84d1b-942b-4d98-87df-1dfe78502db4\",\"championGroupId\":\"fcd1fe16-df5f-4dc2-aae0-608a51ecce59\",\"tapPreset\":\"pilot\",\"bu\":\"PP-DEV\",\"listSources\":[\"hr-import\",\"bu-coordinator\"],\"campaignFrom\":\"2026-10-05T06:00:00Z\",\"campaignUntil\":\"2026-10-12T05:00:00Z\"},{\"id\":\"south\",\"name\":\"Site South\",\"auId\":\"2c7f75dd-85cd-4e39-9ac0-c3d34214d4a9\",\"championGroupId\":\"e3dd048b-d37c-400a-a77a-3b12313e0509\",\"tapPreset\":\"nist\",\"bu\":\"PP-DEV\",\"listSources\":[\"hr-import\",\"bu-coordinator\"],\"campaignFrom\":\"2026-10-05T06:00:00Z\",\"campaignUntil\":\"2026-10-12T05:00:00Z\"},{\"id\":\"east\",\"name\":\"Site East\",\"auId\":\"9ba15660-dd49-48f7-9f58-ebd8f6f71e35\",\"championGroupId\":\"d325a632-bead-4266-8bc0-029888003f93\",\"tapPreset\":\"pilot\",\"bu\":\"PP-DEV\",\"listSources\":[\"hr-import\",\"bu-coordinator\"],\"campaignFrom\":\"2026-10-05T06:00:00Z\",\"campaignUntil\":\"2026-10-12T05:00:00Z\"},{\"id\":\"e2e\",\"name\":\"E2E test site\",\"championGroupId\":\"119064d4-f6a0-4370-845a-7a2c2c09fd14\",\"tapPreset\":\"nist\",\"bu\":\"PP-E2E\",\"listSources\":[\"e2e-harness\"],\"campaignFrom\":\"2026-10-05T06:00:00Z\",\"campaignUntil\":\"2026-10-12T05:00:00Z\"}]"
+  PP_SITES: "[{\"id\":\"north\",\"name\":\"Site North\",\"auId\":\"82b84d1b-942b-4d98-87df-1dfe78502db4\",\"championGroupId\":\"fcd1fe16-df5f-4dc2-aae0-608a51ecce59\",\"tapPreset\":\"pilot\",\"bu\":\"PP-DEV\",\"listSources\":[\"hr-import\",\"bu-coordinator\"],\"campaignFrom\":\"2026-10-05T06:00:00Z\",\"campaignUntil\":\"2026-10-12T05:00:00Z\"},{\"id\":\"south\",\"name\":\"Site South\",\"auId\":\"2c7f75dd-85cd-4e39-9ac0-c3d34214d4a9\",\"championGroupId\":\"e3dd048b-d37c-400a-a77a-3b12313e0509\",\"tapPreset\":\"nist\",\"bu\":\"PP-DEV\",\"listSources\":[\"hr-import\",\"bu-coordinator\"],\"campaignFrom\":\"2026-10-05T06:00:00Z\",\"campaignUntil\":\"2026-10-12T05:00:00Z\"},{\"id\":\"east\",\"name\":\"Site East\",\"auId\":\"9ba15660-dd49-48f7-9f58-ebd8f6f71e35\",\"championGroupId\":\"d325a632-bead-4266-8bc0-029888003f93\",\"tapPreset\":\"pilot\",\"bu\":\"PP-DEV\",\"listSources\":[\"hr-import\",\"bu-coordinator\"],\"campaignFrom\":\"2026-10-05T06:00:00Z\",\"campaignUntil\":\"2026-10-12T05:00:00Z\"}]"
   PP_TP_BU_ATTRIBUTE: "companyName"
-  PP_TP_EMPLOYEE_TYPES: "passkey-point-dev,passkey-point-e2e"
+  PP_TP_EMPLOYEE_TYPES: "passkey-point-dev"
   ROSTER_SYNC_CERT_THUMBPRINT_SHA256: "fa5b6a9a8a4b0d9265b506156f33bb2688da74498a17508099cd615be9296606"
   ROSTER_SYNC_CLIENT_ID: "682f5851-5557-4a4a-9eda-0195d4fa7471"
   ROSTER_SYNC_TENANT_ID: "95cf7dac-b898-4b02-a22a-1379e2fde497"
