@@ -29,7 +29,7 @@ Env: RETENTION_DAYS (int; a REAL run refuses < 30), RETENTION_DRY_RUN
 
 Deletion is LOGICAL (Argus R3): SQLite leaves the content in free pages and
 the WAL until reused; this job never VACUUMs beside the running app, and
-VolSync snapshots keep about 5 weeks.
+VolSync keeps snapshots about a week (retain: 24 hourly + 7 daily).
 """
 import asyncio
 import json

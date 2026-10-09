@@ -57,6 +57,13 @@ spec:
               workingDir: /app/backend
               command: ["python", "/retention/chat-retention.py"]
               env:
+                # `python /retention/chat-retention.py` puts the SCRIPT's dir
+                # (/retention) on sys.path[0], not workingDir. The image does
+                # not pip-install open_webui; the package is the source tree at
+                # /app/backend/open_webui (the app finds it because uvicorn
+                # runs from that cwd). Without this every run fails with
+                # ModuleNotFoundError: open_webui (0 successes 26 Sep-9 Oct).
+                - {name: PYTHONPATH, value: /app/backend}
                 - {name: RETENTION_DAYS, value: "30"}
                 - {name: RETENTION_DRY_RUN, value: "false"}
                 - {name: DATA_DIR, value: /app/backend/data}
