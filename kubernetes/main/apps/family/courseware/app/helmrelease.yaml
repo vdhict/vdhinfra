@@ -99,7 +99,7 @@ spec:
             env:
               # The approved content commit (redacted content, chapter locks
               # removed; chg-2026-09-21-004). Bump only in a reviewed commit.
-              COURSE_REF: 56aa74636f0974c52107aa4b8766f06c950aa5ea
+              COURSE_REF: 81981d2df12a3bc62f1107d529b39b18c3d4a36d
               COURSE_REPO_URL:
                 valueFrom:
                   secretKeyRef:
