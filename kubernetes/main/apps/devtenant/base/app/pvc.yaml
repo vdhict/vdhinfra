@@ -1,0 +1,27 @@
+---
+# Evidence volume per namespace (listings, read-backs, baseline hash). No
+# secret is ever written here. Not VolSync-backed: evidence is copied to
+# the change record by the operator.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: devtenant-out
+  namespace: devtenant-build
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: rook-ceph-block
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: devtenant-out
+  namespace: devtenant-ops
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: rook-ceph-block
+  resources:
+    requests:
+      storage: 1Gi

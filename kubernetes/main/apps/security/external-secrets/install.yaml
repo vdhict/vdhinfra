@@ -70,3 +70,30 @@ spec:
   interval: 30m
   retryInterval: 5m
   timeout: 5m
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# chg-2026-10-11-003 (ADR-027): the two dev-tenant stores, in their OWN
+# Kustomization for the same reason as -mypka: a missing 1P token item keeps
+# only this one not-Ready, never external-secrets-stores and its dependents.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app external-secrets-stores-devtenant
+  namespace: flux-system
+spec:
+  targetNamespace: security
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  dependsOn:
+    - name: external-secrets-stores
+  path: ./kubernetes/main/apps/security/external-secrets/stores/devtenant
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  wait: true
+  interval: 30m
+  retryInterval: 5m
+  timeout: 5m

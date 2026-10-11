@@ -1,0 +1,12 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+# ADR-027 dev-tenant stores (chg-2026-10-11-003). Applied by its own Flux
+# Kustomization external-secrets-stores-devtenant. Read tokens live in
+# namespace security, pulled from home-infra through onepassword-connect;
+# neither devtenant namespace can use onepassword-connect (NotIn).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./externalsecret.yaml
+  - ./onepassword-devtenant-build.yaml
+  - ./onepassword-devtenant-ops.yaml

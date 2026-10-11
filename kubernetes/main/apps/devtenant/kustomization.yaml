@@ -1,0 +1,19 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+#
+# devtenant (ADR-027, chg-2026-10-11-003, Flux commit 1): Atlas's app-only
+# credential for the Entra dev tenant, run as Jobs in-cluster. Proposal:
+# passkey-point-app deploy/devtenant/flux-1 at 22d3c29.
+# Two namespaces so the build/ops split holds at the 1Password layer (ESO
+# store conditions select namespaces, not pods):
+#   devtenant-build  stores onepassword-devtenant-build + -ops
+#   devtenant-ops    store  onepassword-devtenant-ops only
+#   network-policies/  default-deny + Entra egress + Connect (labelled pods), land FIRST
+#   base/              service accounts (no API rights, no token) + evidence PVCs
+# NOT here yet (Flux commit 2): ops ExternalSecrets, CronJob, Jobs, pull secrets.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./namespaces.yaml
+  - ./network-policies/install.yaml
+  - ./base/install.yaml
