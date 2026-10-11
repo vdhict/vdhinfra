@@ -11,6 +11,8 @@ spec:
       app.kubernetes.io/part-of: devtenant
   dependsOn:
     - name: devtenant-network-policies
+    # the pull-secret ExternalSecrets need both devtenant stores Ready (F2, chg-2026-10-10-001)
+    - name: external-secrets-stores-devtenant
   path: ./kubernetes/main/apps/devtenant/base/app
   sourceRef:
     kind: GitRepository

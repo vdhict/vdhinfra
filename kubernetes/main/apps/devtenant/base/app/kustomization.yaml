@@ -5,3 +5,4 @@ kind: Kustomization
 resources:
   - ./serviceaccounts.yaml
   - ./pvc.yaml
+  - ./pull-secrets.yaml
