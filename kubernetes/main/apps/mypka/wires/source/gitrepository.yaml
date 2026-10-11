@@ -15,8 +15,14 @@ spec:
   # Mack proposed the external name forge-ssh.<domain> (172.16.2.248); we use
   # the in-cluster Service name instead, so the fetch does not depend on LAN
   # DNS or LB hairpin. Same Service, same host key.
+  # PINNED (chg-2026-10-11-004, inc-2026-10-09-001). Following the branch let
+  # every tenant push go live unreviewed (e27b148 on 10-09, dfea868 on 10-11).
+  # The tenant source now advances ONLY when a reviewed vdhinfra commit bumps
+  # this SHA: Argus reviews the cluster-wires range <old>..<new>, then the
+  # bump goes through the normal change log. The commit must be on main.
   ref:
     branch: main
+    commit: 96f458919f7dd36ac8a2de2c63de72acda3c2080
   # Fetch only what the tenant Kustomization applies (as Mack proposed).
   ignore: |
     /*
