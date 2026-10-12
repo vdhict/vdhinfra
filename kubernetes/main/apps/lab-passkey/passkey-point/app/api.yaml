@@ -1,5 +1,5 @@
 ---
-# v0.1 (chg-2026-10-12-004): image palamedes/passkey-point api-v01-56c9f57, config passkey-point-v01-env
+# v0.1 (chg-2026-10-12-004): image palamedes/passkey-point api-v01-ef7a5fb, config passkey-point-v01-env
 # (lab.env batch 7), AR1/AR2/AR3 keys at /var/run/secrets/passkey-point/ar{1,2,3}, pinned to node02,
 # NODE_ENV unset (graph-dev), roster removed (gate G3).
 # passkey-point-api (entra, app privilege mode): issues TAPs via Graph app-only.
@@ -54,7 +54,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: api
-          image: forge.bluejungle.net/palamedes/passkey-point@sha256:aa35cb1b0789bac81d63541e718c18ae3fd3b04542567bba8b5a44bf68731914
+          image: forge.bluejungle.net/palamedes/passkey-point@sha256:51da356441203327a914d944f28d2335dd73da58bda0ac0f72c68d5bf900f705
           envFrom:
             - configMapRef:
                 name: passkey-point-v01-env
