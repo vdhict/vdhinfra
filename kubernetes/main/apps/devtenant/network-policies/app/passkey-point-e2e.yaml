@@ -1,0 +1,61 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny
+  namespace: passkey-point-e2e
+spec:
+  endpointSelector: {}
+  ingress:
+    - {}
+  egress:
+    - {}
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+# All pods (the namespace holds only the E2E runner): DNS for exactly three names; TCP 443 to the two Entra FQDNs.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: e2e-entra
+  namespace: passkey-point-e2e
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              - matchName: login.microsoftonline.com
+              - matchName: graph.microsoft.com
+              - matchName: passkey-point-lab.bluejungle.net
+    - toFQDNs:
+        - matchName: login.microsoftonline.com
+        - matchName: graph.microsoft.com
+      toPorts:
+        - ports: [{port: "443", protocol: TCP}]
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+# The LAB (passkey-point-lab.bluejungle.net) is an HTTPRoute on envoy-internal (LB :443 -> pod :10443). Cilium
+# socket-LB translates the LB IP to the envoy pods before policy, so allow those pods on 10443 (an FQDN rule would not match).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: e2e-lab
+  namespace: passkey-point-e2e
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            app.kubernetes.io/name: envoy
+            gateway.envoyproxy.io/owning-gateway-name: envoy-internal
+      toPorts:
+        - ports: [{port: "10443", protocol: TCP}]

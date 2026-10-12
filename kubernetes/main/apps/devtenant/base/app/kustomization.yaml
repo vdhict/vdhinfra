@@ -6,3 +6,4 @@ resources:
   - ./serviceaccounts.yaml
   - ./pvc.yaml
   - ./pull-secrets.yaml
+  - ./rbac-mack-dev.yaml

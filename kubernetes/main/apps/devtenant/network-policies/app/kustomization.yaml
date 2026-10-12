@@ -12,3 +12,4 @@ kind: Kustomization
 resources:
   - ./devtenant-build.yaml
   - ./devtenant-ops.yaml
+  - ./passkey-point-e2e.yaml

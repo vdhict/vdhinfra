@@ -1,0 +1,51 @@
+---
+# mack-dev (chg-2026-10-12-004, owner go via Larry AGR-087/099): run dev-tenant Jobs, read their logs, manage the
+# config ConfigMap. NO secrets, externalsecrets, serviceaccounts or rbac; no other namespaces; nothing cluster-wide.
+# The devtenant-build RoleBinding is deliberately NOT in Git: Atlas removes it while a run that pulls the ops token
+# is in progress, and Flux must not re-create it mid-run. It is applied with kubectl.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mack-dev
+  namespace: devtenant-build
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mack-dev
+  namespace: passkey-point-e2e
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mack-dev
+  namespace: passkey-point-e2e
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: mack-dev}
+subjects:
+  - {kind: ServiceAccount, name: mack-dev, namespace: devtenant-build}
