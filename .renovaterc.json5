@@ -11,7 +11,23 @@
   ],
   dependencyDashboard: true,
   dependencyDashboardTitle: "Renovate Dashboard :robot:",
+  // Owner windows (AGR-109, 2026-10-12): anything that can interrupt
+  // production lands 01:00-06:00 local. Branch automerge (home-automation,
+  // mise, patch/digest) therefore only merges inside that window; every
+  // stateful home-automation app has an hourly VolSync snapshot before it.
+  timezone: "Europe/Amsterdam",
   schedule: ["before 6am every day"],
+  automergeSchedule: ["after 1am and before 6am every day"],
+  // Renovate 42+ defaults to minimumReleaseAgeBehaviour=timestamp-required:
+  // a release WITHOUT a releaseTimestamp never passes minimumReleaseAge.
+  // ghcr.io returns no timestamps, so since ~2026-09-03 every ghcr image
+  // (home-assistant, esphome, zwave-js-ui, zigbee2mqtt, code-server, mealie,
+  // authelia, ...) was marked "pending" forever and no branch was created;
+  // docker.io and mise (which do carry timestamps) kept flowing. Proven
+  // with a full dry run of 44.153.0 on 2026-10-12 (chg line AIOps step 1).
+  // timestamp-optional: age is enforced where a timestamp exists, skipped
+  // where the registry provides none.
+  minimumReleaseAgeBehaviour: "timestamp-optional",
   // hack/restore-test is a DR drill fixture (docker-compose) that version-pins some of the same
   // images as production (e.g. home-assistant). Renovate bundles a fixture occurrence into the SAME
   // branch as the prod occurrence; because the prod HelmRelease uses a combined `tag: <ver>@sha256:`
@@ -37,6 +53,15 @@
     managerFilePatterns: ["/(^|/)kustomization\\.ya?ml$/"],
   },
   packageRules: [
+    {
+      // Internal-only sources: unreachable from the hosted Renovate (public
+      // DNS gives a private IP / a cluster-internal name). Every lookup
+      // failed or hung, and a local dry run hung 13 min on the ssh
+      // ls-remote. Both are pinned by their owning teams, not by Renovate.
+      description: "Skip internal-only registries and git sources (forge, in-cluster Forgejo ssh)",
+      matchPackageNames: ["forge.bluejungle.net/**", "/forgejo-ssh\\.devtools\\.svc\\.cluster\\.local/"],
+      enabled: false,
+    },
     {
       description: "Force semver for OCI Helm chart packages that Renovate's docker datasource silently misses (cilium 1.19.2 → 1.19.4 was stuck here)",
       matchDatasources: ["docker"],

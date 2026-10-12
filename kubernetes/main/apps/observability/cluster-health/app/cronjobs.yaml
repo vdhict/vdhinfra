@@ -82,15 +82,19 @@ metadata:
   name: health-triage
   namespace: observability
 spec:
-  schedule: "0 3 * * *"
+  # AIOps step 1 (AGR-109): live triage every 15 min. Behaviour is switched
+  # at run time by ConfigMap observability/aiops-mode (aiops-mode.yaml).
+  schedule: "*/15 * * * *"
   timeZone: Europe/Amsterdam
   concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 5
   jobTemplate:
     spec:
-      backoffLimit: 1
-      ttlSecondsAfterFinished: 604800
+      backoffLimit: 0
+      activeDeadlineSeconds: 840
+      ttlSecondsAfterFinished: 86400
       template:
         spec:
           serviceAccountName: cluster-health
@@ -110,9 +114,11 @@ spec:
                   value: Europe/Amsterdam
                 - name: HA_URL
                   value: http://home-assistant.home-automation.svc.cluster.local:8123
-                # Flip to "false" after first night's audit log review
+                # Real actions are on; the run-time switch is the aiops-mode
+                # ConfigMap (mode / runbook.<name> / scope). DRY_RUN=true here
+                # would force alleen-melden for every runbook.
                 - name: DRY_RUN
-                  value: "true"
+                  value: "false"
               envFrom:
                 # Optional so the CronJob can run before the 1Password item
                 # exists. notify.py / git_push.py / collect_ha.py all degrade

@@ -1,0 +1,28 @@
+---
+# AIOps run-time switch (AIOps step 1, AGR-109), read by triage.py on EVERY
+# run (health-triage, every 15 min).
+#   mode               aan | alleen-melden | uit   (global master switch)
+#   runbook.<name>     aan | alleen-melden | uit   (per runbook; the stricter
+#                                                   of global and runbook wins)
+#   scope              all | ns1,ns2               (namespaces it may act in)
+# Flux creates this ConfigMap ONCE (ssa: IfNotPresent) and never overwrites
+# it, so an operator flip with kubectl sticks:
+#   kubectl -n observability patch cm aiops-mode --type merge -p '{"data":{"mode":"uit"}}'
+# If it is ever deleted Flux recreates it with these values (report only).
+# Hard guards (Passkey/myPKA namespaces, core namespaces for restarts, the
+# 01-06/09-16 window for restarts, cooldowns, 3 actions/object/day) live in
+# triage.py and no value here lifts them.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aiops-mode
+  namespace: observability
+  annotations:
+    kustomize.toolkit.fluxcd.io/ssa: IfNotPresent
+data:
+  mode: alleen-melden
+  scope: all
+  runbook.pod_cleanup: aan
+  runbook.flux_reconcile: aan
+  runbook.ha_bridge_restart: aan
+  runbook.crashloop_restart: aan

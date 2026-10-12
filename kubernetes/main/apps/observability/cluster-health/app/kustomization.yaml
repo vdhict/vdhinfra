@@ -9,6 +9,7 @@ resources:
   - ./unifi-secret.yaml
   - ./rbac.yaml
   - ./pvc.yaml
+  - ./aiops-mode.yaml
   - ./cronjobs.yaml
   - ./web.yaml
   - ./httproute.yaml
