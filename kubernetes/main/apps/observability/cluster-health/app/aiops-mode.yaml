@@ -20,7 +20,7 @@ metadata:
   annotations:
     kustomize.toolkit.fluxcd.io/ssa: IfNotPresent
 data:
-  mode: alleen-melden
+  mode: aan
   scope: all
   runbook.pod_cleanup: aan
   runbook.flux_reconcile: aan
