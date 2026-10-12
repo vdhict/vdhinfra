@@ -25,3 +25,16 @@ spec:
   resources:
     requests:
       storage: 1Gi
+---
+# E2E evidence (report.json + screenshots of a green run) for AGR-100. Synthetic dev-tenant personas only.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: passkey-point-e2e-out
+  namespace: passkey-point-e2e
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: rook-ceph-block
+  resources:
+    requests:
+      storage: 2Gi
