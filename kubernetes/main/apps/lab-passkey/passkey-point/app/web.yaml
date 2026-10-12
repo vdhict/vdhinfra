@@ -71,6 +71,9 @@ spec:
                   optional: false
             - name: PP_MODE
               value: "entra"
+            # Split build: the scope AR1 exposes (Mack 2026-10-12; bootstrap labEnv will write it later).
+            - name: PP_API_SCOPE
+              value: "api://6e05d927-e0c2-418b-9f01-ab909aec5699/access_as_user"
             - name: PP_DATA_DIR
               value: "/var/lib/passkey-point"
             - name: HOME
