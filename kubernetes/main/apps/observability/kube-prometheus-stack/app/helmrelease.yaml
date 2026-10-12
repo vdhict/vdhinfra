@@ -45,10 +45,6 @@ spec:
         replicas: 2
         useExistingSecret: true
         configSecret: alertmanager-secret
-        # ntfy URLs (secret topic) for the url_file receivers in
-        # alertmanager-secret; mounted at /etc/alertmanager/secrets/alertmanager-ntfy/
-        secrets:
-          - alertmanager-ntfy
         storage:
           volumeClaimTemplate:
             spec:
