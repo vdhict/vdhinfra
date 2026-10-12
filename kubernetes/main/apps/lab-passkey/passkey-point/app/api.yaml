@@ -80,7 +80,7 @@ spec:
             # Dev tenant only (the app refuses it elsewhere and with NODE_ENV=production): contractor tenure in minutes
             # so the tenure rule is testable now (Sander 2026-10-12: tenure from the account creation date).
             - name: PP_CONTRACTOR_TENURE_MINUTES
-              value: "30"
+              value: "120"
             # TAP via the customer adapter against the simulator sidecar (batch 13, deploy/lab/tap-sim-sidecar.md).
             # dev-fake + loopback http needs no identity and is refused with NODE_ENV=production.
             - name: PP_TAP_SERVICE
