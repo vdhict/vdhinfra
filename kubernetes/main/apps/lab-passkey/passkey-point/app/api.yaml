@@ -1,5 +1,5 @@
 ---
-# v0.1 (chg-2026-10-12-004): image palamedes/passkey-point api-v01-f573026, config passkey-point-v01-env
+# v0.1 (chg-2026-10-12-004): image palamedes/passkey-point api-v01-df6abf3, config passkey-point-v01-env
 # (lab.env batch 7), AR1/AR2/AR3 keys at /var/run/secrets/passkey-point/ar{1,2,3}, pinned to node02,
 # NODE_ENV unset (graph-dev), roster removed (gate G3).
 # passkey-point-api (entra, app privilege mode): issues TAPs via Graph app-only.
@@ -54,7 +54,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: api
-          image: forge.bluejungle.net/palamedes/passkey-point@sha256:3733c8306ae2c8c829b67fe0e1b157528d8e97dfcd4b29198c0d76ff01671bc9
+          image: forge.bluejungle.net/palamedes/passkey-point@sha256:d278aaccfbaf65c8bf420434812a65c53ab0491b0fce832de34129c4eef249ff
           envFrom:
             - configMapRef:
                 name: passkey-point-v01-env
@@ -164,7 +164,7 @@ spec:
             - name: data
               mountPath: /var/lib/passkey-point
         - name: tap-sim
-          image: forge.bluejungle.net/palamedes/passkey-point@sha256:3733c8306ae2c8c829b67fe0e1b157528d8e97dfcd4b29198c0d76ff01671bc9
+          image: forge.bluejungle.net/palamedes/passkey-point@sha256:d278aaccfbaf65c8bf420434812a65c53ab0491b0fce832de34129c4eef249ff
           command: [node, src/tap-sim/server.ts]
           env:
             - {name: TAPSIM_CONFIG, value: /etc/tap-sim/config.json}
