@@ -1,0 +1,27 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# AIOps step 1 (chg-2026-10-12-009): token/Renovate exporter, morning summary,
+# Mac node_exporter scrape, cert/token/Renovate/host rules.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app aiops
+  namespace: flux-system
+spec:
+  targetNamespace: observability
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  dependsOn:
+    # CRDs (ScrapeConfig, PrometheusRule, ServiceMonitor) + the alertmanager-ntfy
+    # Secret the morning summary reads.
+    - name: kube-prometheus-stack
+  path: ./kubernetes/main/apps/observability/aiops/app
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  wait: false
+  interval: 30m
+  timeout: 5m

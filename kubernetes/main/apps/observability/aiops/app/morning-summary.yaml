@@ -1,0 +1,63 @@
+---
+# aiops-morning-summary (chg-2026-10-12-009): at 07:00 Europe/Amsterdam, post
+# one ntfy summary of the night's silent (priority 1) alerts.
+# See scripts/morning_summary.py.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: aiops-morning-summary
+  namespace: observability
+spec:
+  schedule: "0 7 * * *"
+  timeZone: Europe/Amsterdam
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 1800
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 172800
+      template:
+        spec:
+          serviceAccountName: aiops
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: summary
+              image: ghcr.io/vdhict/cluster-health:sha-de00b79
+              imagePullPolicy: IfNotPresent
+              command: ["python3", "/scripts/morning_summary.py"]
+              env:
+                - name: NTFY_SERVER
+                  valueFrom:
+                    secretKeyRef:
+                      name: alertmanager-ntfy
+                      key: ntfy-server
+                - name: NTFY_TOPIC
+                  valueFrom:
+                    secretKeyRef:
+                      name: alertmanager-ntfy
+                      key: alert-topic
+              resources:
+                requests: {cpu: 5m, memory: 32Mi}
+                limits: {memory: 96Mi}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+          volumes:
+            - name: scripts
+              configMap:
+                name: aiops-scripts
+                defaultMode: 0555
