@@ -18,6 +18,11 @@
   timezone: "Europe/Amsterdam",
   schedule: ["before 6am every day"],
   automergeSchedule: ["after 1am and before 6am every day"],
+  // Backlog pacing (2026-10-12): after the timestamp-optional fix about 60 held updates become eligible at
+  // once. Cap them so a night merges a handful, not the whole backlog (overrides :disableRateLimiting).
+  branchConcurrentLimit: 8,
+  prConcurrentLimit: 8,
+  prHourlyLimit: 3,
   // Renovate 42+ defaults to minimumReleaseAgeBehaviour=timestamp-required:
   // a release WITHOUT a releaseTimestamp never passes minimumReleaseAge.
   // ghcr.io returns no timestamps, so since ~2026-09-03 every ghcr image
