@@ -1,5 +1,5 @@
 ---
-# v0.1 (chg-2026-10-12-004): image palamedes/passkey-point api-v01-e0295a0, config passkey-point-v01-env
+# v0.1 (chg-2026-10-12-004): image palamedes/passkey-point api-v01-f573026, config passkey-point-v01-env
 # (lab.env batch 7), AR1/AR2/AR3 keys at /var/run/secrets/passkey-point/ar{1,2,3}, pinned to node02,
 # NODE_ENV unset (graph-dev), roster removed (gate G3).
 # passkey-point-api (entra, app privilege mode): issues TAPs via Graph app-only.
@@ -54,7 +54,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: api
-          image: forge.bluejungle.net/palamedes/passkey-point@sha256:eb3d18ecf44dd8b030d7976ad790df11b41db79cc4f309344ca69a73227b52d0
+          image: forge.bluejungle.net/palamedes/passkey-point@sha256:3733c8306ae2c8c829b67fe0e1b157528d8e97dfcd4b29198c0d76ff01671bc9
           envFrom:
             - configMapRef:
                 name: passkey-point-v01-env
@@ -81,6 +81,16 @@ spec:
             # so the tenure rule is testable now (Sander 2026-10-12: tenure from the account creation date).
             - name: PP_CONTRACTOR_TENURE_MINUTES
               value: "30"
+            # TAP via the customer adapter against the simulator sidecar (batch 13, deploy/lab/tap-sim-sidecar.md).
+            # dev-fake + loopback http needs no identity and is refused with NODE_ENV=production.
+            - name: PP_TAP_SERVICE
+              value: "customer"
+            - name: PP_TAP_CUSTOMER_ENV
+              value: "dev-fake"
+            - name: PP_TAP_CUSTOMER_BASE_URL
+              value: "http://127.0.0.1:8090/api"
+            - name: PP_TAP_CUSTOMER_WIRE_FILE
+              value: "/etc/tap-sim/wire.json"
             - name: PP_API_SCOPE
               value: "api://6e05d927-e0c2-418b-9f01-ab909aec5699/access_as_user"
             # NODE_ENV unset (v0.1, chg-2026-10-12-004): PP_TAP_SERVICE=graph-dev (lab.env) is the dev-tenant
@@ -148,9 +158,31 @@ spec:
             - name: ar3
               mountPath: /var/run/secrets/passkey-point/ar3
               readOnly: true
+            - name: tap-sim-config
+              mountPath: /etc/tap-sim
+              readOnly: true
             - name: data
               mountPath: /var/lib/passkey-point
+        - name: tap-sim
+          image: forge.bluejungle.net/palamedes/passkey-point@sha256:3733c8306ae2c8c829b67fe0e1b157528d8e97dfcd4b29198c0d76ff01671bc9
+          command: [node, src/tap-sim/server.ts]
+          env:
+            - {name: TAPSIM_CONFIG, value: /etc/tap-sim/config.json}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {memory: 256Mi}
+          volumeMounts:
+            - {name: tap-sim-config, mountPath: /etc/tap-sim, readOnly: true}
+
       volumes:
+        - name: tap-sim-config
+          configMap:
+            name: tap-sim-config
         - name: tmp
           emptyDir:
             sizeLimit: 64Mi

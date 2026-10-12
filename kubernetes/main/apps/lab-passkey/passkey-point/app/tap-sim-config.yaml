@@ -1,0 +1,61 @@
+---
+# TAP service simulator config for the LAB (ADR-028/029 backend A fake, chg-2026-10-12-004 batch 13).
+# Verbatim copies of passkey-point@f573026 deploy/lab/tap-sim-dev-fake.json and deploy/lab/tap-wire-client.json.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/v1/configmap.json
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tap-sim-config
+data:
+  config.json: |
+    {
+      "environment": "dev",
+      "listen": {
+        "host": "127.0.0.1",
+        "port": 8090
+      },
+      "basePath": "/api",
+      "wire": {
+        "profile": "client"
+      },
+      "mandatoryFields": [
+        "requestType",
+        "userPrincipalName",
+        "action",
+        "idempotencyId"
+      ],
+      "lifetimeMinutes": {
+        "min": 60,
+        "max": 480,
+        "default": 480
+      },
+      "usableOnceDefault": false,
+      "allowMultiUse": true,
+      "idempotency": "replay",
+      "timing": {
+        "createdMs": 500,
+        "inProgressMs": 1500
+      },
+      "retrieval": {
+        "codeTtlSeconds": 300,
+        "maxFailuresPerUpn": 5
+      },
+      "tapLength": 8,
+      "backend": "fake",
+      "auth": {
+        "mode": "off"
+      },
+      "faults": {
+        "failFirstAttempts": 0,
+        "failUpns": [],
+        "refuseUpns": [],
+        "loseCreateAnswers": 0,
+        "statusLagMs": 0,
+        "failureCode": "simulated_failure"
+      },
+      "maxRequests": 10000
+    }
+  wire.json: |
+    {
+      "profile": "client"
+    }

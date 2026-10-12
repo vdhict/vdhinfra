@@ -9,6 +9,7 @@ resources:
   - ./secretstore-devapp.yaml
   - ./externalsecret-v01.yaml
   - ./env-v01.yaml
+  - ./tap-sim-config.yaml
   - ./env-web.yaml
   - ./env-api.yaml
   - ./env-roster.yaml
