@@ -1,10 +1,4 @@
 ---
-# STATUS 2026-10-12 (inc-2026-10-12-013): no longer load-bearing. The Gateways
-# no longer set spec.addresses, so envoy-gateway writes no externalIPs and
-# reports the LB-IPAM IP in status itself; both branches below are no-ops.
-# Kept one week as a passive safety net; remove when its job logs show no
-# "stripped"/"set" lines for 7 days.
-#
 # Workaround for the 2026-05-02 envoy-gateway v1.3.0 + Cilium LB IPAM
 # conflict. Two invariants need to be maintained that envoy-gateway will
 # not maintain on its own:
