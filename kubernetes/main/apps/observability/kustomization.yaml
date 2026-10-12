@@ -22,3 +22,4 @@ resources:
   - ./airmax-backup/install.yaml
   - ./monitoring-orphan-scan/install.yaml
   - ./aiops/install.yaml
+  - ./cilium-l2-rules/install.yaml

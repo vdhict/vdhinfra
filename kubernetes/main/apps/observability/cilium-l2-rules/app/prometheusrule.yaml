@@ -1,0 +1,68 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/prometheusrule_v1.json
+#
+# Cilium L2 announcement coverage (inc-2026-10-12-013, chg-2026-10-12-011).
+#
+# Every LoadBalancer Service that Cilium LB-IPAM has given an IP is answered
+# on the LAN (ARP) by exactly one node: the holder of the Lease
+# kube-system/cilium-l2announce-<namespace>-<service>. No Lease = nobody
+# answers ARP for that IP. LAN clients keep working only until their ARP
+# cache entry expires, which is why these outages go unnoticed and then
+# suddenly "nc says closed".
+#
+# Known cause (inc-2026-10-12-013): envoy-gateway v1.3.0 copies
+# Gateway.spec.addresses into Service.spec.externalIPs on every reconcile.
+# The externalIP equals the LB-IPAM IP, Cilium's L2 announcer then sees only
+# an ExternalIPs frontend, our l2-policy has externalIPs: false, so the
+# service is dropped and the Lease deleted (cilium v1.19.8
+# pkg/l2announcer/l2announcer.go upsertSvc/gcOrphanedService).
+#
+# The expression builds the expected Lease name from kube-state-metrics'
+# service ingress series and subtracts the Leases that exist. It is written
+# WITHOUT `$` capture groups on purpose (constant label + label_join), so
+# Flux postBuild substitution cannot touch it.
+#
+# for: 2m. The status-keeper CronJob currently restores the envoy Leases
+# within ~60s, so this fires when that bandaid fails or for any other
+# service losing its announcement.
+#
+# Delivery: severity=warning is UI-only (Alertmanager routes only
+# severity=critical to the ha-critical webhook). Requested as warning.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cilium-l2-rules
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: cilium.l2-announce
+      interval: 30s
+      rules:
+        - alert: CiliumL2AnnounceLeaseMissing
+          expr: |
+            label_join(
+              label_replace(
+                max by (namespace, service) (
+                  kube_service_status_load_balancer_ingress{job="kube-state-metrics", ip!=""}
+                ),
+                "lease_prefix", "cilium-l2announce", "", ""
+              ),
+              "lease", "-", "lease_prefix", "namespace", "service"
+            )
+            unless on (lease)
+              kube_lease_renew_time{job="kube-state-metrics", namespace="kube-system", lease=~"cilium-l2announce-.+"}
+          for: 2m
+          labels:
+            severity: warning
+            component: cilium
+          annotations:
+            summary: "No L2 announcement lease for LoadBalancer {{ $labels.namespace }}/{{ $labels.service }}"
+            description: |
+              Lease kube-system/{{ $labels.lease }} has been missing for more
+              than 2 minutes, so no node answers ARP for this LoadBalancer IP.
+              LAN clients lose the service as soon as their ARP cache expires.
+              Check: kubectl -n {{ $labels.namespace }} get svc {{ $labels.service }} -o jsonpath='{.spec.externalIPs}'
+              (non-empty = the envoy-gateway externalIPs collision, inc-2026-10-12-013),
+              and cilium-agent logs for "l2-announcer".
