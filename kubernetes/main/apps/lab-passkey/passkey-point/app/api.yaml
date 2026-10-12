@@ -1,5 +1,5 @@
 ---
-# v0.1 (chg-2026-10-12-004): image palamedes/passkey-point api-v01-ef7a5fb, config passkey-point-v01-env
+# v0.1 (chg-2026-10-12-004): image palamedes/passkey-point api-v01-e0295a0, config passkey-point-v01-env
 # (lab.env batch 7), AR1/AR2/AR3 keys at /var/run/secrets/passkey-point/ar{1,2,3}, pinned to node02,
 # NODE_ENV unset (graph-dev), roster removed (gate G3).
 # passkey-point-api (entra, app privilege mode): issues TAPs via Graph app-only.
@@ -54,7 +54,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: api
-          image: forge.bluejungle.net/palamedes/passkey-point@sha256:51da356441203327a914d944f28d2335dd73da58bda0ac0f72c68d5bf900f705
+          image: forge.bluejungle.net/palamedes/passkey-point@sha256:eb3d18ecf44dd8b030d7976ad790df11b41db79cc4f309344ca69a73227b52d0
           envFrom:
             - configMapRef:
                 name: passkey-point-v01-env
@@ -77,6 +77,10 @@ spec:
             # v2 ID token carries oid only with "openid profile" (run 15: employee_token_no_oid; Mack b79b052).
             - name: PP_EMPLOYEE_SCOPE
               value: "openid profile"
+            # Dev tenant only (the app refuses it elsewhere and with NODE_ENV=production): contractor tenure in minutes
+            # so the tenure rule is testable now (Sander 2026-10-12: tenure from the account creation date).
+            - name: PP_CONTRACTOR_TENURE_MINUTES
+              value: "30"
             - name: PP_API_SCOPE
               value: "api://6e05d927-e0c2-418b-9f01-ab909aec5699/access_as_user"
             # NODE_ENV unset (v0.1, chg-2026-10-12-004): PP_TAP_SERVICE=graph-dev (lab.env) is the dev-tenant

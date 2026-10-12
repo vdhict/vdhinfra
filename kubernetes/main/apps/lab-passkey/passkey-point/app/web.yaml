@@ -1,5 +1,5 @@
 ---
-# v0.1 (chg-2026-10-12-004): image palamedes/passkey-point web-v01-ef7a5fb, config passkey-point-v01-env
+# v0.1 (chg-2026-10-12-004): image palamedes/passkey-point web-v01-e0295a0, config passkey-point-v01-env
 # (lab.env batch 7), AR1 key at /var/run/secrets/passkey-point/ar1, pinned to node02.
 # passkey-point-web (entra): BFF/UI behind envoy-internal (plain 8080, TLS at Envoy).
 # Signs users in against Entra (login.microsoftonline.com only; app mode: no Graph
@@ -55,7 +55,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: web
-          image: forge.bluejungle.net/palamedes/passkey-point@sha256:6c8ae4d802df3461ad5201e4d0f0e0a595ba3f0dc8535b594e13e968372755ed
+          image: forge.bluejungle.net/palamedes/passkey-point@sha256:b1616335a14bcd16fbe895c7d129df5e467448e8b001be171655a963027b0ceb
           envFrom:
             - configMapRef:
                 name: passkey-point-v01-env
@@ -79,6 +79,10 @@ spec:
             # v2 ID token carries oid only with "openid profile" (run 15: employee_token_no_oid; Mack b79b052).
             - name: PP_EMPLOYEE_SCOPE
               value: "openid profile"
+            # Dev tenant only (the app refuses it elsewhere and with NODE_ENV=production): contractor tenure in minutes
+            # so the tenure rule is testable now (Sander 2026-10-12: tenure from the account creation date).
+            - name: PP_CONTRACTOR_TENURE_MINUTES
+              value: "30"
             - name: PP_DATA_DIR
               value: "/var/lib/passkey-point"
             - name: HOME
