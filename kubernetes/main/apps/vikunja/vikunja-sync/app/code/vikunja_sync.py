@@ -142,8 +142,25 @@ class VK:
                 return out
             page += 1
 
+    def get_task(self, tid):
+        """One task, with its labels. Labels are a default property on Vikunja v2; `expand=labels`
+        is a 422 there (chg-2026-10-01-001 rollback, 2026-10-09), so it is never sent."""
+        return with_labels(self.req("GET", f"/tasks/{tid}"))
+
     def patch(self, tid, ops):
         return self.req("PATCH", f"/tasks/{tid}", ops, ctype="application/json-patch+json")
+
+
+class LabelsMissing(RuntimeError):
+    pass
+
+
+def with_labels(vt):
+    """A task without a `labels` key is refused, never read as 'no owner': that reading would
+    strip and re-add owner labels on every task. Null (no labels) is fine."""
+    if not isinstance(vt, dict) or "labels" not in vt:
+        raise LabelsMissing("Vikunja task zonder labels-veld (id %s)" % (vt.get("id") if isinstance(vt, dict) else "?"))
+    return vt
 
 
 # ------------------------------------------------------------------ normalisation
@@ -438,7 +455,7 @@ def ensure_label(vk, state, owner):
 def reset_owner(vk, state, tid, new, allowed):
     """All owner:* labels off, then the one the vault says. Re-read first (a fresh GET), so
     the race window is one request long; a second label shows up as AMBIGUOUS next pull."""
-    vt = vk.req("GET", f"/tasks/{tid}", params={"expand": "labels"})
+    vt = vk.get_task(tid)
     if owner_of(vt) not in allowed:
         return False  # The owner assigned someone in between: leave it, the next pull captures it
     for l in vt.get("labels") or []:
@@ -510,7 +527,7 @@ def pull(vk, state, vault, qdir, now, counts):
     NOW_STAMP[0] = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     """Vikunja -> intents. Every intent carries a deterministic id and the event's own time."""
     rev = {e["vk"]: tsk for tsk, e in state["tasks"].items() if not e.get("gone")}
-    params = {"expand": "labels"}
+    params = {}  # labels come by default; expand=labels is a 422 on v2 (chg-2026-10-01-001)
     if state["last_poll"]:
         # Overlap: an edit in the same second as the last one we saw is not skipped. Re-seeing
         # a change is harmless: diffs are against 'pushed'/'pending', comments by id.
@@ -518,6 +535,7 @@ def pull(vk, state, vault, qdir, now, counts):
         params["filter"] = f"updated > {since.strftime('%Y-%m-%dT%H:%M:%SZ')}"
     newest = state["last_poll"]
     for vt in vk.all("/tasks", params):
+        with_labels(vt)
         newest = max(newest or "", vt.get("updated") or "")
         try:
             counts["intents"] += pull_one(vk, state, rev, vt, qdir, counts)
@@ -690,7 +708,7 @@ def sync_closed_text(vk, e, t, state=None):
     sig = __import__("hashlib").sha256(json.dumps(want).encode()).hexdigest()[:16]
     if e.get("closed_sig") == sig:
         return
-    vt = vk.req("GET", f"/tasks/{e['vk']}", params={"expand": "labels"})
+    vt = vk.get_task(e['vk'])
     ops = [{"op": "replace", "path": "/" + k, "value": d[k]} for k in ("title", "description")
            if vt.get(k) != d[k]]
     if vk_due(vt.get("due_date")) != d["due"]:
@@ -713,7 +731,7 @@ def push(vk, state, cards, tasks, closed, counts):
         if not e and t["source"] and re.fullmatch(r"vikunja:[0-9]+", t["source"]):
             vid = int(t["source"].split(":")[1])
             try:
-                vt = vk.req("GET", f"/tasks/{vid}", params={"expand": "labels"})
+                vt = vk.get_task(vid)
                 # Baseline = the VAULT's values, so the owner's edits made after his create intent show
                 # up as differences on the next pull instead of being overwritten (codex d19a0f9 P1).
                 e = state["tasks"][tsk] = {"vk": vid, "pending": {}, "last_comment": 0, "pushed": {
@@ -737,7 +755,7 @@ def push(vk, state, cards, tasks, closed, counts):
             counts["created"] += 1
             continue
         try:
-            vt = vk.req("GET", f"/tasks/{e['vk']}", params={"expand": "labels"})
+            vt = vk.get_task(e['vk'])
         except HTTPStatus as ex:
             if ex.code == 404:
                 e["gone"] = True  # the owner deleted it in Vikunja; not recreated, visible in health
@@ -765,7 +783,7 @@ def push(vk, state, cards, tasks, closed, counts):
             else:
                 counts["cas_refused"] += 1
         if "owner" not in e["pending"]:
-            fresh = owner_of(vk.req("GET", f"/tasks/{e['vk']}", params={"expand": "labels"}))
+            fresh = owner_of(vk.get_task(e['vk']))
             allowed = (p.get("owner"), None, AMBIGUOUS)
             if fresh != d["owner"] and fresh in allowed:
                 # vault changed it, or the owner removed it / two labels: the vault's owner is restored
