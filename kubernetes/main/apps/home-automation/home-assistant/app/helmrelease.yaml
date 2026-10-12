@@ -39,7 +39,7 @@ spec:
           app:
             image:
               repository: ghcr.io/home-operations/home-assistant
-              tag: 2026.9.0@sha256:f795a47fa14a5b109cc524b7f7e8b3d9ab95665d0482d9a11b794b6ad8425baa
+              tag: 2026.10.1@sha256:627056a9e95d904822e14887ce84b9e411c55bd913f4a593d7596103848c15ec
             env:
               HASS_EXTERNAL_URL: https://hass.${SECRET_DOMAIN}
               HASS_PURGE_KEEP_DAYS: 30
