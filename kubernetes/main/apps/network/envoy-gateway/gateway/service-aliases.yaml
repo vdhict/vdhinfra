@@ -3,6 +3,17 @@
 # The actual service names contain a hash derived from the Gateway UID
 # (e.g., envoy-network-envoy-external-27f017ad). These ExternalName
 # services provide stable names for in-cluster consumers.
+#
+# NEVER give these aliases envoy-gateway owner labels
+# (gateway.envoyproxy.io/owning-gateway-name/-namespace, app.kubernetes.io/
+# component=proxy, managed-by=envoy-gateway) or a selector. envoy-gateway
+# v1.3.0 finds the data-plane Service by those labels and takes the first
+# match in random order; an ExternalName match makes it write EMPTY
+# Gateway.status.addresses and external-dns-unifi withdraws the LAN records
+# (inc-2026-10-12-013; stale labels from the 1.7.2 rollback were stripped
+# in-cluster by chg-2026-10-13-001). Check:
+#   kubectl -n network get svc -l gateway.envoyproxy.io/owning-gateway-name=envoy-internal
+# must list exactly one Service (type LoadBalancer).
 apiVersion: v1
 kind: Service
 metadata:
