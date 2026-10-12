@@ -7,6 +7,13 @@
 set -u
 SHA="${1:?usage: postcheck.sh <sha>}"
 NS=observability
+# No tooling = no verdict. Never roll back on a check that could not run
+# (2026-10-12: a run without kubectl on PATH failed every check).
+for t in kubectl flux git; do
+  command -v "$t" >/dev/null || { echo "NO VERDICT: $t not on PATH (eval \"\$(mise env -s bash)\")"; exit 3; }
+done
+kubectl -n "$NS" get pod alertmanager-kube-prometheus-stack-0 >/dev/null 2>&1 \
+  || { echo "NO VERDICT: cluster API not reachable"; exit 3; }
 fail=0
 ok()  { echo "PASS $*"; }
 bad() { echo "FAIL $*"; fail=1; }
@@ -50,9 +57,12 @@ done
 if [ "$fail" = 0 ]; then echo "POSTCHECK PASS"; exit 0; fi
 
 echo "POSTCHECK FAIL -> rolling back $SHA"
-git fetch -q origin main && git checkout -q --detach origin/main \
-  && git revert --no-edit "$SHA" \
-  && git push origin HEAD:main \
+# Revert in a private throwaway worktree: never touch a checkout someone
+# else may be working in.
+wt="$(mktemp -d "${TMPDIR:-/tmp}/aiops-rollback.XXXXXX")"
+git fetch -q origin main && git worktree add -q --detach "$wt" origin/main \
+  && git -C "$wt" revert --no-edit "$SHA" \
+  && git -C "$wt" push origin HEAD:main \
   && flux -n flux-system reconcile source git flux-system \
   && flux -n flux-system reconcile kustomization kube-prometheus-stack --with-source \
   && flux -n $NS reconcile helmrelease kube-prometheus-stack --force
