@@ -35,9 +35,15 @@ spec:
               - matchName: login.microsoftonline.com
               - matchName: graph.microsoft.com
               - matchName: passkey-point-lab.bluejungle.net
+              - matchName: aadcdn.msftauth.net
+              - matchName: aadcdn.msauth.net
+              - matchName: logincdn.msauth.net
     - toFQDNs:
         - matchName: login.microsoftonline.com
         - matchName: graph.microsoft.com
+        - matchName: aadcdn.msftauth.net
+        - matchName: aadcdn.msauth.net
+        - matchName: logincdn.msauth.net
       toPorts:
         - ports: [{port: "443", protocol: TCP}]
 ---
