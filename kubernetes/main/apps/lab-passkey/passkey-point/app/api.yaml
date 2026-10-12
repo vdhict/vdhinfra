@@ -74,6 +74,8 @@ spec:
             # lab.env was written for the one-process build; bootstrap labEnv will write it later).
             - name: PP_WEB_CLIENT_ID
               value: "6e05d927-e0c2-418b-9f01-ab909aec5699"
+            - name: PP_API_SCOPE
+              value: "api://6e05d927-e0c2-418b-9f01-ab909aec5699/access_as_user"
             # NODE_ENV unset (v0.1, chg-2026-10-12-004): PP_TAP_SERVICE=graph-dev (lab.env) is the dev-tenant
             # adapter and src/config.ts @418e47e refuses it under NODE_ENV=production. The api still serves its own
             # TLS/mTLS (PP_TLS_* below), so no plain listener.
