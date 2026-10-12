@@ -38,12 +38,14 @@ spec:
               - matchName: aadcdn.msftauth.net
               - matchName: aadcdn.msauth.net
               - matchName: logincdn.msauth.net
+              - matchName: login.microsoft.com
     - toFQDNs:
         - matchName: login.microsoftonline.com
         - matchName: graph.microsoft.com
         - matchName: aadcdn.msftauth.net
         - matchName: aadcdn.msauth.net
         - matchName: logincdn.msauth.net
+        - matchName: login.microsoft.com
       toPorts:
         - ports: [{port: "443", protocol: TCP}]
 ---
