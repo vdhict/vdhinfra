@@ -51,14 +51,17 @@ metadata:
     external-dns.alpha.kubernetes.io/target: external.${SECRET_DOMAIN}
 spec:
   gatewayClassName: envoy
-  # Pin the address that gets reported in Gateway.status.addresses so k8s-gateway
-  # (oriedge/k8s_gateway v0.4.0) can resolve in-cluster hostnames reliably. Without
-  # this, envoy-gateway's address auto-discovery has been flaky after pod restarts —
-  # 2026-05-02 incident: addresses went empty overnight, returned NXDOMAIN for every
-  # *.bluejungle.net lookup on LAN.
-  addresses:
-    - type: IPAddress
-      value: ${ENVOY_EXTERNAL_LB_IP}
+  # NO spec.addresses here, on purpose (inc-2026-10-12-013). The IP is pinned by
+  # the lbipam.cilium.io/ips annotation below; Cilium LB-IPAM writes it to
+  # Service.status.loadBalancer.ingress, and envoy-gateway v1.3.0 then reports
+  # exactly that IP in Gateway.status.addresses (internal/gatewayapi/status/
+  # gateway.go: no spec.addresses + type LoadBalancer -> ingress IPs).
+  # With spec.addresses set, envoy-gateway (a) copies them into
+  # Service.spec.externalIPs on EVERY reconcile (any backend EndpointSlice
+  # change), which makes Cilium's L2 announcer see an ExternalIPs frontend,
+  # drop the service (l2-policy has externalIPs: false) and delete the lease,
+  # and (b) reports externalIPs-or-ClusterIP in status. That is the whole
+  # reason the status-keeper CronJob existed. Do not re-add spec.addresses.
   infrastructure:
     annotations:
       external-dns.alpha.kubernetes.io/hostname: external.${SECRET_DOMAIN}
@@ -96,10 +99,7 @@ metadata:
     external-dns-unifi.bluejungle.net/target: ${ENVOY_INTERNAL_LB_IP}
 spec:
   gatewayClassName: envoy
-  # See envoy-external above for rationale (2026-05-02 LAN-DNS incident).
-  addresses:
-    - type: IPAddress
-      value: ${ENVOY_INTERNAL_LB_IP}
+  # No spec.addresses: see envoy-external above (inc-2026-10-12-013).
   infrastructure:
     annotations:
       external-dns-unifi.bluejungle.net/hostname: internal.${SECRET_DOMAIN}
