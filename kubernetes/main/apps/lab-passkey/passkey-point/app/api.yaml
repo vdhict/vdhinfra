@@ -1,4 +1,7 @@
 ---
+# v0.1 (chg-2026-10-12-004): image palamedes/passkey-point api-v01-418e47e, config passkey-point-v01-env
+# (lab.env batch 7), AR1/AR2/AR3 keys at /var/run/secrets/passkey-point/ar{1,2,3}, pinned to node02,
+# NODE_ENV unset (graph-dev), roster removed (gate G3).
 # passkey-point-api (entra, app privilege mode): issues TAPs via Graph app-only.
 # TLS 8443 + mTLS from web. pp-data rw; pp-roster (today's list) READ-ONLY
 # (SEC-13). Own Entra key file (api-entra-key).
@@ -37,8 +40,10 @@ spec:
         options:
           - {name: ndots, value: "1"}
       terminationGracePeriodSeconds: 20
+      nodeSelector:
+        kubernetes.io/hostname: vdhclu01node02
       imagePullSecrets:
-        - name: passkey-point-lab-pull
+        - name: passkey-point-palamedes-pull
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
@@ -49,10 +54,10 @@ spec:
           type: RuntimeDefault
       containers:
         - name: api
-          image: forge.bluejungle.net/vdhict/passkey-point:api-d3f4de5@sha256:6f764d86e9f60cb3ab04f95a069b9d2bb9af55eda29ae628be59d3cefec089a8
+          image: forge.bluejungle.net/palamedes/passkey-point@sha256:d477fac2369b783abb965d1066d3a92cfba474a88d6938f262a00805b773300f
           envFrom:
             - configMapRef:
-                name: passkey-point-api-env
+                name: passkey-point-v01-env
           env:
             # B2 guard (Themis): only hack/passkey-point/render-env.py writes this key. A
             # placeholder ConfigMap lacks it -> CreateContainerConfigError, so the
@@ -60,20 +65,14 @@ spec:
             - name: PP_ENV_RENDERED_FROM
               valueFrom:
                 configMapKeyRef:
-                  name: passkey-point-api-env
+                  name: passkey-point-v01-env
                   key: PP_ENV_RENDERED_FROM
                   optional: false
             - name: PP_MODE
               value: "entra"
-            # NODE_ENV production (M14 decision, statically verified on a184498): the api
-            # serves its own TLS/mTLS, so tls.ts:49 (plain HTTP refused) does not bite;
-            # the production guards then hold in-app: client secret refused
-            # (credential.ts:32), https origin (config.ts:678), delegated refused
-            # (:707), sqlite not under /tmp (:816), PP_POPULATION_AU required (:928),
-            # and the SEC-13 self-check (:937) that pp-roster is NOT writable for the
-            # api (passes on our readOnly mount: tryCreate -> EROFS, chmod -> EROFS).
-            - name: NODE_ENV
-              value: "production"
+            # NODE_ENV unset (v0.1, chg-2026-10-12-004): PP_TAP_SERVICE=graph-dev (lab.env) is the dev-tenant
+            # adapter and src/config.ts @418e47e refuses it under NODE_ENV=production. The api still serves its own
+            # TLS/mTLS (PP_TLS_* below), so no plain listener.
             - name: PP_DATA_DIR
               value: "/var/lib/passkey-point"
             - name: HOME
@@ -90,10 +89,6 @@ spec:
               value: "/tls/server/tls.key"
             - name: PP_TLS_CLIENT_CA_FILE
               value: "/tls/server/ca.crt"
-            - name: PP_ROSTER_DIR
-              value: "/var/lib/passkey-point-roster"
-            - name: ENTRA_CERT_PRIVATE_KEY_PATH
-              value: "/etc/passkey-point/entra/key.pem"
           ports:
             - name: https
               containerPort: 8443
@@ -131,14 +126,17 @@ spec:
             - name: tls-server
               mountPath: /tls/server
               readOnly: true
-            - name: entra
-              mountPath: /etc/passkey-point/entra
+            - name: ar1
+              mountPath: /var/run/secrets/passkey-point/ar1
+              readOnly: true
+            - name: ar2
+              mountPath: /var/run/secrets/passkey-point/ar2
+              readOnly: true
+            - name: ar3
+              mountPath: /var/run/secrets/passkey-point/ar3
               readOnly: true
             - name: data
               mountPath: /var/lib/passkey-point
-            - name: roster
-              mountPath: /var/lib/passkey-point-roster
-              readOnly: true
       volumes:
         - name: tmp
           emptyDir:
@@ -147,13 +145,18 @@ spec:
           secret:
             secretName: passkey-point-api-tls
             defaultMode: 0440
-        - name: entra
+        - name: ar1
           secret:
-            secretName: passkey-point-api-entra
+            secretName: passkey-point-ar1-cert
+            defaultMode: 0440
+        - name: ar2
+          secret:
+            secretName: passkey-point-ar2-cert
+            defaultMode: 0440
+        - name: ar3
+          secret:
+            secretName: passkey-point-ar3-cert
             defaultMode: 0440
         - name: data
           persistentVolumeClaim:
             claimName: pp-data
-        - name: roster
-          persistentVolumeClaim:
-            claimName: pp-roster

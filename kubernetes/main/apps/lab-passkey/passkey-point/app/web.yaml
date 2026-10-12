@@ -1,4 +1,6 @@
 ---
+# v0.1 (chg-2026-10-12-004): image palamedes/passkey-point web-v01-418e47e, config passkey-point-v01-env
+# (lab.env batch 7), AR1 key at /var/run/secrets/passkey-point/ar1, pinned to node02.
 # passkey-point-web (entra): BFF/UI behind envoy-internal (plain 8080, TLS at Envoy).
 # Signs users in against Entra (login.microsoftonline.com only; app mode: no Graph
 # from web), calls the api over mTLS. Own Entra key file (web-entra-key).
@@ -39,8 +41,10 @@ spec:
         options:
           - {name: ndots, value: "1"}
       terminationGracePeriodSeconds: 20
+      nodeSelector:
+        kubernetes.io/hostname: vdhclu01node02
       imagePullSecrets:
-        - name: passkey-point-lab-pull
+        - name: passkey-point-palamedes-pull
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
@@ -51,10 +55,10 @@ spec:
           type: RuntimeDefault
       containers:
         - name: web
-          image: forge.bluejungle.net/vdhict/passkey-point:web-d3f4de5@sha256:d207d5b2e5cd09cb55ddd96ee20df24345847b30fb273c59e29de59d83aa9098
+          image: forge.bluejungle.net/palamedes/passkey-point@sha256:991587bca3814b3688ca7e202d6e1de98e1fcddf172129d4a2eee08ffa2ca6f3
           envFrom:
             - configMapRef:
-                name: passkey-point-web-env
+                name: passkey-point-v01-env
           env:
             # B2 guard (Themis): only hack/passkey-point/render-env.py writes this key. A
             # placeholder ConfigMap lacks it -> CreateContainerConfigError, so the
@@ -62,7 +66,7 @@ spec:
             - name: PP_ENV_RENDERED_FROM
               valueFrom:
                 configMapKeyRef:
-                  name: passkey-point-web-env
+                  name: passkey-point-v01-env
                   key: PP_ENV_RENDERED_FROM
                   optional: false
             - name: PP_MODE
@@ -87,8 +91,6 @@ spec:
               value: "/tls/client/tls.crt"
             - name: PP_API_CLIENT_KEY_FILE
               value: "/tls/client/tls.key"
-            - name: ENTRA_CERT_PRIVATE_KEY_PATH
-              value: "/etc/passkey-point/entra/key.pem"
           ports:
             - name: http
               containerPort: 8080
@@ -126,8 +128,8 @@ spec:
             - name: tls-client
               mountPath: /tls/client
               readOnly: true
-            - name: entra
-              mountPath: /etc/passkey-point/entra
+            - name: ar1
+              mountPath: /var/run/secrets/passkey-point/ar1
               readOnly: true
             - name: data
               mountPath: /var/lib/passkey-point
@@ -139,9 +141,9 @@ spec:
           secret:
             secretName: passkey-point-web-client-tls
             defaultMode: 0440
-        - name: entra
+        - name: ar1
           secret:
-            secretName: passkey-point-web-entra
+            secretName: passkey-point-ar1-cert
             defaultMode: 0440
         - name: data
           emptyDir:

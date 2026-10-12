@@ -18,7 +18,8 @@ kind: Deployment
 metadata:
   name: passkey-point-roster
 spec:
-  replicas: 1
+  # v0.1 (chg-2026-10-12-004): gone with gate G3; scaled to 0, not deleted yet (Mack).
+  replicas: 0
   strategy:
     type: Recreate
   selector:
