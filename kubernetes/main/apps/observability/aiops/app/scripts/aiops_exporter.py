@@ -36,7 +36,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 TOKENS_FILE = os.environ.get("TOKENS_FILE", "/config/tokens.json")
@@ -53,7 +53,7 @@ _gh = {"up": 0, "last_success": 0.0, "last_activity": None, "prs": []}
 
 
 def log(msg: str) -> None:
-    print(json.dumps({"ts": datetime.utcnow().isoformat() + "Z", "msg": msg}), flush=True)
+    print(json.dumps({"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), "msg": msg}), flush=True)
 
 
 def esc(v: str) -> str:

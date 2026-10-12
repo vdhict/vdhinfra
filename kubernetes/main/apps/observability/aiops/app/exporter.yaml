@@ -32,6 +32,8 @@ spec:
         runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
+        # secret files are root-owned; fsGroup makes the 0440 key readable.
+        fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -95,7 +97,7 @@ spec:
           secret:
             secretName: cluster-health-secret
             optional: true
-            defaultMode: 0400
+            defaultMode: 0440
             items:
               - key: github-app-key.pem
                 path: github-app-key.pem
