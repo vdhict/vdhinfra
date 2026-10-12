@@ -1,0 +1,44 @@
+---
+# promtool unit test for RenovateNoContainerCommit14d (aiops-renovate group).
+# Not deployed. Run like mypka-wires-heartbeat.test.yaml, with
+#   yq '.spec | del(.groups[].rules[].annotations)' \
+#     <repo>/kubernetes/main/apps/observability/aiops/app/prometheusrule.yaml > rules.yaml
+# Clock: series step 1m (a sparser step goes stale between samples); eval at 400h = 1440000 s.
+rule_files:
+  - rules.yaml
+evaluation_interval: 1m
+
+tests:
+  # stale: last container commit 15 d ago -> FIRES.
+  - interval: 1m
+    input_series:
+      - series: 'renovate_last_main_container_commit_timestamp_seconds'
+        values: '144000x24700'   # 1440000 - 1296000 (15 d)
+    alert_rule_test:
+      - eval_time: 400h
+        alertname: RenovateNoContainerCommit14d
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              component: aiops-renovate
+  # fresh: last container commit 13 d ago -> SILENT.
+  - interval: 1m
+    input_series:
+      - series: 'renovate_last_main_container_commit_timestamp_seconds'
+        values: '316800x24700'   # 1440000 - 1123200 (13 d)
+    alert_rule_test:
+      - eval_time: 400h
+        alertname: RenovateNoContainerCommit14d
+        exp_alerts: []
+  # never landed (exporter reports 0) -> FIRES.
+  - interval: 1m
+    input_series:
+      - series: 'renovate_last_main_container_commit_timestamp_seconds'
+        values: '0x24700'
+    alert_rule_test:
+      - eval_time: 400h
+        alertname: RenovateNoContainerCommit14d
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              component: aiops-renovate

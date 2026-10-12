@@ -1,0 +1,184 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/prometheusrule_v1.json
+# mypka wires heartbeat (chg-2026-10-07-007, cluster-wires wave 1).
+#
+# Story: "did each live wire (school, ortho, tennis) complete on the cluster
+# within its heartbeat window, and did its last run fail?" It replaces the
+# Mini's heartbeat probes, which go stale once the work moves to the
+# cluster CronJobs in namespace mypka.
+#
+# Path (rebased onto the ntfy routing of chg-2026-10-12-009):
+# kube-state-metrics -> Prometheus -> Alertmanager -> top-level route
+# `component = mypka-wires` (placed BEFORE the severity=critical/HA route,
+# no continue) -> ntfy-day 07-23 local, ntfy-night 23-07 local. Never HA.
+#
+# severity: warning. Routing does not depend on it (the component route
+# catches these first), but warning is a second guard: should the component
+# route ever be removed, the alerts still fall through to the ntfy warning
+# routes and never to the severity=critical HA webhook.
+#
+# NIGHT QUIET (absolute rule: no sound/vibration 23:00-07:00) is enforced in
+# Alertmanager, not PromQL (hour() is UTC and not DST-safe): 23-07
+# Europe/Amsterdam the route sends to ntfy-night (priority 1, silent, "[night]"
+# prefix) and the 07:00 aiops-morning-summary re-posts it.
+#
+# SUSPENDED = SILENT. Every alert is gated on kube_cronjob_spec_suspend == 0.
+# A deleted or renamed CronJob is also silent: its suspend series is absent,
+# so the gate fails.
+#
+# ARMING (stale alerts). A stale alert fires only when the CronJob has been
+# UNSUSPENDED FOR THE WHOLE WINDOW and has EXISTED FOR THE WHOLE WINDOW. Why:
+# at cutover, school and ortho still carry lastSuccessfulTime from the
+# 2026-10-11 shadow runs (12:21Z / 12:27Z). Those stamps pass 48 h at
+# 2026-10-13 ~12:21Z, before the first scheduled run (2026-10-14 07:25/07:35
+# local). Without the guard the owner gets paged on cutover afternoon.
+# Consequence: a wire unsuspended at T is first judged stale at T + window.
+# A failed first run is still caught at once by the *JobFailed alerts.
+#
+# TENNIS sits in its own group (mypka-wires-tennis). If tennis does not cut
+# over, delete that group block. Nothing else references it.
+#
+# Flux postBuild substitution is disabled on this object because label_replace
+# uses "$1".
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: mypka-wires-heartbeat
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+spec:
+  groups:
+    - name: mypka-wires-records
+      interval: 1m
+      rules:
+        # Creation time of the NEWEST FAILED Job per owning CronJob in mypka,
+        # labelled `cronjob` so it joins with the kube_cronjob_* series.
+        # Used by MypkaJobFailed below. Cardinality: at most one series per
+        # mypka CronJob (8 today). Manual test runs named *-shadow-* are
+        # excluded: the cutover shadows (e.g. tennis-shadow-chg007-1223,
+        # failed 2026-10-11) would otherwise page the moment a wire is
+        # unsuspended.
+        # (Failed Jobs are kept for ttlSecondsAfterFinished = 7 d, so a plain
+        # "failed > 0" would keep firing on an old failure. The alerts compare
+        # this record against last_successful_time instead.)
+        - record: namespace_cronjob:kube_job_failed_created_timestamp:max
+          # Output labels: namespace, cronjob (owner_name is folded away so
+          # every alert branch below carries the same label set).
+          expr: |
+            max by (namespace, cronjob) (
+              label_replace(
+                (
+                  kube_job_created{namespace="mypka", job_name!~".*-shadow-.*"}
+                  * on(namespace, job_name) group_left(owner_name)
+                  kube_job_owner{namespace="mypka", owner_kind="CronJob"}
+                )
+                and on(namespace, job_name)
+                (kube_job_status_failed{namespace="mypka"} > 0),
+                "cronjob", "$1", "owner_name", "(.+)"
+              )
+            )
+
+    - name: mypka-wires-wave1
+      interval: 1m
+      rules:
+        - alert: MypkaWireStale
+          # school / ortho run once a day. 172800 s = 48 h = two missed days.
+          # The second branch covers a live wire that has never succeeded.
+          # Outer max by (namespace, cronjob): drops kube-state-metrics' pod /
+          # instance labels, so a KSM rollout does not resolve + re-fire
+          # (a second push) an alert that is already firing.
+          expr: |
+            max by (namespace, cronjob) (
+            (
+              (time() - kube_cronjob_status_last_successful_time{namespace="mypka", cronjob=~"school|ortho"}) > 172800
+              or on(namespace, cronjob)
+              (
+                kube_cronjob_spec_suspend{namespace="mypka", cronjob=~"school|ortho"}
+                unless on(namespace, cronjob)
+                kube_cronjob_status_last_successful_time{namespace="mypka"}
+              )
+            )
+            and on(namespace, cronjob) (max_over_time(kube_cronjob_spec_suspend{namespace="mypka", cronjob=~"school|ortho"}[172800s]) == 0)
+            and on(namespace, cronjob) ((time() - kube_cronjob_created{namespace="mypka", cronjob=~"school|ortho"}) > 172800)
+            )
+          for: 15m
+          labels:
+            severity: warning
+            component: mypka-wires
+            wire_set: wave1
+          annotations:
+            summary: "mypka wire {{ $labels.cronjob }}: no successful run for 48+ hours"
+            description: |
+              CronJob mypka/{{ $labels.cronjob }} has been live (unsuspended)
+              for 48 hours and has not completed a successful Job in that
+              time. The calendar it feeds is going stale. Look at the newest
+              Job: `kubectl -n mypka get jobs --sort-by=.metadata.creationTimestamp`.
+              Rollback: suspend the CronJob (that also silences this alert).
+
+    # TENNIS: only if tennis cuts over. Delete this whole group otherwise.
+    - name: mypka-wires-tennis
+      interval: 1m
+      rules:
+        - alert: MypkaWireStale
+          # 561600 s = 6.5 days. Outer max by: see the wave1 stale rule.
+          expr: |
+            max by (namespace, cronjob) (
+            (
+              (time() - kube_cronjob_status_last_successful_time{namespace="mypka", cronjob="tennis"}) > 561600
+              or on(namespace, cronjob)
+              (
+                kube_cronjob_spec_suspend{namespace="mypka", cronjob="tennis"}
+                unless on(namespace, cronjob)
+                kube_cronjob_status_last_successful_time{namespace="mypka"}
+              )
+            )
+            and on(namespace, cronjob) (max_over_time(kube_cronjob_spec_suspend{namespace="mypka", cronjob="tennis"}[561600s]) == 0)
+            and on(namespace, cronjob) ((time() - kube_cronjob_created{namespace="mypka", cronjob="tennis"}) > 561600)
+            )
+          for: 15m
+          labels:
+            severity: warning
+            component: mypka-wires
+            wire_set: tennis
+          annotations:
+            summary: "mypka wire {{ $labels.cronjob }}: no successful run for 6.5+ days"
+            description: |
+              CronJob mypka/{{ $labels.cronjob }} has been live (unsuspended)
+              for 6.5 days without a successful Job. Look at the newest Job:
+              `kubectl -n mypka get jobs --sort-by=.metadata.creationTimestamp`.
+              Rollback: suspend the CronJob (that also silences this alert).
+
+    # Failed Job, namespace-wide: any unsuspended CronJob in mypka whose
+    # newest (non-shadow) failed Job is newer than its last success, i.e. the
+    # latest attempt failed. backoffLimit is 0, so one failed pod = one failed
+    # Job. Resolves on the next success (or when the failed Job expires after
+    # its 7 d TTL). Suspended CronJobs are silent.
+    - name: mypka-jobs
+      interval: 1m
+      rules:
+        - alert: MypkaJobFailed
+          expr: |
+            (
+              namespace_cronjob:kube_job_failed_created_timestamp:max
+              > on(namespace, cronjob)
+              max by (namespace, cronjob) (kube_cronjob_status_last_successful_time{namespace="mypka"})
+              or on(namespace, cronjob)
+              (
+                namespace_cronjob:kube_job_failed_created_timestamp:max
+                unless on(namespace, cronjob)
+                kube_cronjob_status_last_successful_time{namespace="mypka"}
+              )
+            )
+            and on(namespace, cronjob) (max by (namespace, cronjob) (kube_cronjob_spec_suspend{namespace="mypka"}) == 0)
+          for: 5m
+          labels:
+            severity: warning
+            component: mypka-wires
+          annotations:
+            summary: "mypka CronJob {{ $labels.cronjob }}: last run failed"
+            description: |
+              The newest Job of CronJob mypka/{{ $labels.cronjob }} failed and
+              no successful run has happened since. Read its log:
+              `kubectl -n mypka get jobs --sort-by=.metadata.creationTimestamp`
+              then `kubectl -n mypka logs job/<newest>`. Rollback: suspend the
+              CronJob (that also silences this alert).

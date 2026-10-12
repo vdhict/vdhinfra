@@ -1,0 +1,273 @@
+---
+# promtool unit tests for PrometheusRule mypka-wires-heartbeat
+# (chg-2026-10-07-007). Not deployed; kept outside kubernetes/ so
+# `just validate` (kubeconform) does not read it.
+#
+# Run from a scratch dir (annotations stripped, so the test checks the logic
+# and labels only; promtool 3.7.2 = the live Prometheus version):
+#   yq '.spec | del(.groups[].rules[].annotations)' \
+#     <repo>/kubernetes/main/apps/observability/mypka-wires-alerts/app/prometheusrule.yaml > rules.yaml
+#   cp <repo>/hack/promtool-tests/mypka-wires-heartbeat.test.yaml .
+#   promtool test rules mypka-wires-heartbeat.test.yaml
+# Mutation control: drop the max_over_time(...[172800s]) line from rules.yaml
+# and T1 must FAIL at 2d12h (the cutover-afternoon false page).
+#
+# Series step is 1m. Minute N = N*60 seconds of time().
+rule_files:
+  - rules.yaml
+evaluation_interval: 1m
+
+tests:
+  # ---------------------------------------------------------------------
+  # T1  Cutover replay + healthy + suspended.
+  #   school: shadow success stamp at 10000 s (like 2026-10-11 12:21Z),
+  #           suspended until minute 1440, then unsuspended, never runs.
+  #           At 60 h the stamp is >48 h old but the wire has been live
+  #           only 36 h  -> SILENT (the false page the arming guard prevents).
+  #           At 73 h it has been live for 49 h with no success -> FIRES.
+  #   ortho:  live all along, succeeds continuously -> SILENT (negative).
+  #   tennis: suspended all along, ancient success -> SILENT (suspend gate).
+  # ---------------------------------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'kube_cronjob_spec_suspend{namespace="mypka", cronjob="school"}'
+        values: '1x1440 0x4000'
+      - series: 'kube_cronjob_created{namespace="mypka", cronjob="school"}'
+        values: '0x5500'
+      - series: 'kube_cronjob_status_last_successful_time{namespace="mypka", cronjob="school"}'
+        values: '10000x5500'
+      - series: 'kube_cronjob_spec_suspend{namespace="mypka", cronjob="ortho"}'
+        values: '0x5500'
+      - series: 'kube_cronjob_created{namespace="mypka", cronjob="ortho"}'
+        values: '0x5500'
+      - series: 'kube_cronjob_status_last_successful_time{namespace="mypka", cronjob="ortho"}'
+        values: '0+60x5500'
+      - series: 'kube_cronjob_spec_suspend{namespace="mypka", cronjob="tennis"}'
+        values: '1x5500'
+      - series: 'kube_cronjob_created{namespace="mypka", cronjob="tennis"}'
+        values: '0x5500'
+      - series: 'kube_cronjob_status_last_successful_time{namespace="mypka", cronjob="tennis"}'
+        values: '1x5500'
+    alert_rule_test:
+      - eval_time: 3600m   # 60 h: stamp stale, but live only 36 h
+        alertname: MypkaWireStale
+        exp_alerts: []
+      - eval_time: 4380m   # 73 h: live 49 h, no success since unsuspend
+        alertname: MypkaWireStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              component: mypka-wires
+              wire_set: wave1
+              namespace: mypka
+              cronjob: school
+
+  # ---------------------------------------------------------------------
+  # T2  Failed-Job logic.
+  #   school: success at 600 s, newer Job (created 900 s) failed from min 20
+  #           -> FIRES. An older failed Job (created 100 s) is ignored.
+  #   ortho:  failed Job created 100 s, success at 1200 s afterwards
+  #           -> SILENT (old failure; the live school-shadow-0859 case).
+  #   tennis: newer failure but SUSPENDED -> SILENT.
+  #   voetbal: newer failure, live, never succeeded -> FIRES (namespace-wide).
+  #   ortho also has a NEWER failed manual Job named *-shadow-* -> ignored.
+  # ---------------------------------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'kube_cronjob_spec_suspend{namespace="mypka", cronjob="school"}'
+        values: '0x60'
+      - series: 'kube_cronjob_status_last_successful_time{namespace="mypka", cronjob="school"}'
+        values: '600x60'
+      - series: 'kube_job_owner{namespace="mypka", job_name="school-a", owner_kind="CronJob", owner_name="school", owner_is_controller="true"}'
+        values: '1x60'
+      - series: 'kube_job_created{namespace="mypka", job_name="school-a"}'
+        values: '900x60'
+      - series: 'kube_job_status_failed{namespace="mypka", job_name="school-a", reason="BackoffLimitExceeded"}'
+        values: '0x19 1x40'
+      - series: 'kube_job_owner{namespace="mypka", job_name="school-b", owner_kind="CronJob", owner_name="school", owner_is_controller="true"}'
+        values: '1x60'
+      - series: 'kube_job_created{namespace="mypka", job_name="school-b"}'
+        values: '100x60'
+      - series: 'kube_job_status_failed{namespace="mypka", job_name="school-b", reason="BackoffLimitExceeded"}'
+        values: '1x60'
+      - series: 'kube_cronjob_spec_suspend{namespace="mypka", cronjob="ortho"}'
+        values: '0x60'
+      - series: 'kube_cronjob_status_last_successful_time{namespace="mypka", cronjob="ortho"}'
+        values: '1200x60'
+      - series: 'kube_job_owner{namespace="mypka", job_name="ortho-a", owner_kind="CronJob", owner_name="ortho", owner_is_controller="true"}'
+        values: '1x60'
+      - series: 'kube_job_created{namespace="mypka", job_name="ortho-a"}'
+        values: '100x60'
+      - series: 'kube_job_status_failed{namespace="mypka", job_name="ortho-a", reason="BackoffLimitExceeded"}'
+        values: '1x60'
+      - series: 'kube_job_owner{namespace="mypka", job_name="ortho-shadow-chg007-1226", owner_kind="CronJob", owner_name="ortho", owner_is_controller="true"}'
+        values: '1x60'
+      - series: 'kube_job_created{namespace="mypka", job_name="ortho-shadow-chg007-1226"}'
+        values: '1500x60'
+      - series: 'kube_job_status_failed{namespace="mypka", job_name="ortho-shadow-chg007-1226", reason="BackoffLimitExceeded"}'
+        values: '1x60'
+      - series: 'kube_cronjob_spec_suspend{namespace="mypka", cronjob="tennis"}'
+        values: '1x60'
+      - series: 'kube_cronjob_status_last_successful_time{namespace="mypka", cronjob="tennis"}'
+        values: '100x60'
+      - series: 'kube_job_owner{namespace="mypka", job_name="tennis-a", owner_kind="CronJob", owner_name="tennis", owner_is_controller="true"}'
+        values: '1x60'
+      - series: 'kube_job_created{namespace="mypka", job_name="tennis-a"}'
+        values: '900x60'
+      - series: 'kube_job_status_failed{namespace="mypka", job_name="tennis-a", reason="BackoffLimitExceeded"}'
+        values: '1x60'
+      - series: 'kube_cronjob_spec_suspend{namespace="mypka", cronjob="voetbal"}'
+        values: '0x60'
+      - series: 'kube_job_owner{namespace="mypka", job_name="voetbal-a", owner_kind="CronJob", owner_name="voetbal", owner_is_controller="true"}'
+        values: '1x60'
+      - series: 'kube_job_created{namespace="mypka", job_name="voetbal-a"}'
+        values: '900x60'
+      - series: 'kube_job_status_failed{namespace="mypka", job_name="voetbal-a", reason="BackoffLimitExceeded"}'
+        values: '0x19 1x40'
+    promql_expr_test:
+      - expr: namespace_cronjob:kube_job_failed_created_timestamp:max
+        eval_time: 30m
+        exp_samples:
+          - labels: 'namespace_cronjob:kube_job_failed_created_timestamp:max{namespace="mypka", cronjob="school"}'
+            value: 900
+          - labels: 'namespace_cronjob:kube_job_failed_created_timestamp:max{namespace="mypka", cronjob="ortho"}'
+            value: 100
+          - labels: 'namespace_cronjob:kube_job_failed_created_timestamp:max{namespace="mypka", cronjob="tennis"}'
+            value: 900
+          - labels: 'namespace_cronjob:kube_job_failed_created_timestamp:max{namespace="mypka", cronjob="voetbal"}'
+            value: 900
+    alert_rule_test:
+      - eval_time: 22m     # failing 3 min, for: 5m not yet met
+        alertname: MypkaJobFailed
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: MypkaJobFailed
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              component: mypka-wires
+              namespace: mypka
+              cronjob: school
+          - exp_labels:
+              severity: warning
+              component: mypka-wires
+              namespace: mypka
+              cronjob: voetbal
+
+  # ---------------------------------------------------------------------
+  # T3  Never-succeeded branches + tennis group + recreated CronJob.
+  #   tennis: live, no success ever, failed Job -> JobFailed FIRES (tennis).
+  #   school: live, no success ever. Created at 0: silent at 47 h (created
+  #           guard, models a freshly recreated CronJob), FIRES at 49 h.
+  # ---------------------------------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'kube_cronjob_spec_suspend{namespace="mypka", cronjob="tennis"}'
+        values: '0x3000'
+      - series: 'kube_cronjob_created{namespace="mypka", cronjob="tennis"}'
+        values: '0x3000'
+      - series: 'kube_job_owner{namespace="mypka", job_name="tennis-x", owner_kind="CronJob", owner_name="tennis", owner_is_controller="true"}'
+        values: '1x3000'
+      - series: 'kube_job_created{namespace="mypka", job_name="tennis-x"}'
+        values: '60x3000'
+      - series: 'kube_job_status_failed{namespace="mypka", job_name="tennis-x", reason="BackoffLimitExceeded"}'
+        values: '1x3000'
+      - series: 'kube_cronjob_spec_suspend{namespace="mypka", cronjob="school"}'
+        values: '0x3000'
+      - series: 'kube_cronjob_created{namespace="mypka", cronjob="school"}'
+        values: '0x3000'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: MypkaJobFailed
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              component: mypka-wires
+              namespace: mypka
+              cronjob: tennis
+      - eval_time: 2820m   # 47 h
+        alertname: MypkaWireStale
+        exp_alerts: []
+      - eval_time: 2940m   # 49 h
+        alertname: MypkaWireStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              component: mypka-wires
+              wire_set: wave1
+              namespace: mypka
+              cronjob: school
+
+  # ---------------------------------------------------------------------
+  # T4  Stale vs fresh, both thresholds, all wires live for > 7 d.
+  #   fresh: school/ortho succeed daily (last stamp <= 24 h old), tennis
+  #          succeeded 5 d ago (< 561600 s)                  -> SILENT.
+  #   stale: school last success 49 h ago (> 172800 s)      -> FIRES,
+  #          ortho 47 h ago (< 172800 s)                    -> SILENT,
+  #          tennis 6.6 d ago (> 561600 s)                  -> FIRES (tennis).
+  # Clock: eval at minute 11520 = 691200 s (8 d).
+  # ---------------------------------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'kube_cronjob_spec_suspend{namespace="mypka", cronjob="school"}'
+        values: '0x11600'
+      - series: 'kube_cronjob_created{namespace="mypka", cronjob="school"}'
+        values: '0x11600'
+      - series: 'kube_cronjob_status_last_successful_time{namespace="mypka", cronjob="school"}'
+        values: '514800x11600'   # 691200 - 176400 (49 h)
+      - series: 'kube_cronjob_spec_suspend{namespace="mypka", cronjob="ortho"}'
+        values: '0x11600'
+      - series: 'kube_cronjob_created{namespace="mypka", cronjob="ortho"}'
+        values: '0x11600'
+      - series: 'kube_cronjob_status_last_successful_time{namespace="mypka", cronjob="ortho"}'
+        values: '522000x11600'   # 691200 - 169200 (47 h)
+      - series: 'kube_cronjob_spec_suspend{namespace="mypka", cronjob="tennis"}'
+        values: '0x11600'
+      - series: 'kube_cronjob_created{namespace="mypka", cronjob="tennis"}'
+        values: '0x11600'
+      - series: 'kube_cronjob_status_last_successful_time{namespace="mypka", cronjob="tennis"}'
+        values: '120960x11600'   # 691200 - 570240 (6.6 d)
+    alert_rule_test:
+      - eval_time: 11520m
+        alertname: MypkaWireStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              component: mypka-wires
+              wire_set: wave1
+              namespace: mypka
+              cronjob: school
+          - exp_labels:
+              severity: warning
+              component: mypka-wires
+              wire_set: tennis
+              namespace: mypka
+              cronjob: tennis
+      - eval_time: 11520m
+        alertname: MypkaJobFailed
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'kube_cronjob_spec_suspend{namespace="mypka", cronjob="school"}'
+        values: '0x11600'
+      - series: 'kube_cronjob_created{namespace="mypka", cronjob="school"}'
+        values: '0x11600'
+      - series: 'kube_cronjob_status_last_successful_time{namespace="mypka", cronjob="school"}'
+        values: '0+60x11600'     # fresh: succeeds every minute
+      - series: 'kube_cronjob_spec_suspend{namespace="mypka", cronjob="ortho"}'
+        values: '0x11600'
+      - series: 'kube_cronjob_created{namespace="mypka", cronjob="ortho"}'
+        values: '0x11600'
+      - series: 'kube_cronjob_status_last_successful_time{namespace="mypka", cronjob="ortho"}'
+        values: '604800x11600'   # 24 h old at eval
+      - series: 'kube_cronjob_spec_suspend{namespace="mypka", cronjob="tennis"}'
+        values: '0x11600'
+      - series: 'kube_cronjob_created{namespace="mypka", cronjob="tennis"}'
+        values: '0x11600'
+      - series: 'kube_cronjob_status_last_successful_time{namespace="mypka", cronjob="tennis"}'
+        values: '259200x11600'   # 5 d old at eval
+    alert_rule_test:
+      - eval_time: 11520m
+        alertname: MypkaWireStale
+        exp_alerts: []

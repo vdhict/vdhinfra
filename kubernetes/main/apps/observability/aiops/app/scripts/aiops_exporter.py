@@ -13,6 +13,13 @@ Exposes on :9900/metrics, for the aiops PrometheusRules:
                                                     issue/PR authored by
                                                     renovate[bot]
     renovate_open_prs                               open PRs by renovate[bot]
+    renovate_last_main_container_commit_timestamp_seconds
+                                                    committer date of the newest
+                                                    "(container)" commit by
+                                                    renovate[bot] on main (0 if
+                                                    none in the last 100). Proves
+                                                    updates LAND, not only that
+                                                    the bot touched an issue.
     renovate_pr_created_timestamp_seconds{number}   one series per open
                                                     Renovate PR (bounded by the
                                                     open-PR count, < 100)
@@ -47,9 +54,11 @@ KEY_PATH = os.environ.get("GITHUB_APP_KEY_PATH", "/secrets/github-app-key.pem")
 INTERVAL = int(os.environ.get("GITHUB_INTERVAL", "900"))
 PORT = int(os.environ.get("PORT", "9900"))
 BOT = "renovate[bot]"
+# The commits API filters author by e-mail, not by the bot login.
+BOT_EMAIL = os.environ.get("RENOVATE_AUTHOR_EMAIL", "29139614+renovate[bot]@users.noreply.github.com")
 
 _lock = threading.Lock()
-_gh = {"up": 0, "last_success": 0.0, "last_activity": None, "prs": []}
+_gh = {"up": 0, "last_success": 0.0, "last_activity": None, "prs": [], "last_container_commit": None}
 
 
 def log(msg: str) -> None:
@@ -126,8 +135,12 @@ def poll_github() -> None:
         if len(batch) < 100:
             break
         page += 1
+    commits = gh_get(f"/repos/{REPO}/commits", {"sha": "main", "author": BOT_EMAIL, "per_page": 100})
+    container = [c for c in commits
+                 if "(container)" in (c.get("commit", {}).get("message") or "").split("\n", 1)[0]]
     with _lock:
         _gh["last_activity"] = ts(newest[0]["updated_at"]) if newest else None
+        _gh["last_container_commit"] = ts(container[0]["commit"]["committer"]["date"]) if container else 0.0
         _gh["prs"] = [(p["number"], ts(p["created_at"])) for p in prs]
         _gh["up"] = 1
         _gh["last_success"] = time.time()
@@ -175,6 +188,10 @@ def gh_lines() -> list[str]:
             out += ["# HELP renovate_last_activity_timestamp_seconds Newest updated_at of any issue/PR by renovate[bot].",
                     "# TYPE renovate_last_activity_timestamp_seconds gauge",
                     f"renovate_last_activity_timestamp_seconds {g['last_activity']:.0f}"]
+        if g["last_container_commit"] is not None:
+            out += ["# HELP renovate_last_main_container_commit_timestamp_seconds Committer date of the newest (container) commit by renovate[bot] on main.",
+                    "# TYPE renovate_last_main_container_commit_timestamp_seconds gauge",
+                    f"renovate_last_main_container_commit_timestamp_seconds {g['last_container_commit']:.0f}"]
         out += ["# TYPE renovate_open_prs gauge", f"renovate_open_prs {len(g['prs'])}",
                 "# TYPE renovate_pr_created_timestamp_seconds gauge"]
         out += [f'renovate_pr_created_timestamp_seconds{{number="{n}"}} {c:.0f}' for n, c in g["prs"]]

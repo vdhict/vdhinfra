@@ -91,6 +91,19 @@ spec:
           annotations:
             summary: "No Renovate activity on vdhict/vdhinfra for {{ $value | humanizeDuration }}"
             description: Renovate (hosted GitHub app) has not touched any issue or PR for over 48 h. Check the Dependency Dashboard and the app's job log.
+        - alert: RenovateNoContainerCommit14d
+          # RenovateNoRun48h stayed green through the 2026-10 stall: the bot
+          # kept touching issues/PRs while nothing landed. This asks the
+          # outcome question instead: did a renovate[bot] "(container)"
+          # commit reach main in the last 14 days? 0 = none in the last 100.
+          expr: time() - renovate_last_main_container_commit_timestamp_seconds > 14 * 86400
+          for: 1h
+          labels:
+            severity: warning
+            component: aiops-renovate
+          annotations:
+            summary: "No Renovate container update landed on main for {{ $value | humanizeDuration }}"
+            description: Renovate is active but no "(container)" commit by renovate[bot] reached main in 14 days. Check the Dependency Dashboard for stuck/awaiting-schedule updates, the automerge rules and failing checks on open Renovate PRs.
         - alert: RenovatePROlderThan14d
           expr: time() - renovate_pr_created_timestamp_seconds > 14 * 86400
           for: 1h
