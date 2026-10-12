@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- chg-2026-10-12-009: node_exporter on LOOPBACK only. The LAN side is
+     com.vdhict.aiops-node-exporter-lan (launchd socket -> /usr/bin/nc). -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.vdhict.aiops-node-exporter</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/opt/node_exporter/bin/node_exporter</string>
+    <string>--web.listen-address=127.0.0.1:9100</string>
+    <string>--collector.textfile.directory=__HOME__/.local/share/aiops/textfile</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>30</integer>
+  <key>StandardOutPath</key><string>__HOME__/Library/Logs/aiops-node-exporter.log</string>
+  <key>StandardErrorPath</key><string>__HOME__/Library/Logs/aiops-node-exporter.log</string>
+</dict>
+</plist>

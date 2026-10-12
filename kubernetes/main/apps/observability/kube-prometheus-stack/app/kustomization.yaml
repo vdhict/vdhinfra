@@ -5,3 +5,4 @@ kind: Kustomization
 resources:
   - ./helmrelease.yaml
   - ./alertmanager-secret.yaml
+  - ./alertmanager-ntfy.sops.yaml
