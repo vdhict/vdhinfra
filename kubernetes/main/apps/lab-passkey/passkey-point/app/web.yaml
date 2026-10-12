@@ -76,6 +76,9 @@ spec:
               value: "api://6e05d927-e0c2-418b-9f01-ab909aec5699/access_as_user"
             - name: PP_WEB_CLIENT_ID
               value: "6e05d927-e0c2-418b-9f01-ab909aec5699"
+            # v2 ID token carries oid only with "openid profile" (run 15: employee_token_no_oid; Mack b79b052).
+            - name: PP_EMPLOYEE_SCOPE
+              value: "openid profile"
             - name: PP_DATA_DIR
               value: "/var/lib/passkey-point"
             - name: HOME
