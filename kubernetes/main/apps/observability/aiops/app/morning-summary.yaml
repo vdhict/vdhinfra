@@ -9,6 +9,9 @@ metadata:
   namespace: observability
 spec:
   schedule: "0 7 * * *"
+  # Suspended 2026-10-13 (ntfy.sh critical-only mode, Mack AGR-078): it posts
+  # to ntfy.sh. Unsuspend with the self-hosted ntfy.
+  suspend: true
   timeZone: Europe/Amsterdam
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 1800
