@@ -69,10 +69,19 @@ spec:
             port: 3493
             protocol: TCP
     persistence:
+      # /etc/nut is ONE projected volume: the plain config from the ConfigMap
+      # below plus upsd.users from the SOPS Secret, so the NUT admin password
+      # never sits in a ConfigMap (chg-2026-10-13-011, UPS calibration).
       config:
-        type: configMap
-        name: network-ups-tools-config
-        defaultMode: 0400
+        type: custom
+        volumeSpec:
+          projected:
+            defaultMode: 0400
+            sources:
+              - configMap:
+                  name: network-ups-tools-config
+              - secret:
+                  name: network-ups-tools-users
         globalMounts:
           - path: /etc/nut
     configMaps:
@@ -82,10 +91,6 @@ spec:
             MODE=netserver
           upsd.conf: |-
             LISTEN 0.0.0.0 3493
-          upsd.users: |-
-          #   [upsmon]
-          #   password = badpassword
-          #   upsmon primary
           ups.conf: |-
             [kubernetes]
             driver = usbhid-ups
