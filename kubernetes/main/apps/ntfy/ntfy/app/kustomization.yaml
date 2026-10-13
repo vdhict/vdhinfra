@@ -5,6 +5,11 @@ kind: Kustomization
 resources:
   - ./ocirepository.yaml
   - ./secret.sops.yaml
+  # ntfy-phone-token: the owner-phone token on its own (inc-2026-10-13-002
+  # rotation). NOT mounted by ntfy; source for the one-off PushSecret to the
+  # 1Password item ntfy-phone (vault home-infra). Must equal the owner-phone
+  # entry in ntfy-auth.
+  - ./phone-token.sops.yaml
   - ./ntfy-pvc.yaml
   - ./helmrelease.yaml
   - ./httproutefilter.yaml
