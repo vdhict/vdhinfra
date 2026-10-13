@@ -2,7 +2,7 @@
 # Nightly dev-tenant E2E (chg-2026-10-13-004; Larry for the owner 2026-10-13, AGR-094/099). Dev tenant 7m5b27gbc only.
 # Adopted from passkey-point@0611022 e2e/deploy/cronjob.yaml (Mack's team, ADR-026 s2), placeholders filled:
 #   image  e2e-b4d91cc (was e2e-0611022; digest verified on the forge registry 2026-10-13, HTTP 200)
-#   E2E_COMMIT / E2E_LAB_IMAGE_DIGEST  the LAB release on main: v0.1 7652aa6, web image in lab-passkey/passkey-point/app/web.yaml
+#   E2E_COMMIT / E2E_LAB_IMAGE_DIGEST  the LAB release on main: v0.1 b4d91cc (c53b9782), web image in lab-passkey/passkey-point/app/web.yaml
 # Pod shape taken from the live first-run Job that started cleanly (not from 0611022 cronjob.yaml, which lacks these):
 #   fsGroup 10001 + secret mode 0440 (0400 gave EACCES on runner.key), pull secret passkey-point-e2e-pull, denylist mount,
 #   hostAliases for the LAB host on envoy-internal 172.16.2.241.
@@ -48,8 +48,8 @@ spec:
               args: ["--set", "nightly"]
               env:
                 - {name: E2E_SECRETS_DIR, value: /secrets}
-                - {name: E2E_COMMIT, value: "7652aa6"}
-                - {name: E2E_LAB_IMAGE_DIGEST, value: "sha256:5dc23773b3a72ef55d041e4ea82e2e25eecae0eb84c100a025849d6f2823879c"}
+                - {name: E2E_COMMIT, value: "b4d91cc"}
+                - {name: E2E_LAB_IMAGE_DIGEST, value: "sha256:2ca6d1e409bd494bb3213c5518283ac5b5d8b58367fa3502aacd015c128fe895"}
               securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
               resources: {requests: {cpu: 500m, memory: 1Gi}, limits: {memory: 2Gi}}
               volumeMounts:
