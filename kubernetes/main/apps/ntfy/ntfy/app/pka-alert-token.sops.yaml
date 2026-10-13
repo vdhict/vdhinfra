@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: ntfy-pka-alert-token
+type: Opaque
+stringData:
+    token: ENC[AES256_GCM,data:gNQyCqwgHLCSZCtxM2yA0zIWOK3rvltIgnayazt9f2w=,iv:r7/CkHT7I++F/aNY3Xvp8aZIza4D5DGpjVGC3vpPhbg=,tag:zpXDdOFkV35y3+nckLiUtg==,type:str]
+    url: ENC[AES256_GCM,data:+vl/25e1V5cJpFozqvnn5L/XHot8sD3YWQ21,iv:dR03i55W0bIcx26Fu3xRrEB4dbJKWat7wzCxMOvMeZY=,tag:6W13Z6KycfNBqsHSSODYSQ==,type:str]
+    topic: ENC[AES256_GCM,data:Wz+GVYjR,iv:Ju/wwwdEdFqE8TaONtrPuJPzAT+8e9jO613KK3c8VUY=,tag:9KECStO5EBNYZ+LZmc/jKw==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA4cUQwb2JJUXFpb3R0akth
+            eHBSbFdRaGs3R0NZb0gwbzMvRnVUR3RhYkRnCmpjWk41emI1a29sS0VrcTBEU0hw
+            SW1GYWFwTnNtN2ZRbGFDd1g1TlVqNTAKLS0tIEZhZmtkdjlENllESVhubjJaeFE1
+            eU94MzRpc0lxaXhVMnZ6NkE2YlFVdFEKg2Ts46p5A8I6gzZJUtLzI0cViPiTV3Vh
+            YdbfIMiJOK1zFWrJ6dEE7HtjVKj3j+OY2dFpxgBzhHVYq+WH5RfRwQ==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1dfs2z6esr6rhm46pvh6l8xlualxsn756rkkt9432d5kk3k7s4pssmus4gk
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-10-13T06:33:12Z"
+    mac: ENC[AES256_GCM,data:569eu8qUaUbMTPs8bkPixT5OazyfK9q6BRrkAAN71dTHiK0XIBlg1DS4e3xFGizQR7eqRl/PrgrFLmObXdSH63OYc/wPAoLizW1FiQet1bc0q2yLaHYIeI6rTuTH7TcAL634WAgSSyYhbfPhGiBr6X/MEResg1EmqXm2cmX9MEg=,iv:D2F6Au7HJ8kP/Y97BaG34KOMLutmcQhZkc3tMCSSmuM=,tag:oaNIpG575TcxsEtpEz5Pvw==,type:str]
+    version: 3.13.3

@@ -10,6 +10,9 @@ resources:
   # 1Password item ntfy-phone (vault home-infra). Must equal the owner-phone
   # entry in ntfy-auth.
   - ./phone-token.sops.yaml
+  # ntfy-pka-alert-token: pka-alert token + url + topic, source for the
+  # 1Password item ntfy-pka-alert (Mack reads it there). NOT mounted.
+  - ./pka-alert-token.sops.yaml
   - ./ntfy-pvc.yaml
   - ./helmrelease.yaml
   - ./httproutefilter.yaml
