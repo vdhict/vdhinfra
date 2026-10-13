@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>net.vdhict.chg-2026-10-05-031-envoy-forge-execute</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/sheijden/Code/homelab-migration/vdhinfra/hack/ops/chg-2026-10-05-031-envoy-forge-window.sh</string>
+    <string>execute</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key><string>/Users/sheijden</string>
+    <key>PATH</key><string>/opt/homebrew/bin:/Users/sheijden/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>StartCalendarInterval</key><dict><key>Hour</key><integer>1</integer><key>Minute</key><integer>30</integer></dict>
+  <key>StandardOutPath</key><string>/Users/sheijden/Library/Logs/net.vdhict.chg-2026-10-05-031-envoy-forge-execute.log</string>
+  <key>StandardErrorPath</key><string>/Users/sheijden/Library/Logs/net.vdhict.chg-2026-10-05-031-envoy-forge-execute.log</string>
+</dict>
+</plist>

@@ -50,7 +50,7 @@
 # Usage (as root):
 #   <controller passphrase on stdin, see the bundle> | \
 #   sudo ./provision.sh --forge-url https://forge.<domain> \
-#     --envoy-forge-ip 172.16.2.249 --reg-token - \
+#     --envoy-forge-ip 172.16.2.251 --reg-token - \
 #     --controller-pubkey 'ssh-ed25519 AAAA... vdhwslin01-waker'
 #   Without a pipe it asks for the passphrase with a hidden prompt.
 #   --reg-token -   asks for the one-time registration token (hidden prompt).
@@ -174,7 +174,7 @@ is_ipv4() { [[ "$1" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; }
 # ---------------------------------------------------------------------------
 # Embedded payloads (generated from src/ by build.sh; do not edit here)
 # ---------------------------------------------------------------------------
-# --- from src/vm-dispatch.sh (sha256 58c5022508ba130b)
+# --- from src/vm-dispatch.sh (sha256 2f134a7618348f75)
 payload_vm_dispatch() {
 cat <<'VDH_PAYLOAD_EOF'
 #!/usr/bin/env bash
@@ -208,6 +208,7 @@ SOCK=/run/forgejo-runner/docker.sock
 FWD_PORT=40022
 VM_CPUS=12
 VM_MEM=24G
+RUNNER_FILE=/var/lib/forgejo-runner/.runner
 # shellcheck disable=SC1091
 [[ -r /etc/vdh-runner/vm.env ]] && . /etc/vdh-runner/vm.env
 
@@ -301,8 +302,20 @@ watch_runner() {
   done
 }
 
+# The forge as THIS service sees it (hosts pin -> envoy-forge). No VM is
+# booted until it answers, so a missing envoy-forge or registration costs no
+# CPU on the workstation.
+forge_ok() {
+  local url
+  [[ -s "$RUNNER_FILE" ]] || { log "not registered yet (.runner missing)"; return 1; }
+  url="$(sed -n 's/.*"address"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$RUNNER_FILE" | head -n1)"
+  [[ -n "$url" ]] || { log "no address in .runner"; return 1; }
+  curl -fsS -m 8 -o /dev/null "${url%/}/api/healthz" || { log "forge ${url} not reachable via envoy-forge yet"; return 1; }
+}
+
 while true; do
   cleanup_vm
+  if ! forge_ok; then sleep 120; continue; fi
   if ! golden_ok; then log "not taking jobs; retry in 300s"; sleep 300; continue; fi
   if ! start_vm || ! wait_vm || ! open_docker_tunnel; then
     log "VM start failed; retry in 60s"; cleanup_vm; sleep 60; continue
@@ -1118,7 +1131,7 @@ step_firewall() {
   info "post-check ok: runner -> host 127.0.0.1:22 blocked"
   if runuser -u runner -- curl -s -o /dev/null -m 8 https://deb.debian.org/; then info "post-check ok: runner -> internet 443 allowed"
   else warn "runner cannot reach https://deb.debian.org (DNS or egress?); the golden build will fail"; fi
-  if runuser -u runner -- curl -s -o /dev/null -m 6 --resolve "${FORGE_HOST}:443:${ENVOY_FORGE_IP}" "https://${FORGE_HOST}/api/v1/version"; then
+  if runuser -u runner -- curl -s -o /dev/null -m 6 --resolve "${FORGE_HOST}:443:${ENVOY_FORGE_IP}" "https://${FORGE_HOST}/api/healthz"; then
     info "post-check ok: runner -> envoy-forge ${ENVOY_FORGE_IP}:443"
   else warn "runner cannot reach envoy-forge ${ENVOY_FORGE_IP}:443 yet (is envoy-forge landed?). Jobs need it (Argus R9)."; fi
 }
@@ -1176,22 +1189,33 @@ step_register() {
     else read -r -s -p "One-time runner registration token: " token </dev/tty; echo; fi
   fi
   [[ -n "$token" ]] || die "--reg-token required (use - for a hidden prompt)"
-  local cmd=(systemd-run --quiet --wait --collect --pipe --uid=runner --gid=runner
-    -p WorkingDirectory=/var/lib/forgejo-runner -p UMask=0077
-    -p "BindReadOnlyPaths=/etc/vdh-runner/hosts:/etc/hosts /etc/vdh-runner/nsswitch.conf:/etc/nsswitch.conf"
-    /usr/local/bin/forgejo-runner register --no-interactive --instance "$FORGE_URL"
+  # Registration is a one-time call by ROOT over the normal LAN path
+  # (forge via envoy-internal), so it works before envoy-forge exists. Jobs
+  # never use that path: the runner service and its VMs only reach the forge
+  # via envoy-forge (hosts pin + nftables for uid runner).
+  # The resulting .runner is written in a ROOT-only staging dir, then handed
+  # to runner, which writes its own file (umask 077, noclobber); root never
+  # writes into runner's tree (F1). The staged copy is removed.
+  local stage=/var/lib/vdh-runner-stage/reg
+  run install -d -o root -g root -m 0700 "$stage"
+  run rm -f -- /var/lib/vdh-runner-stage/reg/.runner
+  local cmd=(/usr/local/bin/forgejo-runner register --no-interactive --instance "$FORGE_URL"
     --name "$RUNNER_NAME" --labels "$RUNNER_LABELS" --token)
   # Print without the token; never log it.
-  printf '%s' "$( (( DRY )) && echo '[dry-run]' || echo '+')"; printf ' %q' "${cmd[@]}"; echo ' <token redacted>'
-  if (( ! DRY )); then
-    "${cmd[@]}" "$token"
-    token=""; REG_TOKEN=""
-    local f=/var/lib/forgejo-runner/.runner
-    [[ -f "$f" && ! -L "$f" && -s "$f" ]] || die "registration did not write a regular .runner"
-    # Created by runner under UMask 0077; root only checks it (F1: no root chown/chmod).
-    [[ "$(stat -c '%a %U' "$f")" == "600 runner" ]] || die ".runner is not 0600 runner: $(stat -c '%a %U' "$f")"
-    info ".runner written (0600 runner). Regenerate the registration token on the forge now (Argus R7)."
-  fi
+  printf '%s' "$( (( DRY )) && echo '[dry-run]' || echo '+')"; printf ' %q' "${cmd[@]}"; echo ' <token redacted>   (in /var/lib/vdh-runner-stage/reg, as root)'
+  if (( DRY )); then info "[dry-run] would hand .runner to runner (umask 077, noclobber) and remove the staged copy"; return 0; fi
+  ( cd "$stage" && umask 077 && "${cmd[@]}" "$token" )
+  token=""; REG_TOKEN=""
+  local sf=/var/lib/vdh-runner-stage/reg/.runner
+  [[ -f "$sf" && ! -L "$sf" && -s "$sf" ]] || die "registration did not write a regular .runner"
+  echo "+ runuser -u runner -- sh -c 'umask 077; set -C; cat > /var/lib/forgejo-runner/.runner' < $sf"
+  runuser -u runner -- sh -c 'umask 077; set -C; cat > /var/lib/forgejo-runner/.runner' < "$sf" \
+    || die "could not hand .runner to runner (exists or symlink?)"
+  run rm -f -- /var/lib/vdh-runner-stage/reg/.runner
+  local f=/var/lib/forgejo-runner/.runner
+  [[ -f "$f" && ! -L "$f" && -s "$f" ]] || die ".runner missing after hand-over"
+  [[ "$(stat -c '%a %U' "$f")" == "600 runner" ]] || die ".runner is not 0600 runner: $(stat -c '%a %U' "$f")"
+  info ".runner written (0600 runner), staged copy removed. Regenerate the registration token on the forge now (Argus R7)."
 }
 
 step_services() {
@@ -1208,6 +1232,9 @@ step_services() {
   for _ in $(seq 1 48); do
     if journalctl -u forgejo-runner-vm.service --since "$since" -o cat 2>/dev/null | grep -q 'VM ready; waiting for one job'; then
       info "post-check ok: job VM up, runner waiting for a job"; return 0
+    fi
+    if journalctl -u forgejo-runner-vm.service --since "$since" -o cat 2>/dev/null | grep -q 'not reachable via envoy-forge yet'; then
+      info "post-check: runner service up, waiting for envoy-forge (expected until it lands); no VM is booted meanwhile"; return 0
     fi
     sleep 5
   done

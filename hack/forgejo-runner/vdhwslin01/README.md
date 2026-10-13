@@ -77,7 +77,13 @@ provision.sh never creates, chowns, chmods or writes into a path that `runner` c
 - The base image is staged in root-owned `/var/lib/vdh-runner-stage`.
 - The golden image and its VM host key are promoted by reading them AS runner (`runuser -u runner -- cat`)
   into root-owned paths. The host key lines are validated.
-- `.runner` is created 0600 by runner under `UMask=0077`; root only checks it.
+- Registration is one call by root over the normal LAN path (forge via envoy-internal), so it works
+  before envoy-forge exists. It writes `.runner` in root-only `/var/lib/vdh-runner-stage/reg`. Runner
+  then writes its own `.runner` from it (umask 077, noclobber), the staged copy is removed, and root only
+  checks the result. Jobs never use the LAN path: the runner service and the VMs reach the forge only via
+  envoy-forge (hosts pin + nftables).
+- The dispatcher boots no VM until the forge answers `/api/healthz` via envoy-forge, so it costs no CPU
+  before then.
 - `write_file` refuses symlink destinations.
 - idle-poweroff never follows symlinks in `/run/forgejo-runner`.
 - `tests/arch-container.sh` section G attacks each of these paths.

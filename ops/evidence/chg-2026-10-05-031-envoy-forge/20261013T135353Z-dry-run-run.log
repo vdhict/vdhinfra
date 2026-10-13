@@ -1,0 +1,66 @@
+2026-10-13T13:53:53Z RUN 20261013T135353Z-dry-run mode=dry-run chg=chg-2026-10-05-031 fix=200f3e1b1a505fec24297297a339f78db26da0d3 ip=172.16.2.251
+2026-10-13T13:53:53Z DRY-RUN: previous runner not finished (log='' launchd pid='-'); not waiting
+2026-10-13T13:53:53Z SELFTEST ok (nc control port, kubectl, dig)
+2026-10-13T13:53:53Z GATE time FAIL (1553, need 01:00-05:30)
+2026-10-13T13:53:53Z GATE not-rejected ok
+2026-10-13T13:53:53Z GATE freeze ok
+2026-10-13T13:53:53Z GATE lock k8s.gateway.envoy-forge ok
+2026-10-13T13:53:53Z GATE owner lookup envoy-internal unique ok
+2026-10-13T13:53:53Z GATE owner lookup envoy-external unique ok
+2026-10-13T13:53:54Z GATE 172.16.2.251 free (no LB Service, no ping)
+2026-10-13T13:53:54Z DRY-RUN: gate result above is informational
+2026-10-13T13:53:55Z PREFLIGHT: need 3 consecutive green household checks (max 3 min)
+2026-10-13T13:53:55Z CHECK rc=0 172.16.2.241:443=open 172.16.2.243:443=open lease(internal-1102ed95)=vdhclu01node03 lease(external-27f017ad)=vdhclu01master01 dns(grafana)=172.16.2.241 dns(forge)=172.16.2.241 forge@241=200 
+2026-10-13T13:54:05Z CHECK rc=0 172.16.2.241:443=open 172.16.2.243:443=open lease(internal-1102ed95)=vdhclu01node03 lease(external-27f017ad)=vdhclu01master01 dns(grafana)=172.16.2.241 dns(forge)=172.16.2.241 forge@241=200 
+2026-10-13T13:54:15Z CHECK rc=0 172.16.2.241:443=open 172.16.2.243:443=open lease(internal-1102ed95)=vdhclu01node03 lease(external-27f017ad)=vdhclu01master01 dns(grafana)=172.16.2.241 dns(forge)=172.16.2.241 forge@241=200 
+[detached HEAD 16ea9f7c] feat(envoy-forge): single-hostname Gateway for the vdhwslin01 runner (chg-2026-10-05-031)
+ Date: Tue Oct 13 10:38:23 2026 +0200
+ Committer: Sander van der Heijden <sheijden@vdhmini01.vdh.lan>
+Your name and email address were configured automatically based
+on your username and hostname. Please check that they are accurate.
+You can suppress this message by setting them explicitly:
+
+    git config --global user.name "Your Name"
+    git config --global user.email you@example.com
+
+After doing this, you may fix the identity used for this commit with:
+
+    git commit --amend --reset-author
+
+ 3 files changed, 80 insertions(+)
+ create mode 100644 kubernetes/main/apps/network/envoy-gateway/gateway/envoy-forge.yaml
+2026-10-13T13:54:18Z DRY-RUN would push 16ea9f7cb296233044acda9fd17d40cdffb0a494 on top of 1f54e3f29514930ea22925a66f62a7984a1ea0b6
+commit 16ea9f7cb296233044acda9fd17d40cdffb0a494
+Author: Sander van der Heijden <sheijden@vdhmini01.vdh.lan>
+Date:   Tue Oct 13 10:38:23 2026 +0200
+
+    feat(envoy-forge): single-hostname Gateway for the vdhwslin01 runner (chg-2026-10-05-031)
+    
+    ADR 0009, Argus C7/R9. Lands via hack/ops/chg-2026-10-05-031-envoy-forge-window.sh
+    (2026-10-14 01:30, after the 01:05 gateway runner).
+    
+    - network/envoy-forge: own Envoy deployment (no mergeGateways), ONE HTTPS
+      listener for forge.${SECRET_DOMAIN}, no :80, HTTPRoutes from devtools
+      only, LB IP 172.16.2.251 via lbipam annotation (no spec.addresses; the
+      status-keeper does not need to know this Gateway). 172.16.2.249 was
+      dropped: it is a UniFi fixed-IP reservation.
+    - No alias Service: exactly one Service may carry the owning-gateway labels
+      (inc-2026-10-12-013).
+    - external-dns-unifi target pinned to the envoy-internal IP, so the
+      second parentRef adds no second forge A record on the UDM.
+    - forgejo HTTPRoute: second parentRef envoy-forge/https.
+    
+    Checks: kustomize build + substitution, kubeconform 2/2, server-side
+    dry-run OK. AGR-109: tests are the gate.
+    
+    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_01Qp4a2txbDr22wt8Dn4D9NM
+
+ .../main/apps/devtools/forgejo/app/httproute.yaml  |  9 +++
+ .../network/envoy-gateway/gateway/envoy-forge.yaml | 70 ++++++++++++++++++++++
+ .../envoy-gateway/gateway/kustomization.yaml       |  1 +
+ 3 files changed, 80 insertions(+)
+To https://github.com/vdhict/vdhinfra.git
+   1f54e3f2..16ea9f7c  HEAD -> main
+2026-10-13T13:54:18Z DRY-RUN push auth ok
+2026-10-13T13:54:18Z DRY-RUN complete; no writes made

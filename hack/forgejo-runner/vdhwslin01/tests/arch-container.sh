@@ -42,7 +42,7 @@ printf 'HOOKS=(base udev keyboard modconf kms keymap consolefont block netconf d
   > /etc/mkinitcpio.conf.d/omarchy_hooks.conf
 ssh-keygen -q -t ed25519 -N '' -C test-controller -f /root/ctrl
 CTRL_PUB="$(cat /root/ctrl.pub)"
-ARGS=(--forge-url https://forge.example.invalid --envoy-forge-ip 172.16.2.249 --reg-token -
+ARGS=(--forge-url https://forge.example.invalid --envoy-forge-ip 172.16.2.251 --reg-token -
       --controller-pubkey "$CTRL_PUB")
 
 echo "== A: full dry-run"
@@ -64,7 +64,7 @@ check "B runner: in kvm, not wheel" bash -c 'g=" $(id -nG runner) "; [[ "$g" == 
 check "B forgejo-runner binary sha256 pinned" bash -c '[[ "$(sha256sum /usr/local/bin/forgejo-runner | cut -d" " -f1)" == fadaec897f5e6641c363f87ecaf75f866f99c81b7097ec6b433e4c48123fcad1 ]]'
 check "B forgejo-runner reports 13.2.0" bash -c '/usr/local/bin/forgejo-runner --version | grep -q 13.2.0'
 check "B runner.yaml: docker_host = VM socket, cache off, no privileged" bash -c 'grep -q "docker_host: \"unix:///run/forgejo-runner/docker.sock\"" /etc/vdh-runner/runner.yaml && grep -A1 "^cache:" /etc/vdh-runner/runner.yaml | grep -q "enabled: false" && grep -q "privileged: false" /etc/vdh-runner/runner.yaml'
-check "B hosts override maps forge to envoy-forge" grep -qx '172.16.2.249 forge.example.invalid' /etc/vdh-runner/hosts
+check "B hosts override maps forge to envoy-forge" grep -qx '172.16.2.251 forge.example.invalid' /etc/vdh-runner/hosts
 check "B VM key 0600 runner, private key never printed" bash -c '[[ "$(stat -c "%a %U" /var/lib/forgejo-runner/.ssh/vm_ed25519)" == "600 runner" ]] && ! grep -q "PRIVATE KEY" /root/real1.log'
 check "B controller key appended once with restrictions" bash -c '[[ "$(grep -c "vdhwslin01-waker" /etc/dropbear/root_key)" == 1 ]] && grep -q "^no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty ssh-ed25519 " /etc/dropbear/root_key'
 check "B Sander's key untouched" grep -qF "$(cut -d' ' -f2 /root/sander_unlock.pub)" /etc/dropbear/root_key
@@ -115,8 +115,8 @@ cp /root/real-shell.keep "$X/usr/bin/cryptsetup_shell.vdh-real"
 
 echo "== E: nftables ruleset"
 # shellcheck disable=SC1091
-( . ./provision.sh; FORGE_HOST=forge.example.invalid; ENVOY_FORGE_IP=172.16.2.249; DNS_STUB=1; nft_ruleset ) > /root/vdh.nft
-( . ./provision.sh; FORGE_HOST=forge.example.invalid; ENVOY_FORGE_IP=172.16.2.249; DNS_STUB=0; DNS_SERVERS=(172.16.3.1); nft_ruleset ) > /root/vdh-nostub.nft
+( . ./provision.sh; FORGE_HOST=forge.example.invalid; ENVOY_FORGE_IP=172.16.2.251; DNS_STUB=1; nft_ruleset ) > /root/vdh.nft
+( . ./provision.sh; FORGE_HOST=forge.example.invalid; ENVOY_FORGE_IP=172.16.2.251; DNS_STUB=0; DNS_SERVERS=(172.16.3.1); nft_ruleset ) > /root/vdh-nostub.nft
 sed 's/^/    | /' /root/vdh.nft
 check "E ruleset never flushes the host ruleset" bash -c '! grep -q "flush ruleset" /root/vdh.nft'
 check "E ssh allow-list = nodes + Mini + MacBook" grep -q 'elements = { 172.16.2.81, 172.16.2.82, 172.16.2.83, 172.16.2.201, 172.16.3.108, 172.16.3.23, 192.168.12.6, 192.168.4.6 }' /root/vdh.nft
@@ -133,7 +133,7 @@ echo "== F: idle-poweroff unit tests (Arch bash $BASH_VERSION)"
 if bash tests/idle-poweroff.test.sh > /root/f.out 2>&1; then ok "F $(tail -n1 /root/f.out)"; else bad "F"; cat /root/f.out; fi
 
 echo "== G: F1 (Argus) a re-run never lets runner steer root"
-ARGS_NOKEY=(--forge-url https://forge.example.invalid --envoy-forge-ip 172.16.2.249 --reg-token -)
+ARGS_NOKEY=(--forge-url https://forge.example.invalid --envoy-forge-ip 172.16.2.251 --reg-token -)
 # G1: runner swaps its own subdir for a symlink to /etc -> the user step must refuse
 runuser -u runner -- mv /var/lib/forgejo-runner/vm /var/lib/forgejo-runner/vm.orig
 runuser -u runner -- ln -s /etc /var/lib/forgejo-runner/vm
@@ -175,6 +175,25 @@ if bash ./provision.sh --steps golden "${ARGS_NOKEY[@]}" > /root/g3c.log 2>&1; t
 [[ "$(sha256sum /var/lib/vdh-runner-golden/golden.qcow2 | cut -d' ' -f1)" == "$(cat /etc/vdh-runner/golden.sha256)" ]] && ok "G3c pin matches the promoted image" || bad "G3c pin mismatch"
 [[ "$(stat -c '%U %a' /var/lib/vdh-runner-stage/base.qcow2)" == "root 444" ]] && ok "G3c base staged root-owned 0444 outside runner's tree" || bad "G3c stage perms"
 cp /root/vm-golden-build.real /usr/local/libexec/vdh-runner/vm-golden-build
+# G5: registration as root over the LAN, handed to runner (stub runner binary: no forge here)
+cp /usr/local/bin/forgejo-runner /root/forgejo-runner.real
+cat > /usr/local/bin/forgejo-runner <<'STUB'
+#!/bin/sh
+# test stub for `register`: writes .runner in cwd like the real one
+[ "$1" = register ] || exit 0
+printf '{"uuid":"00000000-0000-0000-0000-000000000000","token":"stub-runner-token","address":"https://forge.example.invalid","labels":["docker"]}\n' > .runner
+STUB
+chmod 0755 /usr/local/bin/forgejo-runner
+if bash ./provision.sh --steps register --forge-url https://forge.example.invalid --envoy-forge-ip 172.16.2.251 --reg-token STUBREGTOKEN0123456789 > /root/g5.log 2>&1; then ok "G5 register step exits 0"; else bad "G5 register"; tail -5 /root/g5.log; fi
+[[ "$(stat -c '%a %U' /var/lib/forgejo-runner/.runner 2>/dev/null)" == "600 runner" ]] && ok "G5 .runner 0600 owned by runner (written by runner)" || bad "G5 .runner perms"
+[[ ! -e /var/lib/vdh-runner-stage/reg/.runner ]] && ok "G5 staged copy removed" || bad "G5 staged .runner left behind"
+[[ "$(stat -c '%a %U' /var/lib/vdh-runner-stage/reg)" == "700 root" ]] && ok "G5 staging dir root 0700" || bad "G5 stage perms"
+! grep -q STUBREGTOKEN /root/g5.log && ok "G5 registration token not in output" || bad "G5 token printed"
+bash ./provision.sh --steps register --forge-url https://forge.example.invalid --envoy-forge-ip 172.16.2.251 --reg-token X > /root/g5b.log 2>&1
+grep -q 'already registered' /root/g5b.log && ok "G5 re-run skips (already registered)" || bad "G5 re-run"
+runuser -u runner -- rm /var/lib/forgejo-runner/.runner
+cp /root/forgejo-runner.real /usr/local/bin/forgejo-runner
+
 # G4: after everything, nothing outside runner's own trees is owned by runner
 stray="$(find / -xdev -user runner -not -path '/var/lib/forgejo-runner*' -not -path '/proc/*' 2>/dev/null | head -5)"
 [[ -z "$stray" ]] && ok "G4 no runner-owned path outside /var/lib/forgejo-runner" || bad "G4 runner owns: $stray"

@@ -29,6 +29,7 @@ SOCK=/run/forgejo-runner/docker.sock
 FWD_PORT=40022
 VM_CPUS=12
 VM_MEM=24G
+RUNNER_FILE=/var/lib/forgejo-runner/.runner
 # shellcheck disable=SC1091
 [[ -r /etc/vdh-runner/vm.env ]] && . /etc/vdh-runner/vm.env
 
@@ -122,8 +123,20 @@ watch_runner() {
   done
 }
 
+# The forge as THIS service sees it (hosts pin -> envoy-forge). No VM is
+# booted until it answers, so a missing envoy-forge or registration costs no
+# CPU on the workstation.
+forge_ok() {
+  local url
+  [[ -s "$RUNNER_FILE" ]] || { log "not registered yet (.runner missing)"; return 1; }
+  url="$(sed -n 's/.*"address"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$RUNNER_FILE" | head -n1)"
+  [[ -n "$url" ]] || { log "no address in .runner"; return 1; }
+  curl -fsS -m 8 -o /dev/null "${url%/}/api/healthz" || { log "forge ${url} not reachable via envoy-forge yet"; return 1; }
+}
+
 while true; do
   cleanup_vm
+  if ! forge_ok; then sleep 120; continue; fi
   if ! golden_ok; then log "not taking jobs; retry in 300s"; sleep 300; continue; fi
   if ! start_vm || ! wait_vm || ! open_docker_tunnel; then
     log "VM start failed; retry in 60s"; cleanup_vm; sleep 60; continue

@@ -21,7 +21,7 @@ id runner >/dev/null 2>&1 || useradd --system runner
 echo "# provision.sh sha256 $(sha256sum provision.sh | cut -d' ' -f1), kernel $(uname -r)"
 ns="$(awk '$1=="nameserver"{print $2; exit}' /etc/resolv.conf)"
 
-( . ./provision.sh; FORGE_HOST=forge.example.invalid; ENVOY_FORGE_IP=172.16.2.249; DNS_STUB=1; nft_ruleset ) > /root/final.nft
+( . ./provision.sh; FORGE_HOST=forge.example.invalid; ENVOY_FORGE_IP=172.16.2.251; DNS_STUB=1; nft_ruleset ) > /root/final.nft
 ( . ./provision.sh; FORGE_HOST=forge.example.invalid; ENVOY_FORGE_IP=172.16.2.241; DNS_STUB=0; DNS_SERVERS=("$ns"); nft_ruleset ) > /root/behav.nft
 if nft -c -f /root/final.nft; then ok "K1 nft -c accepts the final ruleset"; else bad "K1 nft -c final"; fi
 grep -n 'elements = { 172.16.2.81' /root/final.nft | sed 's/^/    /'

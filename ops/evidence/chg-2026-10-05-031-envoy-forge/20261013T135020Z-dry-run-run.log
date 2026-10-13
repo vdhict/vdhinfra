@@ -1,0 +1,31 @@
+2026-10-13T13:50:21Z RUN 20261013T135020Z-dry-run mode=dry-run chg=chg-2026-10-05-031 fix=200f3e1b1a505fec24297297a339f78db26da0d3 ip=172.16.2.251
+2026-10-13T13:50:21Z DRY-RUN: previous runner not finished (log='' launchd pid='-'); not waiting
+2026-10-13T13:50:21Z SELFTEST ok (nc control port, kubectl, dig)
+2026-10-13T13:50:21Z GATE time FAIL (1550, need 01:00-05:30)
+2026-10-13T13:50:21Z GATE not-rejected ok
+2026-10-13T13:50:21Z GATE freeze ok
+2026-10-13T13:50:21Z GATE lock k8s.gateway.envoy-forge ok
+2026-10-13T13:50:21Z GATE owner lookup envoy-internal unique ok
+2026-10-13T13:50:21Z GATE owner lookup envoy-external unique ok
+2026-10-13T13:50:22Z GATE 172.16.2.251 free (no LB Service, no ping)
+2026-10-13T13:50:22Z DRY-RUN: gate result above is informational
+2026-10-13T13:50:22Z PREFLIGHT: need 3 consecutive green household checks (max 3 min)
+2026-10-13T13:50:23Z CHECK rc=1 172.16.2.241:443=open 172.16.2.243:443=open lease(internal-1102ed95)=vdhclu01node03 lease(external-27f017ad)=vdhclu01master01 dns(grafana)=172.16.2.241 dns(forge)=172.16.2.241 forge@241=403 
+2026-10-13T13:50:33Z CHECK rc=1 172.16.2.241:443=open 172.16.2.243:443=open lease(internal-1102ed95)=vdhclu01node03 lease(external-27f017ad)=vdhclu01master01 dns(grafana)=172.16.2.241 dns(forge)=172.16.2.241 forge@241=403 
+2026-10-13T13:50:43Z CHECK rc=1 172.16.2.241:443=open 172.16.2.243:443=open lease(internal-1102ed95)=vdhclu01node03 lease(external-27f017ad)=vdhclu01master01 dns(grafana)=172.16.2.241 dns(forge)=172.16.2.241 forge@241=403 
+2026-10-13T13:50:53Z CHECK rc=1 172.16.2.241:443=open 172.16.2.243:443=open lease(internal-1102ed95)=vdhclu01node03 lease(external-27f017ad)=vdhclu01master01 dns(grafana)=172.16.2.241 dns(forge)=172.16.2.241 forge@241=403 
+2026-10-13T13:51:03Z CHECK rc=1 172.16.2.241:443=open 172.16.2.243:443=open lease(internal-1102ed95)=vdhclu01node03 lease(external-27f017ad)=vdhclu01master01 dns(grafana)=172.16.2.241 dns(forge)=172.16.2.241 forge@241=403 
+2026-10-13T13:51:13Z CHECK rc=1 172.16.2.241:443=open 172.16.2.243:443=open lease(internal-1102ed95)=vdhclu01node03 lease(external-27f017ad)=vdhclu01master01 dns(grafana)=172.16.2.241 dns(forge)=172.16.2.241 forge@241=403 
+2026-10-13T13:51:24Z CHECK rc=1 172.16.2.241:443=open 172.16.2.243:443=open lease(internal-1102ed95)=vdhclu01node03 lease(external-27f017ad)=vdhclu01master01 dns(grafana)=172.16.2.241 dns(forge)=172.16.2.241 forge@241=403 
+2026-10-13T13:51:34Z CHECK rc=1 172.16.2.241:443=open 172.16.2.243:443=open lease(internal-1102ed95)=vdhclu01node03 lease(external-27f017ad)=vdhclu01master01 dns(grafana)=172.16.2.241 dns(forge)=172.16.2.241 forge@241=403 
+2026-10-13T13:51:44Z CHECK rc=1 172.16.2.241:443=open 172.16.2.243:443=open lease(internal-1102ed95)=vdhclu01node03 lease(external-27f017ad)=vdhclu01master01 dns(grafana)=172.16.2.241 dns(forge)=172.16.2.241 forge@241=403 
+2026-10-13T13:51:54Z CHECK rc=1 172.16.2.241:443=open 172.16.2.243:443=open lease(internal-1102ed95)=vdhclu01node03 lease(external-27f017ad)=vdhclu01master01 dns(grafana)=172.16.2.241 dns(forge)=172.16.2.241 forge@241=403 
+2026-10-13T13:52:04Z CHECK rc=1 172.16.2.241:443=open 172.16.2.243:443=open lease(internal-1102ed95)=vdhclu01node03 lease(external-27f017ad)=vdhclu01master01 dns(grafana)=172.16.2.241 dns(forge)=172.16.2.241 forge@241=403 
+2026-10-13T13:52:14Z CHECK rc=1 172.16.2.241:443=open 172.16.2.243:443=open lease(internal-1102ed95)=vdhclu01node03 lease(external-27f017ad)=vdhclu01master01 dns(grafana)=172.16.2.241 dns(forge)=172.16.2.241 forge@241=403 
+2026-10-13T13:52:25Z CHECK rc=1 172.16.2.241:443=open 172.16.2.243:443=open lease(internal-1102ed95)=vdhclu01node03 lease(external-27f017ad)=vdhclu01master01 dns(grafana)=172.16.2.241 dns(forge)=172.16.2.241 forge@241=403 
+2026-10-13T13:52:35Z CHECK rc=1 172.16.2.241:443=open 172.16.2.243:443=open lease(internal-1102ed95)=vdhclu01node03 lease(external-27f017ad)=vdhclu01master01 dns(grafana)=172.16.2.241 dns(forge)=172.16.2.241 forge@241=403 
+2026-10-13T13:52:45Z CHECK rc=1 172.16.2.241:443=open 172.16.2.243:443=open lease(internal-1102ed95)=vdhclu01node03 lease(external-27f017ad)=vdhclu01master01 dns(grafana)=172.16.2.241 dns(forge)=172.16.2.241 forge@241=403 
+2026-10-13T13:52:55Z CHECK rc=1 172.16.2.241:443=open 172.16.2.243:443=open lease(internal-1102ed95)=vdhclu01node03 lease(external-27f017ad)=vdhclu01master01 dns(grafana)=172.16.2.241 dns(forge)=172.16.2.241 forge@241=403 
+2026-10-13T13:53:05Z CHECK rc=1 172.16.2.241:443=open 172.16.2.243:443=open lease(internal-1102ed95)=vdhclu01node03 lease(external-27f017ad)=vdhclu01master01 dns(grafana)=172.16.2.241 dns(forge)=172.16.2.241 forge@241=403 
+2026-10-13T13:53:15Z CHECK rc=1 172.16.2.241:443=open 172.16.2.243:443=open lease(internal-1102ed95)=vdhclu01node03 lease(external-27f017ad)=vdhclu01master01 dns(grafana)=172.16.2.241 dns(forge)=172.16.2.241 forge@241=403 
+2026-10-13T13:53:25Z PREFLIGHT red; no change made

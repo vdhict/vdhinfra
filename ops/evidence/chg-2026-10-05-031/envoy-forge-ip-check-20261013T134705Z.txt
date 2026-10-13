@@ -1,0 +1,7 @@
+# UDM read-only GETs rest/user + stat/sta, 2026-10-13T13:47:05Z; kubectl LB IPs. Names of other devices omitted except the .249 holder.
+172.16.2.249 fixed-IP reservation: ['HueZadelmakerij'] | last_ip users: 1 | live clients: 0 | LB Service: False
+172.16.2.251 fixed-IP reservation: none | last_ip users: 0 | live clients: 0 | LB Service: False
+LB IPs in use: ['172.16.2.235', '172.16.2.236', '172.16.2.237', '172.16.2.238', '172.16.2.239', '172.16.2.241', '172.16.2.243', '172.16.2.244', '172.16.2.245', '172.16.2.247', '172.16.2.248']
+172.16.2.240 = Talos CP VIP (excluded); 172.16.2.242 = former k8s-gateway DNS (excluded)
+ping/arp from vdhmini01: .251 silent, ARP incomplete; git refs to .251: 0
+decision: envoy-forge LB IP 172.16.2.251 (was 172.16.2.249, which is reserved for HueZadelmakerij)
