@@ -32,8 +32,10 @@ config_checks() {
     out=$(amx $i wget -qO- http://localhost:9093/api/v2/status 2>/dev/null | python3 -c '
 import json, sys
 c = json.load(sys.stdin)["config"]["original"]
-print("PASS" if "ntfy.ntfy.svc.cluster.local/alerts" in c and "ntfy.sh" not in c and "url_file" not in c else "FAIL",
-      "running config: self-hosted ntfy only")' 2>&1)
+# /api/v2/status masks webhook URLs as <secret>, so test what stays visible:
+# the bearer credentials_file of the self-hosted receivers, and no url_file.
+print("PASS" if "/etc/alertmanager/secrets/ntfy-alertmanager-token/token" in c and "ntfy.sh" not in c and "url_file: /" not in c else "FAIL",
+      "running config: self-hosted ntfy receivers (credentials_file), no url_file")' 2>&1)
     echo "am-$i $out"; case "$out" in PASS*) ;; *) fail=1 ;; esac
   done
 }
