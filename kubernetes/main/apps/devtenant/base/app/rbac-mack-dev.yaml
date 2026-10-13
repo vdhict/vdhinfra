@@ -3,6 +3,8 @@
 # config ConfigMap. NO secrets, externalsecrets, serviceaccounts or rbac; no other namespaces; nothing cluster-wide.
 # The devtenant-build RoleBinding is deliberately NOT in Git: Atlas removes it while a run that pulls the ops token
 # is in progress, and Flux must not re-create it mid-run. It is applied with kubectl.
+# Since 2026-10-13 (chg-2026-10-13-004) the ops token is standing; admission policy devtenant-ops-token-guard
+# (../../admission) denies mack-dev any Job/Pod/CronJob that references it, so the removal dance is no longer needed.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:

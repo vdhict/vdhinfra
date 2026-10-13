@@ -1,8 +1,9 @@
 ---
 # Adopted by Atlas 2026-10-13 from passkey-point@0611022 deploy/devtenant/mack/refresh-contractor-new-cronjob.yaml (chg-2026-10-12-004).
-# SUSPENDED and fail-closed: the ops write token Secret (devtenant-ops-write-token) exists only while Atlas runs a batch;
-# without it the bootstrap container cannot start (CreateContainerConfigError). A standing nightly run needs Larry's decision.
-# Ad hoc: Atlas creates the token, kubectl create job --from=cronjob/devtenant-refresh-contractor-new, deletes the token after.
+# Standing nightly run approved (Larry for the owner 2026-10-13, AGR-094/099, chg-2026-10-13-004): the ops write token
+# devtenant-ops-write-token is now a standing ExternalSecret (ops-write-token.yaml), guarded by admission policy
+# devtenant-ops-token-guard. STILL SUSPENDED: the gating run refresh-test-20261013t055426z failed in renew (EXIT 1,
+# purge DELETE /directory/deletedItems -> 404 not retried; inc-2026-10-13-001). Unsuspend after Mack's fix + a green run.
 apiVersion: batch/v1
 kind: CronJob
 metadata: { name: devtenant-refresh-contractor-new, namespace: devtenant-build }

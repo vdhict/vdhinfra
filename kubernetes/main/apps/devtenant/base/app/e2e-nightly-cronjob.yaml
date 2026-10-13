@@ -1,0 +1,66 @@
+---
+# Nightly dev-tenant E2E (chg-2026-10-13-004; Larry for the owner 2026-10-13, AGR-094/099). Dev tenant 7m5b27gbc only.
+# Adopted from passkey-point@0611022 e2e/deploy/cronjob.yaml (Mack's team, ADR-026 s2), placeholders filled:
+#   image  e2e-0611022 (digest verified on the forge registry 2026-10-13, HTTP 200)
+#   E2E_COMMIT / E2E_LAB_IMAGE_DIGEST  the LAB release on main: v0.1 7652aa6, web image in lab-passkey/passkey-point/app/web.yaml
+# Pod shape taken from the live first-run Job that started cleanly (not from 0611022 cronjob.yaml, which lacks these):
+#   fsGroup 10001 + secret mode 0440 (0400 gave EACCES on runner.key), pull secret passkey-point-e2e-pull, denylist mount,
+#   hostAliases for the LAB host on envoy-internal 172.16.2.241.
+# Secrets: Secret passkey-point-e2e from the namespaced SecretStore onepassword-passkey-point-dev (live, not in Git).
+# Timing: 02:40 Europe/Amsterdam, 30 min after devtenant-refresh-contractor-new (02:10, deadline 30 min) re-creates
+# tp-contractor-new. Clear of the inc-2026-10-12-013 Envoy window runner (launchd 01:05, ~15 min incl. soak).
+# NOTE 2026-10-13: the refresh CronJob is still suspended (inc-2026-10-13-001), so tp-contractor-new is not re-created
+# before this run until that is fixed; scenarios that need it will report red.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: passkey-point-e2e
+  namespace: passkey-point-e2e
+  labels:
+    vdhinfra.io/standing: devtenant-nightly
+spec:
+  schedule: "40 2 * * *"
+  timeZone: Europe/Amsterdam
+  suspend: false
+  concurrencyPolicy: Forbid  # personas are shared; Entra allows one TAP per user
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 7
+  jobTemplate:
+    spec:
+      backoffLimit: 0  # a failed run is not retried: no second password attempt (smart lockout)
+      activeDeadlineSeconds: 3600
+      ttlSecondsAfterFinished: 604800  # artefacts stay 7 days
+      template:
+        metadata:
+          labels: {app.kubernetes.io/name: passkey-point-e2e}
+        spec:
+          serviceAccountName: passkey-point-e2e
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          # Argus E1 (chg-2026-10-12-004): Entra sign-ins must leave via the node02 WAN route; fail closed elsewhere.
+          nodeSelector: {kubernetes.io/hostname: vdhclu01node02}
+          hostAliases: [{ip: "172.16.2.241", hostnames: ["passkey-point-lab.bluejungle.net"]}]
+          imagePullSecrets: [{name: passkey-point-e2e-pull}]
+          securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 0, fsGroup: 10001, seccompProfile: {type: RuntimeDefault}}
+          containers:
+            - name: e2e
+              image: forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:74b2ea255d0b87addf68ce49538f2f9bb91cd191aa9d7e9dd86c4c078c9f1028
+              args: ["--set", "nightly"]
+              env:
+                - {name: E2E_SECRETS_DIR, value: /secrets}
+                - {name: E2E_COMMIT, value: "7652aa6"}
+                - {name: E2E_LAB_IMAGE_DIGEST, value: "sha256:5dc23773b3a72ef55d041e4ea82e2e25eecae0eb84c100a025849d6f2823879c"}
+              securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
+              resources: {requests: {cpu: 500m, memory: 1Gi}, limits: {memory: 2Gi}}
+              volumeMounts:
+                - {name: secrets, mountPath: /secrets, readOnly: true}
+                - {name: config, mountPath: /e2e/config/dev-tenant.json, subPath: dev-tenant.json, readOnly: true}
+                - {name: denylist, mountPath: /e2e/config/denylist.txt, subPath: denylist.txt, readOnly: true}
+                - {name: out, mountPath: /out}
+                - {name: tmp, mountPath: /tmp}
+          volumes:
+            - {name: secrets, secret: {secretName: passkey-point-e2e, defaultMode: 0440}}
+            - {name: config, configMap: {name: passkey-point-e2e-config}}
+            - {name: denylist, configMap: {name: passkey-point-e2e-denylist}}
+            - {name: out, persistentVolumeClaim: {claimName: passkey-point-e2e-out}}
+            - {name: tmp, emptyDir: {sizeLimit: 512Mi}}
