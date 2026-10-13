@@ -6,15 +6,16 @@
 # Standing nightly run approved (Larry for the owner 2026-10-13, AGR-094/099, chg-2026-10-13-004): the ops write token
 # devtenant-ops-write-token is a standing ExternalSecret (ops-write-token.yaml), guarded by admission policy
 # devtenant-ops-token-guard (only the CronJob/Job controllers, Flux and admin users may reference it).
-# SUSPENDED until a green test run on the a5d79c4 devtenant image (inc-2026-10-13-001: c74bd438 renew failed on a
-# recycle-bin 404; b4d91cc bootstrap failed on the AR3 removePassword 400; 8d4c7df renew gone-check timed out on the bin).
+# UNSUSPENDED 2026-10-13 after a green test run on a5d79c4 (refresh-test-20261013t094111z: renew EXIT 0, bootstrap
+# EXIT 3 "run ended: ok", leak-check 0 hits). History: inc-2026-10-13-001. EXIT 3 (done with steps pending) is the
+# expected outcome, but Kubernetes counts it as a failed Job.
 apiVersion: batch/v1
 kind: CronJob
 metadata: {name: devtenant-refresh-contractor-new, namespace: devtenant-build}
 spec:
   schedule: "10 2 * * *"
   timeZone: Europe/Amsterdam
-  suspend: true
+  suspend: false
   concurrencyPolicy: Forbid
   jobTemplate:
     spec:
