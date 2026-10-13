@@ -1,0 +1,23 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Admission guard for the standing ops token (chg-2026-10-13-004). devtenant-base dependsOn this,
+# so the standing ExternalSecret devtenant-ops-write-token never exists without the guard.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: devtenant-admission
+  namespace: flux-system
+spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/part-of: devtenant
+  path: ./kubernetes/main/apps/devtenant/admission/app
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: true
+  interval: 30m
+  retryInterval: 1m
+  timeout: 5m

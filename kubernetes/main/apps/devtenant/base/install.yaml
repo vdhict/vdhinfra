@@ -13,6 +13,8 @@ spec:
     - name: devtenant-network-policies
     # the pull-secret ExternalSecrets need both devtenant stores Ready (F2, chg-2026-10-10-001)
     - name: external-secrets-stores-devtenant
+    # the standing ops token ExternalSecret needs its admission guard first (chg-2026-10-13-004)
+    - name: devtenant-admission
   path: ./kubernetes/main/apps/devtenant/base/app
   sourceRef:
     kind: GitRepository

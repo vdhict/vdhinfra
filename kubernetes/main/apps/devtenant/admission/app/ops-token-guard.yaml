@@ -1,0 +1,95 @@
+---
+# devtenant-ops-token-guard (chg-2026-10-13-004, Larry for the owner 2026-10-13, AGR-094/099).
+#
+# Secret devtenant-build/devtenant-ops-write-token is STANDING since 2026-10-13 (nightly CronJob
+# devtenant-refresh-contractor-new). mack-dev may create Jobs in devtenant-build, and a Job's pod can
+# mount any Secret in its namespace without "get secrets" RBAC. This policy closes that path:
+# no ServiceAccount except the CronJob/Job controllers and Flux may create or update a Pod, Job or
+# CronJob in devtenant-build whose pod spec references that Secret, by
+#   volumes[].secret.secretName, volumes[].projected.sources[].secret.name,
+#   volumes[].csi.nodePublishSecretRef.name, (init)containers[].env[].valueFrom.secretKeyRef.name,
+#   (init)containers[].envFrom[].secretRef.name, imagePullSecrets[].name.
+# Other volume types that take a Secret are already refused by PSA restricted on the namespace.
+# Ephemeral containers go through pods/ephemeralcontainers, which no ServiceAccount here may use.
+# Scope is wider than mack-dev on purpose: ANY ServiceAccount (also a future one) is denied; human
+# admin users (Atlas, x509) are not ServiceAccounts and are not matched.
+# Binding by kubernetes.io/metadata.name (set by the API server, not changeable). failurePolicy Fail.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/admissionregistration.k8s.io/validatingadmissionpolicy_v1.json
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: devtenant-ops-token-guard
+  labels:
+    vdhinfra.io/standing: devtenant-nightly
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+      - apiGroups: ["batch"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["jobs", "cronjobs"]
+  matchConditions:
+    - name: requester-is-a-non-controller-serviceaccount
+      expression: >-
+        request.userInfo.username.startsWith('system:serviceaccount:') &&
+        !(request.userInfo.username in [
+          'system:serviceaccount:kube-system:cronjob-controller',
+          'system:serviceaccount:kube-system:job-controller',
+          'system:serviceaccount:flux-system:kustomize-controller'
+        ])
+  variables:
+    - name: token
+      expression: "'devtenant-ops-write-token'"
+    - name: spec
+      expression: >-
+        object.kind == 'Pod' ? dyn(object).spec :
+        (object.kind == 'Job' ? dyn(object).spec.template.spec : dyn(object).spec.jobTemplate.spec.template.spec)
+    - name: containers
+      expression: >-
+        (has(variables.spec.containers) ? variables.spec.containers : []) +
+        (has(variables.spec.initContainers) ? variables.spec.initContainers : [])
+    - name: refInVolumes
+      expression: >-
+        has(variables.spec.volumes) && variables.spec.volumes.exists(v,
+          (has(v.secret) && has(v.secret.secretName) && v.secret.secretName == variables.token) ||
+          (has(v.projected) && has(v.projected.sources) && v.projected.sources.exists(s,
+            has(s.secret) && has(s.secret.name) && s.secret.name == variables.token)) ||
+          (has(v.csi) && has(v.csi.nodePublishSecretRef) && has(v.csi.nodePublishSecretRef.name) &&
+            v.csi.nodePublishSecretRef.name == variables.token))
+    - name: refInEnv
+      expression: >-
+        variables.containers.exists(c,
+          (has(c.env) && c.env.exists(e, has(e.valueFrom) && has(e.valueFrom.secretKeyRef) &&
+            has(e.valueFrom.secretKeyRef.name) && e.valueFrom.secretKeyRef.name == variables.token)) ||
+          (has(c.envFrom) && c.envFrom.exists(f, has(f.secretRef) && has(f.secretRef.name) &&
+            f.secretRef.name == variables.token)))
+    - name: refInPullSecrets
+      expression: >-
+        has(variables.spec.imagePullSecrets) &&
+        variables.spec.imagePullSecrets.exists(p, has(p.name) && p.name == variables.token)
+  validations:
+    - expression: "!variables.refInVolumes && !variables.refInEnv && !variables.refInPullSecrets"
+      messageExpression: >-
+        'devtenant-ops-token-guard: ' + request.userInfo.username + ' may not reference Secret ' +
+        variables.token + ' (only the devtenant-refresh-contractor-new CronJob from Git may; chg-2026-10-13-004).'
+      reason: Forbidden
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/admissionregistration.k8s.io/validatingadmissionpolicybinding_v1.json
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: devtenant-ops-token-guard
+  labels:
+    vdhinfra.io/standing: devtenant-nightly
+spec:
+  policyName: devtenant-ops-token-guard
+  validationActions: ["Deny"]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: devtenant-build

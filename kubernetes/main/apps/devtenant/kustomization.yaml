@@ -16,4 +16,5 @@ kind: Kustomization
 resources:
   - ./namespaces.yaml
   - ./network-policies/install.yaml
+  - ./admission/install.yaml
   - ./base/install.yaml
