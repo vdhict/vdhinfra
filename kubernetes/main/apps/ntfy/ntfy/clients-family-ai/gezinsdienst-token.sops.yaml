@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: ntfy-gezinsdienst-token
+type: Opaque
+stringData:
+    token: ENC[AES256_GCM,data:V9fQTKx0i6vUBf+FH0xe3NQP08es6oXl/O03z2t36NM=,iv:NXoMSB+8APyFm1mDYCqFCzfQza/kqp/W/PYA6hxT1pU=,tag:IusL1Pns3ICjoNjZQpkpRw==,type:str]
+    url: ENC[AES256_GCM,data:B5fIF98nkfyuCfc24zMyAUm69s6QA6hhd1Y0w++BatA/rA==,iv:CpMch6IdDKxLhA713dy/Dz4z4NSGyRS3gvdOxVJUyF4=,tag:YbBKmaZ4Y6o83FMix9775A==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBKckpIRDdyT01zQyt6OHh0
+            aVlsNk1OS3Z1VzIyZEJmRGxMUWM5dEt6bzB3CkNKdGZmR2VWN29ZelhGQ0lQYTNu
+            TmRFWGJHeXl6QXpCOGhOOHFkM1gydGcKLS0tIEFhQ2RJWU9xUVRoWE91dDBqanRz
+            Um5CL1dZR01wWHkzZk9tRWpGTTRBTzQKr0Q3YC2LBbHXWm/EwSaeDpk6NkK8qtQs
+            SIT8Z9oad9TkMmJuPuMU7Xs0F8HzJz+fwtpANfLZI7Y2QLlTLpPvdA==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1dfs2z6esr6rhm46pvh6l8xlualxsn756rkkt9432d5kk3k7s4pssmus4gk
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-10-13T07:10:07Z"
+    mac: ENC[AES256_GCM,data:ktZJTayPqniNabhMW0Zegm652eaCc+9XYss5YCne0yv/CUhVBh6U/Q/H13Sfb9RMs+vFLykJ+u9syBbmHtsLUzVYLGNlT06P0K7Qs2wFugMGn93s4nQLmsi28BvxNwmUqBvG8Wk7q01X3p2ngy25/v+tn6vw1STWBzWNcZyBt4g=,iv:3/VyUKV0+W/WnLyfJwKXhqr2reJbAG//qFWOr9Nczds=,tag:8jXuaywrmxkgzxxFv2t4RA==,type:str]
+    version: 3.13.3

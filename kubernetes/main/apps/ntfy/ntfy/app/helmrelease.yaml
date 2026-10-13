@@ -11,6 +11,9 @@
 #   alertmanager  write-only   (in-cluster, Secret ntfy-alertmanager-token in observability)
 #   pka-alert     write-only   (MacBook + Mini, LAN/WireGuard via envoy-internal)
 #   owner-phone   read-only    (the ntfy Android app)
+# Topics `gezin`, `gezin-test` (family context; parent phones only):
+#   gezinsdienst  write-only   (in-cluster from family-ai, Secret family-ai/ntfy-gezinsdienst-token)
+#   owner-phone   read-only
 # Nobody else, and no anonymous read or write.
 #
 # Deliberately OFF:
@@ -80,7 +83,9 @@ spec:
               NTFY_CACHE_DURATION: 72h
               NTFY_AUTH_FILE: /var/lib/ntfy/user.db
               NTFY_AUTH_DEFAULT_ACCESS: deny-all
-              NTFY_AUTH_ACCESS: "alertmanager:alerts:wo,pka-alert:alerts:wo,owner-phone:alerts:ro"
+              # gezin/gezin-test: gezinsdienst (family-ai) parent alerts; may carry
+              # family context, so it never goes to ntfy.sh (Larry, F2 family-ai).
+              NTFY_AUTH_ACCESS: "alertmanager:alerts:wo,pka-alert:alerts:wo,owner-phone:alerts:ro,gezinsdienst:gezin:wo,gezinsdienst:gezin-test:wo,owner-phone:gezin:ro,owner-phone:gezin-test:ro"
               NTFY_ENABLE_SIGNUP: "false"
               NTFY_ENABLE_LOGIN: "false"
               NTFY_ENABLE_RESERVATIONS: "false"

@@ -62,3 +62,29 @@ spec:
   interval: 30m
   retryInterval: 1m
   timeout: 5m
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# The gezinsdienst write token (topics gezin, gezin-test) as Secret
+# family-ai/ntfy-gezinsdienst-token {token, url = in-cluster Service}. Only
+# the Secret lives here and nothing references it yet: wiring it into
+# gezinsdienst is Mack's bundle, its egress rule is a family-ai change.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: ntfy-gezinsdienst-token
+  namespace: flux-system
+spec:
+  targetNamespace: family-ai
+  commonMetadata:
+    labels:
+      app.kubernetes.io/part-of: ntfy
+  path: ./kubernetes/main/apps/ntfy/ntfy/clients-family-ai
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: true
+  interval: 30m
+  retryInterval: 1m
+  timeout: 5m
