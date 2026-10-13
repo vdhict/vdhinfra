@@ -1,0 +1,63 @@
+---
+# Adopted by Atlas 2026-10-13 from passkey-point@0611022 deploy/devtenant/mack/refresh-contractor-new-cronjob.yaml (chg-2026-10-12-004).
+# SUSPENDED and fail-closed: the ops write token Secret (devtenant-ops-write-token) exists only while Atlas runs a batch;
+# without it the bootstrap container cannot start (CreateContainerConfigError). A standing nightly run needs Larry's decision.
+# Ad hoc: Atlas creates the token, kubectl create job --from=cronjob/devtenant-refresh-contractor-new, deletes the token after.
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: devtenant-refresh-contractor-new, namespace: devtenant-build }
+spec:
+  schedule: "10 2 * * *"
+  timeZone: Europe/Amsterdam
+  suspend: true
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 1800
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels: { app.kubernetes.io/name: devtenant, devtenant.passkey-point/connect: "true" }
+        spec:
+          serviceAccountName: devtenant
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          imagePullSecrets: [{ name: devtenant-pull }]
+          dnsConfig: { options: [{ name: ndots, value: "1" }] }
+          securityContext: { runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001, fsGroupChangePolicy: OnRootMismatch, seccompProfile: { type: RuntimeDefault } }
+          initContainers:
+            - name: renew
+              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:c74bd438cdd412611df5702c9b88911852fc95012d2d52305d8c321d3d47a8fc
+              command: [node, infra/devtenant/devtenant.ts]
+              args: [renew-persona, --alias, tp-contractor-new, --yes]
+              env:
+                - { name: DEVTENANT_KEY_DIR, value: /var/run/secrets/devtenant }
+                - { name: OP_CONNECT_HOST, value: http://onepassword-connect.security.svc.cluster.local }
+                - { name: OP_CONNECT_TOKEN_PASSKEY_POINT_DEV, valueFrom: { secretKeyRef: { name: devtenant-dev-write-tokens, key: dev } } }
+              securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: ["ALL"] } }
+              volumeMounts:
+                - { name: build-key, mountPath: /var/run/secrets/devtenant/build, readOnly: true }
+                - { name: tmp, mountPath: /tmp }
+          containers:
+            - name: bootstrap
+              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:c74bd438cdd412611df5702c9b88911852fc95012d2d52305d8c321d3d47a8fc
+              command: [node, infra/devtenant/devtenant.ts]
+              args: [bootstrap-v01, --execute, --yes, --baseline-sha256, 31b738a4a438f2464d844779c05b60994f5728d48a7f022672327225a112268b]
+              env:
+                - { name: DEVTENANT_KEY_DIR, value: /var/run/secrets/devtenant }
+                - { name: DEVTENANT_ADMIN_UPN, value: admsheijden@7m5b27gbc.onmicrosoft.com }
+                - { name: OP_CONNECT_HOST, value: http://onepassword-connect.security.svc.cluster.local }
+                - { name: OP_CONNECT_TOKEN_PASSKEY_POINT_DEV, valueFrom: { secretKeyRef: { name: devtenant-dev-write-tokens, key: dev } } }
+                - { name: OP_CONNECT_TOKEN_PASSKEY_POINT_DEV_APP, valueFrom: { secretKeyRef: { name: devtenant-dev-write-tokens, key: dev-app } } }
+                - { name: OP_CONNECT_TOKEN_DEVTENANT_OPS, valueFrom: { secretKeyRef: { name: devtenant-ops-write-token, key: token } } }
+              securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: ["ALL"] } }
+              resources: { requests: { cpu: 200m, memory: 512Mi }, limits: { memory: 1Gi } }
+              volumeMounts:
+                - { name: build-key, mountPath: /var/run/secrets/devtenant/build, readOnly: true }
+                - { name: out, mountPath: /app/infra/devtenant/out }
+                - { name: tmp, mountPath: /tmp }
+          volumes:
+            - { name: build-key, secret: { secretName: atlas-devtenant-build-key, defaultMode: 0400 } }
+            - { name: out, persistentVolumeClaim: { claimName: devtenant-out } }
+            - { name: tmp, emptyDir: { sizeLimit: 128Mi } }

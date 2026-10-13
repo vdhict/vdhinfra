@@ -7,3 +7,4 @@ resources:
   - ./pvc.yaml
   - ./pull-secrets.yaml
   - ./rbac-mack-dev.yaml
+  - ./refresh-contractor-new-cronjob.yaml
