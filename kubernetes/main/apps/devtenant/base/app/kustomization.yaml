@@ -9,4 +9,5 @@ resources:
   - ./rbac-mack-dev.yaml
   - ./ops-write-token.yaml
   - ./refresh-contractor-new-cronjob.yaml
+  - ./e2e-secrets.yaml
   - ./e2e-nightly-cronjob.yaml
