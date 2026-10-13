@@ -1,13 +1,13 @@
 ---
 # Adopted by Atlas from passkey-point deploy/devtenant/mack/refresh-contractor-new-cronjob.yaml: 0611022 (chg-2026-10-12-004),
-# template re-mirrored from b4d91cc (chg-2026-10-13-004): guard init (BASELINE must be 64-hex, stops before renew-persona
-# deletes anything), renew init, bootstrap init, leak-check last container (Argus F3; searches out + /tmp for the three
-# tokens, names the variable only). Re-creates tp-contractor-new 30 min before the nightly E2E (02:40) for E09.
+# template re-mirrored from 8d4c7df (chg-2026-10-13-004): guard init (BASELINE must be 64-hex, stops before renew-persona
+# deletes anything), renew init, bootstrap main container; leak-check WRAPS renew and bootstrap (Argus F3: output redacted,
+# out + /tmp scanned after the step, pass or fail; names the variable only). Re-creates tp-contractor-new 30 min before the nightly E2E (02:40) for E09.
 # Standing nightly run approved (Larry for the owner 2026-10-13, AGR-094/099, chg-2026-10-13-004): the ops write token
 # devtenant-ops-write-token is a standing ExternalSecret (ops-write-token.yaml), guarded by admission policy
 # devtenant-ops-token-guard (only the CronJob/Job controllers, Flux and admin users may reference it).
-# SUSPENDED until a green test run on the b4d91cc devtenant image (inc-2026-10-13-001: the c74bd438 renew failed on a
-# recycle-bin 404).
+# SUSPENDED until a green test run on the 8d4c7df devtenant image (inc-2026-10-13-001: c74bd438 renew failed on a
+# recycle-bin 404; b4d91cc bootstrap failed on the AR3 removePassword 400).
 apiVersion: batch/v1
 kind: CronJob
 metadata: {name: devtenant-refresh-contractor-new, namespace: devtenant-build}
@@ -34,14 +34,15 @@ spec:
           initContainers:
             # Nothing is deleted unless the bootstrap after it can run: a BASELINE that is not 64-hex stops the Job here.
             - name: guard
-              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:cae92f5aa934f25480acfc5735356eb0c4b308b2036d05b6bce585ad0b023aa9
+              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:8f7c5fd0bdc34ff5ad0ee5588eaf9fb8ff9fd8e6d5ccd57de43b873d61655d44
               command: [node, -e, "process.exit(/^[0-9a-f]{64}$/.test(process.env.BASELINE ?? '') ? 0 : 78)"]
               env:
                 - {name: BASELINE, value: 31b738a4a438f2464d844779c05b60994f5728d48a7f022672327225a112268b}
               securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
             - name: renew
-              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:cae92f5aa934f25480acfc5735356eb0c4b308b2036d05b6bce585ad0b023aa9
-              command: [node, infra/devtenant/devtenant.ts]
+              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:8f7c5fd0bdc34ff5ad0ee5588eaf9fb8ff9fd8e6d5ccd57de43b873d61655d44
+              # Argus F3: leak-check wraps the step (output redacted, /tmp scanned after it, pass or fail).
+              command: [node, infra/devtenant/leak-check.ts, /tmp, --run, --, node, infra/devtenant/devtenant.ts]
               args: [renew-persona, --alias, tp-contractor-new, --yes]
               env:
                 - {name: DEVTENANT_KEY_DIR, value: /var/run/secrets/devtenant}
@@ -51,9 +52,11 @@ spec:
               volumeMounts:
                 - {name: build-key, mountPath: /var/run/secrets/devtenant/build, readOnly: true}
                 - {name: tmp, mountPath: /tmp}
+          containers:
             - name: bootstrap
-              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:cae92f5aa934f25480acfc5735356eb0c4b308b2036d05b6bce585ad0b023aa9
-              command: [node, infra/devtenant/devtenant.ts]
+              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:8f7c5fd0bdc34ff5ad0ee5588eaf9fb8ff9fd8e6d5ccd57de43b873d61655d44
+              # Argus F3: leak-check wraps the step (output redacted, out and /tmp scanned after it, pass or fail).
+              command: [node, infra/devtenant/leak-check.ts, /app/infra/devtenant/out, /tmp, --run, --, node, infra/devtenant/devtenant.ts]
               args: [bootstrap-v01, --execute, --yes, --baseline-sha256, 31b738a4a438f2464d844779c05b60994f5728d48a7f022672327225a112268b]
               env:
                 - {name: DEVTENANT_KEY_DIR, value: /var/run/secrets/devtenant}
@@ -68,21 +71,6 @@ spec:
                 - {name: build-key, mountPath: /var/run/secrets/devtenant/build, readOnly: true}
                 - {name: out, mountPath: /app/infra/devtenant/out}
                 - {name: tmp, mountPath: /tmp}
-          # Argus F3: the out volume and /tmp searched for the tokens the run held (plain, base64, URL-encoded); a hit fails
-          # the Job and names the file, never the value. Pod logs: kubectl logs job/<name> --all-containers | leak-check --stdin.
-          containers:
-            - name: leak-check
-              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:cae92f5aa934f25480acfc5735356eb0c4b308b2036d05b6bce585ad0b023aa9
-              command: [node, infra/devtenant/leak-check.ts, /app/infra/devtenant/out, /tmp]
-              env:
-                - {name: OP_CONNECT_TOKEN_PASSKEY_POINT_DEV, valueFrom: {secretKeyRef: {name: devtenant-dev-write-tokens, key: dev}}}
-                - {name: OP_CONNECT_TOKEN_PASSKEY_POINT_DEV_APP, valueFrom: {secretKeyRef: {name: devtenant-dev-write-tokens, key: dev-app}}}
-                - {name: OP_CONNECT_TOKEN_DEVTENANT_OPS, valueFrom: {secretKeyRef: {name: devtenant-ops-write-token, key: token}}}
-              securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
-              resources: {requests: {cpu: 50m, memory: 128Mi}, limits: {memory: 512Mi}}
-              volumeMounts:
-                - {name: out, mountPath: /app/infra/devtenant/out, readOnly: true}
-                - {name: tmp, mountPath: /tmp, readOnly: true}
           volumes:
             - {name: build-key, secret: {secretName: atlas-devtenant-build-key, defaultMode: 0400}}
             - {name: out, persistentVolumeClaim: {claimName: devtenant-out}}
