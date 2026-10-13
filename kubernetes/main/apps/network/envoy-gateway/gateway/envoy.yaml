@@ -87,6 +87,13 @@ metadata:
   name: envoy-internal
   annotations:
     external-dns.alpha.kubernetes.io/target: internal.${SECRET_DOMAIN}
+    # LAN DNS (external-dns-unifi, annotation prefix external-dns-unifi.bluejungle.net/)
+    # takes its A-record target from HERE, not from Gateway.status.addresses
+    # (external-dns v0.20.0 source/gateway.go: a Gateway target annotation
+    # replaces the status). envoy-gateway v1.3.0 rewrites status on every
+    # reconcile (ClusterIP / empty), and external-dns-unifi then rewrote the
+    # household's LAN records (inc-2026-10-12-013).
+    external-dns-unifi.bluejungle.net/target: ${ENVOY_INTERNAL_LB_IP}
 spec:
   gatewayClassName: envoy
   # See envoy-external above for rationale (2026-05-02 LAN-DNS incident).
