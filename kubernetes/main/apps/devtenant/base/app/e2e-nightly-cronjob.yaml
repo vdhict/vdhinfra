@@ -1,7 +1,7 @@
 ---
 # Nightly dev-tenant E2E (chg-2026-10-13-004; Larry for the owner 2026-10-13, AGR-094/099). Dev tenant 7m5b27gbc only.
 # Adopted from passkey-point@0611022 e2e/deploy/cronjob.yaml (Mack's team, ADR-026 s2), placeholders filled:
-#   image  e2e-0611022 (digest verified on the forge registry 2026-10-13, HTTP 200)
+#   image  e2e-b4d91cc (was e2e-0611022; digest verified on the forge registry 2026-10-13, HTTP 200)
 #   E2E_COMMIT / E2E_LAB_IMAGE_DIGEST  the LAB release on main: v0.1 7652aa6, web image in lab-passkey/passkey-point/app/web.yaml
 # Pod shape taken from the live first-run Job that started cleanly (not from 0611022 cronjob.yaml, which lacks these):
 #   fsGroup 10001 + secret mode 0440 (0400 gave EACCES on runner.key), pull secret passkey-point-e2e-pull, denylist mount,
@@ -44,7 +44,7 @@ spec:
           securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 0, fsGroup: 10001, seccompProfile: {type: RuntimeDefault}}
           containers:
             - name: e2e
-              image: forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:74b2ea255d0b87addf68ce49538f2f9bb91cd191aa9d7e9dd86c4c078c9f1028
+              image: forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:1c7912bd977788b5fb044e2842f61d02f0ea025e7a7eec3e328fba53a1a697dc
               args: ["--set", "nightly"]
               env:
                 - {name: E2E_SECRETS_DIR, value: /secrets}
