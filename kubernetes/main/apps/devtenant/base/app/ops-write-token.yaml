@@ -1,0 +1,29 @@
+---
+# STANDING ops write token for the nightly CronJob devtenant-refresh-contractor-new (chg-2026-10-13-004;
+# Larry for the owner 2026-10-13, AGR-094/099; ADR-027, AGR-087). Dev tenant 7m5b27gbc only.
+# The credential stays on the cluster; Atlas rotates it in 1Password on Atlas's cadence and the 1h refresh
+# carries the new value here (rotate-by date: observability/aiops-token-expiry).
+# Read restriction: no RBAC subject in devtenant-build has get/list/watch on secrets, and admission
+# policy devtenant-ops-token-guard (../../admission) denies any ServiceAccount except the CronJob/Job
+# controllers and Flux a Pod/Job/CronJob that references this Secret. devtenant-base dependsOn it.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/external-secrets.io/externalsecret_v1.json
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: devtenant-ops-write-token
+  namespace: devtenant-build
+  labels:
+    vdhinfra.io/standing: devtenant-nightly
+spec:
+  refreshInterval: 1h
+  secretStoreRef: {kind: ClusterSecretStore, name: onepassword-devtenant-ops}
+  target:
+    name: devtenant-ops-write-token
+    creationPolicy: Owner
+    deletionPolicy: Delete
+    template:
+      metadata:
+        labels:
+          vdhinfra.io/standing: devtenant-nightly
+  data:
+    - {secretKey: token, remoteRef: {key: op-connect-write-token, property: credential}}
