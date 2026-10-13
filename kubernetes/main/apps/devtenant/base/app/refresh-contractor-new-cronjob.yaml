@@ -6,8 +6,8 @@
 # Standing nightly run approved (Larry for the owner 2026-10-13, AGR-094/099, chg-2026-10-13-004): the ops write token
 # devtenant-ops-write-token is a standing ExternalSecret (ops-write-token.yaml), guarded by admission policy
 # devtenant-ops-token-guard (only the CronJob/Job controllers, Flux and admin users may reference it).
-# SUSPENDED until a green test run on the 8d4c7df devtenant image (inc-2026-10-13-001: c74bd438 renew failed on a
-# recycle-bin 404; b4d91cc bootstrap failed on the AR3 removePassword 400).
+# SUSPENDED until a green test run on the f2900ea devtenant image (inc-2026-10-13-001: c74bd438 renew failed on a
+# recycle-bin 404; b4d91cc bootstrap failed on the AR3 removePassword 400; 8d4c7df renew gone-check timed out on the bin).
 apiVersion: batch/v1
 kind: CronJob
 metadata: {name: devtenant-refresh-contractor-new, namespace: devtenant-build}
@@ -34,13 +34,13 @@ spec:
           initContainers:
             # Nothing is deleted unless the bootstrap after it can run: a BASELINE that is not 64-hex stops the Job here.
             - name: guard
-              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:8f7c5fd0bdc34ff5ad0ee5588eaf9fb8ff9fd8e6d5ccd57de43b873d61655d44
+              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:1ab021575b6a4a606f57e18b74ef6abbf88cd6d258fdc9a393c23378a3dc9206
               command: [node, -e, "process.exit(/^[0-9a-f]{64}$/.test(process.env.BASELINE ?? '') ? 0 : 78)"]
               env:
                 - {name: BASELINE, value: 31b738a4a438f2464d844779c05b60994f5728d48a7f022672327225a112268b}
               securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
             - name: renew
-              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:8f7c5fd0bdc34ff5ad0ee5588eaf9fb8ff9fd8e6d5ccd57de43b873d61655d44
+              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:1ab021575b6a4a606f57e18b74ef6abbf88cd6d258fdc9a393c23378a3dc9206
               # Argus F3: leak-check wraps the step (output redacted, /tmp scanned after it, pass or fail).
               command: [node, infra/devtenant/leak-check.ts, /tmp, --run, --, node, infra/devtenant/devtenant.ts]
               args: [renew-persona, --alias, tp-contractor-new, --yes]
@@ -54,7 +54,7 @@ spec:
                 - {name: tmp, mountPath: /tmp}
           containers:
             - name: bootstrap
-              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:8f7c5fd0bdc34ff5ad0ee5588eaf9fb8ff9fd8e6d5ccd57de43b873d61655d44
+              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:1ab021575b6a4a606f57e18b74ef6abbf88cd6d258fdc9a393c23378a3dc9206
               # Argus F3: leak-check wraps the step (output redacted, out and /tmp scanned after it, pass or fail).
               command: [node, infra/devtenant/leak-check.ts, /app/infra/devtenant/out, /tmp, --run, --, node, infra/devtenant/devtenant.ts]
               args: [bootstrap-v01, --execute, --yes, --baseline-sha256, 31b738a4a438f2464d844779c05b60994f5728d48a7f022672327225a112268b]
