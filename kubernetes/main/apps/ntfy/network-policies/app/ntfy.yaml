@@ -4,7 +4,8 @@
 # In:
 #   * envoy-internal (the ntfy.${SECRET_DOMAIN} route: LAN + WireGuard
 #     senders, and the phone app) on 8080;
-#   * Alertmanager pods and the family-ai gezinsdienst pod (in-cluster
+#   * Alertmanager pods, the aiops-morning-summary Job pod and the family-ai
+#     gezinsdienst pod (in-cluster
 #     publish to the Service, no Envoy hop) on 8080;
 #   * Prometheus on the metrics port 9090.
 # Out: nothing. Not even DNS: ntfy resolves no names with this config
@@ -30,6 +31,11 @@ spec:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: observability
             app.kubernetes.io/name: alertmanager
+        # The 07:00 aiops morning summary posts with the same write-only
+        # token (Sibyl, 2026-10-13).
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: observability
+            app.kubernetes.io/name: aiops-morning-summary
         # gezinsdienst publishes parent alerts (topics gezin/gezin-test)
         # straight to the Service; it must not egress to envoy
         # (inc-2026-09-26-001). Its own egress rule lives in

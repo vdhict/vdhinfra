@@ -45,10 +45,12 @@ spec:
         replicas: 2
         useExistingSecret: true
         configSecret: alertmanager-secret
-        # ntfy URLs (secret topic) for the url_file receivers in
-        # alertmanager-secret; mounted at /etc/alertmanager/secrets/alertmanager-ntfy/
+        # Bearer token for the self-hosted ntfy (write-only on topic
+        # "alerts"), read by the ntfy-* receivers via credentials_file;
+        # mounted at /etc/alertmanager/secrets/ntfy-alertmanager-token/.
+        # Secret owned by the ntfy app (kubernetes/main/apps/ntfy/ntfy/clients).
         secrets:
-          - alertmanager-ntfy
+          - ntfy-alertmanager-token
         storage:
           volumeClaimTemplate:
             spec:

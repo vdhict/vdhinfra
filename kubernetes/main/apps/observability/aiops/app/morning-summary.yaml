@@ -9,9 +9,9 @@ metadata:
   namespace: observability
 spec:
   schedule: "0 7 * * *"
-  # Suspended 2026-10-13 (ntfy.sh critical-only mode, Mack AGR-078): it posts
-  # to ntfy.sh. Unsuspend with the self-hosted ntfy.
-  suspend: true
+  # Posts to the self-hosted ntfy (topic "alerts") since 2026-10-13; reads the
+  # night from Prometheus. Never ntfy.sh.
+  suspend: false
   timeZone: Europe/Amsterdam
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 1800
@@ -22,6 +22,10 @@ spec:
       backoffLimit: 2
       ttlSecondsAfterFinished: 172800
       template:
+        metadata:
+          labels:
+            # Allowed in by the ntfy CNP (kubernetes/main/apps/ntfy/network-policies).
+            app.kubernetes.io/name: aiops-morning-summary
         spec:
           serviceAccountName: aiops
           automountServiceAccountToken: false
@@ -30,6 +34,7 @@ spec:
             runAsNonRoot: true
             runAsUser: 1000
             runAsGroup: 1000
+            fsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
           containers:
@@ -38,16 +43,12 @@ spec:
               imagePullPolicy: IfNotPresent
               command: ["python3", "/scripts/morning_summary.py"]
               env:
-                - name: NTFY_SERVER
-                  valueFrom:
-                    secretKeyRef:
-                      name: alertmanager-ntfy
-                      key: ntfy-server
-                - name: NTFY_TOPIC
-                  valueFrom:
-                    secretKeyRef:
-                      name: alertmanager-ntfy
-                      key: alert-topic
+                - name: NTFY_URL
+                  value: http://ntfy.ntfy.svc.cluster.local/alerts
+                - name: NTFY_TOKEN_FILE
+                  value: /secrets/ntfy/token
+                - name: PROM_URL
+                  value: http://kube-prometheus-stack-prometheus.observability.svc:9090
               resources:
                 requests: {cpu: 5m, memory: 32Mi}
                 limits: {memory: 96Mi}
@@ -59,7 +60,14 @@ spec:
               volumeMounts:
                 - name: scripts
                   mountPath: /scripts
+                - name: ntfy-token
+                  mountPath: /secrets/ntfy
+                  readOnly: true
           volumes:
+            - name: ntfy-token
+              secret:
+                secretName: ntfy-alertmanager-token
+                defaultMode: 0440
             - name: scripts
               configMap:
                 name: aiops-scripts
