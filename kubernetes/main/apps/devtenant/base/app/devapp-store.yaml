@@ -1,0 +1,23 @@
+---
+# Namespaced store on vault passkey-point-dev-app for devtenant-build (chg-2026-10-12-005, TAP simulator backend B).
+# Uses the dev-app Connect token that devtenant-build already holds (devtenant-dev-write-tokens / dev-app, from the
+# build store). Needed for the simulator key ExternalSecret (devtenant-tapsim-key, item passkey-point-tapsim-dev),
+# which the tapsim grant, revoke and kill-switch Jobs mount read-only at /var/run/secrets/devtenant/tapsim.
+# Namespaced only: no ClusterSecretStore change.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/external-secrets.io/secretstore_v1.json
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata:
+  name: onepassword-devtenant-devapp
+  namespace: devtenant-build
+spec:
+  provider:
+    onepassword:
+      connectHost: http://onepassword-connect.security.svc.cluster.local
+      vaults:
+        passkey-point-dev-app: 1
+      auth:
+        secretRef:
+          connectTokenSecretRef:
+            name: devtenant-dev-write-tokens
+            key: dev-app
