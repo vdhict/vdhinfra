@@ -1,0 +1,61 @@
+---
+# envoy-forge: single-hostname entry point for the off-cluster Forgejo runner VM
+# (ADR 0009, docs/design/forgejo-runner.md s4, chg-2026-10-05-031, Argus C7).
+#
+# Why a separate Gateway: the runner sits on LAB-VLAN 60 and executes untrusted
+# workflow code. The one UDM allow (LAB 172.16.6.20 -> this IP tcp/443) must not
+# expose every envoy-internal hostname (HA, Grafana, Authelia, ...). This Gateway
+# serves forge.${SECRET_DOMAIN} only; any other SNI/Host gets no route (404).
+#
+# C7 invariants (do not relax without Argus):
+#   * own Envoy deployment: the EnvoyProxy `envoy` has no mergeGateways, so
+#     envoy-gateway renders a dedicated Deployment + LB Service for this Gateway;
+#   * exactly ONE listener: HTTPS :443, hostname forge.${SECRET_DOMAIN}; no :80;
+#   * allowedRoutes: HTTPRoute from namespace devtools only.
+#
+# Addressing: deliberately NO spec.addresses. On envoy-gateway v1.3.0 that field
+# is copied into Service.spec.externalIPs and collides with Cilium LB IPAM (see
+# status-keeper.yaml, 2026-05-02). The IP comes from the lbipam annotation only,
+# so the status-keeper does not need to know this Gateway.
+#
+# DNS: no LAN or public name for this IP. The runner VM pins
+# forge.${SECRET_DOMAIN} -> 172.16.2.249 itself (--add-host). Because the
+# forgejo HTTPRoute gains this Gateway as a second parent, external-dns-unifi
+# would otherwise publish a SECOND `forge` A record from this Gateway's status.
+# The unifi target annotation below pins this Gateway's contribution to the
+# envoy-internal IP, so the union stays {172.16.2.241}: no LAN record change.
+# The Cloudflare instances stay off via the route's `controller: none`.
+#
+# LB IP 172.16.2.249: unused in Git and live LB Services, ARP incomplete from
+# vdhmini01 on 2026-10-13 (no host). UniFi fixed-IP reservations to be checked
+# by udm-engineer before this lands.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: envoy-forge
+  annotations:
+    external-dns-unifi.bluejungle.net/target: ${ENVOY_INTERNAL_LB_IP}
+spec:
+  gatewayClassName: envoy
+  infrastructure:
+    annotations:
+      lbipam.cilium.io/ips: "172.16.2.249"
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: forge.${SECRET_DOMAIN}
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: devtools
+        kinds:
+          - group: gateway.networking.k8s.io
+            kind: HTTPRoute
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: ${SECRET_DOMAIN/./-}-production-tls
