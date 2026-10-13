@@ -37,6 +37,8 @@
 #     everything uid `runner` (qemu/VMs and the runner) sends: only tcp
 #     80/443 to public addresses, tcp 443 to envoy-forge, DNS via the host
 #     resolver; no RFC1918, no IPv6, no other host port.
+#   vdh-runner-nft-guard.timer (every 1 min) + ExecStartPre: the runner stops
+#     taking jobs as soon as table inet vdh_runner is missing or incomplete.
 #   idle-poweroff.timer (every 5 min): powers off ONLY a team-started boot
 #     (/run/team-boot with this boot_id), runner idle, seat0 idle >= 60 min,
 #     uptime >= 2 h. Never a boot Sander started.
@@ -46,7 +48,7 @@
 #     (or a hidden prompt), never written to disk. Revoke: luksKillSlot.
 #
 # Usage (as root):
-#   op read "op://home-infra/vdhwslin01-controller-unlock/luks_passphrase" | \
+#   <controller passphrase on stdin, see the bundle> | \
 #   sudo ./provision.sh --forge-url https://forge.<domain> \
 #     --envoy-forge-ip 172.16.2.249 --reg-token - \
 #     --controller-pubkey 'ssh-ed25519 AAAA... vdhwslin01-waker'
@@ -103,6 +105,7 @@ run() {
 write_file() {
   local dest="$1" mode="$2" owner="$3" content
   content="$(cat; echo x)"; content="${content%x}"
+  [[ ! -L "$dest" ]] || die "$dest is a symlink; refusing to write through it"
   if [[ -f "$dest" ]] && cmp -s <(printf '%s' "$content") "$dest" \
      && [[ "$(stat -c '%a %U:%G' "$dest")" == "${mode#0} ${owner}" ]]; then
     info "unchanged: $dest"; return 0
@@ -115,6 +118,19 @@ write_file() {
   printf '%s' "$content" > "$dest"
   chmod "$mode" "$dest"; chown "$owner" "$dest"
   info "wrote: $dest"
+}
+
+# F1 (Argus): root never creates, chowns, chmods or writes into a path that
+# `runner` controls. Runner-owned dirs are created BY runner; an existing one
+# is only checked (directory, not a symlink, owned by runner), never changed.
+runner_dir() { # runner_dir <path> <mode>
+  local p="$1" m="$2"
+  [[ ! -L "$p" ]] || die "$p is a symlink; refusing (F1)"
+  if [[ -e "$p" ]]; then
+    [[ -d "$p" && "$(stat -c %U "$p")" == runner ]] || die "$p exists but is not a runner-owned directory; refusing (F1)"
+    info "exists: $p"; return 0
+  fi
+  run runuser -u runner -- install -d -m "$m" "$p"
 }
 
 want_step() { local s; for s in "${STEPS[@]}"; do [[ "$s" == "$1" ]] && return 0; done; return 1; }
@@ -264,10 +280,16 @@ step_user() {
     if command -v sudo >/dev/null && sudo -l -U runner 2>/dev/null | grep -q 'may run'; then die "runner has sudo rights; refusing"; fi
     info "runner groups:${g}(no wheel/sudo)"
   fi
-  run install -d -o runner -g runner -m 0750 /var/lib/forgejo-runner
-  run install -d -o runner -g runner -m 0700 /var/lib/forgejo-runner/.ssh
-  run install -d -o runner -g runner -m 0750 /var/lib/forgejo-runner/vm
-  run install -d -o root -g root -m 0755 /var/lib/vdh-runner-golden /etc/vdh-runner /usr/local/libexec/vdh-runner /usr/local/lib/vdh-runner
+  # The home dir is created by useradd (fresh, as root, in root-owned /var/lib).
+  if (( ! DRY )); then
+    [[ ! -L /var/lib/forgejo-runner && -d /var/lib/forgejo-runner ]] || die "/var/lib/forgejo-runner missing or a symlink"
+    [[ "$(stat -c %U /var/lib/forgejo-runner)" == runner ]] || die "/var/lib/forgejo-runner is not owned by runner"
+    runner_dir /var/lib/forgejo-runner/.ssh 0700
+    runner_dir /var/lib/forgejo-runner/vm 0750
+  else
+    info "[dry-run] would create (as runner) /var/lib/forgejo-runner/.ssh and /vm"
+  fi
+  run install -d -o root -g root -m 0755 /var/lib/vdh-runner-golden /var/lib/vdh-runner-stage /etc/vdh-runner /usr/local/libexec/vdh-runner /usr/local/lib/vdh-runner
   run install -d -o root -g root -m 0700 /var/cache/vdh-runner
 }
 
@@ -329,12 +351,15 @@ step_payload() {
   payload_vm_golden_build | write_file /usr/local/libexec/vdh-runner/vm-golden-build 0755 root:root
   payload_idle_poweroff   | write_file /usr/local/libexec/vdh-runner/idle-poweroff 0755 root:root
   payload_teamboot_record | write_file /usr/local/libexec/vdh-runner/teamboot-record 0755 root:root
+  payload_nft_guard       | write_file /usr/local/libexec/vdh-runner/nft-guard 0755 root:root
   payload_teamboot_shell  | write_file /usr/local/lib/vdh-runner/teamboot-shell 0755 root:root
   payload_forgejo_runner_vm_service   | write_file /etc/systemd/system/forgejo-runner-vm.service 0644 root:root
   payload_idle_poweroff_service       | write_file /etc/systemd/system/idle-poweroff.service 0644 root:root
   payload_idle_poweroff_timer         | write_file /etc/systemd/system/idle-poweroff.timer 0644 root:root
   payload_vdh_teamboot_record_service | write_file /etc/systemd/system/vdh-teamboot-record.service 0644 root:root
   payload_vdh_runner_nft_service      | write_file /etc/systemd/system/vdh-runner-nft.service 0644 root:root
+  payload_vdh_runner_nft_guard_service | write_file /etc/systemd/system/vdh-runner-nft-guard.service 0644 root:root
+  payload_vdh_runner_nft_guard_timer   | write_file /etc/systemd/system/vdh-runner-nft-guard.timer 0644 root:root
   printf '127.0.0.1 localhost\n::1 localhost\n%s %s\n' "$ENVOY_FORGE_IP" "$FORGE_HOST" \
     | write_file /etc/vdh-runner/hosts 0644 root:root
   nsswitch_content | write_file /etc/vdh-runner/nsswitch.conf 0644 root:root
@@ -407,7 +432,7 @@ step_firewall() {
   run nft -c -f /etc/vdh-runner/vdh-runner.nft
   run systemctl enable vdh-runner-nft.service
   run systemctl restart vdh-runner-nft.service
-  nft list table inet vdh_runner >/dev/null || die "table inet vdh_runner not loaded"
+  /usr/local/libexec/vdh-runner/nft-guard check || die "table inet vdh_runner not loaded/complete"
   # Post-checks as uid runner (what a job VM gets).
   if runuser -u runner -- curl -s -o /dev/null -m 4 http://172.16.2.1/; then die "post-check: runner reached the LAN gateway; firewall not effective"; fi
   info "post-check ok: runner -> 172.16.2.1:80 blocked"
@@ -436,26 +461,37 @@ step_golden() {
       info "base image sha512 ok"
     fi
   fi
+  # The base image goes to a ROOT-owned staging dir that runner can only read.
+  run install -o root -g root -m 0444 "$base" /var/lib/vdh-runner-stage/base.qcow2
   local b=/var/lib/forgejo-runner/golden-build
-  run install -d -o runner -g runner -m 0750 "$b"
-  run install -o runner -g runner -m 0444 "$base" "$b/base.qcow2"
-  run runuser -u runner -- /usr/local/libexec/vdh-runner/vm-golden-build "$b/base.qcow2" "$b/golden.qcow2" "$b/known_hosts"
+  if (( DRY )); then info "[dry-run] would create (as runner) $b"; else runner_dir "$b" 0750; fi
+  run runuser -u runner -- /usr/local/libexec/vdh-runner/vm-golden-build /var/lib/vdh-runner-stage/base.qcow2 "$b/golden.qcow2" "$b/known_hosts"
+  if (( DRY )); then info "[dry-run] would promote golden + VM host key (read AS runner, written by root into root-owned paths)"; return 0; fi
+  # Promotion (F1): the source is opened BY runner (runuser cat), so a symlink
+  # there can only reach what runner may read anyway; root only writes into
+  # its own directory and renames within it.
   local was_active=0
-  systemctl is-active --quiet forgejo-runner-vm.service 2>/dev/null && was_active=1
-  (( was_active )) && run systemctl stop forgejo-runner-vm.service
-  run install -o root -g root -m 0444 "$b/golden.qcow2" "$golden"
-  run install -o root -g root -m 0644 "$b/known_hosts" /etc/vdh-runner/vm_known_hosts
-  if (( ! DRY )); then
-    sha256sum "$golden" | cut -d' ' -f1 | write_file "$pin" 0644 root:root
-    info "golden sha256: $(cat "$pin")"
-  fi
-  (( was_active )) && run systemctl start forgejo-runner-vm.service
+  if systemctl is-active --quiet forgejo-runner-vm.service 2>/dev/null; then was_active=1; run systemctl stop forgejo-runner-vm.service; fi
+  local tmp=/var/lib/vdh-runner-golden/.golden.qcow2.new
+  [[ ! -L "$tmp" ]] || die "$tmp is a symlink"
+  echo "+ runuser -u runner -- cat $b/golden.qcow2 > $tmp"
+  runuser -u runner -- cat "$b/golden.qcow2" > "$tmp"
+  chmod 0444 "$tmp"; chown root:root "$tmp"
+  run mv -f "$tmp" "$golden"
+  local kh; kh="$(runuser -u runner -- cat "$b/known_hosts")"
+  grep -qvE '^vdh-job-vm (ssh-ed25519|ecdsa-sha2-nistp256|ssh-rsa) [A-Za-z0-9+/=]+$' <<<"$kh" \
+    && die "VM known_hosts from the build has unexpected lines; refusing"
+  [[ -n "$kh" ]] || die "VM known_hosts from the build is empty"
+  printf '%s\n' "$kh" | write_file /etc/vdh-runner/vm_known_hosts 0644 root:root
+  sha256sum "$golden" | cut -d' ' -f1 | write_file "$pin" 0644 root:root
+  info "golden sha256: $(cat "$pin")"
+  if (( was_active )); then run systemctl start forgejo-runner-vm.service; fi
   return 0
 }
 
 step_register() {
   say "register runner ${RUNNER_NAME} (labels ${RUNNER_LABELS})"
-  if [[ -f /var/lib/forgejo-runner/.runner ]]; then info "already registered (.runner exists)"; return 0; fi
+  if [[ -e /var/lib/forgejo-runner/.runner || -L /var/lib/forgejo-runner/.runner ]]; then info "already registered (.runner exists)"; return 0; fi
   local token="$REG_TOKEN"
   if [[ "$token" == "-" ]]; then
     if (( DRY )); then token=dry-run-token
@@ -463,7 +499,7 @@ step_register() {
   fi
   [[ -n "$token" ]] || die "--reg-token required (use - for a hidden prompt)"
   local cmd=(systemd-run --quiet --wait --collect --pipe --uid=runner --gid=runner
-    -p WorkingDirectory=/var/lib/forgejo-runner
+    -p WorkingDirectory=/var/lib/forgejo-runner -p UMask=0077
     -p "BindReadOnlyPaths=/etc/vdh-runner/hosts:/etc/hosts /etc/vdh-runner/nsswitch.conf:/etc/nsswitch.conf"
     /usr/local/bin/forgejo-runner register --no-interactive --instance "$FORGE_URL"
     --name "$RUNNER_NAME" --labels "$RUNNER_LABELS" --token)
@@ -472,8 +508,10 @@ step_register() {
   if (( ! DRY )); then
     "${cmd[@]}" "$token"
     token=""; REG_TOKEN=""
-    [[ -s /var/lib/forgejo-runner/.runner ]] || die "registration did not write .runner"
-    chown runner:runner /var/lib/forgejo-runner/.runner; chmod 0600 /var/lib/forgejo-runner/.runner
+    local f=/var/lib/forgejo-runner/.runner
+    [[ -f "$f" && ! -L "$f" && -s "$f" ]] || die "registration did not write a regular .runner"
+    # Created by runner under UMask 0077; root only checks it (F1: no root chown/chmod).
+    [[ "$(stat -c '%a %U' "$f")" == "600 runner" ]] || die ".runner is not 0600 runner: $(stat -c '%a %U' "$f")"
     info ".runner written (0600 runner). Regenerate the registration token on the forge now (Argus R7)."
   fi
 }
@@ -483,6 +521,7 @@ step_services() {
   run systemctl daemon-reload
   run systemctl enable --now vdh-teamboot-record.service
   run systemctl enable --now idle-poweroff.timer
+  run systemctl enable --now vdh-runner-nft-guard.timer
   run systemctl enable forgejo-runner-vm.service
   run systemctl restart forgejo-runner-vm.service
   (( DRY )) && return 0
@@ -554,7 +593,7 @@ step_initramfs() {
 
 read_passphrase() {
   local p
-  if [[ -t 0 ]]; then read -r -s -p "Controller LUKS passphrase (1Password vdhwslin01-controller-unlock): " p; echo
+  if [[ -t 0 ]]; then read -r -s -p "Controller LUKS passphrase (paste; it is not shown): " p; echo
   else IFS= read -r p || true; fi
   [[ "$p" =~ ^[A-Za-z0-9]{40,}$ ]] || die "passphrase must be the generated alphanumeric value (40+ chars); nothing changed"
   PASS="$p"
@@ -590,7 +629,7 @@ step_report() {
   info "golden sha256: $(cat /etc/vdh-runner/golden.sha256 2>/dev/null || echo missing)"
   info "runner registered: $([[ -s /var/lib/forgejo-runner/.runner ]] && echo yes || echo no)"
   info "luks keyslot: $(cat /etc/vdh-runner/luks-keyslot 2>/dev/null || echo none)"
-  local u; for u in vdh-runner-nft.service forgejo-runner-vm.service idle-poweroff.timer vdh-teamboot-record.service; do
+  local u; for u in vdh-runner-nft.service vdh-runner-nft-guard.timer forgejo-runner-vm.service idle-poweroff.timer vdh-teamboot-record.service; do
     info "$u: $(systemctl is-enabled "$u" 2>/dev/null || true)/$(systemctl is-active "$u" 2>/dev/null || true)"
   done
   info "runner groups: $(id -nG runner 2>/dev/null || echo none)"
@@ -601,7 +640,7 @@ step_report() {
 uninstall() {
   say "uninstall (rollback of everything provision.sh added)"
   (( DRY )) || (( EUID == 0 )) || die "run with sudo"
-  run systemctl disable --now forgejo-runner-vm.service idle-poweroff.timer vdh-teamboot-record.service vdh-runner-nft.service || true
+  run systemctl disable --now vdh-runner-nft-guard.timer forgejo-runner-vm.service idle-poweroff.timer vdh-teamboot-record.service vdh-runner-nft.service || true
   local kf
   for kf in /etc/dropbear/root_key /etc/tinyssh/root_key; do
     if ! { [[ -f "$kf" ]] && grep -q " ${KEY_COMMENT}\$" "$kf"; }; then continue; fi
@@ -618,7 +657,9 @@ uninstall() {
   run rm -f -- /usr/local/libexec/vdh-runner/vm-dispatch /usr/local/libexec/vdh-runner/vm-golden-build \
     /usr/local/libexec/vdh-runner/idle-poweroff /usr/local/libexec/vdh-runner/teamboot-record \
     /usr/local/lib/vdh-runner/teamboot-shell /usr/local/bin/forgejo-runner \
-    /var/lib/vdh-runner-golden/golden.qcow2
+    /var/lib/vdh-runner-golden/golden.qcow2 /var/lib/vdh-runner-stage/base.qcow2 \
+    /usr/local/libexec/vdh-runner/nft-guard /etc/systemd/system/vdh-runner-nft-guard.service \
+    /etc/systemd/system/vdh-runner-nft-guard.timer
   local slot=""; [[ -f /etc/vdh-runner/luks-keyslot ]] && slot="$(cat /etc/vdh-runner/luks-keyslot)"
   [[ -d /etc/vdh-runner ]] && run find /etc/vdh-runner -mindepth 1 -delete
   [[ -d /var/cache/vdh-runner ]] && run find /var/cache/vdh-runner -mindepth 1 -delete

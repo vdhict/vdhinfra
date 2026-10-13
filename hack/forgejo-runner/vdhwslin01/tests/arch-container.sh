@@ -132,5 +132,53 @@ done
 echo "== F: idle-poweroff unit tests (Arch bash $BASH_VERSION)"
 if bash tests/idle-poweroff.test.sh > /root/f.out 2>&1; then ok "F $(tail -n1 /root/f.out)"; else bad "F"; cat /root/f.out; fi
 
+echo "== G: F1 (Argus) a re-run never lets runner steer root"
+ARGS_NOKEY=(--forge-url https://forge.example.invalid --envoy-forge-ip 172.16.2.249 --reg-token -)
+# G1: runner swaps its own subdir for a symlink to /etc -> the user step must refuse
+runuser -u runner -- mv /var/lib/forgejo-runner/vm /var/lib/forgejo-runner/vm.orig
+runuser -u runner -- ln -s /etc /var/lib/forgejo-runner/vm
+before="$(stat -c '%U:%G %a' /etc)"
+if bash ./provision.sh --steps user "${ARGS_NOKEY[@]}" > /root/g1.log 2>&1; then bad "G1 user step followed a runner symlink"; else ok "G1 user step refuses a runner-planted symlink"; fi
+grep -q 'is a symlink; refusing (F1)' /root/g1.log && ok "G1 says why" || bad "G1 message: $(tail -2 /root/g1.log)"
+[[ "$(stat -c '%U:%G %a' /etc)" == "$before" ]] && ok "G1 /etc untouched ($before)" || bad "G1 /etc changed"
+runuser -u runner -- rm /var/lib/forgejo-runner/vm
+runuser -u runner -- mv /var/lib/forgejo-runner/vm.orig /var/lib/forgejo-runner/vm
+# G2: .runner as a symlink to /etc/passwd -> register must not chown/chmod it
+runuser -u runner -- ln -s /etc/passwd /var/lib/forgejo-runner/.runner
+before="$(stat -c '%U:%G %a' /etc/passwd)"
+bash ./provision.sh --steps register "${ARGS_NOKEY[@]}" > /root/g2.log 2>&1 || true
+[[ "$(stat -c '%U:%G %a' /etc/passwd)" == "$before" ]] && ok "G2 /etc/passwd untouched via .runner symlink ($before)" || bad "G2 /etc/passwd changed"
+runuser -u runner -- rm /var/lib/forgejo-runner/.runner
+# G3: golden promotion with a stub build (no KVM here). The stub runs AS runner.
+[[ -c /dev/kvm ]] || mknod /dev/kvm c 10 232
+cp /usr/local/libexec/vdh-runner/vm-golden-build /root/vm-golden-build.real
+cat > /usr/local/libexec/vdh-runner/vm-golden-build <<'STUB'
+#!/bin/bash
+# test stub: behaviour chosen by /root/stub-mode (root-owned, readable)
+mode="$(cat /root/stub-mode)"; out="$2"; kh="$3"
+case "$mode" in
+  shadow)  ln -sfn /etc/shadow "$out"; echo "vdh-job-vm ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITEST" > "$kh" ;;
+  inject)  echo golden > "$out"; printf 'vdh-job-vm ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITEST\n@cert-authority * ssh-ed25519 AAAAEVIL\n' > "$kh" ;;
+  good)    rm -f "$out"; head -c 1048576 /dev/urandom > "$out"; echo "vdh-job-vm ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITEST" > "$kh" ;;
+esac
+STUB
+chmod 0755 /usr/local/libexec/vdh-runner/vm-golden-build
+echo shadow > /root/stub-mode; chmod 0755 /root; chmod 0644 /root/stub-mode   # runner reads the mode only
+if bash ./provision.sh --steps golden "${ARGS_NOKEY[@]}" > /root/g3a.log 2>&1; then bad "G3a promotion succeeded through a symlink to /etc/shadow"; else ok "G3a promotion via symlink -> /etc/shadow fails"; fi
+if [[ -e /var/lib/vdh-runner-golden/golden.qcow2 ]] && cmp -s /etc/shadow /var/lib/vdh-runner-golden/golden.qcow2; then bad "G3a shadow copied to golden"; else ok "G3a /etc/shadow not copied into a 0444 path"; fi
+echo inject > /root/stub-mode
+if bash ./provision.sh --steps golden "${ARGS_NOKEY[@]}" > /root/g3b.log 2>&1; then bad "G3b injected known_hosts line accepted"; else ok "G3b injected known_hosts line refused"; fi
+! grep -q 'cert-authority' /etc/vdh-runner/vm_known_hosts 2>/dev/null && ok "G3b no injected line in /etc/vdh-runner/vm_known_hosts" || bad "G3b injected line landed"
+echo good > /root/stub-mode
+if bash ./provision.sh --steps golden "${ARGS_NOKEY[@]}" > /root/g3c.log 2>&1; then ok "G3c benign build promotes"; else bad "G3c benign promotion failed"; tail -5 /root/g3c.log; fi
+[[ "$(stat -c '%U:%G %a' /var/lib/vdh-runner-golden/golden.qcow2)" == "root:root 444" ]] && ok "G3c golden root:root 0444" || bad "G3c golden perms"
+[[ "$(sha256sum /var/lib/vdh-runner-golden/golden.qcow2 | cut -d' ' -f1)" == "$(cat /etc/vdh-runner/golden.sha256)" ]] && ok "G3c pin matches the promoted image" || bad "G3c pin mismatch"
+[[ "$(stat -c '%U %a' /var/lib/vdh-runner-stage/base.qcow2)" == "root 444" ]] && ok "G3c base staged root-owned 0444 outside runner's tree" || bad "G3c stage perms"
+cp /root/vm-golden-build.real /usr/local/libexec/vdh-runner/vm-golden-build
+# G4: after everything, nothing outside runner's own trees is owned by runner
+stray="$(find / -xdev -user runner -not -path '/var/lib/forgejo-runner*' -not -path '/proc/*' 2>/dev/null | head -5)"
+[[ -z "$stray" ]] && ok "G4 no runner-owned path outside /var/lib/forgejo-runner" || bad "G4 runner owns: $stray"
+grep -q 'Running build hook' /root/real1.log && ok "G (B ran before G)" || true
+
 echo "RESULT: ${pass} passed, ${fail} failed"
 (( fail == 0 ))

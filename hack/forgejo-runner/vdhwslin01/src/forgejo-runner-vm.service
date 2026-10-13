@@ -10,6 +10,8 @@ User=runner
 Group=runner
 SupplementaryGroups=kvm
 WorkingDirectory=/var/lib/forgejo-runner
+# F3: never start without the egress firewall ("+" = runs as root).
+ExecStartPre=+/usr/local/libexec/vdh-runner/nft-guard check
 ExecStart=/usr/local/libexec/vdh-runner/vm-dispatch
 Restart=always
 RestartSec=30
@@ -22,6 +24,9 @@ RuntimeDirectoryMode=0755
 BindReadOnlyPaths=/etc/vdh-runner/hosts:/etc/hosts /etc/vdh-runner/nsswitch.conf:/etc/nsswitch.conf
 # Sandbox: no access to /home, /root, /run/user (Sander's session and files).
 ProtectHome=yes
+# F4: Sander's processes (and their command lines) are invisible.
+ProtectProc=invisible
+ProcSubset=pid
 ProtectSystem=strict
 ReadWritePaths=/var/lib/forgejo-runner
 PrivateTmp=yes

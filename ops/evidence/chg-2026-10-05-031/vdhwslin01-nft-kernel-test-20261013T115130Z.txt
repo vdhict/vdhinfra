@@ -1,0 +1,21 @@
+# provision.sh sha256 c62c2dad4127f6ed23567265134dd75092674d21328c58cfe54329ded90c49dd, kernel 6.18.18-talos
+ok   K1 nft -c accepts the final ruleset
+    10:		elements = { 172.16.2.81, 172.16.2.82, 172.16.2.83, 172.16.2.201, 172.16.3.108, 172.16.3.23, 192.168.12.6, 192.168.4.6 }
+ok   K1 ruleset loads (pod netns only)
+ok   K2 nft-guard check passes on the real nft listing
+ok   K3 runner block http://172.16.2.1/ (rc=28)
+ok   K3 runner block https://172.16.2.237:8123/ (rc=28)
+ok   K3 runner block http://127.0.0.1:22/ (rc=28)
+ok   K3 runner allow https://172.16.2.241/ (rc=0)
+ok   K3 runner allow https://1.1.1.1/ (rc=0)
+ok   K3 runner allow https://deb.debian.org/ (rc=0)
+ok   K3 runner block http://1.1.1.1:8080/ (rc=28)
+ok   K3 root allow http://172.16.2.1/ (rc=0)
+ok   K4 guard leaves the runner alone while the table is intact
+ok   K4 check fails when the final catch-all drop is deleted (handle 22)
+ok   K4 check passes again after reload
+ok   K4 check fails after 'nft flush chain ... output'
+nft-guard: table inet vdh_runner missing or incomplete: STOPPED forgejo-runner-vm (no jobs until the firewall is back)
+ok   K4 table deleted -> guard stops forgejo-runner-vm
+ok   K4 ExecStartPre check refuses a start without the table
+RESULT: 17 passed, 0 failed

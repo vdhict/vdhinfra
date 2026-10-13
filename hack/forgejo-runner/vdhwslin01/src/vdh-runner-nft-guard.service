@@ -1,0 +1,8 @@
+# vdhwslin01 (chg-2026-10-05-031, Argus F3): stop the runner if its egress firewall is gone.
+[Unit]
+Description=Stop the Forgejo runner when table inet vdh_runner is missing
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/vdh-runner/nft-guard guard
+SyslogIdentifier=nft-guard

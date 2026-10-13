@@ -55,6 +55,9 @@ uptime_s="$(cut -d. -f1 < "${ROOT}/proc/uptime" 2>/dev/null || true)"
 (( uptime_s >= UPTIME_MIN_S )) || keep "uptime ${uptime_s}s < ${UPTIME_MIN_S}s"
 
 # --- 3. runner idle ---------------------------------------------------------
+# /run/forgejo-runner is runner-owned: never follow a symlink there as root.
+[[ ! -L "${ROOT}/run/forgejo-runner/job-active" && ! -L "${ROOT}/run/forgejo-runner/last-job-end" ]] \
+  || keep "symlink in /run/forgejo-runner"
 [[ ! -e "${ROOT}/run/forgejo-runner/job-active" ]] || keep "runner has a job"
 last_end_file="${ROOT}/run/forgejo-runner/last-job-end"
 if [[ -f "$last_end_file" ]]; then

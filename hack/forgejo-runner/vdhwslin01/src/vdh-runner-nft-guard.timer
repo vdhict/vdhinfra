@@ -1,0 +1,11 @@
+# vdhwslin01 (chg-2026-10-05-031, Argus F3): check every minute.
+[Unit]
+Description=Every minute: runner egress firewall present, else stop the runner
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

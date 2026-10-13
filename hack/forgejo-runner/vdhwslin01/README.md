@@ -60,6 +60,28 @@ Sander accepted on 2026-10-13 that autologin opens his desktop on a team boot ("
 own office, low risk"). There is no screen-lock hook. `/run/team-boot` stays, because idle-poweroff needs
 it.
 
+## Runner egress guard (Argus F3)
+
+- `forgejo-runner-vm.service` has `ExecStartPre=+nft-guard check`, so it never starts without a complete
+  `table inet vdh_runner`.
+- `vdh-runner-nft-guard.timer` checks every minute and stops the service (and with it the job VM) when the
+  table is gone or flushed.
+- F4: the service also has `ProtectProc=invisible` and `ProcSubset=pid`.
+
+## Re-runs never let `runner` steer root (Argus F1)
+
+provision.sh never creates, chowns, chmods or writes into a path that `runner` controls:
+
+- Runner-owned dirs are created by `runner` itself. An existing one is only checked (a directory, not a
+  symlink, owned by runner).
+- The base image is staged in root-owned `/var/lib/vdh-runner-stage`.
+- The golden image and its VM host key are promoted by reading them AS runner (`runuser -u runner -- cat`)
+  into root-owned paths. The host key lines are validated.
+- `.runner` is created 0600 by runner under `UMask=0077`; root only checks it.
+- `write_file` refuses symlink destinations.
+- idle-poweroff never follows symlinks in `/run/forgejo-runner`.
+- `tests/arch-container.sh` section G attacks each of these paths.
+
 ## Team boot vs Sander boot (AGR-115)
 
 encryptssh makes `/bin/cryptsetup_shell` the login shell of the initramfs ssh server. The wrapper writes
@@ -89,16 +111,24 @@ unlock never passes through it. switch_root carries `/run` into the booted syste
 - **Never:** it does not touch a running box, and it does not unlock a prompt it did not cause.
 - **Credentials:**
   - Keys and passphrase are generated in-cluster by ESO generators (`refreshPolicy: CreatedOnce`).
-  - The passphrase and webhook id are pushed to 1Password `home-infra/vdhwslin01-controller-unlock`.
+  - There is no PushSecret (Argus F2): the 1Password Connect token stays read-only. The passphrase
+    reaches Sander as a stdin pipe from the Secret, and the webhook id reaches HA the same way. Neither
+    is ever printed.
   - The private key never leaves the namespace.
 
-**DR, forge token:** Secret `devtools/vdhwslin01-waker-forge` is a mypka-bot token with scope `read:repository`,
-created out-of-band and never printed:
+**Forge token (Argus F5), and DR:** Secret `devtools/vdhwslin01-waker-forge` holds a mypka-bot token
+with scope `read:repository`, restricted to the one repository `mypka-bot/passkey-point-dotnet`.
+Forgejo tokens cannot expire, so the waker enforces `forge_token_expires` from the
+`vdhwslin01-waker-config` ConfigMap itself:
+
+- 14 days before that date it logs a warning event;
+- after that date it stops querying the forge, so it fails closed.
+
+To rotate (and for DR), run the command below, then bump the date (+90 d) in
+`kubernetes/main/apps/devtools/vdhwslin01-waker/app/kustomization.yaml`:
 
 ```
-kubectl -n devtools exec deploy/forgejo -c forgejo -- forgejo admin user generate-access-token \
-  --username mypka-bot --token-name vdhwslin01-waker-<date> --scopes read:repository --raw \
-  | tr -d '\n' | kubectl -n devtools create secret generic vdhwslin01-waker-forge --from-file=token=/dev/stdin
+hack/forgejo-runner/vdhwslin01/mint-waker-forge-token.py --delete-old <previous-token-name>
 ```
 
 ## Tests
@@ -106,7 +136,11 @@ kubectl -n devtools exec deploy/forgejo -c forgejo -- forgejo admin user generat
 - Offline: `tests/run-all.sh`, which covers shellcheck, build sync, the idle-poweroff unit tests and the
   secret scan, plus `python3 tests/test_controller.py`.
 - Real Arch userland: `tests/arch-container.sh` in a throwaway Arch pod. It runs the dry-run, the real
-  container-capable steps, idempotency, the built initramfs, and the wrapper under the initramfs busybox.
+  container-capable steps, idempotency, the built initramfs, the wrapper under the initramfs busybox, and
+  the F1 attacks.
+- Real kernel nftables: `tests/nft-kernel.sh` in a throwaway pod with NET_ADMIN in its own netns. It
+  covers `nft -c`, the load, behaviour as runner vs root, and the guard against the real `nft list`
+  (delete or flush -> stop).
 - **Box-only (after Sander's run):**
   - R5: run two jobs back to back. The second sees no file from the first, and mount/lsblk/virtio are clean.
   - R6/C8: T2–T5 as a workflow job.

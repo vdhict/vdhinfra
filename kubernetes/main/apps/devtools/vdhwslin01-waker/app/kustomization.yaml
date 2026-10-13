@@ -17,6 +17,14 @@ configMapGenerator:
   - name: vdhwslin01-waker-known-hosts
     files:
       - known_hosts
+  # Forgejo tokens cannot expire; the waker enforces this date itself (Argus
+  # F5). Token: mypka-bot, read:repository, restricted to
+  # mypka-bot/passkey-point-dotnet, minted 2026-10-13 by
+  # hack/forgejo-runner/vdhwslin01/mint-waker-forge-token.py (+90 days).
+  # Rotate with that script, then bump this date.
+  - name: vdhwslin01-waker-config
+    literals:
+      - forge_token_expires=2027-01-11
 generatorOptions:
   labels:
     app.kubernetes.io/part-of: vdhwslin01-waker

@@ -72,6 +72,22 @@ def roll_day(state, now):
     return state
 
 
+def token_status(now, expires):
+    """Forgejo tokens have no expiry: the waker enforces one (Argus F5).
+    Returns (status, days_left); status ok | expiring (<=14 d) | expired.
+    A missing/garbled date counts as expired (fail closed)."""
+    try:
+        exp = datetime.strptime(expires or "", "%Y-%m-%d").date()
+    except ValueError:
+        return "expired", None
+    days = (exp - datetime.fromtimestamp(now, LOCAL_TZ).date()).days
+    if days < 0:
+        return "expired", days
+    if days <= 14:
+        return "expiring", days
+    return "ok", days
+
+
 def matching_jobs(jobs, labels):
     """Waiting jobs whose runs_on we can satisfy."""
     out = []
@@ -245,7 +261,16 @@ def main():
 
     box = box_state(ip, unlock_port)
     jobs = []
-    if box == "off" and state.get("pending_wake_ts") is None:
+    tok_status, tok_days = token_status(now, os.environ.get("FORGE_TOKEN_EXPIRES"))
+    if tok_status != "ok":
+        log("forge token %s (expires %s, %s days left): rotate with mint-waker-forge-token.py"
+            % (tok_status, os.environ.get("FORGE_TOKEN_EXPIRES"), tok_days))
+        if state.get("token_notified_day") != state.get("day"):
+            state["token_notified_day"] = state.get("day")
+            add_event(state, {"chg": CHG, "event": "vdhwslin01_forge_token_" + tok_status,
+                              "ts": datetime.fromtimestamp(now, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                              "expires": os.environ.get("FORGE_TOKEN_EXPIRES"), "days_left": tok_days})
+    if box == "off" and state.get("pending_wake_ts") is None and tok_status != "expired":
         if not os.path.exists(forge_token_file):
             log("no forge token mounted; cannot see queued jobs")
         else:

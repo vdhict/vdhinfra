@@ -4,9 +4,8 @@
 # so nobody can bypass it from the cluster.
 #
 # secrets.yaml needs:  vdhwslin01_wake_webhook_id: <webhook_id>
-#   value = field webhook_id of 1Password item vdhwslin01-controller-unlock
-#   (home-infra), or kubectl Secret devtools/vdhwslin01-waker-unlock key
-#   webhook_id. Copy it without printing it.
+#   value = key webhook_id of Secret devtools/vdhwslin01-waker-unlock (no
+#   1Password copy via Connect, Argus F2). Pipe it in without printing it.
 #
 # Test after install (R12): POST the webhook 5x in one day with the box OFF ->
 # the counter stops at 4 and the 5th call does not press the button

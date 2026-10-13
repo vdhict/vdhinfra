@@ -58,6 +58,9 @@ spec:
                 - {name: FORGE_API, value: "http://forgejo-http.devtools.svc.cluster.local:3000/api/v1"}
                 - {name: HA_URL, value: "http://home-assistant.home-automation.svc.cluster.local:8123"}
                 - {name: DAILY_CAP, value: "4"}
+                - name: FORGE_TOKEN_EXPIRES
+                  valueFrom:
+                    configMapKeyRef: {name: vdhwslin01-waker-config, key: forge_token_expires}
                 - {name: DRY_RUN, value: "false"}
                 - {name: NAMESPACE, value: devtools}
                 - {name: STATE_CONFIGMAP, value: vdhwslin01-waker-state}
@@ -88,7 +91,8 @@ spec:
               secret:
                 secretName: vdhwslin01-waker-unlock
                 defaultMode: 0440
-            # Forge API token (mypka-bot, scope read:repository). Created
+            # Forge API token (mypka-bot, read:repository, restricted to the
+            # one repo; expiry enforced via vdhwslin01-waker-config). Created
             # out-of-band, see hack/forgejo-runner/vdhwslin01/README.md.
             - name: forge
               secret:

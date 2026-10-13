@@ -61,6 +61,26 @@ class Decide(unittest.TestCase):
         self.assertEqual(self.d(st(pending_wake_ts=NOW - 400), box="up"), "complete")
 
 
+class TokenExpiry(unittest.TestCase):
+    def day(self, n):
+        from datetime import datetime, timedelta
+        return (datetime.fromtimestamp(NOW, c.LOCAL_TZ).date() + timedelta(days=n)).strftime("%Y-%m-%d")
+
+    def test_ok(self):
+        self.assertEqual(c.token_status(NOW, self.day(90)), ("ok", 90))
+
+    def test_expiring_within_14_days(self):
+        self.assertEqual(c.token_status(NOW, self.day(14))[0], "expiring")
+
+    def test_expires_on_the_day_after(self):
+        self.assertEqual(c.token_status(NOW, self.day(0))[0], "expiring")
+        self.assertEqual(c.token_status(NOW, self.day(-1))[0], "expired")
+
+    def test_missing_or_garbled_is_expired(self):
+        self.assertEqual(c.token_status(NOW, None)[0], "expired")
+        self.assertEqual(c.token_status(NOW, "soon")[0], "expired")
+
+
 class Helpers(unittest.TestCase):
     def test_roll_day_resets_count(self):
         s = c.roll_day({"day": "2000-01-01", "wakes_today": 4}, NOW)

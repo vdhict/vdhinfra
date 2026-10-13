@@ -1,0 +1,3 @@
+minted token id=31 name=vdhwslin01-waker-202610131147 scopes=['read:repository'] repositories=['mypka-bot/passkey-point-dotnet'] -> Secret devtools/vdhwslin01-waker-forge
+deleted old token vdhwslin01-waker-20261013: HTTP 204
+present: name=vdhwslin01-waker-202610131147 scopes=['read:repository'] repositories=['mypka-bot/passkey-point-dotnet']

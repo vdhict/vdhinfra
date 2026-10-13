@@ -1,0 +1,254 @@
+# provision.sh sha256 c62c2dad4127f6ed23567265134dd75092674d21328c58cfe54329ded90c49dd
+== setup: packages a real Omarchy-with-dropbear box has
+warning: cryptsetup-2.8.8-1 is up to date -- skipping
+warning: nftables-1:1.1.7-3 is up to date -- skipping
+warning: util-linux-2.42.4-1 is up to date -- skipping
+warning: shadow-4.20.0.arch1-1 is up to date -- skipping
+== A: full dry-run
+ok   A dry-run exits 0
+    | ==> preflight
+    | WARN: /dev/kvm missing (dry-run continues)
+    |     effective HOOKS: base udev keyboard modconf kms keymap consolefont block netconf dropbear encryptssh filesystems fsck 
+    |     initramfs ssh: dropbear, authorized keys: /etc/dropbear/root_key
+    | WARN: / is not on a /dev/mapper device (overlay) (dry-run continues)
+    |     steps: preflight packages user binary payload vmkey firewall golden register services initramfs keyslot report
+    |     inbound 22/2222 will be allowed only from: 172.16.2.81 172.16.2.82 172.16.2.83 172.16.2.201 172.16.3.108 172.16.3.23 192.168.12.6 192.168.4.6
+    |     ssh from any other machine will be dropped; add --allow-ssh-from <ip> for each one you use
+    | ==> packages
+    |     installed: nftables
+    |     installed: openssh
+    |     installed: curl
+    |     installed: cryptsetup
+    | [dry-run] pacman -S --needed --noconfirm qemu-base libisoburn
+    | ==> user runner
+    | [dry-run] useradd --system --user-group --home-dir /var/lib/forgejo-runner --create-home --shell /usr/bin/nologin runner
+    | [dry-run] usermod -aG kvm runner
+    | [dry-run] passwd -l runner
+    |     [dry-run] would create (as runner) /var/lib/forgejo-runner/.ssh and /vm
+    | [dry-run] install -d -o root -g root -m 0755 /var/lib/vdh-runner-golden /var/lib/vdh-runner-stage /etc/vdh-runner /usr/local/libexec/vdh-runner /usr/local/lib/vdh-runner
+    | [dry-run] install -d -o root -g root -m 0700 /var/cache/vdh-runner
+    | ==> forgejo-runner 13.2.0
+    | [dry-run] curl -fsSL --proto =https -o /var/cache/vdh-runner/forgejo-runner-13.2.0.download https://code.forgejo.org/forgejo/runner/releases/download/v13.2.0/forgejo-runner-13.2.0-linux-amd64
+    | [dry-run] install -o root -g root -m 0755 /var/cache/vdh-runner/forgejo-runner-13.2.0.download /usr/local/bin/forgejo-runner
+    | ==> scripts, units and config
+    |     [dry-run] would write /usr/local/libexec/vdh-runner/vm-dispatch (5205 bytes, mode 0755, root:root)
+    |     [dry-run] would write /usr/local/libexec/vdh-runner/vm-golden-build (4735 bytes, mode 0755, root:root)
+    |     [dry-run] would write /usr/local/libexec/vdh-runner/idle-poweroff (5075 bytes, mode 0755, root:root)
+    |     [dry-run] would write /usr/local/libexec/vdh-runner/teamboot-record (392 bytes, mode 0755, root:root)
+    |     [dry-run] would write /usr/local/libexec/vdh-runner/nft-guard (2169 bytes, mode 0755, root:root)
+    |     [dry-run] would write /usr/local/lib/vdh-runner/teamboot-shell (1439 bytes, mode 0755, root:root)
+    |     [dry-run] would write /etc/systemd/system/forgejo-runner-vm.service (1575 bytes, mode 0644, root:root)
+    |     [dry-run] would write /etc/systemd/system/idle-poweroff.service (276 bytes, mode 0644, root:root)
+    |     [dry-run] would write /etc/systemd/system/idle-poweroff.timer (233 bytes, mode 0644, root:root)
+    |     [dry-run] would write /etc/systemd/system/vdh-teamboot-record.service (329 bytes, mode 0644, root:root)
+    |     [dry-run] would write /etc/systemd/system/vdh-runner-nft.service (510 bytes, mode 0644, root:root)
+    |     [dry-run] would write /etc/systemd/system/vdh-runner-nft-guard.service (281 bytes, mode 0644, root:root)
+    |     [dry-run] would write /etc/systemd/system/vdh-runner-nft-guard.timer (245 bytes, mode 0644, root:root)
+    |     [dry-run] would write /etc/vdh-runner/hosts (69 bytes, mode 0644, root:root)
+    |     [dry-run] would write /etc/vdh-runner/nsswitch.conf (58 bytes, mode 0644, root:root)
+    |     [dry-run] would write /etc/vdh-runner/runner.yaml (762 bytes, mode 0644, root:root)
+    |     [dry-run] would write /etc/vdh-runner/vm.env (22 bytes, mode 0644, root:root)
+    | [dry-run] systemctl daemon-reload
+    | ==> host -> VM ssh key (private key stays on the host, 0600 runner)
+    | [dry-run] runuser -u runner -- ssh-keygen -q -t ed25519 -N '' -C runner@vdhwslin01-vm -f /var/lib/forgejo-runner/.ssh/vm_ed25519
+    | ==> nftables (table inet vdh_runner)
+    |     [dry-run] would write /etc/vdh-runner/vdh-runner.nft (1624 bytes, mode 0644, root:root)
+    |     [dry-run] would check, load and enable vdh-runner-nft.service
+    | ==> golden VM image
+    | [dry-run] curl -fsSL --proto =https -o /var/cache/vdh-runner/debian-13-genericcloud-amd64-20261001-2618.qcow2 https://cloud.debian.org/images/cloud/trixie/20261001-2618/debian-13-genericcloud-amd64-20261001-2618.qcow2
+    | [dry-run] install -o root -g root -m 0444 /var/cache/vdh-runner/debian-13-genericcloud-amd64-20261001-2618.qcow2 /var/lib/vdh-runner-stage/base.qcow2
+    |     [dry-run] would create (as runner) /var/lib/forgejo-runner/golden-build
+    | [dry-run] runuser -u runner -- /usr/local/libexec/vdh-runner/vm-golden-build /var/lib/vdh-runner-stage/base.qcow2 /var/lib/forgejo-runner/golden-build/golden.qcow2 /var/lib/forgejo-runner/golden-build/known_hosts
+    |     [dry-run] would promote golden + VM host key (read AS runner, written by root into root-owned paths)
+    | ==> register runner vdhwslin01 (labels docker:docker://node:24-bookworm,x86-linux:docker://node:24-bookworm)
+    | [dry-run] systemd-run --quiet --wait --collect --pipe --uid=runner --gid=runner -p WorkingDirectory=/var/lib/forgejo-runner -p UMask=0077 -p BindReadOnlyPaths=/etc/vdh-runner/hosts:/etc/hosts\ /etc/vdh-runner/nsswitch.conf:/etc/nsswitch.conf /usr/local/bin/forgejo-runner register --no-interactive --instance https://forge.example.invalid --name vdhwslin01 --labels docker:docker://node:24-bookworm\,x86-linux:docker://node:24-bookworm --token <token redacted>
+    | ==> services
+    | [dry-run] systemctl daemon-reload
+    | [dry-run] systemctl enable --now vdh-teamboot-record.service
+    | [dry-run] systemctl enable --now idle-poweroff.timer
+    | [dry-run] systemctl enable --now vdh-runner-nft-guard.timer
+    | [dry-run] systemctl enable forgejo-runner-vm.service
+    | [dry-run] systemctl restart forgejo-runner-vm.service
+    | ==> initramfs: controller unlock key + team-boot marker
+    | [dry-run] cp -a /etc/dropbear/root_key /etc/dropbear/root_key.vdh-orig
+    |     [dry-run] would write /etc/dropbear/root_key (257 bytes, mode 0600, root:root)
+    |     [dry-run] would write /etc/initcpio/install/vdh-teamboot (1215 bytes, mode 0644, root:root)
+    |     [dry-run] would write /etc/mkinitcpio.conf.d/zz-vdh-teamboot.conf (99 bytes, mode 0644, root:root)
+    | [dry-run] mkinitcpio -P
+    |     controller known_hosts lines (PUBLIC host keys of the dropbear unlock server):
+    | ==> LUKS: separate controller keyslot on 
+    |     [dry-run] would read the passphrase from stdin, test it, and cryptsetup luksAddKey  <(passphrase) if absent
+    | ==> SEND THIS BACK to Atlas (no secrets in it)
+    |     provision.sh sha256: c62c2dad4127f6ed23567265134dd75092674d21328c58cfe54329ded90c49dd
+    |     forgejo-runner: missing
+    |     golden sha256: missing
+    |     runner registered: no
+    |     luks keyslot: none
+    |     vdh-runner-nft.service: /
+    |     vdh-runner-nft-guard.timer: /
+    |     forgejo-runner-vm.service: /
+    |     idle-poweroff.timer: /
+    |     vdh-teamboot-record.service: /
+    |     runner groups: none
+    |     controller known_hosts lines (PUBLIC host keys of the dropbear unlock server):
+    | ==> done (dry-run: nothing changed)
+ok   A HOOKS detected
+ok   A dropbear detected
+ok   A registration token never printed
+ok   A dry-run changed nothing
+ok   A dry-run created no user
+== B: real steps (container-capable subset)
+ok   B real run exits 0
+    | ==> preflight
+    |     effective HOOKS: base udev keyboard modconf kms keymap consolefont block netconf dropbear encryptssh filesystems fsck 
+    |     initramfs ssh: dropbear, authorized keys: /etc/dropbear/root_key
+    |     steps: preflight packages user binary payload vmkey initramfs
+    |     inbound 22/2222 will be allowed only from: 172.16.2.81 172.16.2.82 172.16.2.83 172.16.2.201 172.16.3.108 172.16.3.23 192.168.12.6 192.168.4.6
+    |     ssh from any other machine will be dropped; add --allow-ssh-from <ip> for each one you use
+    | ==> packages
+    |     installed: nftables
+    |     installed: openssh
+    |     installed: curl
+    |     installed: cryptsetup
+    | resolving dependencies...
+    | looking for conflicting packages...
+    | 
+    | Package (37)                    New Version  Net Change  Download Size
+    | 
+    | extra/capstone                  5.0.9-1       14.54 MiB       0.95 MiB
+    | core/db5.3                      5.3.28-7       6.48 MiB       1.26 MiB
+    | extra/dtc                       1:1.8.1-1      0.67 MiB       0.16 MiB
+    | extra/edk2-ovmf                 202608-1      15.57 MiB       5.20 MiB
+    | extra/fuse-common               3.18.3-1       0.00 MiB       0.00 MiB
+    | extra/fuse3                     3.18.3-1       0.56 MiB       0.14 MiB
+    | extra/hicolor-icon-theme        0.18-1         0.05 MiB       0.01 MiB
+    | extra/iniparser                 4.3.2-1        0.06 MiB       0.02 MiB
+    | core/libaio                     0.3.113-5      0.04 MiB       0.02 MiB
+    | extra/libburn                   1.5.8-1        0.68 MiB       0.27 MiB
+    | extra/libcbor                   0.14.0-1       0.18 MiB       0.05 MiB
+    | extra/libisofs                  1.5.8.2-1      0.85 MiB       0.29 MiB
+    | extra/libjpeg-turbo             3.2.0-2        2.65 MiB       0.59 MiB
+    | extra/libpng                    1.6.59-1       0.58 MiB       0.25 MiB
+    | extra/libslirp                  4.9.5-1        0.16 MiB       0.07 MiB
+    | extra/libtraceevent             1:1.9.0-1      0.42 MiB       0.17 MiB
+    | extra/libtracefs                1.8.3-1        0.38 MiB       0.22 MiB
+    | extra/liburing                  2.15-1         0.47 MiB       0.26 MiB
+    | extra/libxdp                    1.6.3-2        0.47 MiB       0.10 MiB
+    | extra/libyaml                   0.2.5-3        0.18 MiB       0.06 MiB
+    | core/lzo                        2.10-5         0.38 MiB       0.09 MiB
+    | extra/ndctl                     85-1           0.99 MiB       0.39 MiB
+    | extra/numactl                   2.0.19-1       0.24 MiB       0.08 MiB
+    | core/perl                       5.42.3-1      70.34 MiB      20.49 MiB
+    | extra/pixman                    0.46.4-1       0.74 MiB       0.28 MiB
+    | extra/qemu-common               11.1.2-1       4.52 MiB       1.90 MiB
+    | extra/qemu-img                  11.1.2-1      10.75 MiB       2.21 MiB
+    | extra/qemu-system-x86           11.1.2-1      54.98 MiB       6.49 MiB
+    | extra/qemu-system-x86-firmware  11.1.2-1       0.12 MiB       0.02 MiB
+    | extra/rdma-core                 65.0-1        10.18 MiB       2.72 MiB
+    | extra/seabios                   1.17.0-2       1.04 MiB       0.17 MiB
+    | extra/snappy                    1.3.1-1        0.11 MiB       0.04 MiB
+    | extra/vde2                      2.3.3-10       0.70 MiB       0.21 MiB
+    | extra/virtiofsd                 1.14.0-1       2.40 MiB       0.90 MiB
+    | extra/wolfssl                   5.9.4-1        5.70 MiB       1.21 MiB
+    | extra/libisoburn                1.5.8.2-1      1.86 MiB       0.83 MiB
+    | extra/qemu-base                 11.1.2-1       0.05 MiB       0.01 MiB
+    | 
+    | Total Download Size:    48.12 MiB
+    | Total Installed Size:  210.08 MiB
+    | 
+    | :: Proceed with installation? [Y/n] 
+    | :: Retrieving packages...
+    |  perl-5.42.3-1-x86_64 downloading...
+ok   B runner: system user, nologin, locked
+ok   B runner: in kvm, not wheel
+ok   B forgejo-runner binary sha256 pinned
+ok   B forgejo-runner reports 13.2.0
+ok   B runner.yaml: docker_host = VM socket, cache off, no privileged
+ok   B hosts override maps forge to envoy-forge
+ok   B VM key 0600 runner, private key never printed
+ok   B controller key appended once with restrictions
+ok   B Sander's key untouched
+ok   B original root_key kept
+ok   B hook drop-in sorts after omarchy_hooks.conf
+ok   B every image got encryptssh AND vdh-teamboot
+ok   B dropbear host keys printed as known_hosts lines
+== B2: idempotent re-run
+ok   B2 re-run exits 0
+ok   B2 key still present exactly once
+ok   B2 binary not re-downloaded
+ok   B2 files unchanged
+ok   B2 user step idempotent
+== C: inspect the built initramfs
+ok   C /bin/cryptsetup_shell is the vdh wrapper
+ok   C real encryptssh shell kept as .vdh-real
+ok   C passwd: root login shell is the wrapper path
+ok   C controller key in initramfs authorized_keys
+== D: wrapper behaviour in the initramfs busybox (chroot)
+ok   D1 ssh unlock writes /run/team-boot
+ok   D1 marker carries this boot_id
+ok   D1 marker world-readable, root-owned
+ok   D2 already-open disk -> no marker
+ok   D3 failed unlock -> no marker
+ok   D3 wrapper passes the real exit code through
+== E: nftables ruleset
+    | #!/usr/sbin/nft -f
+    | # vdhwslin01 runner firewall (chg-2026-10-05-031). Written by provision.sh.
+    | # Own table on top of the host's firewall; it never flushes the ruleset.
+    | # A drop here is final; an accept here only ends THIS table's verdict.
+    | table inet vdh_runner
+    | delete table inet vdh_runner
+    | table inet vdh_runner {
+    | 	set ssh_allow_v4 {
+    | 		type ipv4_addr
+    | 		elements = { 172.16.2.81, 172.16.2.82, 172.16.2.83, 172.16.2.201, 172.16.3.108, 172.16.3.23, 192.168.12.6, 192.168.4.6 }
+    | 	}
+    | 	set nonpublic_v4 {
+    | 		type ipv4_addr
+    | 		flags interval
+    | 		elements = { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16,
+    | 			     172.16.0.0/12, 192.0.0.0/24, 192.168.0.0/16, 198.18.0.0/15,
+    | 			     224.0.0.0/4, 240.0.0.0/4 }
+    | 	}
+    | 	chain input {
+    | 		type filter hook input priority filter - 10; policy accept;
+    | 		iifname "lo" accept
+    | 		tcp dport { 22, 2222 } ip saddr @ssh_allow_v4 accept
+    | 		tcp dport { 22, 2222 } counter drop comment "22/2222 only from cluster nodes, Mini, Sander's MacBook"
+    | 	}
+    | 	chain output {
+    | 		type filter hook output priority filter - 10; policy accept;
+    | 		meta skuid != "runner" accept
+    | 		ct state established,related accept
+    | 		oifname "lo" ip daddr 127.0.0.53 meta l4proto { tcp, udp } th dport 53 accept comment "host resolver stub"
+    | 		oifname "lo" ip daddr 127.0.0.1 tcp dport { 40022, 40023 } accept comment "host -> job VM ssh (qemu hostfwd)"
+    | 		oifname "lo" counter drop comment "runner/VM -> any other host service"
+    | 		meta nfproto ipv6 counter drop
+    | 		ip daddr 172.16.2.249 tcp dport 443 accept comment "envoy-forge"
+    | 		ip daddr @nonpublic_v4 counter drop comment "no RFC1918/LAN"
+    | 		tcp dport { 80, 443 } accept
+    | 		counter drop
+    | 	}
+    | }
+ok   E ruleset never flushes the host ruleset
+ok   E ssh allow-list = nodes + Mini + MacBook
+ok   E non-stub DNS rule renders
+SKIP E nft -c: no user namespaces in this container (provision.sh runs nft -c before loading on the box)
+SKIP E nft -c: no user namespaces in this container (provision.sh runs nft -c before loading on the box)
+== F: idle-poweroff unit tests (Arch bash 5.3.20(1)-release)
+ok   F idle-poweroff tests: 18 passed, 0 failed
+== G: F1 (Argus) a re-run never lets runner steer root
+ok   G1 user step refuses a runner-planted symlink
+ok   G1 says why
+ok   G1 /etc untouched (root:root 755)
+ok   G2 /etc/passwd untouched via .runner symlink (root:root 644)
+ok   G3a promotion via symlink -> /etc/shadow fails
+ok   G3a /etc/shadow not copied into a 0444 path
+ok   G3b injected known_hosts line refused
+ok   G3b no injected line in /etc/vdh-runner/vm_known_hosts
+ok   G3c benign build promotes
+ok   G3c golden root:root 0444
+ok   G3c pin matches the promoted image
+ok   G3c base staged root-owned 0444 outside runner's tree
+ok   G4 no runner-owned path outside /var/lib/forgejo-runner
+ok   G (B ran before G)
+RESULT: 53 passed, 0 failed

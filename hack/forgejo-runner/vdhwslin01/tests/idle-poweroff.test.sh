@@ -118,6 +118,9 @@ expect "unreadable uptime -> keep" "$d" KEEP "cannot read uptime"
 d="$(new_case bad-last-end)"; echo "soon" > "$d/run/forgejo-runner/last-job-end"
 expect "unreadable last-job-end -> keep" "$d" KEEP "unreadable last-job-end"
 
+d="$(new_case symlink-job)"; ln -s /etc/shadow "$d/run/forgejo-runner/job-active"
+expect "symlink in runner-owned /run/forgejo-runner -> keep" "$d" KEEP "symlink in /run/forgejo-runner"
+
 # The test seam must be inert unless VDH_IDLE_TEST=1: with the variables set but the
 # switch off, the script must read the real (absent on macOS) /run/team-boot -> KEEP.
 d="$(new_case seam-off)"
