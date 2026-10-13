@@ -1,0 +1,41 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./ocirepository.yaml
+  - ./secret.sops.yaml
+  - ./ntfy-pvc.yaml
+  - ./helmrelease.yaml
+  - ./httproutefilter.yaml
+  - ./httproute.yaml
+# Backup of the ntfy PVC (user.db + message cache): the shared component,
+# s3://volsync/ntfy (restic AES-256). Variables come from postBuild in
+# ../install.yaml. Low value (users/ACL/tokens are re-provisioned from the
+# Secret on every start; the cache holds 72 h of alerts), kept for the
+# estate pattern.
+components:
+  - ../../../../components/volsync
+patches:
+  # The ntfy namespace ENFORCES PSA restricted: add runAsNonRoot + seccomp to
+  # the mover (vikunja pattern; VolSync already sets drop ALL, no privilege
+  # escalation, read-only root on the mover container). moverPodLabels are
+  # selected by network-policies/app/volsync-mover.yaml (MinIO + DNS only).
+  # :50 staggers it from the :00 and :40 movers.
+  - target:
+      group: volsync.backube
+      version: v1alpha1
+      kind: ReplicationSource
+    patch: |-
+      - op: replace
+        path: /spec/trigger/schedule
+        value: "50 * * * *"
+      - op: add
+        path: /spec/restic/moverSecurityContext/runAsNonRoot
+        value: true
+      - op: add
+        path: /spec/restic/moverSecurityContext/seccompProfile
+        value: {type: RuntimeDefault}
+      - op: add
+        path: /spec/restic/moverPodLabels
+        value: {ntfy/role: volsync-mover}

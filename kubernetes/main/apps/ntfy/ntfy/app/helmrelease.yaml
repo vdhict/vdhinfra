@@ -1,0 +1,152 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+#
+# ntfy (chg-2026-10-13-005). Vendor image binwiederhier/ntfy, pinned by
+# digest. Private instance per docs.ntfy.sh/config "Example: Private
+# instance": auth-default-access deny-all, users + tokens provisioned
+# declaratively from the SOPS Secret ntfy-auth (NTFY_AUTH_USERS,
+# NTFY_AUTH_TOKENS), ACL below (not secret).
+#
+# Topic `alerts`:
+#   alertmanager  write-only   (in-cluster, Secret ntfy-alertmanager-token in observability)
+#   pka-alert     write-only   (MacBook + Mini, LAN/WireGuard via envoy-internal)
+#   owner-phone   read-only    (the ntfy Android app)
+# Nobody else, and no anonymous read or write.
+#
+# Deliberately OFF:
+#   * upstream-base-url (iOS poll requests to ntfy.sh): the owner's phone is
+#     Android, which keeps its own connection to this server; no Firebase.
+#     Unset = zero calls to ntfy.sh (server/server.go: forwardPollRequest only
+#     runs when UpstreamBaseURL != ""), and the CNP denies all egress anyway.
+#   * attachments (no attachment-cache-dir), signup, login, reservations,
+#     the web app (web-root disable), e-mail, web push.
+#   * the account API: login=false does NOT close it; Envoy returns 404 for
+#     /v1/account* (httproutefilter.yaml, Argus F1).
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ntfy
+spec:
+  interval: 30m
+  maxHistory: 2
+  chartRef:
+    kind: OCIRepository
+    name: ntfy
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  values:
+    defaultPodOptions:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 2000
+        runAsGroup: 2000
+        fsGroup: 2000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: {type: RuntimeDefault}
+
+    controllers:
+      ntfy:
+        type: deployment
+        replicas: 1
+        # RWO volume + SQLite: never two pods on the same files.
+        strategy: Recreate
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: docker.io/binwiederhier/ntfy
+              tag: v2.30.0@sha256:8563a39da2f5a47360618b2ab9200239c76b37f4145f6d627d9ab4368abd23f0
+            args: ["serve"]
+            env:
+              TZ: Europe/Amsterdam
+              NTFY_BASE_URL: https://ntfy.${SECRET_DOMAIN}
+              NTFY_LISTEN_HTTP: ":8080"
+              NTFY_METRICS_LISTEN_HTTP: ":9090"
+              NTFY_LOG_FORMAT: json
+              NTFY_LOG_LEVEL: info
+              # Envoy sets X-Forwarded-For. Authenticated requests are rate
+              # limited per user, anonymous ones per (SNATed) client IP.
+              NTFY_BEHIND_PROXY: "true"
+              NTFY_CACHE_FILE: /var/lib/ntfy/cache.db
+              NTFY_CACHE_DURATION: 72h
+              NTFY_AUTH_FILE: /var/lib/ntfy/user.db
+              NTFY_AUTH_DEFAULT_ACCESS: deny-all
+              NTFY_AUTH_ACCESS: "alertmanager:alerts:wo,pka-alert:alerts:wo,owner-phone:alerts:ro"
+              NTFY_ENABLE_SIGNUP: "false"
+              NTFY_ENABLE_LOGIN: "false"
+              NTFY_ENABLE_RESERVATIONS: "false"
+              NTFY_WEB_ROOT: disable
+              # Visitor limits are per SOURCE IP, not per user (Argus F3):
+              # server/visitor.go visitorID keys on the user only when the
+              # user has a tier, and we define none. Behind Envoy the source
+              # is X-Forwarded-For = the Cilium-SNATed node IP, so LAN
+              # senders on the same node SHARE one bucket. Alertmanager
+              # (direct to the Service) is keyed on its pod IP. Well above
+              # the alert volume (Alertmanager repeat 12-24 h) either way.
+              NTFY_VISITOR_MESSAGE_DAILY_LIMIT: "500"
+              NTFY_VISITOR_SUBSCRIPTION_LIMIT: "10"
+              NTFY_GLOBAL_TOPIC_LIMIT: "50"
+            envFrom:
+              - secretRef:
+                  name: ntfy-auth
+            probes:
+              liveness: &probe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /v1/health
+                    port: &port 8080
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness: *probe
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 2000
+              runAsGroup: 2000
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: {drop: ["ALL"]}
+            resources:
+              requests: {cpu: 10m, memory: 32Mi}
+              limits: {memory: 256Mi}
+
+    service:
+      app:
+        controller: ntfy
+        ports:
+          http:
+            port: 80
+            targetPort: *port
+          metrics:
+            port: 9090
+
+    serviceMonitor:
+      app:
+        serviceName: ntfy
+        endpoints:
+          - port: metrics
+            scheme: http
+            path: /metrics
+            interval: 1m
+            scrapeTimeout: 10s
+
+    persistence:
+      data:
+        existingClaim: ntfy
+        globalMounts:
+          - path: /var/lib/ntfy
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp

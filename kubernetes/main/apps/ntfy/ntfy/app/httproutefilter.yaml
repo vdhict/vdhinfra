@@ -1,0 +1,24 @@
+---
+# Argus F1 (chg-2026-10-13-005): enable-login=false does NOT close the
+# account API. ntfy v2.30.0 server/server.go:676 routes POST /v1/account/token
+# through ensureUser only, so ANY valid token (even a write-only sender's)
+# can mint an extra token with a caller-chosen expiry. Startup provisioning
+# only removes PROVISIONED tokens, so a minted one survives the SOPS sync.
+#
+# Nothing we run needs /v1/account (senders publish, the phone subscribes
+# with a Bearer header), so Envoy answers 404 for the whole prefix and the
+# request never reaches ntfy. The in-cluster Alertmanager path bypasses Envoy;
+# that residual is covered by hack/ntfy/prune-tokens.sh (deletes every token
+# not provisioned from the Secret).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/gateway.envoyproxy.io/httproutefilter_v1alpha1.json
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: HTTPRouteFilter
+metadata:
+  name: ntfy-account-404
+spec:
+  directResponse:
+    contentType: text/plain
+    statusCode: 404
+    body:
+      type: Inline
+      inline: "not found\n"

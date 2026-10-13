@@ -1,0 +1,58 @@
+---
+# https://ntfy.${SECRET_DOMAIN} -> envoy-internal (172.16.2.241:443, wildcard
+# cert) -> ntfy:80 -> pod 8080. LAN (and WireGuard) only.
+#
+# NOT envoy-external: the public Cloudflare tunnel was decommissioned in
+# chg-2026-10-05-020 (owner: vendor route first). A public path for the
+# phone off-LAN is an open decision, not part of this change.
+#
+# DNS, same as courseware/vikunja/forgejo:
+#   * external-dns.alpha.kubernetes.io/controller: none keeps BOTH
+#     Cloudflare instances off (no public CNAME/TXT).
+#   * external-dns-unifi does not read that key, so it writes the LAN record
+#     ntfy.${SECRET_DOMAIN} A 172.16.2.241 on the UDM and removes it on
+#     revert. Do NOT also hand-write a static A record.
+#
+# timeouts.request 0s: subscriptions are long-lived HTTP streams (JSON/SSE)
+# or WebSockets. Envoy's default 15 s route timeout would cut every stream;
+# 0s disables it (Gateway API: zero duration disables the timeout). ntfy
+# sends a keepalive every 45 s, inside Envoy's stream idle timeout.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/gateway.networking.k8s.io/httproute_v1.json
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ntfy
+  annotations:
+    external-dns.alpha.kubernetes.io/controller: none
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: envoy-internal
+      namespace: network
+      sectionName: https
+  hostnames:
+    - ntfy.${SECRET_DOMAIN}
+  rules:
+    # Argus F1: the account API (token minting, password change, ...) is
+    # answered by Envoy with 404 and never reaches ntfy. PathPrefix matches
+    # per path element: /v1/account, /v1/account/token, /v1/account/... .
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /v1/account
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: gateway.envoyproxy.io
+            kind: HTTPRouteFilter
+            name: ntfy-account-404
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: ntfy
+          port: 80
+      timeouts:
+        request: 0s

@@ -1,0 +1,13 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+#
+# CiliumNetworkPolicy (estate pattern, see family/ and vikunja/).
+# The ntfy pod gets NO egress at all: with upstream-base-url unset it never
+# dials out (no ntfy.sh poll requests, no Firebase, no SMTP), and the policy
+# makes that structural rather than a config promise.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./default-deny.yaml
+  - ./ntfy.yaml
+  - ./volsync-mover.yaml

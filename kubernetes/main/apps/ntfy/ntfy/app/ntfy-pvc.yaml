@@ -1,0 +1,22 @@
+---
+# ntfy state: user.db (auth; users, ACL and tokens are re-provisioned from
+# the ntfy-auth Secret on every start) and cache.db (72 h message cache, so a
+# phone that was offline catches up with `since=`). Attachments are OFF, so
+# nothing else is written.
+#
+# prune disabled: taking this file out of Git must NOT delete the volume.
+# Rollback deletes the PVC BY HAND as a recorded step.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/v1/persistentvolumeclaim.json
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ntfy
+  labels:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: rook-ceph-block
+  resources:
+    requests:
+      storage: 1Gi

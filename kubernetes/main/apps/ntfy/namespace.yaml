@@ -1,0 +1,22 @@
+---
+# ntfy (chg-2026-10-13-005): self-hosted push server for alert pushes to the
+# owner's phone.
+#
+# Pod Security Admission `restricted` is ENFORCED. The ntfy container runs
+# non-root (uid 2000), read-only root FS, drop ALL, seccomp RuntimeDefault, no
+# ServiceAccount token. The VolSync mover gets runAsNonRoot + seccomp through
+# the patch in ntfy/app/kustomization.yaml (vikunja pattern).
+#
+# prune stays disabled (estate pattern) so a directory removal never races
+# the Kustomizations inside it; rollback deletes the namespace BY HAND as a
+# recorded step.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ntfy
+  labels:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

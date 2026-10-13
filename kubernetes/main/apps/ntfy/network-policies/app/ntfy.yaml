@@ -1,0 +1,40 @@
+---
+# ntfy server pod.
+#
+# In:
+#   * envoy-internal (the ntfy.${SECRET_DOMAIN} route: LAN + WireGuard
+#     senders, and the phone app) on 8080;
+#   * Alertmanager pods (in-cluster publish to the Service, no Envoy hop)
+#     on 8080;
+#   * Prometheus on the metrics port 9090.
+# Out: nothing. Not even DNS: ntfy resolves no names with this config
+# (upstream-base-url, Firebase, SMTP and web push are all unset). If iOS
+# instant delivery is ever enabled (upstream-base-url), this policy needs an
+# explicit toFQDNs ntfy.sh:443 rule plus DNS for that one name - and every
+# message then costs one ntfy.sh poll request from the shared public IP.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ntfy
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: ntfy
+      app.kubernetes.io/controller: ntfy
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            gateway.envoyproxy.io/owning-gateway-name: envoy-internal
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: observability
+            app.kubernetes.io/name: alertmanager
+      toPorts:
+        - ports: [{port: "8080", protocol: TCP}]
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: observability
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports: [{port: "9090", protocol: TCP}]

@@ -1,0 +1,64 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# ntfy (chg-2026-10-13-005): self-hosted push server, LAN + WireGuard only.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app ntfy
+  namespace: flux-system
+spec:
+  targetNamespace: ntfy
+  commonMetadata:
+    labels:
+      app.kubernetes.io/part-of: ntfy
+  dependsOn:
+    # The CNPs must exist before any ntfy pod, on every path.
+    - name: ntfy-network-policies
+    - name: rook-ceph-cluster
+    - name: volsync
+    - name: external-secrets-stores   # components/volsync ExternalSecret
+  path: ./kubernetes/main/apps/ntfy/ntfy/app
+  postBuild:
+    substitute:
+      # components/volsync
+      APP: *app
+      VOLSYNC_CLAIM: ntfy
+      VOLSYNC_CAPACITY: 1Gi
+      VOLSYNC_PUID: "2000"
+      VOLSYNC_PGID: "2000"
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: true
+  interval: 30m
+  retryInterval: 1m
+  timeout: 5m
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# The Alertmanager write token, as a Secret in `observability`
+# (ntfy-alertmanager-token, key `token`), so Alertmanager can mount it via
+# alertmanagerSpec.secrets and use http_config.authorization.credentials_file.
+# Only the Secret lives here; the receivers stay Sibyl's
+# (kube-prometheus-stack/app). SOPS-encrypted in Git.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: ntfy-alertmanager-token
+  namespace: flux-system
+spec:
+  targetNamespace: observability
+  commonMetadata:
+    labels:
+      app.kubernetes.io/part-of: ntfy
+  path: ./kubernetes/main/apps/ntfy/ntfy/clients
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: true
+  interval: 30m
+  retryInterval: 1m
+  timeout: 5m

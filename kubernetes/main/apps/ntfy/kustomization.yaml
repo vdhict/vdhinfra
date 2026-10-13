@@ -1,0 +1,17 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+#
+# Namespace-level resource list for `ntfy` (chg-2026-10-13-005). Picked up by
+# cluster-apps through the directory scan of ./kubernetes/main/apps, like
+# every other namespace.
+#
+# Self-hosted ntfy push server, so the owner's phone pushes no longer depend
+# on the shared ntfy.sh anonymous quota (250 messages/day per public IP;
+# exhausted 2026-10-13). Own namespace: PSA restricted ENFORCED and its own
+# default-deny, without enrolling anything else.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./namespace.yaml
+  - ./network-policies/install.yaml
+  - ./ntfy/install.yaml
