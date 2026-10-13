@@ -6,6 +6,7 @@ resources:
   - ./altsvc-clear-policy.yaml
   - ./certificate.yaml
   - ./envoy.yaml
+  - ./envoy-forge.yaml
   - ./podmonitor.yaml
   - ./service-aliases.yaml
   - ./status-keeper.yaml

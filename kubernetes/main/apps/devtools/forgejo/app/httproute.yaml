@@ -45,6 +45,15 @@ spec:
       name: envoy-internal
       namespace: network
       sectionName: https
+    # Second parent (chg-2026-10-05-031, ADR 0009): the single-hostname
+    # Gateway for the vdhwslin01 runner (172.16.2.251). LAN clients keep using
+    # envoy-internal; LAN DNS is unchanged (see envoy-forge.yaml for the
+    # external-dns pin).
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: envoy-forge
+      namespace: network
+      sectionName: https
   hostnames:
     - forge.${SECRET_DOMAIN}
   rules:
