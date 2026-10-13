@@ -1,0 +1,8 @@
+# vdhwslin01 (chg-2026-10-05-031): AGR-114/115 idle power-off of team boots only.
+[Unit]
+Description=Power off an idle team-started boot (never a boot Sander started)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/vdh-runner/idle-poweroff
+SyslogIdentifier=idle-poweroff

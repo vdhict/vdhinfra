@@ -1,0 +1,13 @@
+loaded table inet vdh_runner (pod netns only), resolver 10.43.0.10
+ok  runner block http://172.16.2.1/ (curl rc=28)
+ok  runner block https://172.16.2.237:8123/ (curl rc=28)
+ok  runner block http://127.0.0.1:22/ (curl rc=28)
+ok  runner allow https://172.16.2.241/ (curl rc=0)
+ok  runner allow https://1.1.1.1/ (curl rc=0)
+ok  runner allow https://deb.debian.org/ (curl rc=0)
+ok  runner block http://1.1.1.1:8080/ (curl rc=28)
+ok  root allow http://172.16.2.1/ (curl rc=0)
+    counter: oifname "lo" counter packets 5 bytes 300 drop comment "runner/VM -> any other host service"
+    counter: meta nfproto ipv6 counter packets 1 bytes 56 drop
+    counter: ip daddr @nonpublic_v4 counter packets 10 bytes 600 drop comment "no RFC1918/LAN"
+    counter: counter packets 5 bytes 300 drop

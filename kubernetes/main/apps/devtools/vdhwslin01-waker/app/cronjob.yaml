@@ -1,0 +1,101 @@
+---
+# vdhwslin01 waker (chg-2026-10-05-031). Every 2 min: queued forge jobs for the
+# runner's labels + box off -> HA webhook (WoL, 4/day enforced in HA) ->
+# dropbear unlock with the controller keyslot -> one event per wake.
+# Inert until the box is provisioned: with an empty known_hosts it refuses to
+# wake (fail closed), and without the HA automation the webhook does nothing.
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/batch/cronjob_v1.json
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vdhwslin01-waker
+spec:
+  schedule: "*/2 * * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 60
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 900
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: vdhwslin01-waker
+            app.kubernetes.io/component: controller
+        spec:
+          serviceAccountName: vdhwslin01-waker
+          restartPolicy: Never
+          enableServiceLinks: false
+          # Egress to the box must leave from a worker node IP (172.16.2.81-83):
+          # the box's nftables only admits 22/2222 from those (+ Mini, MacBook).
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: node-role.kubernetes.io/control-plane
+                        operator: DoesNotExist
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            fsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: waker
+              image: docker.io/library/python:3.13.15-bookworm@sha256:227b6570d6ee07061ae6ca2eb04dedfb6d2b34045835f343065b9869e4d427ea
+              command: ["python3", "/app/controller.py"]
+              env:
+                - {name: BOX_IP, value: "172.16.3.205"}
+                - {name: UNLOCK_PORT, value: "2222"}
+                - {name: RUNNER_LABELS, value: "docker,x86-linux"}
+                - {name: FORGE_REPOS, value: "mypka-bot/passkey-point-dotnet"}
+                - {name: FORGE_API, value: "http://forgejo-http.devtools.svc.cluster.local:3000/api/v1"}
+                - {name: HA_URL, value: "http://home-assistant.home-automation.svc.cluster.local:8123"}
+                - {name: DAILY_CAP, value: "4"}
+                - {name: DRY_RUN, value: "false"}
+                - {name: NAMESPACE, value: devtools}
+                - {name: STATE_CONFIGMAP, value: vdhwslin01-waker-state}
+                - {name: HOME, value: /tmp}
+                - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests: {cpu: 20m, memory: 64Mi}
+                limits: {memory: 256Mi}
+              volumeMounts:
+                - {name: app, mountPath: /app, readOnly: true}
+                - {name: known-hosts, mountPath: /config, readOnly: true}
+                - {name: unlock, mountPath: /secrets/unlock, readOnly: true}
+                - {name: forge, mountPath: /secrets/forge, readOnly: true}
+                - {name: tmp, mountPath: /tmp}
+          volumes:
+            - name: app
+              configMap:
+                name: vdhwslin01-waker-app
+            - name: known-hosts
+              configMap:
+                name: vdhwslin01-waker-known-hosts
+            - name: unlock
+              secret:
+                secretName: vdhwslin01-waker-unlock
+                defaultMode: 0440
+            # Forge API token (mypka-bot, scope read:repository). Created
+            # out-of-band, see hack/forgejo-runner/vdhwslin01/README.md.
+            - name: forge
+              secret:
+                secretName: vdhwslin01-waker-forge
+                optional: true
+                defaultMode: 0440
+            - name: tmp
+              emptyDir:
+                medium: Memory
+                sizeLimit: 16Mi

@@ -1,0 +1,12 @@
+# vdhwslin01 (chg-2026-10-05-031): one journal line per boot: who started it.
+[Unit]
+Description=Record whether this boot was started by the team or by Sander
+After=local-fs.target
+
+[Service]
+Type=oneshot
+SyslogIdentifier=vdh-teamboot
+ExecStart=/usr/local/libexec/vdh-runner/teamboot-record
+
+[Install]
+WantedBy=multi-user.target

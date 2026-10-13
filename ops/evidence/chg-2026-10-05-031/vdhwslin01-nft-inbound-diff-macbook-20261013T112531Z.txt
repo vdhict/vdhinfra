@@ -1,0 +1,20 @@
+--- /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/0c98d54b-e618-40c7-9ca5-c49f68513d4d/scratchpad/nft/before.nft	2026-10-13 13:25:10
++++ /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/0c98d54b-e618-40c7-9ca5-c49f68513d4d/scratchpad/nft/after.nft	2026-10-13 13:25:31
+@@ -7,7 +7,7 @@
+ table inet vdh_runner {
+ 	set ssh_allow_v4 {
+ 		type ipv4_addr
+-		elements = { 172.16.2.81, 172.16.2.82, 172.16.2.83, 172.16.2.201 }
++		elements = { 172.16.2.81, 172.16.2.82, 172.16.2.83, 172.16.2.201, 172.16.3.108, 172.16.3.23 }
+ 	}
+ 	set nonpublic_v4 {
+ 		type ipv4_addr
+@@ -20,7 +20,7 @@
+ 		type filter hook input priority filter - 10; policy accept;
+ 		iifname "lo" accept
+ 		tcp dport { 22, 2222 } ip saddr @ssh_allow_v4 accept
+-		tcp dport { 22, 2222 } counter drop comment "22/2222 only from cluster nodes + Mini"
++		tcp dport { 22, 2222 } counter drop comment "22/2222 only from cluster nodes, Mini, Sander's MacBook"
+ 	}
+ 	chain output {
+ 		type filter hook output priority filter - 10; policy accept;

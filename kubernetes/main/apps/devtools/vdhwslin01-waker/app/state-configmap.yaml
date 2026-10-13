@@ -1,0 +1,13 @@
+---
+# Runtime state of the waker (wake count per day, pending wake, last 100
+# events). Flux creates it once and never overwrites what the controller wrote.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vdhwslin01-waker-state
+  annotations:
+    kustomize.toolkit.fluxcd.io/ssa: IfNotPresent
+  labels:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+data:
+  state.json: "{}"

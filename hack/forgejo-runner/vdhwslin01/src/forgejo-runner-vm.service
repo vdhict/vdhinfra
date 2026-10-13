@@ -1,0 +1,45 @@
+# vdhwslin01 (chg-2026-10-05-031): forgejo-runner, one job per throwaway KVM VM.
+[Unit]
+Description=Forgejo runner dispatcher: one job per throwaway KVM VM
+Wants=network-online.target
+After=network-online.target vdh-runner-nft.service
+Requires=vdh-runner-nft.service
+
+[Service]
+User=runner
+Group=runner
+SupplementaryGroups=kvm
+WorkingDirectory=/var/lib/forgejo-runner
+ExecStart=/usr/local/libexec/vdh-runner/vm-dispatch
+Restart=always
+RestartSec=30
+KillMode=control-group
+TimeoutStopSec=60
+RuntimeDirectory=forgejo-runner
+RuntimeDirectoryMode=0755
+# The forge name must resolve to envoy-forge for this service only; Sander's
+# own /etc/hosts and resolver order stay untouched.
+BindReadOnlyPaths=/etc/vdh-runner/hosts:/etc/hosts /etc/vdh-runner/nsswitch.conf:/etc/nsswitch.conf
+# Sandbox: no access to /home, /root, /run/user (Sander's session and files).
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/forgejo-runner
+PrivateTmp=yes
+NoNewPrivileges=yes
+DevicePolicy=closed
+DeviceAllow=/dev/kvm rw
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+CapabilityBoundingSet=
+MemoryMax=30G
+
+[Install]
+WantedBy=multi-user.target

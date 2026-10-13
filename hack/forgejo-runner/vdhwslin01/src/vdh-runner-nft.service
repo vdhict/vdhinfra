@@ -1,0 +1,16 @@
+# vdhwslin01 (chg-2026-10-05-031): own nftables table, added ON TOP of the
+# host's existing firewall (ufw/nftables). It never flushes the ruleset.
+[Unit]
+Description=vdh runner host firewall (table inet vdh_runner)
+Wants=network-pre.target
+Before=network-pre.target
+After=nftables.service ufw.service firewalld.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/nft -f /etc/vdh-runner/vdh-runner.nft
+ExecStop=/usr/bin/nft delete table inet vdh_runner
+
+[Install]
+WantedBy=multi-user.target

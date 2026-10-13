@@ -1,0 +1,22 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./secrets.yaml
+  - ./rbac.yaml
+  - ./state-configmap.yaml
+  - ./networkpolicy.yaml
+  - ./cronjob.yaml
+configMapGenerator:
+  - name: vdhwslin01-waker-app
+    files:
+      - controller.py
+  # PUBLIC host keys of the box's initramfs unlock server, as printed by
+  # provision.sh. Empty = the controller refuses to wake (fail closed).
+  - name: vdhwslin01-waker-known-hosts
+    files:
+      - known_hosts
+generatorOptions:
+  labels:
+    app.kubernetes.io/part-of: vdhwslin01-waker

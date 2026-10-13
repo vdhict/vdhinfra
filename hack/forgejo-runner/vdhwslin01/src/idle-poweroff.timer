@@ -1,0 +1,11 @@
+# vdhwslin01 (chg-2026-10-05-031): check every 5 minutes.
+[Unit]
+Description=Check every 5 min whether a team-started boot may power off
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

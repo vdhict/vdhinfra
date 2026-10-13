@@ -1,0 +1,8 @@
+# UDM read-only GETs 2026-10-13 (rest/networkconf, v2 nat); filtered, no key material
+{"firewall_zone_id": "67862226fe53ff1afe6e9de4", "ip_subnet": "192.168.12.1/24", "name": "VDHNGFW", "purpose": "remote-user-vpn", "vpn_type": "wireguard-server"}
+{"firewall_zone_id": "67862226fe53ff1afe6e9de4", "ip_subnet": "192.168.4.1/24", "name": "VDHVPN02", "purpose": "remote-user-vpn", "vpn_type": "wireguard-server"}
+custom NAT rules: 2
+{"description": "Translate IPv6 Traffic to KPN", "enabled": false, "type": "MASQUERADE"} source: fdd5:5b90:1c27::/48
+{"description": "Translate IPv6 Traffic to Ziggo", "enabled": false, "type": "MASQUERADE"} source: fdd5:5b90:1c27::/48
+conclusion: no custom NAT touches 192.168.12.0/24 or 192.168.4.0/24; both WG servers are UDM-native remote-user-vpn networks, routed (predefined masquerade is WAN-egress only).
+packet-level proof pending: first time the box is up, ssh from the MacBook over WG and read 'Accepted publickey ... from 192.168.12.6|192.168.4.6' in journalctl -u sshd on vdhwslin01.

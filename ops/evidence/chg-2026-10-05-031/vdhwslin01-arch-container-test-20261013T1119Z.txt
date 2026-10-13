@@ -1,0 +1,142 @@
+== setup: packages a real Omarchy-with-dropbear box has
+warning: cryptsetup-2.8.8-1 is up to date -- skipping
+warning: nftables-1:1.1.7-3 is up to date -- skipping
+warning: util-linux-2.42.4-1 is up to date -- skipping
+warning: shadow-4.20.0.arch1-1 is up to date -- skipping
+== A: full dry-run
+ok   A dry-run exits 0
+    | ==> preflight
+    | WARN: /dev/kvm missing (dry-run continues)
+    |     effective HOOKS: base udev keyboard modconf kms keymap consolefont block netconf dropbear encryptssh filesystems fsck 
+    |     initramfs ssh: dropbear, authorized keys: /etc/dropbear/root_key
+    | WARN: / is not on a /dev/mapper device (overlay) (dry-run continues)
+    |     steps: preflight packages user binary payload vmkey firewall golden register services initramfs keyslot report
+    |     inbound 22/2222 will be allowed only from: 172.16.2.81 172.16.2.82 172.16.2.83 172.16.2.201
+    | WARN: ssh to this box from any OTHER machine (your laptop, Larry's MacBook) will be dropped; add --allow-ssh-from <ip> for each one you use
+    | ==> packages
+    |     installed: nftables
+    |     installed: openssh
+    |     installed: curl
+    |     installed: cryptsetup
+    | [dry-run] pacman -S --needed --noconfirm qemu-base libisoburn
+    | ==> user runner
+    | [dry-run] useradd --system --user-group --home-dir /var/lib/forgejo-runner --create-home --shell /usr/bin/nologin runner
+    | [dry-run] usermod -aG kvm runner
+    | [dry-run] passwd -l runner
+    | [dry-run] install -d -o runner -g runner -m 0750 /var/lib/forgejo-runner
+    | [dry-run] install -d -o runner -g runner -m 0700 /var/lib/forgejo-runner/.ssh
+    | [dry-run] install -d -o runner -g runner -m 0750 /var/lib/forgejo-runner/vm
+    | [dry-run] install -d -o root -g root -m 0755 /var/lib/vdh-runner-golden /etc/vdh-runner /usr/local/libexec/vdh-runner /usr/local/lib/vdh-runner
+    | [dry-run] install -d -o root -g root -m 0700 /var/cache/vdh-runner
+    | ==> forgejo-runner 13.2.0
+    | [dry-run] curl -fsSL --proto =https -o /var/cache/vdh-runner/forgejo-runner-13.2.0.download https://code.forgejo.org/forgejo/runner/releases/download/v13.2.0/forgejo-runner-13.2.0-linux-amd64
+    | [dry-run] install -o root -g root -m 0755 /var/cache/vdh-runner/forgejo-runner-13.2.0.download /usr/local/bin/forgejo-runner
+    | ==> scripts, units and config
+    |     [dry-run] would write /usr/local/libexec/vdh-runner/vm-dispatch (5205 bytes, mode 0755, root:root)
+    |     [dry-run] would write /usr/local/libexec/vdh-runner/vm-golden-build (4735 bytes, mode 0755, root:root)
+    |     [dry-run] would write /usr/local/libexec/vdh-runner/idle-poweroff (4852 bytes, mode 0755, root:root)
+    |     [dry-run] would write /usr/local/libexec/vdh-runner/teamboot-record (392 bytes, mode 0755, root:root)
+    |     [dry-run] would write /usr/local/lib/vdh-runner/teamboot-shell (1439 bytes, mode 0755, root:root)
+    |     [dry-run] would write /etc/systemd/system/forgejo-runner-vm.service (1344 bytes, mode 0644, root:root)
+    |     [dry-run] would write /etc/systemd/system/idle-poweroff.service (276 bytes, mode 0644, root:root)
+    |     [dry-run] would write /etc/systemd/system/idle-poweroff.timer (233 bytes, mode 0644, root:root)
+    |     [dry-run] would write /etc/systemd/system/vdh-teamboot-record.service (329 bytes, mode 0644, root:root)
+    |     [dry-run] would write /etc/systemd/system/vdh-runner-nft.service (510 bytes, mode 0644, root:root)
+    |     [dry-run] would write /etc/vdh-runner/hosts (69 bytes, mode 0644, root:root)
+    |     [dry-run] would write /etc/vdh-runner/nsswitch.conf (58 bytes, mode 0644, root:root)
+    |     [dry-run] would write /etc/vdh-runner/runner.yaml (762 bytes, mode 0644, root:root)
+    |     [dry-run] would write /etc/vdh-runner/vm.env (22 bytes, mode 0644, root:root)
+    | [dry-run] systemctl daemon-reload
+    | ==> host -> VM ssh key (private key stays on the host, 0600 runner)
+    | [dry-run] runuser -u runner -- ssh-keygen -q -t ed25519 -N '' -C runner@vdhwslin01-vm -f /var/lib/forgejo-runner/.ssh/vm_ed25519
+    | ==> nftables (table inet vdh_runner)
+    |     [dry-run] would write /etc/vdh-runner/vdh-runner.nft (1553 bytes, mode 0644, root:root)
+    |     [dry-run] would check, load and enable vdh-runner-nft.service
+    | ==> golden VM image
+    | [dry-run] curl -fsSL --proto =https -o /var/cache/vdh-runner/debian-13-genericcloud-amd64-20261001-2618.qcow2 https://cloud.debian.org/images/cloud/trixie/20261001-2618/debian-13-genericcloud-amd64-20261001-2618.qcow2
+    | [dry-run] install -d -o runner -g runner -m 0750 /var/lib/forgejo-runner/golden-build
+    | [dry-run] install -o runner -g runner -m 0444 /var/cache/vdh-runner/debian-13-genericcloud-amd64-20261001-2618.qcow2 /var/lib/forgejo-runner/golden-build/base.qcow2
+    | [dry-run] runuser -u runner -- /usr/local/libexec/vdh-runner/vm-golden-build /var/lib/forgejo-runner/golden-build/base.qcow2 /var/lib/forgejo-runner/golden-build/golden.qcow2 /var/lib/forgejo-runner/golden-build/known_hosts
+    | [dry-run] systemctl stop forgejo-runner-vm.service
+    | [dry-run] install -o root -g root -m 0444 /var/lib/forgejo-runner/golden-build/golden.qcow2 /var/lib/vdh-runner-golden/golden.qcow2
+    | [dry-run] install -o root -g root -m 0644 /var/lib/forgejo-runner/golden-build/known_hosts /etc/vdh-runner/vm_known_hosts
+    | [dry-run] systemctl start forgejo-runner-vm.service
+    | ==> register runner vdhwslin01 (labels docker:docker://node:24-bookworm,x86-linux:docker://node:24-bookworm)
+    | [dry-run] systemd-run --quiet --wait --collect --pipe --uid=runner --gid=runner -p WorkingDirectory=/var/lib/forgejo-runner -p BindReadOnlyPaths=/etc/vdh-runner/hosts:/etc/hosts\ /etc/vdh-runner/nsswitch.conf:/etc/nsswitch.conf /usr/local/bin/forgejo-runner register --no-interactive --instance https://forge.example.invalid --name vdhwslin01 --labels docker:docker://node:24-bookworm\,x86-linux:docker://node:24-bookworm --token <token redacted>
+    | ==> services
+    | [dry-run] systemctl daemon-reload
+    | [dry-run] systemctl enable --now vdh-teamboot-record.service
+    | [dry-run] systemctl enable --now idle-poweroff.timer
+    | [dry-run] systemctl enable forgejo-runner-vm.service
+    | [dry-run] systemctl restart forgejo-runner-vm.service
+    | ==> initramfs: controller unlock key + team-boot marker
+    | [dry-run] cp -a /etc/dropbear/root_key /etc/dropbear/root_key.vdh-orig
+    |     [dry-run] would write /etc/dropbear/root_key (257 bytes, mode 0600, root:root)
+    |     [dry-run] would write /etc/initcpio/install/vdh-teamboot (1215 bytes, mode 0644, root:root)
+    |     [dry-run] would write /etc/mkinitcpio.conf.d/zz-vdh-teamboot.conf (99 bytes, mode 0644, root:root)
+    | [dry-run] mkinitcpio -P
+    |     controller known_hosts lines (PUBLIC host keys of the dropbear unlock server):
+    | ==> LUKS: separate controller keyslot on 
+    |     [dry-run] would read the passphrase from stdin, test it, and cryptsetup luksAddKey  <(passphrase) if absent
+    | ==> SEND THIS BACK to Atlas (no secrets in it)
+    |     provision.sh sha256: 7a631e4387d3c7bf49ef97cd1c2cc0acd72b5456f19706c1787d857040e9e272
+    |     forgejo-runner: missing
+    |     golden sha256: missing
+    |     runner registered: no
+    |     luks keyslot: none
+    |     vdh-runner-nft.service: /
+    |     forgejo-runner-vm.service: /
+    |     idle-poweroff.timer: /
+    |     vdh-teamboot-record.service: /
+    |     runner groups: none
+    |     controller known_hosts lines (PUBLIC host keys of the dropbear unlock server):
+    | ==> done (dry-run: nothing changed)
+ok   A HOOKS detected
+ok   A dropbear detected
+ok   A registration token never printed
+ok   A dry-run changed nothing
+ok   A dry-run created no user
+== B: real steps (container-capable subset)
+FAIL B real run
+==> preflight
+ERROR: /dev/kvm missing (VT-x off in firmware?)
+    | ==> preflight
+    | ERROR: /dev/kvm missing (VT-x off in firmware?)
+FAIL B runner: system user, nologin, locked
+id: ‘runner’: no such user
+FAIL B runner: in kvm, not wheel
+sha256sum: /usr/local/bin/forgejo-runner: No such file or directory
+FAIL B forgejo-runner binary sha256 pinned
+bash: line 1: /usr/local/bin/forgejo-runner: No such file or directory
+FAIL B forgejo-runner reports 13.2.0
+grep: /etc/vdh-runner/runner.yaml: No such file or directory
+FAIL B runner.yaml: docker_host = VM socket, cache off, no privileged
+FAIL B hosts override maps forge to envoy-forge
+grep: /etc/vdh-runner/hosts: No such file or directory
+stat: cannot statx '/var/lib/forgejo-runner/.ssh/vm_ed25519': No such file or directory
+FAIL B VM key 0600 runner, private key never printed
+FAIL B controller key appended once with restrictions
+ok   B Sander's key untouched
+FAIL B original root_key kept
+FAIL B hook drop-in sorts after omarchy_hooks.conf
+FAIL B every image got encryptssh AND vdh-teamboot
+FAIL B dropbear host keys printed as known_hosts lines
+== B2: idempotent re-run
+FAIL B2 re-run
+==> preflight
+ERROR: /dev/kvm missing (VT-x off in firmware?)
+FAIL B2 key still present exactly once
+FAIL B2 binary not re-downloaded
+FAIL B2 files unchanged
+FAIL B2 user step idempotent
+== C: inspect the built initramfs
+FAIL C /bin/cryptsetup_shell is the vdh wrapper
+grep: /root/initrd-x/usr/bin/cryptsetup_shell: No such file or directory
+FAIL C real encryptssh shell kept as .vdh-real
+grep: /root/initrd-x/usr/bin/cryptsetup_shell.vdh-real: No such file or directory
+FAIL C passwd: root login shell is the wrapper path
+FAIL C controller key in initramfs authorized_keys
+== D: wrapper behaviour in the initramfs busybox (chroot)
+grep: /root/initrd-x/root/.ssh/authorized_keys: No such file or directory
+cp: cannot stat '/root/initrd-x/usr/bin/cryptsetup_shell.vdh-real': No such file or directory
+command terminated with exit code 1
