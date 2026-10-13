@@ -1,0 +1,85 @@
+# provision.sh sha256 ad0304513bbff75f0d6c71bd4afc065e75078660faeb0d0dc53ea1b5eee6de38
+== setup
+== S1 install-window.sh as sander
+ok   S1 install-window.sh exits 0
+    | ==> agent account
+    |     agent groups: agent (no wheel/sudo)
+    | ==> file hashes
+    |     ok provision.sh ad0304513bbff75f0d6c71bd4afc065e75078660faeb0d0dc53ea1b5eee6de38
+    |     ok vdh-provision-tonight 2894f7d906f14e515fdee1971ecf37a60b2932e7c942514b42ef4dc6cf93d831
+    |     ok 90-agent-provision 108c432d900bc4ed877df49877c3407152a4a1bde6fa35c5723eefc1c19b356b
+    | ==> sudoers: includedir present and drop-in valid
+    | ./90-agent-provision: parsed OK
+    | ==> install root-owned copies
+    |     ok /usr/local/sbin/vdh-provision.sh root:root 755
+    |     ok /usr/local/sbin/vdh-provision-tonight root:root 755
+    | ==> start the 3 h backstop (removes the drop-in even if nobody revokes)
+    | ==> install the drop-in (0440)
+    |     visudo -c: whole sudoers config valid
+    |     Matching Defaults entries for agent on vdhwslin01-provision-test:
+    |         secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/bin
+    |     
+    |     Runas and Command-specific defaults for agent:
+    |         Defaults!/usr/bin/visudo env_keep+="SUDO_EDITOR EDITOR VISUAL"
+    |     
+    |     User agent may run the following commands on vdhwslin01-provision-test:
+    |         (root) NOPASSWD: /usr/local/sbin/vdh-provision-tonight dry, /usr/local/sbin/vdh-provision-tonight real, /usr/local/sbin/vdh-provision-tonight c4, /usr/local/sbin/vdh-provision-tonight uninstall, /usr/local/sbin/vdh-provision-tonight revoke
+    | ==> window OPEN. agent may run: sudo -n /usr/local/sbin/vdh-provision-tonight dry|real|c4|uninstall|revoke
+    | ==> closes by: 'revoke', or the backstop at 
+ok   S1 drop-in root:root 0440
+ok   S1 provision copy root:root 0755
+ok   S1 wrapper root:root 0755
+ok   S1 3 h backstop timer requested
+ok   S1 visudo -c whole config valid
+ok   S1 refuses when agent is in wheel
+ok   S1 refuses a tampered drop-in (hash)
+== S2 sudo admits exactly the five words
+ok   S2 sudo -l lists exactly the five invocations
+ok   S2 no ALL command, no SETENV
+ok   S2 refused: /usr/local/sbin/vdh-provision-tonight bogus
+ok   S2 refused: /usr/local/sbin/vdh-provision-tonight dry --steps keyslot
+ok   S2 refused: /usr/local/sbin/vdh-provision-tonight
+ok   S2 refused: /usr/local/sbin/vdh-provision.sh --dry-run
+ok   S2 refused: /bin/sh -c id
+ok   S2 refused: PROV=/tmp/x /usr/local/sbin/vdh-provision-tonight dry
+ok   S2 refused: -E /usr/local/sbin/vdh-provision-tonight dry
+ok   S2 refused: -u sander /usr/local/sbin/vdh-provision-tonight dry
+== S3 dry runs with the fixed args
+ok   S3 dry exits 0
+ok   S3 hash checked before running
+ok   S3 fixed steps, keyslot absent
+ok   S3 keyslot step never runs (no LUKS/passphrase activity)
+ok   S3 provision dry-run completed
+ok   S3 root log written
+== S4 wrapper refuses a bad provision.sh
+ok   S4 tampered content refused
+ok   S4 world-writable refused (mode 777)
+ok   S4 symlink refused
+ok   S4 non-root owner refused
+ok   S4 wrapper itself rejects two words (root direct)
+ok   S4 wrapper rejects 'dry;id'
+ok   S4 original restored
+== S5 revoke + verify-revoked
+ok   S5 revoke exits 0
+    | vdh-provision-tonight: mode=revoke log=/var/log/vdh-provision-revoke-20261013T215746Z.log
+    | REVOKE ok: /etc/sudoers.d/90-agent-provision removed (root read-back):
+    | total 8
+    | drwxr-x--- 2 root root   28 Oct 13 21:57 .
+    | drwxr-xr-x 1 root root 4096 Oct 13 21:57 ..
+    | -r--r----- 1 root root   35 Oct 13 21:57 00-test-sander
+    | sudoers still valid (visudo -c)
+    | agent groups: agent
+ok   S5 drop-in gone
+ok   S5 wrapper no longer runnable for agent
+ok   S5 verify-revoked.sh PASS
+    | ./verify-revoked.sh: line 11: hostname: command not found
+    | # chg-2026-10-05-031 sudo-window revoke read-back, host , user agent, 2026-10-13T21:57:46Z
+    | sudo -n -l exit=1
+    |   | sudo: a password is required
+    | ok   sudo -n -l fails, no may-run lines
+    | ok   wrapper no longer runnable via sudo
+    | ok   agent groups: agent (no wheel/sudo)
+    | info backstop timer still pending (harmless: rm -f of an absent file)
+    | RESULT: PASS
+ok   S5 write-once evidence file 0444
+RESULT: 36 passed, 0 failed

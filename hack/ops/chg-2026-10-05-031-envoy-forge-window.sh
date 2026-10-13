@@ -318,6 +318,6 @@ capture "post"
 STATE=validated
 ev validated "{\"step\":\"envoy-forge window\",\"soak_s\":${SOAK_SECONDS},\"checks\":\"household: nc 241/243:443, both leases, dig grafana+forge==.241, forge 200 via .241; forge: 200 via ${FORGE_IP}, grafana not served via ${FORGE_IP}, :80 closed, owner lookup 1 per gateway, int/ext status = LB IP; every 15s, all green\",\"evidence_dir\":\"${EV#${REPO}/}\",\"run\":\"${RUN}\",\"regime\":\"AGR-109: tests are the gate\"}"
 echo "${RUN} ${APPLIED_SHA:-already-on-main}" >"${DONE_MARKER}"
-milestone "envoy-forge live on ${FORGE_IP}: post-checks + 10-min soak green (forge only, household gateways unaffected). The runner can now take jobs."
+milestone "envoy-forge live on ${FORGE_IP}: post-checks + 10-min soak green (forge only, household gateways unaffected). Jobs can run once vdhwslin01 is provisioned and registered (moved to 14-10 morning)."
 log "DONE ok"
 exit 0

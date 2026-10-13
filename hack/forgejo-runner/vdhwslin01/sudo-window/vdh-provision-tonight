@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# vdh-provision-tonight: the ONLY thing agent may run as root during the
+# vdhwslin01 provisioning window (chg-2026-10-05-031, Argus 2026-10-13T21:52:27Z
+# C1/C2). Installed by Sander as root:root 0755 /usr/local/sbin/vdh-provision-tonight.
+#
+#   vdh-provision-tonight dry|real|c4|uninstall|revoke
+#
+# Exactly one word. Every mode first re-checks the sha256 and ownership of
+# /usr/local/sbin/vdh-provision.sh, then runs it with FIXED arguments: no
+# argument from the caller ever reaches provision.sh. No keyslot step (the
+# owner's LUKS passphrase is never involved; Argus R1).
+set -euo pipefail
+umask 077
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
+PROV=/usr/local/sbin/vdh-provision.sh
+PROV_SHA256=ad0304513bbff75f0d6c71bd4afc065e75078660faeb0d0dc53ea1b5eee6de38
+DROPIN=/etc/sudoers.d/90-agent-provision
+# shellcheck disable=SC2054  # the --steps value is one comma-separated word
+ARGS=(--forge-url https://forge.bluejungle.net
+      --envoy-forge-ip 172.16.2.251
+      --reg-token -
+      --controller-pubkey 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEkF3ELErsUQ2/sByTETPVGD9ouNXVn1V2rMVYOvJ/4l vdhwslin01-waker'
+      --steps preflight,packages,user,binary,payload,vmkey,firewall,golden,register,services,initramfs,report)
+
+die() { echo "vdh-provision-tonight: $*" >&2; exit 2; }
+(( EUID == 0 )) || die "must run as root (via sudo)"
+(( $# == 1 )) || die "exactly one word: dry|real|c4|uninstall|revoke"
+mode="$1"
+case "$mode" in dry|real|c4|uninstall|revoke) ;; *) die "unknown mode '$mode'" ;; esac
+
+check_prov() {
+  [[ -f "$PROV" && ! -L "$PROV" ]] || die "$PROV missing or a symlink"
+  [[ "$(stat -c '%U:%G' "$PROV")" == root:root ]] || die "$PROV not owned by root:root"
+  local m; m="$(stat -c '%a' "$PROV")"
+  [[ "$m" == 755 || "$m" == 700 || "$m" == 750 ]] || die "$PROV mode $m (writable by non-root?)"
+  local have; have="$(sha256sum "$PROV" | cut -d' ' -f1)"
+  [[ "$have" == "$PROV_SHA256" ]] || die "$PROV sha256 mismatch: have $have, want $PROV_SHA256; refusing"
+  echo "vdh-provision-tonight: $PROV sha256 ok ($PROV_SHA256)"
+}
+
+log="/var/log/vdh-provision-${mode}-$(date -u +%Y%m%dT%H%M%SZ).log"
+echo "vdh-provision-tonight: mode=$mode log=$log"
+case "$mode" in
+  dry)
+    check_prov
+    bash "$PROV" --dry-run "${ARGS[@]}" 2>&1 | tee "$log"; exit "${PIPESTATUS[0]}" ;;
+  real)
+    check_prov
+    bash "$PROV" "${ARGS[@]}" 2>&1 | tee "$log"; exit "${PIPESTATUS[0]}" ;;
+  uninstall)
+    check_prov
+    bash "$PROV" --uninstall 2>&1 | tee "$log"; exit "${PIPESTATUS[0]}" ;;
+  c4)
+    # Argus F3/C4 box test: delete the runner's egress table -> the guard
+    # stops the runner within ~1 min and the unit refuses to start; restore.
+    check_prov
+    {
+      rc=0
+      systemctl is-active --quiet vdh-runner-nft.service || die "vdh-runner-nft not active; provision first"
+      systemctl start forgejo-runner-vm.service
+      systemctl is-active --quiet forgejo-runner-vm.service || die "runner not active before the test"
+      echo "C4 before: runner active, table present"
+      nft delete table inet vdh_runner
+      echo "C4 table deleted at $(date -u +%T)Z"
+      stopped=0
+      for _ in $(seq 1 18); do
+        if ! systemctl is-active --quiet forgejo-runner-vm.service; then stopped=1; break; fi
+        sleep 5
+      done
+      if (( stopped )); then echo "C4 ok: runner stopped at $(date -u +%T)Z"; else echo "C4 FAIL: runner still active after 90 s"; rc=1; fi
+      journalctl -t nft-guard -n 3 --no-pager || true
+      if systemctl start forgejo-runner-vm.service 2>/dev/null; then echo "C4 FAIL: unit started without the table"; rc=1
+      else echo "C4 ok: unit refuses to start without the table (ExecStartPre)"; fi
+      systemctl restart vdh-runner-nft.service
+      systemctl start forgejo-runner-vm.service
+      if nft list table inet vdh_runner >/dev/null && systemctl is-active --quiet forgejo-runner-vm.service; then echo "C4 restored: table back, runner active"
+      else echo "C4 RESTORE FAIL"; rc=1; fi
+      echo "C4 result: $([ "$rc" = 0 ] && echo PASS || echo FAIL)"
+      exit "$rc"
+    } 2>&1 | tee "$log"; exit "${PIPESTATUS[0]}" ;;
+  revoke)
+    {
+      rm -f -- /etc/sudoers.d/90-agent-provision
+      systemctl stop vdh-agent-provision-revoke.timer 2>/dev/null || true
+      if [[ -e "$DROPIN" ]]; then echo "REVOKE FAIL: $DROPIN still present"; exit 1; fi
+      echo "REVOKE ok: $DROPIN removed (root read-back):"
+      ls -la /etc/sudoers.d/
+      visudo -c >/dev/null && echo "sudoers still valid (visudo -c)"
+      echo "agent groups: $(id -nG agent)"
+    } 2>&1 | tee "$log"; exit "${PIPESTATUS[0]}" ;;
+esac

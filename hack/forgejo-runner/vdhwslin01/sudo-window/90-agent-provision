@@ -1,0 +1,6 @@
+# vdhwslin01 provisioning window (chg-2026-10-05-031, Argus 2026-10-13T21:52:27Z C2).
+# agent may run ONLY these five exact invocations as root. No wildcard, no ALL
+# command, no SETENV; Defaults env_reset stays in force. Removed by
+# `vdh-provision-tonight revoke` or, at the latest, by the 3 h systemd-run
+# backstop timer vdh-agent-provision-revoke.
+agent ALL=(root) NOPASSWD: /usr/local/sbin/vdh-provision-tonight dry, /usr/local/sbin/vdh-provision-tonight real, /usr/local/sbin/vdh-provision-tonight c4, /usr/local/sbin/vdh-provision-tonight uninstall, /usr/local/sbin/vdh-provision-tonight revoke

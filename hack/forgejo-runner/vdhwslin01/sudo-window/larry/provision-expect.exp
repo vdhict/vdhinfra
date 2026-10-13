@@ -1,0 +1,39 @@
+#!/usr/bin/expect -f
+# Larry's MacBook: drive the vdhwslin01 provisioning wrapper over ssh
+# (chg-2026-10-05-031, Argus 2026-10-13T21:52:27Z C6).
+#
+#   expect provision-expect.exp <dry|real|c4|uninstall|revoke> [<0600 token file>]
+#
+# The registration token is read HERE from the 0600 file: it never appears on
+# a command line (ps, tool transcript, sudo log). log_user 0 around send; no
+# -d, no exp_internal, no log_file. ssh -t gives the remote `read -s` a tty, so
+# echo stays off. Only `real` asks for the token.
+if {[llength $argv] < 1} { puts stderr "usage: provision-expect.exp mode \[tokenfile\]"; exit 2 }
+set mode [lindex $argv 0]
+if {[lsearch -exact {dry real c4 uninstall revoke} $mode] < 0} { puts stderr "bad mode"; exit 2 }
+set tok ""
+if {$mode eq "real"} {
+  if {[llength $argv] < 2} { puts stderr "real needs the 0600 token file"; exit 2 }
+  set tf [lindex $argv 1]
+  file stat $tf st
+  if {($st(mode) & 0077) != 0} { puts stderr "token file must be 0600"; exit 2 }
+  set fh [open $tf r]; set tok [string trim [read $fh]]; close $fh
+  if {$tok eq ""} { puts stderr "empty token file"; exit 2 }
+}
+set timeout 5400
+spawn ssh -t vdhwslin01 sudo -n /usr/local/sbin/vdh-provision-tonight $mode
+expect {
+  -re "One-time runner registration token: $" {
+    if {$tok eq ""} { puts stderr "\nunexpected token prompt"; exit 3 }
+    log_user 0
+    send -- "$tok\r"
+    log_user 1
+    set tok ""
+    exp_continue
+  }
+  timeout { puts stderr "\ntimeout"; exit 4 }
+  eof
+}
+set tok ""
+catch wait result
+exit [lindex $result 3]

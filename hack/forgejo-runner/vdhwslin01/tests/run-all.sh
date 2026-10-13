@@ -5,7 +5,8 @@ cd "$(dirname "$0")/.."
 SC="${SHELLCHECK:-shellcheck}"
 echo "== shellcheck"
 "$SC" -S style -s bash provision.in.sh provision.sh build.sh src/idle-poweroff.sh src/vm-dispatch.sh \
-  src/vm-golden-build.sh src/initcpio-install-vdh-teamboot.sh tests/idle-poweroff.test.sh tests/run-all.sh tests/arch-container.sh tests/nft-guard.test.sh tests/nft-kernel.sh
+  src/vm-golden-build.sh src/initcpio-install-vdh-teamboot.sh tests/idle-poweroff.test.sh tests/run-all.sh tests/arch-container.sh tests/nft-guard.test.sh tests/nft-kernel.sh tests/sudo-window-container.sh \
+  sudo-window/vdh-provision-tonight sudo-window/install-window.sh sudo-window/verify-revoked.sh sudo-window/pin.sh sudo-window/larry/sweep-count.sh
 "$SC" -S style -s sh src/teamboot-shell.sh src/teamboot-record.sh src/nft-guard.sh
 echo "== provision.sh in sync with sources"
 ./build.sh --check
@@ -13,6 +14,10 @@ echo "== bash -n on every shell file"
 for f in provision.sh src/*.sh tests/*.sh build.sh; do bash -n "$f"; done
 echo "== idle-poweroff unit tests"
 bash tests/idle-poweroff.test.sh
+echo "== sudo-window: install-window.sh pins in sync"
+sudo-window/pin.sh --check
+visudo_line="$(grep -v '^#' sudo-window/90-agent-provision)"
+[[ "$visudo_line" != *"*"* && "$visudo_line" != *SETENV* && "$visudo_line" != *"NOPASSWD: ALL"* ]] || { echo "drop-in too broad" >&2; exit 1; }
 echo "== nft-guard unit tests"
 bash tests/nft-guard.test.sh
 echo "== waker controller unit tests"
