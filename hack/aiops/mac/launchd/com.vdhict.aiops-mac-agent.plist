@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- chg-2026-10-12-009: heartbeat + peer check + crash textfile, every 5 min. -->
+<!-- chg-2026-10-12-009: LAN cluster check (no ntfy heartbeat since 2026-10-13) + crash textfile, every 5 min. -->
 <plist version="1.0">
 <dict>
   <key>Label</key><string>com.vdhict.aiops-mac-agent</string>

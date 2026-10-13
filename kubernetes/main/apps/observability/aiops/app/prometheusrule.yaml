@@ -127,17 +127,29 @@ spec:
     - name: aiops-hosts
       interval: 1m
       rules:
-        - alert: MacHostDown
-          # Cluster half of the dead man's switch (the Macs watch the
-          # cluster's Watchdog heartbeat on ntfy; see hack/aiops/README.md).
+        - alert: MacNodeDown
+          # Cluster half of the LAN dead man's switch (2026-10-13; was
+          # MacHostDown). The Macs watch the cluster by reading the active
+          # Watchdog from Alertmanager over the LAN; see hack/aiops/README.md.
           expr: up{job="mac-node"} == 0
-          for: 10m
+          for: 15m
           labels:
             severity: warning
             component: aiops-hosts
           annotations:
-            summary: "{{ $labels.host }} ({{ $labels.instance }}) not answering node_exporter for 10 min"
+            summary: "{{ $labels.host }} ({{ $labels.instance }}) not answering node_exporter for 15 min"
             description: Either the Mac is down or asleep, or its launchd node_exporter jobs stopped. Compare with the BlackboxProbeFailure on the same host (ssh port) to tell which.
+        - alert: MacAgentStale
+          # The Mac answers, but aiops-mac-agent stopped running (unloaded,
+          # broken config): then nobody on that Mac watches the cluster.
+          expr: up{job="mac-node"} == 1 and on(instance) (time() - mac_aiops_agent_last_run_timestamp_seconds{job="mac-node"} > 1800)
+          for: 15m
+          labels:
+            severity: warning
+            component: aiops-hosts
+          annotations:
+            summary: "{{ $labels.host }}: aiops-mac-agent has not run for {{ $value | humanizeDuration }}"
+            description: Check `launchctl print gui/$(id -u)/com.vdhict.aiops-mac-agent` and ~/Library/Logs/aiops-mac-agent.log on the host.
         - alert: MacRebooted
           expr: changes(node_boot_time_seconds{job="mac-node"}[30m]) > 0
           labels:
