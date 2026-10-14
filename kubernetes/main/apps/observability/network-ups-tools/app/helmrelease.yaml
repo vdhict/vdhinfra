@@ -95,4 +95,7 @@ spec:
             [kubernetes]
             driver = usbhid-ups
             port = auto
+            # Full variable refresh every 5 s (default 30) so battery.voltage
+            # gives a real curve during battery tests (chg-2026-10-14-001).
+            pollfreq = 5
             desc = "APC Back-UPS 900"
