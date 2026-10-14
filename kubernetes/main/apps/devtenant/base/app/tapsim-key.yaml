@@ -1,0 +1,23 @@
+---
+# TAP simulator key (chg-2026-10-12-005, backend B), from 1Password passkey-point-dev-app / passkey-point-tapsim-dev
+# (written by tapsim-v01 1a, 30-day certificate). Mounted read-only at /var/run/secrets/devtenant/tapsim/{tls.key,tls.crt}
+# by the tapsim grant, revoke and kill-switch Jobs only: without it the revoke cannot be proven, so the grant refuses.
+# Store: the namespaced onepassword-devtenant-devapp (devapp-store.yaml).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/external-secrets.io/externalsecret_v1.json
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: devtenant-tapsim-key
+  namespace: devtenant-build
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: SecretStore
+    name: onepassword-devtenant-devapp
+  target:
+    name: devtenant-tapsim-key
+    creationPolicy: Owner
+    deletionPolicy: Delete
+  data:
+    - {secretKey: tls.key, remoteRef: {key: passkey-point-tapsim-dev, property: private key}}
+    - {secretKey: tls.crt, remoteRef: {key: passkey-point-tapsim-dev, property: certificate}}
