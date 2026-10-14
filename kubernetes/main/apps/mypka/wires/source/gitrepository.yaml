@@ -19,10 +19,15 @@ spec:
   # every tenant push go live unreviewed (e27b148 on 10-09, dfea868 on 10-11).
   # The tenant source now advances ONLY when a reviewed vdhinfra commit bumps
   # this SHA: Argus reviews the cluster-wires range <old>..<new>, then the
-  # bump goes through the normal change log. The commit must be on main.
+  # bump goes through the normal change log. The commit must be on the
+  # branch named below. Wave 1 (chg-2026-10-07-007): branch
+  # cutover/wave1-school, school live only (range 65291a5..fea3ea6).
+  # The commit pin is the truth; a push to that branch moves nothing.
+  # Back to branch main once Mack fast-forwards cluster-wires main.
+  # Rollback: commit 65291a5 on the same branch (school suspended, shadow).
   ref:
-    branch: main
-    commit: 96f458919f7dd36ac8a2de2c63de72acda3c2080
+    branch: cutover/wave1-school
+    commit: fea3ea6f0b3d373f088c0b09100dc3f1f724bd46
   # Fetch only what the tenant Kustomization applies (as Mack proposed).
   ignore: |
     /*
