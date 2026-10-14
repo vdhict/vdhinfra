@@ -14,6 +14,8 @@
 # Topics `gezin`, `gezin-test` (family context; parent phones only):
 #   gezinsdienst  write-only   (in-cluster from family-ai, Secret family-ai/ntfy-gezinsdienst-token)
 #   owner-phone   read-only
+# Topic `pka-team` (team channel of pka-alert; no phone subscribes, ever):
+#   pka-alert     read-write   (publish + --selftest/--pending poll; Mack 2026-10-14)
 # Nobody else, and no anonymous read or write.
 #
 # Deliberately OFF:
@@ -85,7 +87,7 @@ spec:
               NTFY_AUTH_DEFAULT_ACCESS: deny-all
               # gezin/gezin-test: gezinsdienst (family-ai) parent alerts; may carry
               # family context, so it never goes to ntfy.sh (Larry, F2 family-ai).
-              NTFY_AUTH_ACCESS: "alertmanager:alerts:wo,pka-alert:alerts:wo,owner-phone:alerts:ro,gezinsdienst:gezin:wo,gezinsdienst:gezin-test:wo,owner-phone:gezin:ro,owner-phone:gezin-test:ro"
+              NTFY_AUTH_ACCESS: "alertmanager:alerts:wo,pka-alert:alerts:wo,owner-phone:alerts:ro,gezinsdienst:gezin:wo,gezinsdienst:gezin-test:wo,owner-phone:gezin:ro,owner-phone:gezin-test:ro,pka-alert:pka-team:rw"
               NTFY_ENABLE_SIGNUP: "false"
               NTFY_ENABLE_LOGIN: "false"
               NTFY_ENABLE_RESERVATIONS: "false"
