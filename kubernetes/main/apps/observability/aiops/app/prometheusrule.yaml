@@ -142,7 +142,7 @@ spec:
         - alert: MacAgentStale
           # The Mac answers, but aiops-mac-agent stopped running (unloaded,
           # broken config): then nobody on that Mac watches the cluster.
-          expr: up{job="mac-node"} == 1 and on(instance) (time() - mac_aiops_agent_last_run_timestamp_seconds{job="mac-node"} > 1800)
+          expr: (time() - mac_aiops_agent_last_run_timestamp_seconds{job="mac-node"} > 1800) and on(instance) up{job="mac-node"} == 1
           for: 15m
           labels:
             severity: warning
@@ -156,7 +156,7 @@ spec:
           # three missed runs. It writes pka.prom into the same textfile dir as
           # aiops.prom (~/Code/pka-wires/alert, d6fce29). Replaces the checker
           # half of the Mac-to-Mac pka host probes (Mack 2026-10-14, AGR-079).
-          expr: up{job="mac-node"} == 1 and on(instance) (time() - pka_heartbeat_check_last_run_timestamp_seconds{job="mac-node"} > 3 * 3600)
+          expr: (time() - pka_heartbeat_check_last_run_timestamp_seconds{job="mac-node"} > 3 * 3600) and on(instance) up{job="mac-node"} == 1
           for: 15m
           labels:
             severity: warning
