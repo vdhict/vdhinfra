@@ -1,0 +1,104 @@
+---
+# promtool unit tests for PkaCheckerStale, PkaCheckerMissing and PkaCheckerBlind
+# (aiops-hosts group, Mack 2026-10-14). Not deployed. Run like
+# aiops-mac-heartbeat.test.yaml (rules.yaml = aiops PrometheusRule .spec,
+# annotations stripped; promtool 3.7.2).
+# Mutation controls, each seen failing (2026-10-14): Stale "> 3 * 3600" ->
+# "> 3600" (T2 fires before 195m); Blind "== 0" -> "== 1" (T3 never fires).
+rule_files:
+  - rules.yaml
+evaluation_interval: 1m
+
+tests:
+  # T1 healthy: both Macs up, checker sweeps hourly (stamp steps every 60 min),
+  #    checked > 0 -> all three SILENT over 5 h.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="mac-node", instance="172.16.2.201:9100", host="vdhmini01"}'
+        values: '1x300'
+      - series: 'up{job="mac-node", instance="172.16.2.200:9100", host="vdhllmsrv01"}'
+        values: '1x300'
+      - series: 'pka_heartbeat_check_last_run_timestamp_seconds{job="mac-node", instance="172.16.2.201:9100", host="vdhmini01"}'
+        values: '0x59 3600x59 7200x59 10800x59 14400x59 18000x0'
+      - series: 'pka_heartbeat_check_last_run_timestamp_seconds{job="mac-node", instance="172.16.2.200:9100", host="vdhllmsrv01"}'
+        values: '0x59 3600x59 7200x59 10800x59 14400x59 18000x0'
+      - series: 'pka_heartbeat_check_wires_checked{job="mac-node", instance="172.16.2.201:9100", host="vdhmini01"}'
+        values: '57x300'
+      - series: 'pka_heartbeat_check_wires_checked{job="mac-node", instance="172.16.2.200:9100", host="vdhllmsrv01"}'
+        values: '2x300'
+    alert_rule_test:
+      - eval_time: 299m
+        alertname: PkaCheckerStale
+        exp_alerts: []
+      - eval_time: 299m
+        alertname: PkaCheckerMissing
+        exp_alerts: []
+      - eval_time: 299m
+        alertname: PkaCheckerBlind
+        exp_alerts: []
+
+  # T2 the Studio's checker stops after its run at t=0 (Mac still up):
+  #    stale > 3 h from minute 181, + for 15m -> silent at 195m, FIRES at 197m.
+  #    The Mini goes DOWN at minute 10 with an old stamp: Stale stays SILENT
+  #    for it (MacNodeDown's job, not this rule's).
+  - interval: 1m
+    input_series:
+      - series: 'up{job="mac-node", instance="172.16.2.200:9100", host="vdhllmsrv01"}'
+        values: '1x240'
+      - series: 'pka_heartbeat_check_last_run_timestamp_seconds{job="mac-node", instance="172.16.2.200:9100", host="vdhllmsrv01"}'
+        values: '0x240'
+      - series: 'up{job="mac-node", instance="172.16.2.201:9100", host="vdhmini01"}'
+        values: '1x9 0x230'
+      - series: 'pka_heartbeat_check_last_run_timestamp_seconds{job="mac-node", instance="172.16.2.201:9100", host="vdhmini01"}'
+        values: '0x9 _x230'
+    alert_rule_test:
+      - eval_time: 195m
+        alertname: PkaCheckerStale
+        exp_alerts: []
+      - eval_time: 197m
+        alertname: PkaCheckerStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              component: aiops-hosts
+              job: mac-node
+              instance: 172.16.2.200:9100
+              host: vdhllmsrv01
+
+  # T3 the Mini answers but has no pka metrics at all: Missing after 3 h.
+  #    Blind: the Studio's sweep matches nothing from minute 0 -> FIRES at 121m.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="mac-node", instance="172.16.2.201:9100", host="vdhmini01"}'
+        values: '1x240'
+      - series: 'up{job="mac-node", instance="172.16.2.200:9100", host="vdhllmsrv01"}'
+        values: '1x240'
+      - series: 'pka_heartbeat_check_last_run_timestamp_seconds{job="mac-node", instance="172.16.2.200:9100", host="vdhllmsrv01"}'
+        values: '0+60x240'
+      - series: 'pka_heartbeat_check_wires_checked{job="mac-node", instance="172.16.2.200:9100", host="vdhllmsrv01"}'
+        values: '0x240'
+    alert_rule_test:
+      - eval_time: 179m
+        alertname: PkaCheckerMissing
+        exp_alerts: []
+      - eval_time: 181m
+        alertname: PkaCheckerMissing
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              component: aiops-hosts
+              job: mac-node
+              instance: 172.16.2.201:9100
+              host: vdhmini01
+      - eval_time: 119m
+        alertname: PkaCheckerBlind
+        exp_alerts: []
+      - eval_time: 121m
+        alertname: PkaCheckerBlind
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              component: aiops-hosts
+              job: mac-node
+              instance: 172.16.2.200:9100
+              host: vdhllmsrv01
