@@ -17,4 +17,3 @@ resources:
   - ./limitrange.yaml
   - ./forge-pg/install.yaml
   - ./forgejo/install.yaml
-  - ./vdhwslin01-waker/install.yaml
