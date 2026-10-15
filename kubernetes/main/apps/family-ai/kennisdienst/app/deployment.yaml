@@ -39,6 +39,17 @@ spec:
         app.kubernetes.io/part-of: family-ai
     spec:
       automountServiceAccountToken: false
+      # chg-2026-10-15-001 (F4): prefer the node where a huiswerk-refresh Job holds the RWO kennis-prive volume,
+      # so the restart after a fill does not hit Multi-Attach.
+      affinity:
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: huiswerk-refresh
       enableServiceLinks: false
       securityContext:
         runAsNonRoot: true
@@ -136,6 +147,10 @@ spec:
             - {name: zeevaart, mountPath: /kennis/collecties/zeevaart, readOnly: true}
             - {name: models, mountPath: /models, readOnly: true}
             - {name: prive, mountPath: /prive, readOnly: true}
+            # chg-2026-10-15-001: public placeholder per homework collection (one unit), so a token can name the
+            # collection before the first fill; the private files join it from /prive/huiswerk-profiel-N.
+            - {name: huiswerk-leeg, mountPath: /kennis/collecties/huiswerk-profiel-2, readOnly: true}
+            - {name: huiswerk-leeg, mountPath: /kennis/collecties/huiswerk-profiel-3, readOnly: true}
             - {name: tmp, mountPath: /tmp}
       volumes:
         - name: code
@@ -155,6 +170,9 @@ spec:
           persistentVolumeClaim:
             claimName: kennis-prive
             readOnly: true
+        - name: huiswerk-leeg
+          configMap:
+            name: kennisdienst-huiswerk-leeg
         - name: tmp
           emptyDir:
             sizeLimit: 256Mi

@@ -1,5 +1,5 @@
 ---
-# kennisdienst: in from hermes-profiel-1 ONLY, on 8088; out NOTHING.
+# kennisdienst: in from hermes-profiel-1/2/3 ONLY, on 8088; out NOTHING.
 # It needs no DNS: models and collections are local, HF is offline, and it
 # never opens a connection. Kubelet probes still pass (host identity).
 # yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
@@ -16,6 +16,16 @@ spec:
         - matchLabels:
             app.kubernetes.io/name: hermes
             app.kubernetes.io/instance: hermes-profiel-1
+      toPorts:
+        - ports: [{port: "8088", protocol: TCP}]
+    # chg-2026-10-15-001 huiswerk: profiel-2/-3, each limited by its own token to its own collection
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: hermes
+            app.kubernetes.io/instance: hermes-profiel-2
+        - matchLabels:
+            app.kubernetes.io/name: hermes
+            app.kubernetes.io/instance: hermes-profiel-3
       toPorts:
         - ports: [{port: "8088", protocol: TCP}]
   # Explicit empty rule: default-deny for egress even if default-deny.yaml
@@ -36,6 +46,42 @@ spec:
     matchLabels:
       app.kubernetes.io/name: hermes
       app.kubernetes.io/instance: hermes-profiel-1
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: kennisdienst
+      toPorts:
+        - ports: [{port: "8088", protocol: TCP}]
+---
+# chg-2026-10-15-001: hermes-profiel-2 -> kennisdienst:8088 (huiswerk plugin, own token, own collection).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: hermes-profiel-2-kennis
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: hermes
+      app.kubernetes.io/instance: hermes-profiel-2
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: kennisdienst
+      toPorts:
+        - ports: [{port: "8088", protocol: TCP}]
+---
+# chg-2026-10-15-001: hermes-profiel-3 -> kennisdienst:8088 (huiswerk plugin, own token, own collection).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: hermes-profiel-3-kennis
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: hermes
+      app.kubernetes.io/instance: hermes-profiel-3
   egress:
     - toEndpoints:
         - matchLabels:

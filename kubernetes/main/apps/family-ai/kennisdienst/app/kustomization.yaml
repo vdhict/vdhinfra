@@ -18,6 +18,9 @@ configMapGenerator:
     files:
       - ./files/kennisdienst.py
       - ./files/models.sha256
+  - name: kennisdienst-huiswerk-leeg   # chg-2026-10-15-001 placeholder (blob 923cbc59)
+    files:
+      - ./files/huiswerk-leeg.md
 generatorOptions:
   annotations:
     kustomize.toolkit.fluxcd.io/substitute: disabled
