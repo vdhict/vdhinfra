@@ -10,6 +10,9 @@ resources:
   - ./huiswerk-mini-export.sops.yaml
   - ./networkpolicy.yaml
   - ./prometheusrule.yaml
+# Local deviations from upstream (Atlas 2026-10-15, AGR-082 relaxed + owner: Magister once a day ~17:00):
+#  - refresh.py: the hour-window check in run() removed (any time; guard.py does canary/restore);
+#  - CronJob schedule 05:35 -> 17:20 Europe/Amsterdam via the patch below.
 configMapGenerator:
   - name: huiswerk-refresh-guard     # Argus C3: pre-swap UTF-8 check + automatic restore (files/guard.py)
     namespace: family-ai
@@ -23,6 +26,11 @@ generatorOptions:
   annotations:
     kustomize.toolkit.fluxcd.io/substitute: disabled
 patches:
+  - target: {kind: CronJob, name: huiswerk-refresh}   # schedule 05:35 -> 17:20 (see header)
+    patch: |
+      - op: replace
+        path: /spec/schedule
+        value: "20 17 * * *"
   - target: {kind: CronJob, name: huiswerk-refresh}
     patch: |-
       # ACTIVE since 2026-10-15 (chg-2026-10-15-001): all Argus gates C1-C3, C5-C9 passed; C4 owed by 2026-10-31.
