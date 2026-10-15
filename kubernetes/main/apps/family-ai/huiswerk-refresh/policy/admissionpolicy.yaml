@@ -1,0 +1,62 @@
+---
+# chg-2026-10-15-001 (Argus C2): the huiswerk-refresh ServiceAccount may patch deployments/kennisdienst (Role), but
+# ONLY to set spec.template.metadata.annotations["kubectl.kubernetes.io/restartedAt"]. Any other spec change is denied.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/admissionregistration.k8s.io/validatingadmissionpolicy_v1.json
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: huiswerk-refresh-restart-only
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["apps"]
+        apiVersions: ["*"]
+        operations: ["UPDATE"]
+        resources: ["deployments", "deployments/scale", "deployments/status"]
+  matchConditions:
+    - name: huiswerk-refresh-sa
+      expression: "request.userInfo.username == 'system:serviceaccount:family-ai:huiswerk-refresh'"
+  variables:
+    - name: newAnn
+      expression: "has(object.spec.template.metadata.annotations) ? object.spec.template.metadata.annotations : {}"
+    - name: oldAnn
+      expression: "has(oldObject.spec.template.metadata.annotations) ? oldObject.spec.template.metadata.annotations : {}"
+  validations:
+    - expression: "request.subResource == ''"
+      message: "huiswerk-refresh may not use deployment subresources"
+    - expression: "object.spec.template.spec == oldObject.spec.template.spec"
+      message: "huiswerk-refresh may not change the pod spec"
+    - expression: >-
+        object.spec.replicas == oldObject.spec.replicas &&
+        object.spec.selector == oldObject.spec.selector &&
+        object.spec.strategy == oldObject.spec.strategy &&
+        has(object.spec.minReadySeconds) == has(oldObject.spec.minReadySeconds) &&
+        (!has(object.spec.minReadySeconds) || object.spec.minReadySeconds == oldObject.spec.minReadySeconds) &&
+        has(object.spec.paused) == has(oldObject.spec.paused) &&
+        (!has(object.spec.paused) || object.spec.paused == oldObject.spec.paused) &&
+        has(object.spec.revisionHistoryLimit) == has(oldObject.spec.revisionHistoryLimit) &&
+        (!has(object.spec.revisionHistoryLimit) || object.spec.revisionHistoryLimit == oldObject.spec.revisionHistoryLimit) &&
+        has(object.spec.progressDeadlineSeconds) == has(oldObject.spec.progressDeadlineSeconds) &&
+        (!has(object.spec.progressDeadlineSeconds) || object.spec.progressDeadlineSeconds == oldObject.spec.progressDeadlineSeconds)
+      message: "huiswerk-refresh may not change replicas, selector, strategy or rollout settings"
+    - expression: >-
+        (has(object.spec.template.metadata.labels) ? object.spec.template.metadata.labels : {}) ==
+        (has(oldObject.spec.template.metadata.labels) ? oldObject.spec.template.metadata.labels : {})
+      message: "huiswerk-refresh may not change pod labels"
+    - expression: >-
+        variables.newAnn.all(k, k == 'kubectl.kubernetes.io/restartedAt' || (k in variables.oldAnn && variables.oldAnn[k] == variables.newAnn[k])) &&
+        variables.oldAnn.all(k, k == 'kubectl.kubernetes.io/restartedAt' || k in variables.newAnn)
+      message: "huiswerk-refresh may only set the restartedAt annotation"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: huiswerk-refresh-restart-only
+spec:
+  policyName: huiswerk-refresh-restart-only
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: family-ai

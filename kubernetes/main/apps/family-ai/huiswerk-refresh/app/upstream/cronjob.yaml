@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: huiswerk-refresh, namespace: family-ai}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: huiswerk-refresh, namespace: family-ai}
+rules:
+  - apiGroups: [apps]
+    resources: [deployments]
+    resourceNames: [kennisdienst]
+    verbs: [get, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: huiswerk-refresh, namespace: family-ai}
+subjects: [{kind: ServiceAccount, name: huiswerk-refresh, namespace: family-ai}]
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: huiswerk-refresh}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: huiswerk-refresh
+  namespace: family-ai
+  labels: {app.kubernetes.io/part-of: cluster-wires, app.kubernetes.io/name: huiswerk-refresh}
+spec:
+  suspend: true
+  schedule: "35 5 * * *"
+  timeZone: Europe/Amsterdam
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels: {app.kubernetes.io/part-of: cluster-wires, app.kubernetes.io/name: huiswerk-refresh}
+        spec:
+          serviceAccountName: huiswerk-refresh
+          restartPolicy: Never
+          securityContext: {runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, fsGroup: 65532, seccompProfile: {type: RuntimeDefault}}
+          containers:
+            - name: refresh
+              image: CLUSTER_WIRES_IMAGE_BY_DIGEST
+              command: [python3, /opt/huiswerk/refresh.py]
+              env:
+                - {name: HUISWERK_MINI_HOST, value: MINI_EXPORT_USER_AT_HOST}
+                - {name: HUISWERK_NS, value: family-ai}
+              securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+              resources: {requests: {cpu: 10m, memory: 32Mi}, limits: {cpu: 200m, memory: 128Mi}}
+              volumeMounts:
+                - {name: prive, mountPath: /vul}
+                - {name: scripts, mountPath: /opt/huiswerk, readOnly: true}
+                - {name: ssh, mountPath: /run/ssh, readOnly: true}
+                - {name: state, mountPath: /state}
+                - {name: tmp, mountPath: /tmp}
+          volumes:
+            - {name: prive, persistentVolumeClaim: {claimName: kennis-prive}}
+            - {name: scripts, configMap: {name: huiswerk-refresh-scripts, defaultMode: 292}}
+            - {name: ssh, secret: {secretName: huiswerk-mini-export, defaultMode: 288}}
+            - {name: state, emptyDir: {}}
+            - {name: tmp, emptyDir: {}}

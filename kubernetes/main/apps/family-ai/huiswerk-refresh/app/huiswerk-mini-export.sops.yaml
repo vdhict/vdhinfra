@@ -1,0 +1,26 @@
+# chg-2026-10-15-001: read-only export key for the Mini forced command + pinned Mini host key.
+apiVersion: v1
+kind: Secret
+metadata:
+    name: huiswerk-mini-export
+    annotations:
+        kustomize.toolkit.fluxcd.io/substitute: disabled
+type: Opaque
+data:
+    key: ENC[AES256_GCM,data:kcQlc5w65P64TcP+dOit6+oe0I1pH3kJPRrehLx33oVwe0jzlZtE8G8EqQrV9KQeTdszCiXfZqxYAQiOTTMOf0neHWGxPvbyIlKq2Sr4OmIIyS9QtvrYEESPppid4RRxAfamNKSPuDF3fKisISIYTraVEHQxMIteeDc02FV/2FeJxNN0twwEj4a6oNwDnHO3Pux0uPkAGoH99U0EQ0f8YBgxtnUSxm7F/08iBuBV4C9h7rC/I3YXte9D254krQrLw9lByvA/Sg/zZLPqmrp9Y90eWkCS0u/7wxyNMfBTjQl2fgtPQT868gnY60BwIB3ffFR8IeBSvJf9Hre+njKaLWKk5+J95TyJEogh7TqZIZXbUeZD/SgVMsGCctKNqkGhKOS8+1nbupnyDTjSUNx31WRff8JaqjLrhKIoiSs2iZWkzD2/z1TP6rpRvA5rgXdqqyX5ChPDhpVIKqhJYqoJvvRRXvNKY7JzZJvJV+Yuh+aanUrMhrGnZidnqmKLKTBGgo6NafA5oFtXGFVvnnkl+ecoE++rlPD/Dr7u9jLZL+0jjGbMqIMFxmiB0cO39ln3dvw/BwNAOIwjZ1xknixsm5SORvIyWOhC7CFMbgb9N0JEo3UA0Jn527p/GLZjdKuFbZ6uvtvq+ycuJLUrd6zg00bSlQGIrNeoF/nqyIY4DKvITDo0sX38mf1tWlmdt+WKXgjprGFeC+0M3dDB9EpiFBUBkhmm1dEXrdyRuQVd9h0oScXFyVWVg/FVeHA5kxsG,iv:oHI2RawsXNXZCK8s4tMIL42p2lKsOZsH2PtgKvtBG7I=,tag:bSy23YZllcslO+rW7MwkVg==,type:str]
+    known_hosts: ENC[AES256_GCM,data:LBSOvencZkxNQk/fEhSoHnrC9Blm9Go0nsH2nYABe5ck/0O1bIiqyoiEpiIq7VE7cUCy2DQIWU2ykCGnympNfgXzBNRjgzBxypDwExI/XrUFqYF35BDNbkUSBiSsIwQCs634Z7IG6XewxbOGhwD1pDOtaTHA9usk9NbUY5R94eo=,iv:fykQcHx99hh2WY373JgU+CYIP5QwZNgNpCFy2+6Aq8g=,tag:dlnDYSYuvpXvAzkmJpz1ug==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBkcDJ4NVdDcXlwYkMxelZ0
+            OWlhOXpYUjBFdzI0ZHgzWHc0MGZERDR6eURvCmRVQ3RrVEx0M3ZBYzMzd3h5WVYy
+            Y1VaQTc3dTArSEFXZnFuaDBKWUp4MEUKLS0tIFkxR2lYdnZPcEJvdmpSNnVHdXEr
+            MmtTUUVuWjIvODFIVndCY1M2Yy9JR28KxGDUx9mnX2MMaz1gw4Do9kIDMjTXeGfO
+            Bwep5Nsj5mOIbTvFJweyNAjhGDrppojgLzqJotENlA72KhvJzJcD2Q==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1dfs2z6esr6rhm46pvh6l8xlualxsn756rkkt9432d5kk3k7s4pssmus4gk
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-10-15T02:32:20Z"
+    mac: ENC[AES256_GCM,data:WWUMC99K0ieWcCV3J59zZlAXQNYxj502Iav2sA6oUUEho9VCXfEwWRuoRechH941Otau/ep5E9Bld1i5y+qRF+anTs3p/1mMsa58ig7HzfSm0c73Wswi4hdwQf0Ta4lNBsuDZHqK6Hm2ogY9ugEbuwg18F70w81uPRcP/dhnL5s=,iv:4NfgfCH0B5ph6y1TKDCt8srfT64572y1/mbMwAsogk8=,tag:MelphxtlIG/lyyP71lCYJg==,type:str]
+    version: 3.13.3

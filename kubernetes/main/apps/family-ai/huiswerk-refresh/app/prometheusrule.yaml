@@ -1,0 +1,40 @@
+---
+# chg-2026-10-15-001 (Argus C3): a failed huiswerk-refresh Job reaches someone. severity=warning ->
+# ntfy-day 07-23 / ntfy-night 23-07 (priority 1, silent, AGR-074) + the 07:00 morning summary.
+# Content-free: names the Job only; the Job log itself carries one fixed FAIL line.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/monitoring.coreos.com/prometheusrule_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: huiswerk-refresh
+  namespace: family-ai
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+spec:
+  groups:
+    - name: family-ai-huiswerk
+      interval: 1m
+      rules:
+        - alert: HuiswerkRefreshFailed
+          expr: max by (namespace, job_name) (kube_job_status_failed{namespace="family-ai", job_name=~"huiswerk-refresh-.*"}) > 0
+          for: 1m
+          labels:
+            severity: warning
+            component: family-ai-huiswerk
+          annotations:
+            summary: "huiswerk-refresh Job {{ $labels.job_name }} failed"
+            description: |
+              The daily homework refresh failed; the previous homework stays served (automatic restore after a swap).
+              Look at: kubectl -n family-ai get jobs -l app.kubernetes.io/name=huiswerk-refresh. Never print the
+              collections. Rollback: suspend CronJob family-ai/huiswerk-refresh. chg-2026-10-15-001.
+        - alert: HuiswerkRefreshStale
+          expr: |
+            ((time() - kube_cronjob_status_last_successful_time{namespace="family-ai", cronjob="huiswerk-refresh"}) > 108000)
+            and on(namespace, cronjob) (kube_cronjob_spec_suspend{namespace="family-ai", cronjob="huiswerk-refresh"} == 0)
+          for: 15m
+          labels:
+            severity: warning
+            component: family-ai-huiswerk
+          annotations:
+            summary: "huiswerk-refresh: no successful run for 30+ hours"
+            description: "CronJob family-ai/huiswerk-refresh is active but has not completed for 30 h. chg-2026-10-15-001."

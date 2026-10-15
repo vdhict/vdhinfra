@@ -24,3 +24,4 @@ resources:
   - ./gezinsdienst/install.yaml
   - ./web/install.yaml
   - ./kennisdienst/install.yaml
+  - ./huiswerk-refresh/install.yaml   # chg-2026-10-15-001

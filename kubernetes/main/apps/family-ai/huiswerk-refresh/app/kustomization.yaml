@@ -1,0 +1,66 @@
+---
+# chg-2026-10-15-001. upstream/ = verbatim cluster-wires bundle 012e632d files (cronjob.yaml blob e241fbb4 ==
+# family-ai deploy/huiswerk/vullen-job.yaml; scripts.configmap.json blob d57911f4 == render-config.py output of
+# refresh.py 674884b8 + bin/vul-kennis-prive 4ed58415). Platform fixes are patches below, never edits upstream.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./upstream/cronjob.yaml
+  - ./upstream/scripts.configmap.json
+  - ./huiswerk-mini-export.sops.yaml
+  - ./networkpolicy.yaml
+  - ./prometheusrule.yaml
+configMapGenerator:
+  - name: huiswerk-refresh-guard     # Argus C3: pre-swap UTF-8 check + automatic restore (files/guard.py)
+    namespace: family-ai
+    files:
+      - ./files/guard.py
+  - name: huiswerk-refresh-passwd    # F2: ssh needs a passwd entry for uid 65532
+    namespace: family-ai
+    files:
+      - ./files/passwd
+generatorOptions:
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+patches:
+  - target: {kind: CronJob, name: huiswerk-refresh}
+    patch: |-
+      # F3: vendor image (python3 + openssh-client + tzdata), the base cluster-wires is built on; no pull secret.
+      - op: replace
+        path: /spec/jobTemplate/spec/template/spec/containers/0/image
+        value: docker.io/library/python:3.13.15-bookworm@sha256:227b6570d6ee07061ae6ca2eb04dedfb6d2b34045835f343065b9869e4d427ea
+      # C3: the guard wraps refresh.py (unchanged) with the pre-swap check and the automatic restore.
+      - op: replace
+        path: /spec/jobTemplate/spec/template/spec/containers/0/command
+        value: [python3, /opt/huiswerk-guard/guard.py]
+      - op: replace
+        path: /spec/jobTemplate/spec/template/spec/containers/0/env/0/value
+        value: sheijden@172.16.2.201
+      - op: add
+        path: /spec/jobTemplate/spec/template/spec/containers/0/env/-
+        value: {name: HOME, value: /tmp}
+      - op: add
+        path: /spec/jobTemplate/spec/template/spec/containers/0/env/-
+        value: {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+      - op: add
+        path: /spec/jobTemplate/spec/template/spec/containers/0/volumeMounts/-
+        value: {name: guard, mountPath: /opt/huiswerk-guard, readOnly: true}
+      - op: add
+        path: /spec/jobTemplate/spec/template/spec/containers/0/volumeMounts/-
+        value: {name: passwd, mountPath: /etc/passwd, subPath: passwd, readOnly: true}
+      - op: add
+        path: /spec/jobTemplate/spec/template/spec/volumes/-
+        value: {name: guard, configMap: {name: huiswerk-refresh-guard, defaultMode: 292}}
+      - op: add
+        path: /spec/jobTemplate/spec/template/spec/volumes/-
+        value: {name: passwd, configMap: {name: huiswerk-refresh-passwd, defaultMode: 292}}
+      # F4: kennis-prive is RWO; run on the node where kennisdienst has it attached.
+      - op: add
+        path: /spec/jobTemplate/spec/template/spec/affinity
+        value:
+          podAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              - topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: kennisdienst
