@@ -23,7 +23,7 @@ spec:
     - name: oldAnn
       expression: "has(oldObject.spec.template.metadata.annotations) ? oldObject.spec.template.metadata.annotations : {}"
   validations:
-    - expression: "request.subResource == ''"
+    - expression: "!has(request.subResource) || request.subResource == ''"
       message: "huiswerk-refresh may not use deployment subresources"
     - expression: "object.spec.template.spec == oldObject.spec.template.spec"
       message: "huiswerk-refresh may not change the pod spec"
