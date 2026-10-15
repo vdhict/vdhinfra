@@ -100,7 +100,7 @@ spec:
             - name: KENNIS_RERANK_MODEL
               value: /models/models--cross-encoder--mmarco-mMiniLMv2-L12-H384-v1/snapshots/1427fd652930e4ba29e8149678df786c240d8825
             # Mack's toegang.json: token env name -> collections it may search.
-            - {name: KENNIS_TOEGANG, value: '{"KENNIS_TOKEN_PROFIEL_1": ["zeevaart"]}'}
+            - {name: KENNIS_TOEGANG, value: '{"KENNIS_TOKEN_PROFIEL_1": ["zeevaart"], "KENNIS_TOKEN_PROFIEL_2": ["huiswerk-profiel-2"], "KENNIS_TOKEN_PROFIEL_3": ["huiswerk-profiel-3"]}'}
             - {name: HOME, value: /tmp}
             - {name: HF_HOME, value: /tmp/hf}
             - {name: HF_HUB_OFFLINE, value: "1"}
