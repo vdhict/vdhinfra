@@ -206,12 +206,12 @@ Editing a file or POSTing to an API is not verification. Read back what the syst
 
 If you could not observe the outcome, say so and hand the user specific check steps.
 
-### Unattended shell: no rm in inline scripts (AGR-079)
+### Unattended shell: no rm (AGR-079, AGR-121)
 
-- Never put `rm` in an inline `sh -c`/`bash -c` string, a heredoc, or a multi-line Bash call that mixes steps.
-- A step that must delete goes in a script file in the repo (e.g. `hack/ops/<name>.sh`), called on its own, using
-  `"${var:?}"` or explicit paths. Use `find <dir> -mindepth 1 -delete` to empty a directory.
-- A single literal-path `rm` may be its own one-line Bash call.
+- No `rm`, `unlink` or `find -delete` in any Bash call. The project hook `.claude/hooks/no-rm.py` (PreToolUse on Bash,
+  tests in `test-no-rm.sh`) denies them. Temporary work stays in the scratchpad; what has to go is moved with `mv`.
+- A step that really must delete goes in a script file in the repo (e.g. `hack/ops/<name>.sh`), reviewed and called on
+  its own, using `"${var:?}"` or explicit paths.
 
 ### Skills
 
