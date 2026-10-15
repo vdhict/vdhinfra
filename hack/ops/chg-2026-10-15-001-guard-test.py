@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """chg-2026-10-15-001 C3 test of huiswerk-refresh guard.py with SYNTHETIC packages in a scratch volume (non-prod).
    python3 -I hack/ops/chg-2026-10-15-001-guard-test.py <guard.py> <refresh.py> <vul-kennis-prive> <scratch-dir>
-Cases: (1) good package + restart OK -> exit 0, new collections in place, 1 retired dir;
+Cases: (4) restart times out at 120 s but the guard's extra wait sees it Ready -> exit 0; (1) good package + restart OK -> exit 0, new collections in place, 1 retired dir;
        (2) non-UTF-8 package -> exit 1 before swap, collections unchanged (sha equal);
        (3) good package + restart failure -> exit 1, previous collections restored, failed-* kept, restart retried.
 Synthetic text only; prints PASS/FAIL per case."""
@@ -39,7 +39,7 @@ def tree_sha(vol):
     return h.hexdigest()[:12]
 
 
-def run_case(label, data, restart_fails):
+def run_case(label, data, restart_fails, slow_ok=False):
     os.environ['HUISWERK_REFRESH_PY'] = REFRESH
     spec = importlib.util.spec_from_file_location('guard', GUARD)
     guard = importlib.util.module_from_spec(spec); spec.loader.exec_module(guard)
@@ -65,6 +65,8 @@ def run_case(label, data, restart_fails):
         r.cluster_restart = restart
         return r
     guard.load_refresh = load
+    if slow_ok:
+        guard.wait_ready = lambda refresh, ns, seconds: None
     vol = Path(os.environ['HUISWERK_VOLUME'])
     before = tree_sha(vol)
     retired_before = len([p for p in vol.iterdir() if p.name.startswith('.retired-')])
@@ -92,6 +94,9 @@ def main():
     failed = sorted(x.name for d in vol.iterdir() if d.name.startswith('.retired-') for x in d.iterdir() if x.name.startswith('failed-'))
     p = rc == 1 and a == good_sha and n == 2 and failed == ['failed-huiswerk-profiel-2', 'failed-huiswerk-profiel-3']
     ok &= p; print(f"case3 restart failure: rc={rc} restored={a == good_sha} restarts={n} failed_kept={len(failed)} -> {'PASS' if p else 'FAIL'}")
+    rc, b, a, r, n = run_case('slow-ok', package(b'# E\n## z\nsynthetic e\n', b'# F\n## z\nsynthetic f\n'), True, slow_ok=True)
+    p = rc == 0 and a != good_sha and r == 1 and n == 1
+    ok &= p; print(f"case4 slow rollout, extra wait OK: rc={rc} changed={a != good_sha} retired+={r} restarts={n} -> {'PASS' if p else 'FAIL'}")
     print('zeevaart untouched:', (vol / 'zeevaart' / 'x.md').read_text() == '# synthetic\n')
     print('ALL PASS' if ok else 'SOME FAILED')
     return 0 if ok else 1

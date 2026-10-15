@@ -54,6 +54,11 @@ patches:
       - op: add
         path: /spec/jobTemplate/spec/template/spec/volumes/-
         value: {name: passwd, configMap: {name: huiswerk-refresh-passwd, defaultMode: 292}}
+      # Measured 2026-10-15: kennisdienst needs ~100-150 s after the old pod is gone; refresh.py waits 120 s, the
+      # guard 300 s more, and the restore path may need one more restart -> deadline 900 s (was 300).
+      - op: replace
+        path: /spec/jobTemplate/spec/activeDeadlineSeconds
+        value: 900
       # F4: kennis-prive is RWO; run on the node where kennisdienst has it attached.
       - op: add
         path: /spec/jobTemplate/spec/template/spec/affinity
