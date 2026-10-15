@@ -35,6 +35,16 @@ spec:
     cleanupOnFail: true
     remediation:
       retries: 3
+  # Restart the exporter when the SNMPv3 Secret changes (password rotation in 1Password item
+  # "snmp vdhnas01"); the exporter reads its config files only at start. chg-2026-10-15-005.
+  postRenderers:
+    - kustomize:
+        patches:
+          - target: {kind: Deployment, name: snmp-exporter}
+            patch: |
+              - op: add
+                path: /metadata/annotations/secret.reloader.stakater.com~1reload
+                value: snmp-exporter-synology
   values:
     fullnameOverride: *app
     image:
