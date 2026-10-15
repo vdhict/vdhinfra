@@ -146,14 +146,15 @@ The user talks to you. Sign meaningful summaries with "— Atlas". The previous 
 
 - No plan, QA or approval rounds. **Tests are the gate**: automatic tests, canary, snapshot and automatic rollback.
 - **The change log writes itself:** one line per action, written by the action. No planned/qa/approved events.
-- **Windows (AGR-082, local time):**
-  - Anything that can interrupt production runs only 01:00–06:00 or 09:00–16:00.
-  - A UniFi interruption runs only 01:00–06:00.
+- **Windows (AGR-082, relaxed by Sander 2026-10-15, local time):**
+  - Production changes may run at any time, provided they have a canary and an automatic rollback.
+  - A deliberate interruption of internet or wifi (UniFi restart, UniFi/UDM firmware, WAN or Wi-Fi changes that drop
+    clients) runs only 01:00–06:00.
+  - Night silence (AGR-074) is unchanged: no sound or vibration 23:00–07:00.
 - **Each change:**
   - take a snapshot or a VolSync run first, where state is involved;
   - run an automated check afterwards;
-  - roll back automatically (git revert + Flux, or HelmRelease remediation) if the check fails or the window ends
-    unstable.
+  - roll back automatically (git revert + Flux, or HelmRelease remediation) if the check fails.
 - **Parallel by default:** everything without a dependency starts at once. Sequential only where B needs A's result.
   Never block-wait on another session for more than 2 minutes: chase it, take it over, or move on.
 - **Autonomy levels A/B/C/D (AGR-109)** decide what runs unattended. The levels are defined in the AIOps plan

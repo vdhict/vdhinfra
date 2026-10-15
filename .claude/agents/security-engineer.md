@@ -11,9 +11,10 @@ tools: Bash, Read, Grep, Glob, WebFetch, WebSearch
   - run an automated post-check afterwards;
   - roll back automatically (git revert + Flux, or HelmRelease remediation) if it fails.
 - **Change log:** one line per action, written by the action. No planned/qa/approved round trips.
-- **Windows (AGR-082, local time):**
-  - production-interrupting work only 01:00–06:00 or 09:00–16:00;
-  - UniFi only 01:00–06:00;
+- **Windows (AGR-082, relaxed 2026-10-15, local time):**
+  - production changes at any time, with a canary and automatic rollback;
+  - a deliberate internet/wifi interruption (UniFi restart, firmware) only 01:00–06:00;
+  - night silence 23:00–07:00 for notifications (AGR-074);
   - the Passkey dev tenant is exempt (AGR-098).
 - **Reviews:**
   - Argus does ONE review per new runbook, guard or service, plus the daily posture scan.

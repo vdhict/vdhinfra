@@ -80,7 +80,9 @@ NEVER_NAME_TOKENS = ("lab-passkey", "passkey-point", "devtenant", "mypka", "fami
 RESTART_PROTECTED_NAMESPACES = ("kube-system", "flux-system", "rook-ceph", "storage", "security",
                                 "devtools", "database", "cert-manager", "network")
 SELFTEST_NAMESPACES = ("aiops-selftest",)
-WINDOWS_LOCAL = ((1, 6), (9, 16))                 # [start_hour, end_hour)
+# AGR-082 relaxed 2026-10-15: production changes any time (canary + rollback); only a
+# deliberate internet/wifi interruption keeps 01-06, and triage never touches UniFi.
+WINDOWS_LOCAL = ((0, 24),)                        # [start_hour, end_hour)
 
 
 # ---------------------------------------------------------------- switches
@@ -167,7 +169,7 @@ class Ctx:
             if ns in RESTART_PROTECTED_NAMESPACES:
                 return False, "protected namespace (core): report only"
             if ns not in SELFTEST_NAMESPACES and not in_window(self.now_local):
-                return False, "deferred: outside 01-06/09-16 window"
+                return False, "deferred: outside window"
         if self.counts.get(obj_key, 0) >= MAX_ACTIONS_PER_OBJECT_PER_DAY:
             return False, f"daily cap {MAX_ACTIONS_PER_OBJECT_PER_DAY} reached"
         return True, ""
