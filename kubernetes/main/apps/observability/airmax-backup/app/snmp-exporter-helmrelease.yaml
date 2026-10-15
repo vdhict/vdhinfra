@@ -57,6 +57,17 @@ spec:
       limits:
         cpu: 100m
         memory: 64Mi
+    # Image-bundled snmp.yml (synology module), the inline config below, and the
+    # ExternalSecret-rendered SNMPv3 auth are merged by snmp_exporter.
+    extraArgs:
+      - --config.file=/etc/snmp_exporter/snmp.yml
+      - --config.file=/secrets/synology-auth.yml
+    extraSecretMounts:
+      - name: synology-auth
+        mountPath: /secrets
+        secretName: snmp-exporter-synology
+        readOnly: true
+        defaultMode: 288
     # Inline snmp.yml config using the v0.30 auth-split format.
     # See: https://github.com/prometheus/snmp_exporter/blob/main/auth-split-migration.md
     # In v0.30+, 'auth' is NOT a field inside module definitions.
@@ -175,3 +186,12 @@ spec:
           additionalMetricsRelabels:
             device: vdhptp02
             device_role: airmax-ap
+        - name: vdhnas01
+          target: 172.16.2.246
+          module:
+            - synology
+          auth:
+            - synology_v3
+          additionalMetricsRelabels:
+            device: vdhnas01
+            device_role: nas
