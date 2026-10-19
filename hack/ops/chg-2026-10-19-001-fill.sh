@@ -26,9 +26,16 @@ say() { echo "FILL: $*"; }
 types=$(tar -tzvf "$TGZ" | cut -c1 | sort -u | tr -d '\n'); [ "$types" = "-d" ] || fail "non-regular member types: $types"
 dirs=$(tar -tzf "$TGZ" | grep '/$' | LC_ALL=C sort | tr '\n' ' '); [ "$dirs" = "lesstof-profiel-2/ lesstof-profiel-3/ " ] || fail "collection dirs"
 say "package sha256 ${TGZ_SHA:0:12} OK, SHA256SUMS ${SUMS_SHA:0:12} OK, members $(tar -tzf "$TGZ" | grep -vc '/$') files in 2 collection dirs"
-hh=$(TZ=Europe/Amsterdam date +%H%M); [ "$hh" -lt 1700 ] || [ "$hh" -gt 1745 ] || fail "huiswerk-refresh window 17:00-17:45 local"
-active=$(kubectl -n "$NS" get jobs -l app.kubernetes.io/name=huiswerk-refresh -o jsonpath='{range .items[*]}{.status.active}{"\n"}{end}' | grep -c '[1-9]' || true)
-[ "$active" = 0 ] || fail "a huiswerk-refresh Job is active"
+# Argus C3: refuse 16:30-17:45 local (refresh 17:20, pod deadline 1800 s) and with an active refresh Job; re-checked
+# right before the swap.
+refresh_guard() {
+  local hh active
+  hh=$(TZ=Europe/Amsterdam date +%H%M)
+  [ "$hh" -lt 1630 ] || [ "$hh" -gt 1745 ] || fail "huiswerk-refresh window 16:30-17:45 local ($1)"
+  active=$(kubectl -n "$NS" get jobs -l app.kubernetes.io/name=huiswerk-refresh -o jsonpath='{range .items[*]}{.status.active}{"\n"}{end}' | grep -c '[1-9]' || true)
+  [ "$active" = 0 ] || fail "a huiswerk-refresh Job is active ($1)"
+}
+refresh_guard start
 cm=$(kubectl -n "$NS" get cm huiswerk-refresh-scripts -o jsonpath='{.data.vul-kennis-prive}' | shasum -a 256 | cut -d' ' -f1)
 [ "$cm" = "$FILLER_SHA" ] || fail "trusted filler sha in ConfigMap"
 toeg=$(kubectl -n "$NS" get deploy kennisdienst -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="KENNIS_TOEGANG")].value}')
@@ -109,6 +116,7 @@ kx mkdir -m 700 /vul/.nieuw
 LANDED=1
 kx tar -xzf - -C /vul/.nieuw --no-same-owner --no-same-permissions < "$TGZ" || fail "tar in pod"
 [ "$(kx sha256sum /vul/.nieuw/SHA256SUMS | cut -d' ' -f1)" = "$SUMS_SHA" ] || fail "SHA256SUMS on the volume"
+refresh_guard "before swap"
 kx sh /opt/huiswerk/vul-kennis-prive "$SUMS_SHA" /vul | sed 's/^/FILL: /'
 for c in lesstof-profiel-2 lesstof-profiel-3; do
   n=$(kx sh -c "ls /vul/$c/*.md | wc -l" | tr -d ' ')
