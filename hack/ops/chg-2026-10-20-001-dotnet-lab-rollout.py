@@ -22,7 +22,7 @@ REPO, EV = sys.argv[1], sys.argv[2]
 NS, CHG, ACTOR = "lab-passkey-dotnet", "chg-2026-10-20-001", "k8s-engineer"
 DIGEST = "sha256:b412ec9c6df0d47ee9c8d57e93a950acc4d29cab48c210cf6591d1e7916adee9"
 IMAGE = "forge.bluejungle.net/palamedes/passkey-point-dotnet@" + DIGEST
-MIGRATE_JOB, GRANTS_JOB = "passkey-point-migrate-b412ec9", "passkey-point-grants-234141e"
+MIGRATE_JOB, GRANTS_JOB = "passkey-point-migrate-b412ec9-r2", "passkey-point-grants-234141e"
 HOST, ENVOY_IP = "passkey-point-dotnet-lab.bluejungle.net", "172.16.2.241"
 KS = ["lab-passkey-dotnet-network-policies", "lab-passkey-dotnet-base", "lab-passkey-dotnet-db",
       "lab-passkey-dotnet-migrate", "lab-passkey-dotnet-grants", "lab-passkey-dotnet-desk"]

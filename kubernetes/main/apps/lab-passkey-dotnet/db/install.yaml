@@ -23,6 +23,13 @@ spec:
     namespace: flux-system
   prune: true
   wait: true
+  # inc-2026-10-20-002: the generic (kstatus) check counted the new Cluster Current at "Setting up primary", so
+  # migrate/ ran before PostgreSQL accepted connections. Ready now means: every instance ready AND healthy phase.
+  healthCheckExprs:
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: Cluster
+      current: has(status.readyInstances) && status.readyInstances == spec.instances && status.phase == 'Cluster in healthy state'
+      inProgress: "!has(status.readyInstances) || status.readyInstances < spec.instances || status.phase != 'Cluster in healthy state'"
   interval: 30m
   retryInterval: 2m
   timeout: 10m
