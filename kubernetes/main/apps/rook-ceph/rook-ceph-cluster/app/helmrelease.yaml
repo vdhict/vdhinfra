@@ -20,7 +20,10 @@ spec:
 
     monitoring:
       enabled: true
-      createPrometheusRules: true
+      # Off: the chart's CephNode* rules match every node_exporter target,
+      # the Macs included. The same rules ship from Git with a job filter in
+      # ./prometheusrule.yaml (chg-2026-10-20-011).
+      createPrometheusRules: false
 
     cephClusterSpec:
       cephConfig:

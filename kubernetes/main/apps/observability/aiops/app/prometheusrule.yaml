@@ -186,6 +186,36 @@ spec:
           annotations:
             summary: "{{ $labels.host }}: myPKA pka-heartbeat-check watches nothing"
             description: Its sweep matched 0 registry lines. ALERT_HOST_ROLE in ~/.config/pka-alert/alert.env or the wires.conf host column is wrong. Owner Mack.
+        - alert: MacDiskSpaceLow
+          # Honest home for the Mac disk alerts that used to page as
+          # CephNodeRootFilesystemFull / CephNodeDiskspaceWarning (those are
+          # now scoped to job="node-exporter", chg-2026-10-20-011). APFS: the
+          # user data lives on /System/Volumes/Data, "/" is the sealed system
+          # snapshot. Warning reaches ntfy (day loud, night silent).
+          expr: |
+            node_filesystem_avail_bytes{job="mac-node",mountpoint="/System/Volumes/Data"}
+              / node_filesystem_size_bytes{job="mac-node",mountpoint="/System/Volumes/Data"} < 0.10
+          for: 15m
+          labels:
+            severity: warning
+            component: aiops-hosts
+          annotations:
+            summary: "{{ $labels.host }} ({{ $labels.role }}): data volume has {{ $value | humanizePercentage }} free"
+            description: Under 10% free on /System/Volumes/Data. Free space on the host (caches, old builds, Docker/VM images) before it hits 5%.
+        - alert: MacDiskSpaceCritical
+          # Under 5% the agents, launchd jobs and local models start failing.
+          # Critical: HA by day only (aiops-* route), ntfy loud by day, silent
+          # at night (AGR-074).
+          expr: |
+            node_filesystem_avail_bytes{job="mac-node",mountpoint="/System/Volumes/Data"}
+              / node_filesystem_size_bytes{job="mac-node",mountpoint="/System/Volumes/Data"} < 0.05
+          for: 5m
+          labels:
+            severity: critical
+            component: aiops-hosts
+          annotations:
+            summary: "{{ $labels.host }} ({{ $labels.role }}): data volume has {{ $value | humanizePercentage }} free"
+            description: Under 5% free on /System/Volumes/Data. Free space on the host now.
         - alert: MacRebooted
           expr: changes(node_boot_time_seconds{job="mac-node"}[30m]) > 0
           labels:
