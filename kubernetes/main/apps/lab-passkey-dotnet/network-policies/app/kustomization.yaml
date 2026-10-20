@@ -1,0 +1,18 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+#
+# lab-passkey-dotnet network policy. default-deny for every pod, then:
+#   web       in:  envoy-internal :8080            out: api :8443, login.microsoftonline.com :443
+#   api       in:  web :8443                       out: pp-dotnet-pg :5432, login + graph :443
+#             (TapSim sidecar on 127.0.0.1:8090 is loopback: no policy needed)
+#   migrate   in:  nothing                         out: pp-dotnet-pg :5432
+#   grants    in:  nothing                         out: pp-dotnet-pg :5432
+#   pg        in:  api/migrate/grants :5432, CNPG operator :8000/:5432   out: kube-apiserver :6443, itself
+#   + DNS (kube-dns) for exactly those names. Plain allow rules only: NO deny rules, NO port ranges
+#   (inc-2026-10-05-002). Nothing to the LAN, to envoy-internal (inc-2026-09-26-001) or to lab-passkey.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./default-deny.yaml
+  - ./desk.yaml
+  - ./db.yaml

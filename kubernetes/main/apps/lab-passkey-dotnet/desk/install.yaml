@@ -1,0 +1,31 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# The desk (api + web). Applied only after migrate/ and grants/ are Ready (schema at V012, rights in place).
+# Canary/readiness (requirement 4): wait: true + timeout 8m -> Ready only when both Deployments are Available, i.e.
+# /readyz green on the api (database at schema 12, config loaded) and on the web (api reachable over mTLS).
+# Kustomize has no Helm-style automatic rollback, so the rollout script
+# (hack/ops/chg-2026-10-20-001-dotnet-lab-rollout.py) is the rollback: on a failed rollout it scales both
+# Deployments to 0 and suspends THIS Kustomization (so Flux does not scale them back), records the evidence and
+# exits non-zero. Revert = git revert of the rollout commit + flux resume.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app lab-passkey-dotnet-desk
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: lab-passkey-dotnet-grants
+  targetNamespace: lab-passkey-dotnet
+  commonMetadata:
+    labels:
+      app.kubernetes.io/part-of: lab-passkey-dotnet
+  path: ./kubernetes/main/apps/lab-passkey-dotnet/desk/app
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: true
+  interval: 30m
+  retryInterval: 2m
+  timeout: 8m

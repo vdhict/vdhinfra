@@ -1,0 +1,81 @@
+---
+# Nightly dev-tenant E2E against the .NET LAB (chg-2026-10-20-001, Mack 2026-10-20 requirement 3). Dev tenant 7m5b27gbc only.
+# Pod shape = the TS nightly passkey-point-e2e (devtenant/base/app/e2e-nightly-cronjob.yaml), with these deltas:
+#   image   passkey-point-e2e built from VDHICT/passkey-point e2e/secreq-1.0-idtype ef59c24 (verified on the forge
+#           2026-10-20: branch head ef59c24183221c520e3da2ec0f807bd2bb0052ec, parent dcd2404, changes only
+#           e2e/src/cases.ts + e2e/src/demo.ts). NOT BUILT YET: the digest below is an all-zero PLACEHOLDER and the
+#           CronJob is suspended. Set the signed e2e-ef59c24 digest here and in the initContainer, then suspend: false.
+#   config  passkey-point-e2e-dotnet-config (origins.web = the .NET LAB); hostAliases for that host on envoy-internal.
+#   E2E_COMMIT / E2E_LAB_IMAGE_DIGEST  the desk under test: e7fbe8a, desk digest (components/desk-image).
+#   initContainer desk-ready: GET https://<.NET LAB>/readyz through envoy-internal, 15 s apart for up to 10 min; not 200
+#           -> exit 1 BEFORE any tenant step (no password attempt, no TAP): "must not run before the desk is up".
+# Timing: 03:50 Europe/Amsterdam. The TS run starts 02:40 and has activeDeadlineSeconds 3600, so it is gone by 03:40
+#   at the latest (concurrencyPolicy only guards one CronJob; personas are shared and Entra allows one TAP per user).
+#   tp-contractor-new is re-created 02:10 and counts as "new" for PP_CONTRACTOR_TENURE_MINUTES=120, i.e. until 04:10:
+#   a normal ~6 min run ends ~03:56. Clear of the Envoy window runner (01:05) and forge-pg backup (03:10).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: passkey-point-e2e-dotnet
+  namespace: passkey-point-e2e
+  labels:
+    vdhinfra.io/standing: devtenant-nightly
+spec:
+  schedule: "50 3 * * *"
+  timeZone: Europe/Amsterdam
+  suspend: true  # until the e2e-ef59c24 image exists and AR1/AR2 have the .NET LAB redirect URIs
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 7
+  jobTemplate:
+    spec:
+      backoffLimit: 0  # a failed run is not retried: no second password attempt (smart lockout)
+      activeDeadlineSeconds: 3600
+      ttlSecondsAfterFinished: 604800
+      template:
+        metadata:
+          labels: {app.kubernetes.io/name: passkey-point-e2e-dotnet}
+        spec:
+          serviceAccountName: passkey-point-e2e
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          nodeSelector: {kubernetes.io/hostname: vdhclu01node02}
+          hostAliases: [{ip: "172.16.2.241", hostnames: ["passkey-point-dotnet-lab.bluejungle.net"]}]
+          imagePullSecrets: [{name: passkey-point-e2e-pull}]
+          securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 0, fsGroup: 10001, seccompProfile: {type: RuntimeDefault}}
+          initContainers:
+            - name: desk-ready
+              image: forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:0000000000000000000000000000000000000000000000000000000000000000
+              command:
+                - node
+                - -e
+                - >-
+                  const u='https://passkey-point-dotnet-lab.bluejungle.net/readyz'; const end=Date.now()+600000;
+                  (async()=>{ for(;;){ try{ const r=await fetch(u, {redirect:'manual'}); console.log('desk-ready: /readyz HTTP '+r.status);
+                  if(r.status===200) process.exit(0); }catch(e){ console.log('desk-ready: '+((e.cause&&e.cause.code)||e.name)); }
+                  if(Date.now()>end){ console.log('desk-ready: desk not ready in 10 min, no tenant step taken'); process.exit(1); }
+                  await new Promise(x=>setTimeout(x,15000)); } })();
+              securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
+              resources: {requests: {cpu: 10m, memory: 64Mi}, limits: {memory: 128Mi}}
+          containers:
+            - name: e2e
+              image: forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:0000000000000000000000000000000000000000000000000000000000000000
+              args: ["--set", "nightly"]
+              env:
+                - {name: E2E_SECRETS_DIR, value: /secrets}
+                - {name: E2E_COMMIT, value: "e7fbe8a86430ef666cc491c540e0306bf67fc50d"}
+                - {name: E2E_LAB_IMAGE_DIGEST, value: "sha256:b412ec9c6df0d47ee9c8d57e93a950acc4d29cab48c210cf6591d1e7916adee9"}
+              securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
+              resources: {requests: {cpu: 500m, memory: 1Gi}, limits: {memory: 2Gi}}
+              volumeMounts:
+                - {name: secrets, mountPath: /secrets, readOnly: true}
+                - {name: config, mountPath: /e2e/config/dev-tenant.json, subPath: dev-tenant.json, readOnly: true}
+                - {name: denylist, mountPath: /e2e/config/denylist.txt, subPath: denylist.txt, readOnly: true}
+                - {name: out, mountPath: /out}
+                - {name: tmp, mountPath: /tmp}
+          volumes:
+            - {name: secrets, secret: {secretName: passkey-point-e2e, defaultMode: 0440}}
+            - {name: config, configMap: {name: passkey-point-e2e-dotnet-config}}
+            - {name: denylist, configMap: {name: passkey-point-e2e-denylist}}
+            - {name: out, persistentVolumeClaim: {claimName: passkey-point-e2e-out}}
+            - {name: tmp, emptyDir: {sizeLimit: 512Mi}}

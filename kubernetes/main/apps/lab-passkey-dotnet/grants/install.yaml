@@ -1,0 +1,27 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# grants.sql AFTER the migrations (it names the V001..V012 tables), BEFORE the desk. Same gate shape as migrate/:
+# a Failed Job keeps this NotReady and desk/ is never applied.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app lab-passkey-dotnet-grants
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: lab-passkey-dotnet-migrate
+  targetNamespace: lab-passkey-dotnet
+  commonMetadata:
+    labels:
+      app.kubernetes.io/part-of: lab-passkey-dotnet
+  path: ./kubernetes/main/apps/lab-passkey-dotnet/grants/app
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  force: true
+  wait: true
+  interval: 30m
+  retryInterval: 2m
+  timeout: 5m

@@ -1,0 +1,71 @@
+---
+# Schema migration, from deploy/jobs/migrate.yaml @e7fbe8a, filled for this LAB:
+#   * image = the desk image (components/desk-image), args ["ops", "migrate"]: applies /app/migrations/postgres/
+#     V###__*.sql in order, each in its own transaction with its schema_migrations row; exit 0 done, 1 a file failed
+#     (rolled back), 78 configuration. Logs never contain the connection string (Migrator.cs).
+#   * principal = pp_migrator (initdb owner), from the CNPG Secret pp-dotnet-pg-app. PP_DB_MIGRATE_URL is composed by
+#     the kubelet from the env vars above it ($(VAR) expansion), so the password is never in the pod spec, in Git
+#     or in a log. CNPG passwords are 64 alphanumerics (measured), safe inside the ';' form.
+#   * TLS VerifyFull against the CNPG CA (ca.crt only; the CA key is not mounted).
+#   * Name carries the desk digest prefix: a new image = a new Job (immutable spec). No ttlSecondsAfterFinished: a
+#     finished Job stays, so Flux does not re-create it on every reconcile (rerun would be a no-op anyway).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/batch/job_v1.json
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: passkey-point-migrate-b412ec9
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: passkey-point-migrate
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+      imagePullSecrets:
+        - name: passkey-point-palamedes-pull
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: migrate
+          image: passkey-point-desk
+          args: ["ops", "migrate"]
+          env:
+            - name: PP_DB_ENGINE
+              valueFrom: {configMapKeyRef: {name: passkey-point-config, key: PP_DB_ENGINE}}
+            - name: PGUSER_MIGRATOR
+              valueFrom: {secretKeyRef: {name: pp-dotnet-pg-app, key: username}}
+            - name: PGPASSWORD_MIGRATOR
+              valueFrom: {secretKeyRef: {name: pp-dotnet-pg-app, key: password}}
+            - name: PP_DB_MIGRATE_URL
+              value: "Host=pp-dotnet-pg-rw.lab-passkey-dotnet.svc.cluster.local;Port=5432;Database=passkeypoint;Username=$(PGUSER_MIGRATOR);Password=$(PGPASSWORD_MIGRATOR);SSL Mode=VerifyFull;Root Certificate=/tls/pg/ca.crt"
+            - {name: HOME, value: /tmp}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {memory: 384Mi}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: pg-ca, mountPath: /tls/pg, readOnly: true}
+      volumes:
+        - name: tmp
+          emptyDir: {sizeLimit: 16Mi}
+        - name: pg-ca
+          secret:
+            secretName: pp-dotnet-pg-ca
+            defaultMode: 0440
+            items:
+              - {key: ca.crt, path: ca.crt}

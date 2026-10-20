@@ -1,0 +1,28 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# The .NET LAB's OWN PostgreSQL (requirement 2: the TS LAB's SQLite on lab-passkey/pp-data is never touched, and
+# neither is database/postgres16). wait: true -> Ready only when the CNPG Cluster is healthy and the runtime-role
+# Secret exists; migrate/ dependsOn this.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app lab-passkey-dotnet-db
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: lab-passkey-dotnet-base
+    - name: cloudnative-pg
+  targetNamespace: lab-passkey-dotnet
+  commonMetadata:
+    labels:
+      app.kubernetes.io/part-of: lab-passkey-dotnet
+  path: ./kubernetes/main/apps/lab-passkey-dotnet/db/app
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: true
+  interval: 30m
+  retryInterval: 2m
+  timeout: 10m

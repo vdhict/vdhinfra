@@ -18,3 +18,5 @@ resources:
   - ./network-policies/install.yaml
   - ./admission/install.yaml
   - ./base/install.yaml
+  # .NET LAB nightly E2E (chg-2026-10-20-001), separate from base/ so the TS nightly stays untouched
+  - ./e2e-dotnet/install.yaml

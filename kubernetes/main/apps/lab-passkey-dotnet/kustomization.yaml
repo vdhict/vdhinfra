@@ -1,0 +1,28 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+#
+# lab-passkey-dotnet: the .NET desk (mypka-bot/passkey-point-dotnet e7fbe8a) NEXT TO the TS LAB in lab-passkey,
+# chg-2026-10-20-001 (Mack handoff 2026-10-20). Own namespace, own CNPG database, own CA, own route: nothing in
+# lab-passkey is read or changed. Same dev tenant 7m5b27gbc and the same app registrations (AR1/AR2/AR3).
+# Flux order (each dependsOn the previous, wait: true):
+#   network-policies/  default-deny + per-workload CNPs, land FIRST
+#   base/              boundary (SA, quota, limits), SecretStores + ExternalSecrets (AR1-3 keys), CA + certs, config
+#   db/                CNPG Cluster pp-dotnet-pg (1 instance) + the runtime role password (ESO Password generator)
+#   migrate/           Job `ops migrate` (V001..V012) under the owner principal, from the desk image
+#   grants/            Job: grants.sql (e7fbe8a) under the owner principal, minus CREATE ROLE (CNPG manages pp_runtime)
+#   desk/              api (+ TapSim sidecar) and web, Services, HTTPRoute
+# The desk image digest is set in ONE place: components/desk-image/kustomization.yaml.
+# Pull secret passkey-point-palamedes-pull: one-off labelled copy of devtenant-build/devtenant-pull (same pattern as
+# lab-passkey and passkey-point-e2e), made by hack/ops/chg-2026-10-20-001-dotnet-lab-rollout.py.
+# TEMPORARY like lab-passkey: lab data only (synthetic dev-tenant personas), no backup. Teardown = remove this
+# directory in one commit (CNPG PVC goes with the namespace).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./namespace.yaml
+  - ./network-policies/install.yaml
+  - ./base/install.yaml
+  - ./db/install.yaml
+  - ./migrate/install.yaml
+  - ./grants/install.yaml
+  - ./desk/install.yaml

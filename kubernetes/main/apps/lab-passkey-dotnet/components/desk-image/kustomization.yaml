@@ -1,0 +1,17 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+#
+# THE ONE PLACE the .NET desk image is pinned (migrate Job, api, web). The manifests name the image
+# "passkey-point-desk"; this component resolves it to name@digest.
+#   desk-e7fbe8a = mypka-bot/passkey-point-dotnet e7fbe8a86430ef666cc491c540e0306bf67fc50d, built + signed by
+#   Palamedes 2026-10-20. Verified by k8s-engineer 2026-10-20T00:11Z (chg-2026-10-20-001, evidence 01-cosign-*):
+#   tag desk-e7fbe8a -> this digest on the forge registry; cosign verify + verify-attestation slsaprovenance1
+#   exit 0 against passkey-point-cosign.pub (sha256 1d1fd3e4..ba1b, --insecure-ignore-tlog); provenance commit
+#   e7fbe8a, target desk, linux/amd64.
+# A new desk build: change digest (and the comment), and the Job names in migrate/app + grants/app (immutable Jobs).
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+images:
+  - name: passkey-point-desk
+    newName: forge.bluejungle.net/palamedes/passkey-point-dotnet
+    digest: sha256:b412ec9c6df0d47ee9c8d57e93a950acc4d29cab48c210cf6591d1e7916adee9

@@ -1,0 +1,13 @@
+---
+# PSA restricted ENFORCED, no exemption: the desk image (chiseled aspnet, USER 1654, arbitrary UID ok), the TapSim
+# sidecar (TS image, uid 10001) and the CNPG pods (uid 26, RuntimeDefault, drop ALL, ro rootfs) all fit.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lab-passkey-dotnet
+  labels:
+    vdhinfra.io/tenant: lab-passkey
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

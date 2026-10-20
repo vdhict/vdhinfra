@@ -1,0 +1,61 @@
+---
+# No API access for anything in this namespace except the CNPG instance (its own SA, created by the operator).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+automountServiceAccountToken: false
+---
+# Small and hard. pods 6 = web, api (+TapSim sidecar), pg instance, migrate, grants, +1 (CNPG initdb / Recreate).
+# services 5 = web, api + CNPG pp-dotnet-pg-rw/-ro/-r. ClusterIP only. PVCs 1 (CNPG data).
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: lab-passkey-dotnet
+spec:
+  hard:
+    requests.cpu: "1500m"
+    requests.memory: 3Gi
+    limits.memory: 5Gi
+    pods: "6"
+    persistentvolumeclaims: "2"
+    requests.storage: 5Gi
+    services: "5"
+    services.loadbalancers: "0"
+    services.nodeports: "0"
+    secrets: "25"
+    configmaps: "20"
+---
+# No system priority classes (they would preempt HA/Ceph under pressure).
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: lab-passkey-dotnet-no-system-priority
+spec:
+  hard:
+    pods: "0"
+  scopeSelector:
+    matchExpressions:
+      - scopeName: PriorityClass
+        operator: In
+        values: ["system-node-critical", "system-cluster-critical"]
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: lab-passkey-dotnet
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: 10m
+        memory: 32Mi
+      default:
+        memory: 256Mi
+      max:
+        memory: 1Gi
+    - type: PersistentVolumeClaim
+      min:
+        storage: 1Gi
+      max:
+        storage: 5Gi

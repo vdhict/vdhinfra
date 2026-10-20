@@ -1,0 +1,29 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Requirement 2: `ops migrate` (V001..V012, V012 = id_check_type) BEFORE the desk rolls out. wait: true makes this
+# Kustomization Ready only when the Job is Complete; a Failed Job (backoffLimit 0, the failing file rolled back by the
+# migrator) leaves it NotReady, so grants/ and desk/ (dependsOn) are NEVER applied: no desk pod on a bad schema.
+# force: true lets Flux recreate the (immutable) Job when its spec changes.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app lab-passkey-dotnet-migrate
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: lab-passkey-dotnet-db
+  targetNamespace: lab-passkey-dotnet
+  commonMetadata:
+    labels:
+      app.kubernetes.io/part-of: lab-passkey-dotnet
+  path: ./kubernetes/main/apps/lab-passkey-dotnet/migrate/app
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  force: true
+  wait: true
+  interval: 30m
+  retryInterval: 2m
+  timeout: 10m

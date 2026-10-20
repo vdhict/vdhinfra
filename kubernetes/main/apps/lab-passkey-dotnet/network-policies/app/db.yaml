@@ -1,0 +1,58 @@
+---
+# CNPG cluster pp-dotnet-pg (operator: database/cloudnative-pg 1.29.0, cluster-scoped).
+#   instance in:  api, migrate, grants :5432; the operator :8000 (instance manager status) and :5432
+#   every pp-dotnet-pg pod (instance + initdb Job) out: kube-apiserver :6443 (the instance manager watches its
+#   Cluster and Secrets), and the instance to itself :5432/:8000 (pg_isready / replication slot checks).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: pp-dotnet-pg
+spec:
+  endpointSelector:
+    matchLabels:
+      cnpg.io/cluster: pp-dotnet-pg
+  ingress:
+    - fromEndpoints:
+        - matchExpressions:
+            - {key: app.kubernetes.io/name, operator: In, values: [passkey-point-api, passkey-point-migrate, passkey-point-grants]}
+      toPorts:
+        - ports: [{port: "5432", protocol: TCP}]
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: database
+            app.kubernetes.io/name: cloudnative-pg
+      toPorts:
+        - ports:
+            - {port: "8000", protocol: TCP}
+            - {port: "5432", protocol: TCP}
+    - fromEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: pp-dotnet-pg
+      toPorts:
+        - ports:
+            - {port: "8000", protocol: TCP}
+            - {port: "5432", protocol: TCP}
+  egress:
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports: [{port: "6443", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: pp-dotnet-pg
+      toPorts:
+        - ports:
+            - {port: "8000", protocol: TCP}
+            - {port: "5432", protocol: TCP}
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              - matchPattern: "*.lab-passkey-dotnet.svc.cluster.local"

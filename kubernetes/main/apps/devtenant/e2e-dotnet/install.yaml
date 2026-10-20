@@ -1,0 +1,29 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Nightly dev-tenant E2E against the .NET LAB (chg-2026-10-20-001). SEPARATE from devtenant-base: the TS nightly
+# CronJob passkey-point-e2e and its config are not touched. dependsOn the desk Kustomization, so the CronJob does not
+# exist before the desk has been Ready once; at run time an initContainer re-checks the desk /readyz (see cronjob.yaml).
+# Reuses, read-only, from devtenant-base: SA passkey-point-e2e, Secret passkey-point-e2e, pull secret
+# passkey-point-e2e-pull, PVC passkey-point-e2e-out, ConfigMap passkey-point-e2e-denylist, CNPs e2e-entra/e2e-lab.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: devtenant-e2e-dotnet
+  namespace: flux-system
+spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/part-of: devtenant
+  dependsOn:
+    - name: devtenant-base
+    - name: lab-passkey-dotnet-desk
+  path: ./kubernetes/main/apps/devtenant/e2e-dotnet/app
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: true
+  interval: 30m
+  retryInterval: 2m
+  timeout: 5m

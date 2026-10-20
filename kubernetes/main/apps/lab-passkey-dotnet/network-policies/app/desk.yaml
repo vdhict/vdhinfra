@@ -1,0 +1,117 @@
+---
+# Egress measured from the e7fbe8a source (every https literal in src/): login.microsoftonline.com (MSAL authority,
+# token, OIDC metadata, JWKS), graph.microsoft.com (app-only directory reads, graph-dev), monitor.azure.com (only with
+# PP_LOGS_INGESTION_*: NOT configured, NOT granted). The O365 Management Database Service is the TapSim sidecar on
+# 127.0.0.1:8090 (PP_O365_MDS_ENV=dev-fake, loopback http): no network peer. Pods set ndots 1, so names are queried
+# as-is; toFQDNs need the DNS rule to see the query (Cilium DNS proxy). TCP only, no port ranges, no deny rules.
+#
+# web: in from envoy-internal only :8080; out api :8443 + Entra login.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: passkey-point-web
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: passkey-point-web
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            gateway.envoyproxy.io/owning-gateway-name: envoy-internal
+      toPorts:
+        - ports: [{port: "8080", protocol: TCP}]
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: passkey-point-api
+      toPorts:
+        - ports: [{port: "8443", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              - matchName: passkey-point-api.lab-passkey-dotnet.svc.cluster.local
+              - matchName: login.microsoftonline.com
+    - toFQDNs:
+        - matchName: login.microsoftonline.com
+      toPorts:
+        - ports: [{port: "443", protocol: TCP}]
+---
+# api: in from web only :8443; out the database :5432, Entra login + Graph :443.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: passkey-point-api
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: passkey-point-api
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: passkey-point-web
+      toPorts:
+        - ports: [{port: "8443", protocol: TCP}]
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: pp-dotnet-pg
+            cnpg.io/podRole: instance
+      toPorts:
+        - ports: [{port: "5432", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              - matchName: pp-dotnet-pg-rw.lab-passkey-dotnet.svc.cluster.local
+              - matchName: login.microsoftonline.com
+              - matchName: graph.microsoft.com
+    - toFQDNs:
+        - matchName: login.microsoftonline.com
+        - matchName: graph.microsoft.com
+      toPorts:
+        - ports: [{port: "443", protocol: TCP}]
+---
+# migrate + grants Jobs: no ingress; out the database :5432 only.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: passkey-point-db-jobs
+spec:
+  endpointSelector:
+    matchExpressions:
+      - {key: app.kubernetes.io/name, operator: In, values: [passkey-point-migrate, passkey-point-grants]}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: pp-dotnet-pg
+            cnpg.io/podRole: instance
+      toPorts:
+        - ports: [{port: "5432", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              - matchName: pp-dotnet-pg-rw.lab-passkey-dotnet.svc.cluster.local

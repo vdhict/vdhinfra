@@ -1,0 +1,78 @@
+---
+# web -> api mTLS inside the namespace: the api serves TLS on 8443 and requires the web client cert on /v1
+# (PP_TLS_CLIENT_CA_FILE); the web verifies the api against the same CA (PP_API_CA_FILE). Namespace-local CA, its
+# key never leaves lab-passkey-dotnet (NOT the lab-passkey CA). envoy-internal -> web is plain HTTP on the pod
+# network, as in lab-passkey (PP_ALLOW_PLAIN_HTTP, NODE_ENV unset).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cert-manager.io/issuer_v1.json
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: lab-passkey-dotnet-selfsigned
+spec:
+  selfSigned: {}
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cert-manager.io/certificate_v1.json
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: lab-passkey-dotnet-ca
+spec:
+  isCA: true
+  commonName: lab-passkey-dotnet internal CA (chg-2026-10-20-001)
+  secretName: lab-passkey-dotnet-ca
+  duration: 1440h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    kind: Issuer
+    name: lab-passkey-dotnet-selfsigned
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cert-manager.io/issuer_v1.json
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: lab-passkey-dotnet-ca
+spec:
+  ca:
+    secretName: lab-passkey-dotnet-ca
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cert-manager.io/certificate_v1.json
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: passkey-point-api
+spec:
+  secretName: passkey-point-api-tls
+  commonName: passkey-point-api.lab-passkey-dotnet.svc
+  dnsNames:
+    - passkey-point-api
+    - passkey-point-api.lab-passkey-dotnet.svc
+    - passkey-point-api.lab-passkey-dotnet.svc.cluster.local
+  usages: ["server auth"]
+  duration: 720h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    kind: Issuer
+    name: lab-passkey-dotnet-ca
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cert-manager.io/certificate_v1.json
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: passkey-point-web-client
+spec:
+  secretName: passkey-point-web-client-tls
+  commonName: passkey-point-web
+  usages: ["client auth"]
+  duration: 720h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    kind: Issuer
+    name: lab-passkey-dotnet-ca

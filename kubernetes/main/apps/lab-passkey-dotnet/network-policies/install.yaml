@@ -1,0 +1,23 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# The CNPs land BEFORE anything else in the namespace (base/ dependsOn this).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app lab-passkey-dotnet-network-policies
+  namespace: flux-system
+spec:
+  targetNamespace: lab-passkey-dotnet
+  commonMetadata:
+    labels:
+      app.kubernetes.io/part-of: lab-passkey-dotnet
+  path: ./kubernetes/main/apps/lab-passkey-dotnet/network-policies/app
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: true
+  interval: 30m
+  retryInterval: 1m
+  timeout: 5m

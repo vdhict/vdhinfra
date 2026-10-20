@@ -1,0 +1,101 @@
+---
+# .NET desk, web tier (deploy/base/web.yaml @e7fbe8a, filled like lab-passkey/passkey-point/app/web.yaml): sessions,
+# sign-in, pages; no Graph, no database. Plain HTTP 8080 behind envoy-internal (PP_ALLOW_PLAIN_HTTP; refused only with
+# NODE_ENV=production in entra mode, Tls.cs:131), mTLS client to the api. /readyz checks the api.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/apps/deployment_v1.json
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: passkey-point-web
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  progressDeadlineSeconds: 300
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: passkey-point-web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: passkey-point-web
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+      terminationGracePeriodSeconds: 20
+      nodeSelector:
+        kubernetes.io/hostname: vdhclu01node02
+      imagePullSecrets:
+        - name: passkey-point-palamedes-pull
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: web
+          image: passkey-point-desk
+          args: ["web"]
+          envFrom:
+            - configMapRef:
+                name: passkey-point-config
+          env:
+            - {name: PP_MODE, value: "entra"}
+            - {name: PP_API_SCOPE, value: "api://6e05d927-e0c2-418b-9f01-ab909aec5699/access_as_user"}
+            - {name: PP_WEB_CLIENT_ID, value: "6e05d927-e0c2-418b-9f01-ab909aec5699"}
+            - {name: PP_EMPLOYEE_SCOPE, value: "openid profile"}
+            - {name: PP_CONTRACTOR_TENURE_MINUTES, value: "120"}
+            - {name: PP_DATA_DIR, value: "/var/lib/passkey-point"}
+            - {name: HOME, value: "/tmp"}
+            - {name: HOST, value: "0.0.0.0"}
+            - {name: PORT, value: "8080"}
+            - {name: PP_ALLOW_PLAIN_HTTP, value: "true"}
+            - {name: PP_API_URL, value: "https://passkey-point-api.lab-passkey-dotnet.svc.cluster.local:8443"}
+            - {name: PP_API_CA_FILE, value: "/tls/client/ca.crt"}
+            - {name: PP_API_CLIENT_CERT_FILE, value: "/tls/client/tls.crt"}
+            - {name: PP_API_CLIENT_KEY_FILE, value: "/tls/client/tls.key"}
+          ports:
+            - {name: http, containerPort: 8080, protocol: TCP}
+          startupProbe:
+            httpGet: {path: /healthz, port: 8080, scheme: HTTP}
+            periodSeconds: 3
+            timeoutSeconds: 3
+            failureThreshold: 40
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8080, scheme: HTTP}
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8080, scheme: HTTP}
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 50m, memory: 160Mi}
+            limits: {memory: 384Mi}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: data, mountPath: /var/lib/passkey-point}
+            - {name: tls-client, mountPath: /tls/client, readOnly: true}
+            - {name: ar1, mountPath: /var/run/secrets/passkey-point/ar1, readOnly: true}
+      volumes:
+        - name: tmp
+          emptyDir: {sizeLimit: 64Mi}
+        - name: data
+          emptyDir: {sizeLimit: 64Mi}
+        - name: tls-client
+          secret: {secretName: passkey-point-web-client-tls, defaultMode: 0440}
+        - name: ar1
+          secret: {secretName: passkey-point-ar1-cert, defaultMode: 0440}

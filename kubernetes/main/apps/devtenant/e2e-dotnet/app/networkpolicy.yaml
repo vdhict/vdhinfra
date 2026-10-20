@@ -1,0 +1,26 @@
+---
+# ADDITIVE, .NET E2E pods only: DNS for the .NET LAB host (the TS CNP e2e-entra lists passkey-point-lab only and stays
+# unchanged). The name normally comes from hostAliases; this mirrors the TS belt-and-braces DNS entry. TCP to the
+# envoy-internal pods :10443 is already allowed for every pod in the namespace by e2e-lab.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: e2e-dotnet-lab-dns
+  namespace: passkey-point-e2e
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: passkey-point-e2e-dotnet
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              - matchName: passkey-point-dotnet-lab.bluejungle.net

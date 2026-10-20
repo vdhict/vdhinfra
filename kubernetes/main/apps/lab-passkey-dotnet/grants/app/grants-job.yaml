@@ -1,0 +1,68 @@
+---
+# grants.sql under the owner principal pp_migrator (README: "run once as the database owner, after the migrations").
+# psql from the CNPG postgresql image already on the estate (same digest as db/ and forge-pg): no shell, no script,
+# libpq env only (PGPASSWORD from the CNPG Secret, never in the spec). -X no psqlrc, ON_ERROR_STOP, ONE transaction:
+# a failing statement leaves no partial rights. Idempotent (GRANT/REVOKE), so a re-run is harmless.
+# Name carries the grants file sha256 prefix (234141e2): a changed grants.sql = a new Job.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/batch/job_v1.json
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: passkey-point-grants-234141e
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 300
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: passkey-point-grants
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 26
+        runAsGroup: 26
+        fsGroup: 26
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: grants
+          image: ghcr.io/cloudnative-pg/postgresql:16.9-22@sha256:cca50a94e2da46ddcaefb23260c805ed3b466763bd2a25e1617410176d5fd0ab
+          command: ["psql", "-X", "-v", "ON_ERROR_STOP=1", "--single-transaction", "-f", "/sql/grants.sql"]
+          env:
+            - {name: PGHOST, value: pp-dotnet-pg-rw.lab-passkey-dotnet.svc.cluster.local}
+            - {name: PGPORT, value: "5432"}
+            - {name: PGDATABASE, value: passkeypoint}
+            - name: PGUSER
+              valueFrom: {secretKeyRef: {name: pp-dotnet-pg-app, key: username}}
+            - name: PGPASSWORD
+              valueFrom: {secretKeyRef: {name: pp-dotnet-pg-app, key: password}}
+            - {name: PGSSLMODE, value: verify-full}
+            - {name: PGSSLROOTCERT, value: /tls/pg/ca.crt}
+            - {name: HOME, value: /tmp}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 20m, memory: 32Mi}
+            limits: {memory: 128Mi}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: sql, mountPath: /sql, readOnly: true}
+            - {name: pg-ca, mountPath: /tls/pg, readOnly: true}
+      volumes:
+        - name: tmp
+          emptyDir: {sizeLimit: 16Mi}
+        - name: sql
+          configMap: {name: passkey-point-grants-sql}
+        - name: pg-ca
+          secret:
+            secretName: pp-dotnet-pg-ca
+            defaultMode: 0440
+            items:
+              - {key: ca.crt, path: ca.crt}

@@ -1,0 +1,45 @@
+---
+# pp_runtime (the api tier: data rights only, no DDL; migrations/postgres/grants.sql @e7fbe8a). Password generated
+# IN-CLUSTER once (ESO Password generator, refreshPolicy CreatedOnce): it exists nowhere else and is never printed.
+# One Secret, two consumers:
+#   username/password  CNPG managed role pp_runtime (passwordSecret; type basic-auth)
+#   url                the api's PP_DB_URL: Npgsql keyword form, TLS VerifyFull against the CNPG CA (the server
+#                      cert carries pp-dotnet-pg-rw.lab-passkey-dotnet.svc.cluster.local; measured on forge-pg).
+# Alphanumeric only (symbols 0), so the value can never break the ';'-separated connection string.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/generators.external-secrets.io/password_v1alpha1.json
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: Password
+metadata:
+  name: pp-dotnet-pg-runtime
+spec:
+  length: 48
+  digits: 12
+  symbols: 0
+  noUpper: false
+  allowRepeat: true
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/external-secrets.io/externalsecret_v1.json
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pp-dotnet-pg-runtime
+spec:
+  refreshPolicy: CreatedOnce
+  target:
+    name: pp-dotnet-pg-runtime
+    creationPolicy: Owner
+    template:
+      type: kubernetes.io/basic-auth
+      metadata:
+        labels:
+          cnpg.io/reload: "true"
+      data:
+        username: pp_runtime
+        password: "{{ .password }}"
+        url: "Host=pp-dotnet-pg-rw.lab-passkey-dotnet.svc.cluster.local;Port=5432;Database=passkeypoint;Username=pp_runtime;Password={{ .password }};SSL Mode=VerifyFull;Root Certificate=/tls/pg/ca.crt"
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: Password
+          name: pp-dotnet-pg-runtime
