@@ -1,0 +1,34 @@
+---
+# chg-2026-10-20-010 land 2 (Argus W3): hermes-profiel-3 ONLY may reach the cloud model API.
+# Exactly api.anthropic.com on TCP 443 (toFQDNs matchName: no wildcard, no CIDR, no world entity),
+# plus the DNS allow-list entry for that one name, so the Cilium DNS proxy learns its IPs. profiel-1/-2
+# match no rule here and keep the base `hermes` CNP (Studio /32, search/fetch, gezinsdienst, in-namespace DNS).
+# The family-cloud plugin builds its own client for this host (trust_env=False: never via egress-proxy,
+# certifi roots only, request hook refuses any other host/port); this rule is the network half of that pin.
+# Rollback: git revert of the deploy commit removes this file; prune: true on family-ai-network-policies.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: hermes-profiel-3-cloud
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: hermes
+      app.kubernetes.io/instance: hermes-profiel-3
+  egress:
+    - toFQDNs:
+        - matchName: api.anthropic.com
+      toPorts:
+        - ports: [{port: "443", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              - matchName: api.anthropic.com
