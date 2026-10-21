@@ -16,7 +16,7 @@ You are operating a **production** UniFi UDM Pro Max. Treat it as the network's 
 
 - **Address**: `172.16.2.1` (HTTPS, self-signed cert — always use `curl -sk`)
 - **Hardware/OS**: UDM Pro Max (UDMPROMAX), UniFi OS firmware
-- **Dual WAN**: Ziggo (77.250.45.126) + KPN (86.80.222.126). KPN provides native IPv6 to clients.
+- **Dual WAN**: Ziggo (<ziggo-wan-ip>) + KPN (<kpn-wan-ip>). KPN provides native IPv6 to clients.
 - **API auth — pick the right key for the endpoint:**
   - **Local integration API key** (newer, REST-style): `~/Code/homelab-migration/config/unifi-api-key`. Header `X-API-KEY`. Authenticates the Network Integration API **and** — confirmed on our UniFi-OS UDM — the legacy private API directly (no cookie/CSRF needed; see Three-API model below).
   - **external-dns-unifi key**: `kubectl get secret -n network external-dns-unifi-secret -o jsonpath='{.data.api-key}' | base64 -d`. Used for the static-dns endpoint under `/proxy/network/v2/api/site/default/static-dns/`.
