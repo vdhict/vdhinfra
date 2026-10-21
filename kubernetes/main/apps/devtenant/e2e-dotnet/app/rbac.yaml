@@ -1,0 +1,34 @@
+---
+# persona-gate identity (chg-2026-10-20-001, Argus qa_failed C12 2026-10-21). Pod SA of the .NET E2E CronJob.
+# No automounted token: a projected token (600 s) is mounted ONLY in the persona-gate initContainer; the e2e
+# container gets none. Rights: read Jobs in passkey-point-e2e, nothing else.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: passkey-point-e2e-dotnet-gate
+  namespace: passkey-point-e2e
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: passkey-point-e2e-dotnet-gate
+  namespace: passkey-point-e2e
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: passkey-point-e2e-dotnet-gate
+  namespace: passkey-point-e2e
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: passkey-point-e2e-dotnet-gate
+subjects:
+  - kind: ServiceAccount
+    name: passkey-point-e2e-dotnet-gate
+    namespace: passkey-point-e2e

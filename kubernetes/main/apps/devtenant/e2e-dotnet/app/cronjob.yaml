@@ -11,8 +11,19 @@
 #   E2E_COMMIT / E2E_LAB_IMAGE_DIGEST  the desk under test: e7fbe8a, desk digest (components/desk-image).
 #   initContainer desk-ready: GET https://<.NET LAB>/readyz through envoy-internal, 15 s apart for up to 10 min; not 200
 #           -> exit 1 BEFORE any tenant step (no password attempt, no TAP): "must not run before the desk is up".
-# Timing: 03:50 Europe/Amsterdam. The TS run starts 02:40 and has activeDeadlineSeconds 3600, so it is gone by 03:40
-#   at the latest (concurrencyPolicy only guards one CronJob; personas are shared and Entra allows one TAP per user).
+#   initContainer persona-gate (Argus C12, 2026-10-21), AFTER desk-ready: personas are shared and Entra allows one TAP
+#           per user, and concurrencyPolicy only guards one CronJob, so the schedule alone does not serialise runs.
+#           Every 15 s it lists Jobs in this namespace (SA passkey-point-e2e-dotnet-gate, Role batch/jobs get+list,
+#           projected token 600 s mounted in this initContainer ONLY; the e2e container has no token) and passes only
+#           when every OTHER Job labelled app.kubernetes.io/name passkey-point-e2e or passkey-point-e2e-dotnet (pod
+#           template or Job label) is Complete or Failed with active=0 and terminating=0, AND Europe/Amsterdam time
+#           is before GATE_CUTOFF_HHMM (04:00). At the cutoff, on any API error, on missing tzdata or a missing own
+#           job-name: exit 1, no tenant step. Own Job excluded by its job-name label (downward API). Image: vendor
+#           bitnamilegacy/kubectl, digest-pinned (already used in this repo). CNP e2e-dotnet-gate-apiserver allows
+#           kube-apiserver TCP 6443. startingDeadlineSeconds 300: a run that cannot start by 03:55 is skipped.
+#           Flux substitution is disabled on this object (the gate script uses shell $ variables).
+# Timing: 03:50 Europe/Amsterdam. The TS run starts 02:40 with activeDeadlineSeconds 3600; that is NOT relied on any
+#   more (a late-created TS Job or an ad-hoc Job can overlap): the persona-gate above enforces it.
 #   tp-contractor-new is re-created 02:10 and counts as "new" for PP_CONTRACTOR_TENURE_MINUTES=120, i.e. until 04:10:
 #   a normal ~6 min run ends ~03:56. Clear of the Envoy window runner (01:05) and forge-pg backup (03:10).
 apiVersion: batch/v1
@@ -22,9 +33,12 @@ metadata:
   namespace: passkey-point-e2e
   labels:
     vdhinfra.io/standing: devtenant-nightly
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled  # the persona-gate script uses shell $ variables
 spec:
   schedule: "50 3 * * *"
   timeZone: Europe/Amsterdam
+  startingDeadlineSeconds: 300  # Argus C12: start by 03:55 or skip; the persona-gate cutoff is 04:00
   suspend: true  # until one 02:10 refresh on devtenant ac1358d has kept the .NET LAB redirect URIs on AR1/AR2
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 7
@@ -38,7 +52,7 @@ spec:
         metadata:
           labels: {app.kubernetes.io/name: passkey-point-e2e-dotnet}
         spec:
-          serviceAccountName: passkey-point-e2e
+          serviceAccountName: passkey-point-e2e-dotnet-gate  # read-only Jobs; token only in persona-gate
           automountServiceAccountToken: false
           restartPolicy: Never
           nodeSelector: {kubernetes.io/hostname: vdhclu01node02}
@@ -59,6 +73,60 @@ spec:
                   await new Promise(x=>setTimeout(x,15000)); } })();
               securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
               resources: {requests: {cpu: 10m, memory: 64Mi}, limits: {memory: 128Mi}}
+            - name: persona-gate
+              image: docker.io/bitnamilegacy/kubectl:1.33.4@sha256:ed0b31a0508da84ee655c5c6e01bd3897fc56ad6cf69debb27fa1893a06d2246
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -u
+                  log() { echo "persona-gate: $*"; }
+                  cutoff="${GATE_CUTOFF_HHMM:-0400}"
+                  case "$cutoff" in [0-2][0-9][0-5][0-9]) ;; *) log "bad GATE_CUTOFF_HHMM, fail closed, no tenant step taken"; exit 1;; esac
+                  self="${GATE_SELF_JOB:-}"
+                  [ -n "$self" ] || { log "own job-name label missing, fail closed, no tenant step taken"; exit 1; }
+                  [ -f /usr/share/zoneinfo/Europe/Amsterdam ] || { log "no tzdata for Europe/Amsterdam, fail closed, no tenant step taken"; exit 1; }
+                  export TZ=Europe/Amsterdam
+                  tmpl='{{range .items}}{{.metadata.name}}|{{with .spec.template.metadata.labels}}{{index . "app.kubernetes.io/name"}}{{end}}|{{with .metadata.labels}}{{index . "app.kubernetes.io/name"}}{{end}}|{{.status.active}}|{{.status.terminating}}|{{range .status.conditions}}{{if eq .status "True"}}{{.type}},{{end}}{{end}}{{"\n"}}{{end}}'
+                  while :; do
+                    now="$(date +%H%M)" && zone="$(date +%Z)" || { log "date failed, fail closed, no tenant step taken"; exit 1; }
+                    case "$zone" in CET|CEST) ;; *) log "zone '$zone' is not CET/CEST, fail closed, no tenant step taken"; exit 1;; esac
+                    case "$now" in [0-2][0-9][0-5][0-9]) ;; *) log "bad local time, fail closed, no tenant step taken"; exit 1;; esac
+                    if [ "$now" -ge "$cutoff" ]; then log "local $now $zone >= cutoff $cutoff, no tenant step taken"; exit 1; fi
+                    out="$(kubectl -n passkey-point-e2e get jobs.batch --request-timeout=10s -o go-template="$tmpl")" \
+                      || { log "API error, fail closed, no tenant step taken"; exit 1; }
+                    blocking=""; seen=0
+                    while IFS='|' read -r name tl ml active term conds; do
+                      [ -n "$name" ] || continue
+                      if [ "$name" = "$self" ]; then seen=1; continue; fi
+                      rel=0
+                      for l in "$tl" "$ml"; do case "$l" in passkey-point-e2e|passkey-point-e2e-dotnet) rel=1;; esac; done
+                      [ "$rel" = 1 ] || continue
+                      [ "$active" = "<no value>" ] && active=0
+                      fin=0
+                      case ",$conds" in *,Complete,*|*,Failed,*) fin=1;; esac
+                      [ "$fin" = 1 ] && [ "$active" = 0 ] && [ "$term" = 0 ] && continue
+                      blocking="$blocking $name(active=$active,terminating=$term,conditions=$conds)"
+                    done <<EOF
+                  $out
+                  EOF
+                    [ "$seen" = 1 ] || { log "own Job $self not in the list, fail closed, no tenant step taken"; exit 1; }
+                    if [ -z "$blocking" ]; then log "PASS at $now $zone: no other e2e Job active, cutoff $cutoff"; exit 0; fi
+                    log "waiting at $now $zone:$blocking"
+                    sleep 15
+                  done
+              env:
+                - {name: GATE_CUTOFF_HHMM, value: "0400"}
+                - {name: TZ, value: Europe/Amsterdam}
+                - {name: HOME, value: /gate-tmp}
+                - {name: TMPDIR, value: /gate-tmp}
+                - name: GATE_SELF_JOB
+                  valueFrom: {fieldRef: {fieldPath: "metadata.labels['batch.kubernetes.io/job-name']"}}
+              securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
+              resources: {requests: {cpu: 10m, memory: 64Mi}, limits: {memory: 128Mi}}
+              volumeMounts:
+                - {name: gate-token, mountPath: /var/run/secrets/kubernetes.io/serviceaccount, readOnly: true}
+                - {name: gate-tmp, mountPath: /gate-tmp}
           containers:
             - name: e2e
               image: forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:514feb9adbb982ea1875708601a9ba7b12a652c70a21f07f623a2fc3cccb53a5
@@ -81,3 +149,10 @@ spec:
             - {name: denylist, configMap: {name: passkey-point-e2e-denylist}}
             - {name: out, persistentVolumeClaim: {claimName: passkey-point-e2e-out}}
             - {name: tmp, emptyDir: {sizeLimit: 512Mi}}
+            - {name: gate-tmp, emptyDir: {sizeLimit: 16Mi}}
+            - name: gate-token  # mounted in persona-gate only
+              projected:
+                sources:
+                  - serviceAccountToken: {path: token, expirationSeconds: 600}
+                  - configMap: {name: kube-root-ca.crt, items: [{key: ca.crt, path: ca.crt}]}
+                  - downwardAPI: {items: [{path: namespace, fieldRef: {fieldPath: metadata.namespace}}]}
