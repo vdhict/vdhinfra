@@ -87,6 +87,16 @@ spec:
                   [ -n "$self" ] || { log "own job-name label missing, fail closed, no tenant step taken"; exit 1; }
                   [ -f /usr/share/zoneinfo/Europe/Amsterdam ] || { log "no tzdata for Europe/Amsterdam, fail closed, no tenant step taken"; exit 1; }
                   export TZ=Europe/Amsterdam
+                  # Explicit kubeconfig: with --request-timeout kubectl ignores in-cluster config (falls back to localhost).
+                  sa=/var/run/secrets/kubernetes.io/serviceaccount
+                  [ -n "${KUBERNETES_SERVICE_HOST:-}" ] && [ -n "${KUBERNETES_SERVICE_PORT:-}" ] && [ -r "$sa/token" ] && [ -r "$sa/ca.crt" ] \
+                    || { log "no API endpoint or token, fail closed, no tenant step taken"; exit 1; }
+                  export KUBECONFIG="$HOME/kubeconfig"
+                  printf '%s\n' 'apiVersion: v1' 'kind: Config' 'current-context: gate' \
+                    "clusters: [{name: in, cluster: {server: \"https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT\", certificate-authority: $sa/ca.crt}}]" \
+                    "users: [{name: gate, user: {tokenFile: $sa/token}}]" \
+                    'contexts: [{name: gate, context: {cluster: in, user: gate, namespace: passkey-point-e2e}}]' > "$KUBECONFIG" \
+                    || { log "cannot write kubeconfig, fail closed, no tenant step taken"; exit 1; }
                   tmpl='{{range .items}}{{.metadata.name}}|{{with .spec.template.metadata.labels}}{{index . "app.kubernetes.io/name"}}{{end}}|{{with .metadata.labels}}{{index . "app.kubernetes.io/name"}}{{end}}|{{.status.active}}|{{.status.terminating}}|{{range .status.conditions}}{{if eq .status "True"}}{{.type}},{{end}}{{end}}{{"\n"}}{{end}}'
                   while :; do
                     now="$(date +%H%M)" && zone="$(date +%Z)" || { log "date failed, fail closed, no tenant step taken"; exit 1; }
@@ -111,7 +121,12 @@ spec:
                   $out
                   EOF
                     [ "$seen" = 1 ] || { log "own Job $self not in the list, fail closed, no tenant step taken"; exit 1; }
-                    if [ -z "$blocking" ]; then log "PASS at $now $zone: no other e2e Job active, cutoff $cutoff"; exit 0; fi
+                    if [ -z "$blocking" ]; then
+                      now="$(date +%H%M)" || { log "date failed, fail closed, no tenant step taken"; exit 1; }
+                      case "$now" in [0-2][0-9][0-5][0-9]) ;; *) log "bad local time, fail closed, no tenant step taken"; exit 1;; esac
+                      if [ "$now" -ge "$cutoff" ]; then log "local $now $zone >= cutoff $cutoff after the check, no tenant step taken"; exit 1; fi
+                      log "PASS at $now $zone: no other e2e Job active, cutoff $cutoff"; exit 0
+                    fi
                     log "waiting at $now $zone:$blocking"
                     sleep 15
                   done
