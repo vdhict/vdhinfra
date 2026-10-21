@@ -72,3 +72,64 @@ spec:
           regex: "172\\.16\\.2\\.246:.*"
           targetLabel: target_friendly
           replacement: synology-nas
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/probe_v1.json
+#
+# PiKVM: the out-of-band console for worker nodes node01-03 (chg-2026-10-21-005).
+# Losing it means losing console access to the workers, so watch it from two
+# angles. HTTPS by FQDN: the device serves a Let's Encrypt cert for
+# pikvm.bluejungle.net, so http_2xx verifies TLS for real (the bare IP fails
+# verification). /login/ is the unauthenticated page and answers 200; "/"
+# redirects there. Measured from the running exporter 2026-10-21:
+# probe_success 1, probe_http_status_code 200, probe_http_ssl 1.
+# Failures surface through the generic BlackboxProbeFailure rule (warning).
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: pikvm-https
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: blackbox-exporter
+spec:
+  jobName: blackbox-pikvm-https
+  prober:
+    url: blackbox-exporter.observability.svc.cluster.local:9115
+    path: /probe
+  module: http_2xx
+  interval: 60s
+  scrapeTimeout: 10s
+  targets:
+    staticConfig:
+      static:
+        - https://pikvm.bluejungle.net/login/
+      labels:
+        target_friendly: pikvm
+        target_role: oob-console
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/probe_v1.json
+#
+# PiKVM ICMP by IP, deliberately not by name: a DNS fault must not read as
+# "PiKVM down", and https failing while icmp passes points at kvmd-nginx
+# rather than the host. Measured 2026-10-21: probe_success 1.
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: pikvm-icmp
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: blackbox-exporter
+spec:
+  jobName: blackbox-pikvm-icmp
+  prober:
+    url: blackbox-exporter.observability.svc.cluster.local:9115
+    path: /probe
+  module: icmp_lan
+  interval: 60s
+  scrapeTimeout: 10s
+  targets:
+    staticConfig:
+      static:
+        - 172.16.3.115
+      labels:
+        target_friendly: pikvm
+        target_role: oob-console
