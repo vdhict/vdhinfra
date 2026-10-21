@@ -131,7 +131,7 @@ spec:
             dependsOn: [git-fetch]
             image:
               repository: docker.io/library/node
-              tag: 26.10.0-alpine3.24@sha256:0b36e8c136b94cd4fcf02188228e76c31ad5872eef3fec8cbd2eee500cfd9e80
+              tag: 26.12.1-alpine3.24@sha256:9bd229b644e391df00fb989efa732335aefc6170a05d8c163c5c8ca9870da401
             command: ["/bin/sh", "-ec"]
             args:
               - |
