@@ -8,10 +8,13 @@
 #   tag desk-e7fbe8a -> this digest on the forge registry; cosign verify + verify-attestation slsaprovenance1
 #   exit 0 against passkey-point-cosign.pub (sha256 1d1fd3e4..ba1b, --insecure-ignore-tlog); provenance commit
 #   e7fbe8a, target desk, linux/amd64.
+#   chg-2026-10-21-012: desk-7e090d0 = main 7e090d0b0136c2d0f7a9d50cd903dafa49c1f562 (MSAL 4.91.1, dependency currency
+#   2026-10-21; no migrations/ or deploy/ change since e7fbe8a), built + signed by k8s-engineer 2026-10-21 (grype gate 0,
+#   cosign verify + slsaprovenance1 vs OOB key, evidence ops/evidence/chg-2026-10-21-012/31-*). Was b412ec9c (e7fbe8a).
 # A new desk build: change digest (and the comment), and the Job names in migrate/app + grants/app (immutable Jobs).
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 images:
   - name: passkey-point-desk
     newName: forge.bluejungle.net/palamedes/passkey-point-dotnet
-    digest: sha256:b412ec9c6df0d47ee9c8d57e93a950acc4d29cab48c210cf6591d1e7916adee9
+    digest: sha256:9dc3dbca2df9d17ff7a0153b417313ef576b1adef34e641f5ba1894aa3f7dba8
