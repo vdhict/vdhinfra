@@ -11,6 +11,9 @@
 # expected EXIT 3 (done with steps pending) to container exit 0, so a good night is a Succeeded Job.
 # chg-2026-10-20-001 (2026-10-21): devtenant ac1358d (0f8411ac; f131aad lab.extraOrigins keeps the .NET LAB callbacks on
 # AR1/AR2). Dry-run on 0f8411ac: 0 web drift. Rollback: git revert -> dcd64be2 (7bd83cf). Baseline unchanged.
+# chg-2026-10-21-012 (2026-10-21): devtenant 8e24b22 (a79ede4f; ac1358d + Node 24.22.1 base node:24-alpine 6a1c190e):
+# grype 0 gate hits, signed + attested, cosign verify vs OOB key. Dry-run devtenant-refresh-dry-8e24b22-20261021t1521z on
+# a79ede4f: Would-write list identical to the 0f8411ac dry run, 0 web drift. Rollback: git revert -> 0f8411ac.
 apiVersion: batch/v1
 kind: CronJob
 metadata: {name: devtenant-refresh-contractor-new, namespace: devtenant-build}
@@ -37,13 +40,13 @@ spec:
           initContainers:
             # Nothing is deleted unless the bootstrap after it can run: a BASELINE that is not 64-hex stops the Job here.
             - name: guard
-              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:0f8411ac993fc5515778f91497268ee5d02750fdd6a1ecd88da2f4e54e45763c
+              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:a79ede4fd7c6781f81f6295f745b5bba84508a8a9f97a354f9c219c984df4f82
               command: [node, -e, "process.exit(/^[0-9a-f]{64}$/.test(process.env.BASELINE ?? '') ? 0 : 78)"]
               env:
                 - {name: BASELINE, value: 31b738a4a438f2464d844779c05b60994f5728d48a7f022672327225a112268b}
               securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
             - name: renew
-              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:0f8411ac993fc5515778f91497268ee5d02750fdd6a1ecd88da2f4e54e45763c
+              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:a79ede4fd7c6781f81f6295f745b5bba84508a8a9f97a354f9c219c984df4f82
               # Argus F3: leak-check wraps the step (output redacted, /tmp scanned after it, pass or fail).
               command: [node, infra/devtenant/leak-check.ts, /tmp, --run, --, node, infra/devtenant/devtenant.ts]
               args: [renew-persona, --alias, tp-contractor-new, --yes]
@@ -57,7 +60,7 @@ spec:
                 - {name: tmp, mountPath: /tmp}
           containers:
             - name: bootstrap
-              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:0f8411ac993fc5515778f91497268ee5d02750fdd6a1ecd88da2f4e54e45763c
+              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:a79ede4fd7c6781f81f6295f745b5bba84508a8a9f97a354f9c219c984df4f82
               # Argus F3: leak-check wraps the step (output redacted, out and /tmp scanned after it, pass or fail).
               command: [node, infra/devtenant/leak-check.ts, /app/infra/devtenant/out, /tmp, --ok-exit, '3', --run, --, node, infra/devtenant/devtenant.ts]
               args: [bootstrap-v01, --execute, --yes, --baseline-sha256, 31b738a4a438f2464d844779c05b60994f5728d48a7f022672327225a112268b]
