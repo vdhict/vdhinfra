@@ -1,0 +1,3 @@
+forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:a79ede4fd7c6781f81f6295f745b5bba84508a8a9f97a354f9c219c984df4f82
+amd64 forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:7a8c43c4c4ad03ed13b6d0945a4aee989ea888dca4a96636da6959d970d8c2f9
+arm64 forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:1fe99d6006d4c48c9d44a502d3f428ad82e65efd0963a755adc3037bf4951a89

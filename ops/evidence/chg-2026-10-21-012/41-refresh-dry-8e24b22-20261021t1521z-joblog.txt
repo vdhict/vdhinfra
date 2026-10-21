@@ -1,0 +1,56 @@
+bootstrap-v01 DRY RUN (reads only; add --yes to write) against 7m5b27gbc.onmicrosoft.com (chg-2026-10-10-001)
+scopes requested (10): User.Read Application.Read.All Group.Read.All User.Read.All Policy.Read.All Policy.Read.AuthenticationMethod Policy.Read.DeviceConfiguration RoleManagement.Read.Directory DelegatedPermissionGrant.ReadWrite.All User.RevokeSessions.All
+self-check {"app":"atlas-devtenant-build","tid":"95cf7dac-b898-4b02-a22a-1379e2fde497","appid":"9d98adaf-499f-49b2-ba94-cab1a5e42514","oid":"8ac9ffda-2f92-42e1-b2d9-c8db041eff41","widsPresent":true,"wids":["0997a1d0-0d1d-4acb-b408-d5ca73121e90"],"roles":24,"pendingAbsent":[],"roleAssignments":0,"transitiveMemberOf":0,"requests":[{"method":"POST","url":"https://login.microsoftonline.com/95cf7dac-b898-4b02-a22a-1379e2fde497/oauth2/v2.0/token","status":200},{"method":"GET","url":"https://graph.microsoft.com/v1.0/servicePrincipals(appId='9d98adaf-499f-49b2-ba94-cab1a5e42514')?$select=id,appId","status":200},{"method":"GET","url":"https://graph.microsoft.com/v1.0/roleManagement/directory/roleAssignments?$filter=principalId%20eq%20'8ac9ffda-2f92-42e1-b2d9-c8db041eff41'","status":200},{"method":"GET","url":"https://graph.microsoft.com/v1.0/servicePrincipals/8ac9ffda-2f92-42e1-b2d9-c8db041eff41/transitiveMemberOf","status":200}],"result":"pass"}
+ 2. [snapshot] Snapshot before any change; the baseline
+ 3. [personas] Synthetic personas (passwords generated, written to vault passkey-point-dev, never printed)
+ 4. [groups] Groups
+ 5. [apps] App registrations, signInAudience AzureADMyOrg
+ 6. [consent] Admin consent: exactly the listed permissions
+ 7. [ca] Conditional Access and the corporate named location (LAB egress)
+ 8. [device-registration] Device registration: registering users are not local admins (tenant-wide, dev tenant only)
+ 9. [tap-policy] TAP method policy
+  TAP before-state: /app/infra/devtenant/out/tap-before-2026-10-21T152213996Z.json (SHA-256 c7c926ec3191c278a779915dd8862bf07a52557e8cc0fd99db79a4f4cdfbe6fb)
+  TAP T-1: the baseline item's tapPolicy (SHA-256 64b0a631c83400de73a4aae78f3c5a819a4c3f4f0911481f89eaa791814b5aff)
+  TAP: foreign target 24223485-9b98-4258-9904-aca4887f4977 names a group that does not exist (404): no members, kept as read
+10. [fido2-profile] FIDO2 policy: one group-scoped passkey profile for the virtual-passkey personas (Argus A0-A3)
+  A0: /app/infra/devtenant/out/fido2-before-2026-10-21T152213996Z.json (SHA-256 4557f78c8b482a75163dad22d0fea65e600bdc8cf5659b333cb928c6f63300cf)
+14. [ngws-sim-tap] NGWS simulator: the one stored TAP
+15. [passkeys] TP personas' virtual passkeys, registered once; the write role granted and revoked in this run (Argus P1-P10)
+  UserAuthMethod-Passkey.ReadWrite.All = app role 0400e371-7db1-4338-a269-96069eb65227 (pinned 0400e371-7db1-4338-a269-96069eb65227); principal 8ac9ffda-2f92-42e1-b2d9-c8db041eff41
+16. [runner-credential] Runner credential
+18. [ar3-negative] AR3 blast radius (C7)
+19. [retire] Retire every v0.9 registration and the old runner (Argus blocker 1)
+  not touched (a v0.9 name without the marker): "PP E2E runner (dev)" 8e93507b-ae8b-4c07-842b-58fa2b87ddb4
+20. [lab-env] Generated LAB and E2E configuration (written to infra/devtenant/out only, git-ignored, and only when the run ends without a failure)
+21. [read-back] Read-back of every object (C12)
+[revoke] app-only run: no user session and no own delegated grant exist; the token is dropped (valid until expiry, 60 to 90 minutes)
+
+bootstrap-v01 dry run ended: ok; writes 0
+
+Would write (9):
+  grant UserAuthMethod-Passkey.ReadWrite.All to 8ac9ffda-2f92-42e1-b2d9-c8db041eff41 (revoked again in this run)
+  passkey for tp-employee (AAGUID 2fc741d3-d86f-4c84-99f0-546220b74172; key to passkey-point-dev / pp-e2e-tp-employee-passkey)
+  passkey for tp-contractor-ok (AAGUID 2fc741d3-d86f-4c84-99f0-546220b74172; key to passkey-point-dev / pp-e2e-tp-contractor-ok-passkey)
+  passkey for tp-contractor-new (AAGUID 2fc741d3-d86f-4c84-99f0-546220b74172; key to passkey-point-dev / pp-e2e-tp-contractor-new-passkey)
+  passkey for tp-other-type (AAGUID 2fc741d3-d86f-4c84-99f0-546220b74172; key to passkey-point-dev / pp-e2e-tp-other-type-passkey)
+  passkey for tp-noe3 (AAGUID 2fc741d3-d86f-4c84-99f0-546220b74172; key to passkey-point-dev / pp-e2e-tp-noe3-passkey)
+  revoke UserAuthMethod-Passkey.ReadWrite.All from 8ac9ffda-2f92-42e1-b2d9-c8db041eff41
+  AR3 refusal test for tp-employee, ngws-sim-byod, the bootstrap admin account (a one-hour test secret on AR3, removed afterwards)
+  LAB env and E2E config to out/ (checked through loadConfig)
+
+Notes:
+  tap-policy: foreign target 24223485-9b98-4258-9904-aca4887f4977 is a dangling group reference (404), kept as read
+  passkeys: PIM eligibility list answers 400 UnknownError (no PIM in this tenant): 0 eligible roles possible
+
+Not done by this run (pending):
+  ngws-sim-intune: not built: a separate change
+  ngws-sim-edge: not built: a separate change
+  ngws-sim-byod: owner at the VM
+  ngws-sim-tap: run again with --ngws-sim-tap when Sander is at the SIM VM
+  counter-test: not built: a separate change
+EXIT 0 (0 done, 1 failed, 2 refused, 3 done with steps pending, 4 revocation failed)
+Give this line to Atlas for the change record; a run without its hash on record counts as not done:
+BASELINE_SHA256=31b738a4a438f2464d844779c05b60994f5728d48a7f022672327225a112268b
+leak-check: step exit 0, its output scanned, 0 hit(s)
+leak-check: /app/infra/devtenant/out: 80 file(s) scanned, 0 hit(s)
+leak-check: /tmp: 0 file(s) scanned, 0 hit(s)

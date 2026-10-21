@@ -1,0 +1,130 @@
+# chg-2026-10-21-012 devtenant image push by k8s-engineer (Heph) for Atlas 2026-10-21T15:15:11Z host vdhmini01 HEAD 8e24b221188eacf106323b415c3cfbd776880f13
+AGR-109: tests are the gate (Passkey dev tenant, AGR-087/098)
+tools: podman client 6.1.3 server 6.1.3; cosign v3.1.3; host node v24.22.1
+F3: 8e24b22 scripts/release/signing-config.no-tlog.json sha256 6a7a661ba892f8ef2fad0929704287187b4dc302ae07176f524669d1d98e4912 (pinned), rekorTlogUrls empty
+== --pull: base images of /Users/sheijden/Code/homelab-migration/pp-devtenant-8e24b22/Containerfile, both platforms
+pulled docker.io/library/node@sha256:6a1c190e17215d844926b0677f4bf87273ff7d5e54db06d3b5b5863ab0b09a3d linux/amd64
+pulled docker.io/library/node@sha256:6a1c190e17215d844926b0677f4bf87273ff7d5e54db06d3b5b5863ab0b09a3d linux/arm64
+== grype 0.120.0 re-gate amd64 on recorded sbom-devtenant-8e24b22-amd64.cdx.json (fresh DB, before push)
+mise WARN  unknown field in ~/Code/homelab-migration/vdhinfra/.mise.toml: settings.pipx_uvx
+-- grype gate push-amd64 (Critical, or High with a fix; no exceptions), all hits listed
+   gate hits: 0
+grype gate push-amd64 PASS
+== grype 0.120.0 re-gate arm64 on recorded sbom-devtenant-8e24b22-arm64.cdx.json (fresh DB, before push)
+mise WARN  unknown field in ~/Code/homelab-migration/vdhinfra/.mise.toml: settings.pipx_uvx
+-- grype gate push-arm64 (Critical, or High with a fix; no exceptions), all hits listed
+   gate hits: 0
+grype gate push-arm64 PASS
+push identity: palamedes to forge.bluejungle.net/palamedes/passkey-point-devtenant (token from mack-dev-forge-package, not printed)
+== G3 step 1a: local list localhost/passkey-point-release-devtenant:d8e24b22 children = the gated image ids of the build run
+amd64 sha256:7a8c43c4c4ad03ed13b6d0945a4aee989ea888dca4a96636da6959d970d8c2f9 13d9465099a8dfe304631ab16bdcd0f816b793abd203075068594670aacf7970
+arm64 sha256:1fe99d6006d4c48c9d44a502d3f428ad82e65efd0963a755adc3037bf4951a89 d0e96960403cf34201b256e7e9cc1643aa5244e57e06996e8f2978798e0d3f7e
+== G3 step 1b: push the gated list to the staging tag devtenant-d8e24b22-unverified (no release tag, unsigned)
+Getting image list signatures
+Copying 2 images generated from 2 images in list
+Copying image sha256:1fe99d6006d4c48c9d44a502d3f428ad82e65efd0963a755adc3037bf4951a89 (1/2)
+Getting image source signatures
+Copying blob sha256:3fd3985b29da99c1bf947fe12067b6047ba483d71793e67bc868ef6a10ea08f0
+Copying blob sha256:40ca6b24ab76e2c1e56d496792ffd402247d3919b2a0d9ff8ac3533a29022879
+Copying blob sha256:bd2f0166c2f24b63383cf0ea3e3cceb24e26d7e0318470c2c27de2da63055611
+Copying blob sha256:606860e817998e2d3d9b7a0ba3accf4fbfddea46783d34c11371692bfcf22d16
+Copying blob sha256:770303604a65651bc6c62413e33fa950170d1e99df173ed542c099850dbdf366
+Copying blob sha256:d88ecbd7bcaed60c8efdf6e705de0f9f37ae02ec4799640285763506a0f1cd6c
+Copying blob sha256:22197fdb333b1497bc7c07c7b4fa102faacc6697fb77915a198f954ec18b24c5
+Copying blob sha256:1f5a899543133dd8490282915bb59e673c26852d31303e50b831b640e05413a1
+Copying blob sha256:73754a6915a3042bb1cfd6b8b5fd1cad6de4e2ea64e83d0f155253a4deb2179c
+Copying blob sha256:692fcfb9f770d9a6ed55096dd17c4df0cc9374e8d0dd404429bbe8b364a2b7dd
+Copying blob sha256:bfa77fa339da734bbce3c11338817b60f30e2b96ff6e319ba9a45307ea1f7ca1
+Copying blob sha256:779082c743da8372b40dffe6a2c29d336f7dc99696121613f454dc527f699e6f
+Copying blob sha256:487016c5a7a6e40993c6def9de85ad1e985aa99f55e9eb4c0438fc4595917dd0
+Copying config sha256:d0e96960403cf34201b256e7e9cc1643aa5244e57e06996e8f2978798e0d3f7e
+Writing manifest to image destination
+Copying image sha256:7a8c43c4c4ad03ed13b6d0945a4aee989ea888dca4a96636da6959d970d8c2f9 (2/2)
+Getting image source signatures
+Copying blob sha256:1e065ceb7e9e6768e77204f36a45464150e9d28e7167456641d88b646ae60600
+Copying blob sha256:aac8d82c1ea05b2978cec5b55ce6cc2b0f05f739f78512550d40d4803e07859a
+Copying blob sha256:800cf1151fdcdaca5bb5d79246b6f242e4caa0f618e5904e8e70e8cd8538bfaf
+Copying blob sha256:0f6fda9b3e2067ee42fcd4ec96a00ada270f48b4b644bd26c6aff93516ee0c92
+Copying blob sha256:7c1f8b9c75239df3fc949c773fd9eaaff2ff0ab7245b405c267979872869e731
+Copying blob sha256:f65f4c78c42637fefafaffc51bf23795920c20ef4716485390de5056260aa58f
+Copying blob sha256:ce9236ac99adc45484ab83c877be6ab1240ed17c4135b4665861a084d2011d95
+Copying blob sha256:969ad04f052a9d48a9174e19c48f4d238e3fa0bbaed8add7af9049d6d9719137
+Copying blob sha256:45e004a82ba18ac5fe1e9134849754f4071f39f3733271b5dc4e32a57b9de00e
+Copying blob sha256:d43c22d7ccc4929738cea40148b91529f18fdcf7456796fbc11cbc276edcfd07
+Copying blob sha256:159755351feac7b2f9577110c1f0475401034fe72c1a576ca14cdf158aed596b
+Copying blob sha256:25ce35728d8b37824dc8670639f47d904320ed0ddd326e946fa12d610fa116c3
+Copying blob sha256:01a98996da23aaed2184ea0763af4932ce06e90a5f9ab36e67ebb00c1234adff
+Copying config sha256:13d9465099a8dfe304631ab16bdcd0f816b793abd203075068594670aacf7970
+Writing manifest to image destination
+Writing manifest list to image destination
+Storing list signatures
+staging push forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:a79ede4fd7c6781f81f6295f745b5bba84508a8a9f97a354f9c219c984df4f82
+== G3 step 1c: verify what the registry serves (repo verify-image-lists.ts --remote, pulled by digest)
+devtenant arm64 sha256:1fe99d6006d4c48c9d44a502d3f428ad82e65efd0963a755adc3037bf4951a89 title=passkey-point-devtenant cmd=["node","infra/devtenant/devtenant.ts"] uname=aarch64 files=131 mismatched=0 bins={"openssl":"OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)"} keygenPem=2
+devtenant amd64 sha256:7a8c43c4c4ad03ed13b6d0945a4aee989ea888dca4a96636da6959d970d8c2f9 title=passkey-point-devtenant cmd=["node","infra/devtenant/devtenant.ts"] uname=x86_64 files=131 mismatched=0 bins={"openssl":"OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)"} keygenPem=2
+OK: 1 lists, each its own target, amd64 + arm64, built from 8e24b221188eacf106323b415c3cfbd776880f13
+== G3 step 2: registry children = the gated image ids of the build run
+amd64 child sha256:7a8c43c4c4ad03ed13b6d0945a4aee989ea888dca4a96636da6959d970d8c2f9 config sha256:13d9465099a8dfe304631ab16bdcd0f816b793abd203075068594670aacf7970 = gated image id (G1 grype, G2 v24.22.1)
+arm64 child sha256:1fe99d6006d4c48c9d44a502d3f428ad82e65efd0963a755adc3037bf4951a89 config sha256:d0e96960403cf34201b256e7e9cc1643aa5244e57e06996e8f2978798e0d3f7e = gated image id (G1 grype, G2 v24.22.1)
+== G3 step 3: sign + attest (repo sign-images.sh, PP_COSIGN_SOURCE=connect, out-of-band key check)
+== devtenant forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:a79ede4fd7c6781f81f6295f745b5bba84508a8a9f97a354f9c219c984df4f82
+Signing artifact...
+Pushing signature to: forge.bluejungle.net/palamedes/passkey-point-devtenant
+Signing artifact...
+Pushing signature to: forge.bluejungle.net/palamedes/passkey-point-devtenant
+Signing artifact...
+Pushing signature to: forge.bluejungle.net/palamedes/passkey-point-devtenant
+Using payload from: /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/tmp/pp-sign.hlmmVO/prov-devtenant.json
+Signing artifact...
+== key file removed; no key material left in the run's temp directory
+== verify signatures and provenance as the registry serves them
+devtenant signature sha256:a79ede4fd7c6: verified
+devtenant signature sha256:1fe99d6006d4: verified
+devtenant signature sha256:7a8c43c4c4ad: verified
+devtenant provenance: verified (commit 8e24b22, target devtenant)
+OK: 1 images signed, provenance for 8e24b22
+== release tag, on the verified digest only
+tagged forge.bluejungle.net/palamedes/passkey-point-devtenant:devtenant-d8e24b22 -> sha256:a79ede4fd7c6781f81f6295f745b5bba84508a8a9f97a354f9c219c984df4f82
+== independent verify against the out-of-band key /Users/sheijden/Code/homelab-migration/passkey-point-cosign.pub (sha256 DER 6ad2a90a972cf633d34ac03640220cf0790d59e1e0e238294fa2760d31ad66e9)
+WARNING: Skipping tlog verification is an insecure practice that lacks transparency and auditability verification for the signature.
+
+Verification for forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:a79ede4fd7c6781f81f6295f745b5bba84508a8a9f97a354f9c219c984df4f82 --
+The following checks were performed on each of these signatures:
+  - The cosign claims were validated
+  - Existence of the claims in the transparency log was verified offline
+  - The signatures were verified against the specified public key
+{"ref":"forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:a79ede4fd7c6781f81f6295f745b5bba84508a8a9f97a354f9c219c984df4f82","digest":"sha256:a79ede4fd7c6781f81f6295f745b5bba84508a8a9f97a354f9c219c984df4f82"}
+{"ref":"forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:a79ede4fd7c6781f81f6295f745b5bba84508a8a9f97a354f9c219c984df4f82","digest":"sha256:a79ede4fd7c6781f81f6295f745b5bba84508a8a9f97a354f9c219c984df4f82"}
+-- amd64 child
+WARNING: Skipping tlog verification is an insecure practice that lacks transparency and auditability verification for the signature.
+
+Verification for forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:7a8c43c4c4ad03ed13b6d0945a4aee989ea888dca4a96636da6959d970d8c2f9 --
+The following checks were performed on each of these signatures:
+  - The cosign claims were validated
+  - Existence of the claims in the transparency log was verified offline
+  - The signatures were verified against the specified public key
+{"digest":"sha256:7a8c43c4c4ad03ed13b6d0945a4aee989ea888dca4a96636da6959d970d8c2f9"}
+-- arm64 child
+WARNING: Skipping tlog verification is an insecure practice that lacks transparency and auditability verification for the signature.
+
+Verification for forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:1fe99d6006d4c48c9d44a502d3f428ad82e65efd0963a755adc3037bf4951a89 --
+The following checks were performed on each of these signatures:
+  - The cosign claims were validated
+  - Existence of the claims in the transparency log was verified offline
+  - The signatures were verified against the specified public key
+{"digest":"sha256:1fe99d6006d4c48c9d44a502d3f428ad82e65efd0963a755adc3037bf4951a89"}
+WARNING: Skipping tlog verification is an insecure practice that lacks transparency and auditability verification for the attestation.
+
+Verification for forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:a79ede4fd7c6781f81f6295f745b5bba84508a8a9f97a354f9c219c984df4f82 --
+The following checks were performed on each of these signatures:
+  - The cosign claims were validated
+  - Existence of the claims in the transparency log was verified offline
+  - The signatures were verified against the specified public key
+{"subject":["a79ede4fd7c6781f81f6295f745b5bba84508a8a9f97a354f9c219c984df4f82"],"commit":"8e24b221188eacf106323b415c3cfbd776880f13","target":"devtenant"}
+DIGESTS -> /Users/sheijden/Code/homelab-migration/vdhinfra/ops/evidence/chg-2026-10-21-012/DIGESTS-devtenant-8e24b22.txt:
+forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:a79ede4fd7c6781f81f6295f745b5bba84508a8a9f97a354f9c219c984df4f82
+amd64 forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:7a8c43c4c4ad03ed13b6d0945a4aee989ea888dca4a96636da6959d970d8c2f9
+arm64 forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:1fe99d6006d4c48c9d44a502d3f428ad82e65efd0963a755adc3037bf4951a89
+VERIFY OK
+auth file reset: {"auths":{}}
+EXIT 0 2026-10-21T15:15:26Z

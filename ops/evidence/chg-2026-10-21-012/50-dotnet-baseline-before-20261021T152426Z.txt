@@ -1,0 +1,21 @@
+2026-10-21T15:24:26Z
+NAME                READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS    IMAGES                                                                                                                                                                                                                                             SELECTOR
+passkey-point-api   1/1     1            1           38h   api,tap-sim   forge.bluejungle.net/palamedes/passkey-point-dotnet@sha256:b412ec9c6df0d47ee9c8d57e93a950acc4d29cab48c210cf6591d1e7916adee9,forge.bluejungle.net/palamedes/passkey-point@sha256:3ecb605f1c7bdd2811346aa014640911d6f2d078d6d4fd67c05b047711864564   app.kubernetes.io/name=passkey-point-api
+passkey-point-web   1/1     1            1           38h   web           forge.bluejungle.net/palamedes/passkey-point-dotnet@sha256:b412ec9c6df0d47ee9c8d57e93a950acc4d29cab48c210cf6591d1e7916adee9                                                                                                                        app.kubernetes.io/name=passkey-point-web
+passkey-point-api-7458fdb8ff-9jqwl api=forge.bluejungle.net/palamedes/passkey-point-dotnet@sha256:b412ec9c6df0d47ee9c8d57e93a950acc4d29cab48c210cf6591d1e7916adee9 ready=true tap-sim=forge.bluejungle.net/palamedes/passkey-point@sha256:3ecb605f1c7bdd2811346aa014640911d6f2d078d6d4fd67c05b047711864564 ready=true 
+passkey-point-web-755b6fbff7-4lfv5 web=forge.bluejungle.net/palamedes/passkey-point-dotnet@sha256:b412ec9c6df0d47ee9c8d57e93a950acc4d29cab48c210cf6591d1e7916adee9 ready=true 
+pp-dotnet-pg-1 postgres=ghcr.io/cloudnative-pg/postgresql@sha256:cca50a94e2da46ddcaefb23260c805ed3b466763bd2a25e1617410176d5fd0ab ready=true 
+devtenant-admission                	refs/heads/main@sha1:44af0c59	False    	True 	Applied revision: refs/heads/main@sha1:44af0c59	
+devtenant-base                     	refs/heads/main@sha1:44af0c59	False    	True 	Applied revision: refs/heads/main@sha1:44af0c59	
+devtenant-e2e-dotnet               	refs/heads/main@sha1:44af0c59	False    	True 	Applied revision: refs/heads/main@sha1:44af0c59	
+devtenant-network-policies         	refs/heads/main@sha1:44af0c59	False    	True 	Applied revision: refs/heads/main@sha1:44af0c59	
+external-secrets-stores-devtenant  	refs/heads/main@sha1:44af0c59	False    	True 	Applied revision: refs/heads/main@sha1:44af0c59	
+lab-passkey-dotnet-base            	refs/heads/main@sha1:44af0c59	False    	True 	Applied revision: refs/heads/main@sha1:44af0c59	
+lab-passkey-dotnet-db              	refs/heads/main@sha1:44af0c59	False    	True 	Applied revision: refs/heads/main@sha1:44af0c59	
+lab-passkey-dotnet-desk            	refs/heads/main@sha1:44af0c59	False    	True 	Applied revision: refs/heads/main@sha1:44af0c59	
+lab-passkey-dotnet-grants          	refs/heads/main@sha1:44af0c59	False    	True 	Applied revision: refs/heads/main@sha1:44af0c59	
+lab-passkey-dotnet-migrate         	refs/heads/main@sha1:44af0c59	False    	True 	Applied revision: refs/heads/main@sha1:44af0c59	
+lab-passkey-dotnet-network-policies	refs/heads/main@sha1:44af0c59	False    	True 	Applied revision: refs/heads/main@sha1:44af0c59	
+GET /readyz: 200 0.008343s
+GET /: 303 0.009175s
+GET /readyz via DNS: 200

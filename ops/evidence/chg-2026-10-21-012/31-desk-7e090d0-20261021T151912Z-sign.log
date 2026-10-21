@@ -1,0 +1,96 @@
+== chg-2026-10-21-012 .NET desk sign, started 2026-10-21T15:19:12Z by k8s-engineer (Heph) for Atlas
+source https://forge.bluejungle.net/mypka-bot/passkey-point-dotnet commit 7e090d0b0136c2d0f7a9d50cd903dafa49c1f562 (git archive, clean tree)
+host vdhmini01; podman machine podman-machine-default applehv
+tools: podman client 6.1.3 server 6.1.3; cosign v3.1.3
+AGR-109: tests are the gate (Passkey dev tenant, AGR-087/098); no deploy, no git push
+-- C2 pattern self-check (stdin only, no file): sigstore/cosign/encrypted forms must match, OPENSSH must not
+   pattern self-check OK
+local image localhost/passkey-point-dotnet:desk-7e090d0 id aaaa551c424998c40e1903c3287c29ac864874bfc61c60e92e8fc05d45133854 = build record ops/evidence/chg-2026-10-21-012/BUILD-desk-7e090d0.txt; built on this host/machine
+-- C2 key-header scan (before-key-fetch) 2026-10-21T15:19:12Z: grep -rIlE -- '-----BEGIN [A-Z ]*(SIGSTORE|COSIGN) PRIVATE KEY-----' /Users/sheijden/Code /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/tmp, then rule v2 per file
+   grep rc=0 candidate files=16 real-hit files=0 synthetic blocks=16 unreadable/vanished-path messages=0 (paths only, never content)
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/passkey-point-passkeys/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/passkey-point-tap-adapter/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/passkey-point-app/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/pp-e2e-3ccfbab/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/passkey-point-clientpkg/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/pp-e2e-ef59c24-palamedes/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/passkey-point-pk2/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/pp-devtenant-8e24b22/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/pp-e2e-aee4e84/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/pp-devtenant-ac1358d/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/scratch/passkey-point-2026-10-21-displayname/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/scratch/passkey-point-2026-10-21/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/scratch/passkey-point-2026-10-21-combined/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/scratch/passkey-point-2026-10-21-bootstrap/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/pp-devtenant-8e24b22.vkX9Oa/src/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/pp-dcd2404-build/test/review-sc-scripts.test.ts synthetic=1
+   C2 scan (before-key-fetch) done 2026-10-21T15:20:26Z: real=0 synthetic=16, PASS
+== registry auth (palamedes, token from ~/.config/pka/mack-dev-forge-package, not printed)
+Getting image source signatures
+Copying blob sha256:254d59228153d05bac36738c7214349d9356a8a4d9674c3797c30ac1ee4f9780
+Copying blob sha256:9ddd650b5d6c08d07ef5c7ce9afa4f2cae3a3f175560e214b2d4fa58c48b5830
+Copying blob sha256:99a69e3fa47efe803be3e3f3e71dfb2e30fc13c0c9b559f6f517318794fd064d
+Copying blob sha256:a7b7e2f420cd90311a13bfb38342793ef45ceee59969c7a26f7b1339e73fbb59
+Copying blob sha256:f09b16c31e4b8757e6f46bfc3de3736110b01a8a708a9ce847652d6c27194f65
+Copying blob sha256:6b2f0ea7b03f3b9c20059b85598c1ba353ffaa94ddc18e359e36cd769768db5c
+Copying config sha256:aaaa551c424998c40e1903c3287c29ac864874bfc61c60e92e8fc05d45133854
+Writing manifest to image destination
+pushed forge.bluejungle.net/palamedes/passkey-point-dotnet:desk-7e090d0 sha256:9dc3dbca2df9d17ff7a0153b417313ef576b1adef34e641f5ba1894aa3f7dba8 (build-run oci-archive digest sha256:9dc3dbca2df9d17ff7a0153b417313ef576b1adef34e641f5ba1894aa3f7dba8)
+== provenance predicate (SLSA v1 shape of provenance.ts; built here with jq). C1: builder.id names host + machine
+prov-desk.json sha256 078f9c26b715e861ab4a135192aeafa5eccde9ba40517b687a3fad34f36d5dc1 builder.id: vdhinfra hack/ops/chg-2026-10-21-012-dotnet-desk-7e090d0-build-sign.sh (podman 6.1.3 on vdhmini01 (darwin/arm64), podman machine podman-machine-default applehv, linux/amd64 (build stage native linux/arm64, cross-publish linux-x64))
+F3: signing config /Users/sheijden/Code/homelab-migration/passkey-point-passkeys/scripts/release/signing-config.no-tlog.json sha256 6a7a661ba892f8ef2fad0929704287187b4dc302ae07176f524669d1d98e4912 (pinned), rekorTlogUrls empty
+== cosign key via 1Password Connect (PP_COSIGN_SOURCE=connect path of sign-images.sh; values never printed)
+derived public key matches out-of-band key (DER sha256 6ad2a90a972cf633d34ac03640220cf0790d59e1e0e238294fa2760d31ad66e9)
+== sign + attest desk forge.bluejungle.net/palamedes/passkey-point-dotnet@sha256:9dc3dbca2df9d17ff7a0153b417313ef576b1adef34e641f5ba1894aa3f7dba8
+Signing artifact...
+Pushing signature to: forge.bluejungle.net/palamedes/passkey-point-dotnet
+Using payload from: /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/pp-dotnet-desk-build.wc7r6g/prov-desk.json
+Signing artifact...
+== key file removed; no key material left in the run's temp directory
+-- C2 key-header scan (after-key-removal) 2026-10-21T15:20:29Z: grep -rIlE -- '-----BEGIN [A-Z ]*(SIGSTORE|COSIGN) PRIVATE KEY-----' /Users/sheijden/Code /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/tmp, then rule v2 per file
+   grep rc=0 candidate files=16 real-hit files=0 synthetic blocks=16 unreadable/vanished-path messages=0 (paths only, never content)
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/passkey-point-passkeys/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/passkey-point-tap-adapter/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/passkey-point-app/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/pp-e2e-3ccfbab/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/passkey-point-clientpkg/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/pp-e2e-ef59c24-palamedes/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/passkey-point-pk2/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/pp-devtenant-8e24b22/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/pp-e2e-aee4e84/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/pp-devtenant-ac1358d/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/scratch/passkey-point-2026-10-21-displayname/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/scratch/passkey-point-2026-10-21/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/scratch/passkey-point-2026-10-21-combined/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/scratch/passkey-point-2026-10-21-bootstrap/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/pp-devtenant-8e24b22.vkX9Oa/src/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/pp-dcd2404-build/test/review-sc-scripts.test.ts synthetic=1
+   C2 scan (after-key-removal) done 2026-10-21T15:21:43Z: real=0 synthetic=16, PASS
+== verify against the out-of-band key /Users/sheijden/Code/homelab-migration/passkey-point-cosign.pub
+-- cosign verify forge.bluejungle.net/palamedes/passkey-point-dotnet@sha256:9dc3dbca2df9d17ff7a0153b417313ef576b1adef34e641f5ba1894aa3f7dba8
+WARNING: Skipping tlog verification is an insecure practice that lacks transparency and auditability verification for the signature.
+
+Verification for forge.bluejungle.net/palamedes/passkey-point-dotnet@sha256:9dc3dbca2df9d17ff7a0153b417313ef576b1adef34e641f5ba1894aa3f7dba8 --
+The following checks were performed on each of these signatures:
+  - The cosign claims were validated
+  - Existence of the claims in the transparency log was verified offline
+  - The signatures were verified against the specified public key
+{"ref":"forge.bluejungle.net/palamedes/passkey-point-dotnet@sha256:9dc3dbca2df9d17ff7a0153b417313ef576b1adef34e641f5ba1894aa3f7dba8","digest":"sha256:9dc3dbca2df9d17ff7a0153b417313ef576b1adef34e641f5ba1894aa3f7dba8","type":"https://sigstore.dev/cosign/sign/v1"}
+{"ref":"forge.bluejungle.net/palamedes/passkey-point-dotnet@sha256:9dc3dbca2df9d17ff7a0153b417313ef576b1adef34e641f5ba1894aa3f7dba8","digest":"sha256:9dc3dbca2df9d17ff7a0153b417313ef576b1adef34e641f5ba1894aa3f7dba8","type":"https://slsa.dev/provenance/v1"}
+-- cosign verify-attestation --type slsaprovenance1 forge.bluejungle.net/palamedes/passkey-point-dotnet@sha256:9dc3dbca2df9d17ff7a0153b417313ef576b1adef34e641f5ba1894aa3f7dba8
+WARNING: Skipping tlog verification is an insecure practice that lacks transparency and auditability verification for the attestation.
+
+Verification for forge.bluejungle.net/palamedes/passkey-point-dotnet@sha256:9dc3dbca2df9d17ff7a0153b417313ef576b1adef34e641f5ba1894aa3f7dba8 --
+The following checks were performed on each of these signatures:
+  - The cosign claims were validated
+  - Existence of the claims in the transparency log was verified offline
+  - The signatures were verified against the specified public key
+{"subject":[{"name":"forge.bluejungle.net/palamedes/passkey-point-dotnet","digest":{"sha256":"9dc3dbca2df9d17ff7a0153b417313ef576b1adef34e641f5ba1894aa3f7dba8"}}],"commit":"7e090d0b0136c2d0f7a9d50cd903dafa49c1f562","target":"desk","builder_id":"vdhinfra hack/ops/chg-2026-10-21-012-dotnet-desk-7e090d0-build-sign.sh (podman 6.1.3 on vdhmini01 (darwin/arm64), podman machine podman-machine-default applehv, linux/amd64 (build stage native linux/arm64, cross-publish linux-x64))"}
+C1 OK: every verified slsaprovenance1 attestation for desk names host vdhmini01 and machine podman-machine-default applehv
+== RESULT
+desk forge.bluejungle.net/palamedes/passkey-point-dotnet@sha256:9dc3dbca2df9d17ff7a0153b417313ef576b1adef34e641f5ba1894aa3f7dba8  (tag forge.bluejungle.net/palamedes/passkey-point-dotnet:desk-7e090d0)
+DIGESTS -> ops/evidence/chg-2026-10-21-012/DIGESTS-desk-7e090d0.txt: forge.bluejungle.net/palamedes/passkey-point-dotnet@sha256:9dc3dbca2df9d17ff7a0153b417313ef576b1adef34e641f5ba1894aa3f7dba8
+provenance predicate -> ops/evidence/chg-2026-10-21-012/prov-desk-7e090d0.json sha256 078f9c26b715e861ab4a135192aeafa5eccde9ba40517b687a3fad34f36d5dc1
+VERIFY OK
+auth file reset: {"auths":{}}
+EXIT 0 2026-10-21T15:21:43Z

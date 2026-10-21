@@ -1,0 +1,233 @@
+# chg-2026-10-21-012 devtenant image build by k8s-engineer (Heph) for Atlas 2026-10-21T15:11:27Z host vdhmini01 HEAD 8e24b221188eacf106323b415c3cfbd776880f13
+AGR-109: tests are the gate (Passkey dev tenant, AGR-087/098)
+tools: podman client 6.1.3 server 6.1.3; cosign v3.1.3; host node v24.22.1
+F3: 8e24b22 scripts/release/signing-config.no-tlog.json sha256 6a7a661ba892f8ef2fad0929704287187b4dc302ae07176f524669d1d98e4912 (pinned), rekorTlogUrls empty
+== --pull: base images of /Users/sheijden/Code/homelab-migration/pp-devtenant-8e24b22/Containerfile, both platforms
+pulled docker.io/library/node@sha256:6a1c190e17215d844926b0677f4bf87273ff7d5e54db06d3b5b5863ab0b09a3d linux/amd64
+pulled docker.io/library/node@sha256:6a1c190e17215d844926b0677f4bf87273ff7d5e54db06d3b5b5863ab0b09a3d linux/arm64
+commit 8e24b221188eacf106323b415c3cfbd776880f13
+[linux/arm64] [1/7] STEP 1/4: FROM docker.io/library/node@sha256:6a1c190e17215d844926b0677f4bf87273ff7d5e54db06d3b5b5863ab0b09a3d AS deps
+[linux/arm64] [1/7] STEP 2/4: WORKDIR /app
+--> 7f8d419e37b7
+[linux/arm64] [1/7] STEP 3/4: COPY package.json package-lock.json ./
+--> 90341c649642
+[linux/arm64] [1/7] STEP 4/4: RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
+
+added 159 packages in 2s
+npm notice
+npm notice New major version of npm available! 11.19.1 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+npm warn using --force Recommended protections disabled.
+--> a516ac9aae9a
+[linux/arm64] [2/7] STEP 1/3: FROM docker.io/library/node@sha256:6a1c190e17215d844926b0677f4bf87273ff7d5e54db06d3b5b5863ab0b09a3d AS noderoot
+[linux/arm64] [2/7] STEP 2/3: RUN apk add --no-cache --upgrade zlib=1.3.2-r1 && grep -A1 '^P:zlib$' /lib/apk/db/installed | grep -qx 'V:1.3.2-r1'
+(1/1) Upgrading zlib (1.3.2-r0 -> 1.3.2-r1)
+OK: 11.1 MiB in 19 packages
+--> 6af53c16c586
+[linux/arm64] [2/7] STEP 3/3: RUN rm -rf /usr/local/lib/node_modules /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack            /usr/local/bin/yarn /usr/local/bin/yarnpkg /opt/yarn-* /usr/local/bin/docker-entrypoint.sh /root/.npm  && ! command -v npm && node --version
+v24.22.1
+--> 6c39956499ab
+[linux/amd64] [1/7] STEP 1/4: FROM docker.io/library/node@sha256:6a1c190e17215d844926b0677f4bf87273ff7d5e54db06d3b5b5863ab0b09a3d AS deps
+Trying to pull docker.io/library/node@sha256:6a1c190e17215d844926b0677f4bf87273ff7d5e54db06d3b5b5863ab0b09a3d...
+Getting image source signatures
+Copying blob sha256:28186c8c3a4726e50fbff6f9b8ecb06a83c72aa645f5253b6fc1fa14bf65bc44
+Copying blob sha256:1d93122a5ea1bd309bdff36d7f7dbf3706228748bf200163b5a5f0dbad23573a
+Copying blob sha256:ffd4ace32a62e2f0eb47d6276ea3d131baaf4f1d27ad6b951fb057b5e50665fc
+Copying blob sha256:e2de96513ba9eb53b431787ec8a65cdde380ac4772a3e4c4b714dcfde2a102b5
+Copying config sha256:6517c7616659ec1ef232fa0ff5ee61d1eedc58c5da1374539ba091c7226ce2d2
+Writing manifest to image destination
+[linux/amd64] [1/7] STEP 2/4: WORKDIR /app
+--> ebf7a9f81cc0
+[linux/amd64] [1/7] STEP 3/4: COPY package.json package-lock.json ./
+--> e3e90594d4b9
+[linux/amd64] [1/7] STEP 4/4: RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
+
+added 159 packages in 11s
+npm notice
+npm notice New major version of npm available! 11.19.1 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+npm warn using --force Recommended protections disabled.
+--> bcf419ee728a
+[linux/arm64] [3/7] STEP 1/17: FROM scratch AS runtime
+[linux/arm64] [3/7] STEP 2/17: COPY --from=noderoot / /
+--> 20bd14f58d22
+[linux/arm64] [3/7] STEP 3/17: LABEL org.opencontainers.image.base.name="docker.io/library/node:24-alpine"       org.opencontainers.image.base.digest="sha256:6a1c190e17215d844926b0677f4bf87273ff7d5e54db06d3b5b5863ab0b09a3d"
+--> 5d453535b475
+[linux/arm64] [3/7] STEP 4/17: ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin     NODE_VERSION=24.22.1     HOST=0.0.0.0     PORT=8443     PP_DATA_DIR=/var/lib/passkey-point     NODE_OPTIONS=--disable-warning=ExperimentalWarning
+--> e75d770406cc
+[linux/arm64] [3/7] STEP 5/17: WORKDIR /app
+--> 21c0e55b7f62
+[linux/arm64] [3/7] STEP 6/17: COPY --from=deps /app/node_modules ./node_modules
+--> e850e9b736ad
+[linux/arm64] [3/7] STEP 7/17: COPY package.json ./
+--> 686ba00fbe57
+[linux/arm64] [3/7] STEP 8/17: COPY src ./src
+--> e428ebee2afd
+[linux/arm64] [3/7] STEP 9/17: COPY views ./views
+--> abe73b0f8462
+[linux/arm64] [3/7] STEP 10/17: COPY public ./public
+--> d95cbd5f66d2
+[linux/arm64] [3/7] STEP 11/17: COPY policy ./policy
+--> af550139c40e
+[linux/arm64] [3/7] STEP 12/17: COPY migrations ./migrations
+--> 9fefe9844faf
+[linux/arm64] [3/7] STEP 13/17: COPY scripts/migrate.ts scripts/mock-keys.ts scripts/backup.ts scripts/audit-export.ts ./scripts/
+--> 763be9cf237d
+[linux/arm64] [3/7] STEP 14/17: RUN mkdir -p /var/lib/passkey-point && chgrp -R 0 /app /var/lib/passkey-point  && chmod -R g=u,o-w /app && chmod 0770 /var/lib/passkey-point
+--> 5c87e69bda85
+[linux/arm64] [3/7] STEP 15/17: USER 10001:0
+--> 7090c4e8d6a8
+[linux/arm64] [3/7] STEP 16/17: EXPOSE 8443
+--> ff33783ebc1a
+[linux/arm64] [3/7] STEP 17/17: STOPSIGNAL SIGTERM
+--> b918cad6bd03
+[linux/amd64] [2/7] STEP 1/3: FROM docker.io/library/node@sha256:6a1c190e17215d844926b0677f4bf87273ff7d5e54db06d3b5b5863ab0b09a3d AS noderoot
+[linux/amd64] [2/7] STEP 2/3: RUN apk add --no-cache --upgrade zlib=1.3.2-r1 && grep -A1 '^P:zlib$' /lib/apk/db/installed | grep -qx 'V:1.3.2-r1'
+(1/1) Upgrading zlib (1.3.2-r0 -> 1.3.2-r1)
+OK: 10.9 MiB in 19 packages
+--> 4721fc3bab69
+[linux/amd64] [2/7] STEP 3/3: RUN rm -rf /usr/local/lib/node_modules /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack            /usr/local/bin/yarn /usr/local/bin/yarnpkg /opt/yarn-* /usr/local/bin/docker-entrypoint.sh /root/.npm  && ! command -v npm && node --version
+v24.22.1
+--> 098d531847eb
+[linux/amd64] [3/7] STEP 1/17: FROM scratch AS runtime
+[linux/amd64] [3/7] STEP 2/17: COPY --from=noderoot / /
+--> 494ff660731f
+[linux/amd64] [3/7] STEP 3/17: LABEL org.opencontainers.image.base.name="docker.io/library/node:24-alpine"       org.opencontainers.image.base.digest="sha256:6a1c190e17215d844926b0677f4bf87273ff7d5e54db06d3b5b5863ab0b09a3d"
+--> f82faefb38aa
+[linux/amd64] [3/7] STEP 4/17: ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin     NODE_VERSION=24.22.1     HOST=0.0.0.0     PORT=8443     PP_DATA_DIR=/var/lib/passkey-point     NODE_OPTIONS=--disable-warning=ExperimentalWarning
+--> 36ec182a886c
+[linux/amd64] [3/7] STEP 5/17: WORKDIR /app
+--> 31290026d608
+[linux/amd64] [3/7] STEP 6/17: COPY --from=deps /app/node_modules ./node_modules
+--> fa7c7a5921cb
+[linux/amd64] [3/7] STEP 7/17: COPY package.json ./
+--> a000f3045b5a
+[linux/amd64] [3/7] STEP 8/17: COPY src ./src
+--> c10a325be5ee
+[linux/amd64] [3/7] STEP 9/17: COPY views ./views
+--> 220bde02c032
+[linux/amd64] [3/7] STEP 10/17: COPY public ./public
+--> 1d4ed2e0d1a8
+[linux/amd64] [3/7] STEP 11/17: COPY policy ./policy
+--> d502865eb18c
+[linux/amd64] [3/7] STEP 12/17: COPY migrations ./migrations
+--> e744f993beef
+[linux/amd64] [3/7] STEP 13/17: COPY scripts/migrate.ts scripts/mock-keys.ts scripts/backup.ts scripts/audit-export.ts ./scripts/
+--> 1a95dc84154e
+[linux/amd64] [3/7] STEP 14/17: RUN mkdir -p /var/lib/passkey-point && chgrp -R 0 /app /var/lib/passkey-point  && chmod -R g=u,o-w /app && chmod 0770 /var/lib/passkey-point
+--> d6178ec13458
+[linux/amd64] [3/7] STEP 15/17: USER 10001:0
+--> d5e2709fd7c7
+[linux/amd64] [3/7] STEP 16/17: EXPOSE 8443
+--> bfdb7dab3bb1
+[linux/amd64] [3/7] STEP 17/17: STOPSIGNAL SIGTERM
+--> f4ad0e0b4a7e
+[linux/arm64] [7/7] STEP 1/9: FROM b918cad6bd030626b8f514101010dd62c4b38772616b4f744f79ea4f14a7bb91 AS devtenant
+[linux/arm64] [7/7] STEP 2/9: USER 0
+--> a77efbe3eb97
+[linux/arm64] [7/7] STEP 3/9: RUN apk add --no-cache openssl=3.5.9-r0 libcrypto3=3.5.9-r0 libssl3=3.5.9-r0 && openssl version
+(1/3) Upgrading libcrypto3 (3.5.8-r0 -> 3.5.9-r0)
+(2/3) Upgrading libssl3 (3.5.8-r0 -> 3.5.9-r0)
+(3/3) Installing openssl (3.5.9-r0)
+Executing busybox-1.37.0-r31.trigger
+OK: 11.9 MiB in 20 packages
+OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)
+--> 7f22bd00b719
+[linux/arm64] [7/7] STEP 4/9: COPY infra/devtenant ./infra/devtenant
+--> 21e29b566b7c
+[linux/arm64] [7/7] STEP 5/9: RUN mkdir -p /app/infra/devtenant/out && chgrp -R 0 /app/infra && chmod -R g=u,o-w /app/infra
+--> 7c6dfc1a0b3a
+[linux/arm64] [7/7] STEP 6/9: USER 10001:0
+--> 061a88e42656
+[linux/arm64] [7/7] STEP 7/9: LABEL org.opencontainers.image.title="passkey-point-devtenant"
+--> edb502912e5f
+[linux/arm64] [7/7] STEP 8/9: CMD ["node", "infra/devtenant/devtenant.ts"]
+--> 26a7e4d5389b
+[linux/arm64] [7/7] STEP 9/9: LABEL "org.opencontainers.image.revision"="8e24b221188eacf106323b415c3cfbd776880f13"
+[linux/arm64] [7/7] COMMIT
+--> d0e96960403c
+[linux/amd64] [7/7] STEP 1/9: FROM f4ad0e0b4a7e8c3d7bae4a2af2d8c7eda36b77c2be9a5bbeb541a9af479e027f AS devtenant
+[linux/amd64] [7/7] STEP 2/9: USER 0
+--> a913436f71fa
+[linux/amd64] [7/7] STEP 3/9: RUN apk add --no-cache openssl=3.5.9-r0 libcrypto3=3.5.9-r0 libssl3=3.5.9-r0 && openssl version
+d0e96960403cf34201b256e7e9cc1643aa5244e57e06996e8f2978798e0d3f7e
+(1/3) Upgrading libcrypto3 (3.5.8-r0 -> 3.5.9-r0)
+(2/3) Upgrading libssl3 (3.5.8-r0 -> 3.5.9-r0)
+(3/3) Installing openssl (3.5.9-r0)
+Executing busybox-1.37.0-r31.trigger
+OK: 11.7 MiB in 20 packages
+OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)
+--> 4d7b5fcc7098
+[linux/amd64] [7/7] STEP 4/9: COPY infra/devtenant ./infra/devtenant
+--> ca648bd7a2cb
+[linux/amd64] [7/7] STEP 5/9: RUN mkdir -p /app/infra/devtenant/out && chgrp -R 0 /app/infra && chmod -R g=u,o-w /app/infra
+--> 72ed83047627
+[linux/amd64] [7/7] STEP 6/9: USER 10001:0
+--> 1b64a3b5602d
+[linux/amd64] [7/7] STEP 7/9: LABEL org.opencontainers.image.title="passkey-point-devtenant"
+--> a6cea1a224e6
+[linux/amd64] [7/7] STEP 8/9: CMD ["node", "infra/devtenant/devtenant.ts"]
+--> 46dfbef35d75
+[linux/amd64] [7/7] STEP 9/9: LABEL "org.opencontainers.image.revision"="8e24b221188eacf106323b415c3cfbd776880f13"
+[linux/amd64] [7/7] COMMIT
+--> 13d9465099a8
+13d9465099a8dfe304631ab16bdcd0f816b793abd203075068594670aacf7970
+== verify local lists
+devtenant arm64 sha256:fe479de727c7bcf6610684c7d31184e0ccc12020dc96e0774b0712af8e99b5de title=passkey-point-devtenant cmd=["node","infra/devtenant/devtenant.ts"] uname=aarch64 files=131 mismatched=0 bins={"openssl":"OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)"} keygenPem=2
+devtenant amd64 sha256:076e1fc59d7424c88c29193ed043a62bdfae65de69736cf81c29ee1311df6643 title=passkey-point-devtenant cmd=["node","infra/devtenant/devtenant.ts"] uname=x86_64 files=131 mismatched=0 bins={"openssl":"OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)"} keygenPem=2
+OK: 1 lists, each its own target, amd64 + arm64, built from 8e24b221188eacf106323b415c3cfbd776880f13
+built and verified; not pushed (pass --push)
+amd64 sha256:076e1fc59d7424c88c29193ed043a62bdfae65de69736cf81c29ee1311df6643 13d9465099a8dfe304631ab16bdcd0f816b793abd203075068594670aacf7970
+arm64 sha256:fe479de727c7bcf6610684c7d31184e0ccc12020dc96e0774b0712af8e99b5de d0e96960403cf34201b256e7e9cc1643aa5244e57e06996e8f2978798e0d3f7e
+== amd64 child sha256:076e1fc59d7424c88c29193ed043a62bdfae65de69736cf81c29ee1311df6643 id 13d9465099a8dfe304631ab16bdcd0f816b793abd203075068594670aacf7970 user 10001:0
+G2 node --version in amd64 child (network none, read-only): v24.22.1
+== SBOM amd64 (syft 1.54.1, CycloneDX JSON)
+mise WARN  unknown field in ~/Code/homelab-migration/vdhinfra/.mise.toml: settings.pipx_uvx
+sbom components=466
+== grype 0.120.0 on the amd64 SBOM
+mise WARN  unknown field in ~/Code/homelab-migration/vdhinfra/.mise.toml: settings.pipx_uvx
+grype matches by severity: Medium=4
+  Medium CVE-2025-60876 busybox-binsh@1.37.0-r31 fix=
+  Medium CVE-2025-60876 busybox@1.37.0-r31 fix=
+  Medium CVE-2025-60876 ssl_client@1.37.0-r31 fix=
+  Medium GHSA-hp3w-g68c-fv3c sprintf-js@1.1.3 fix=not-fixed
+-- grype gate amd64 (Critical, or High with a fix; no exceptions), all hits listed
+   gate hits: 0
+grype gate amd64 PASS
+== arm64 child sha256:fe479de727c7bcf6610684c7d31184e0ccc12020dc96e0774b0712af8e99b5de id d0e96960403cf34201b256e7e9cc1643aa5244e57e06996e8f2978798e0d3f7e user 10001:0
+G2 node --version in arm64 child (network none, read-only): v24.22.1
+== SBOM arm64 (syft 1.54.1, CycloneDX JSON)
+mise WARN  unknown field in ~/Code/homelab-migration/vdhinfra/.mise.toml: settings.pipx_uvx
+sbom components=465
+== grype 0.120.0 on the arm64 SBOM
+mise WARN  unknown field in ~/Code/homelab-migration/vdhinfra/.mise.toml: settings.pipx_uvx
+grype matches by severity: Medium=4
+  Medium CVE-2025-60876 busybox-binsh@1.37.0-r31 fix=
+  Medium CVE-2025-60876 busybox@1.37.0-r31 fix=
+  Medium CVE-2025-60876 ssl_client@1.37.0-r31 fix=
+  Medium GHSA-hp3w-g68c-fv3c sprintf-js@1.1.3 fix=not-fixed
+-- grype gate arm64 (Critical, or High with a fix; no exceptions), all hits listed
+   gate hits: 0
+grype gate arm64 PASS
+== RESULT (build, unsigned, not pushed)
+commit=8e24b221188eacf106323b415c3cfbd776880f13
+image_local=localhost/passkey-point-release-devtenant:d8e24b22
+child_amd64=sha256:076e1fc59d7424c88c29193ed043a62bdfae65de69736cf81c29ee1311df6643
+image_id_amd64=13d9465099a8dfe304631ab16bdcd0f816b793abd203075068594670aacf7970
+node_version_amd64=v24.22.1
+grype_matches_amd64=4
+child_arm64=sha256:fe479de727c7bcf6610684c7d31184e0ccc12020dc96e0774b0712af8e99b5de
+image_id_arm64=d0e96960403cf34201b256e7e9cc1643aa5244e57e06996e8f2978798e0d3f7e
+node_version_arm64=v24.22.1
+grype_matches_arm64=4
+node_index=docker.io/library/node@sha256:6a1c190e17215d844926b0677f4bf87273ff7d5e54db06d3b5b5863ab0b09a3d
+started=2026-10-21T15:11:34Z
+finished=2026-10-21T15:12:25Z
+sbom_sha256_amd64=ccebbd77b9df58ac36833853cd1d43d9641f264cd94e685134c3c1833d270351
+sbom_sha256_arm64=11416aef8d49796a417844fd9650f9fba74a1838a68e08825e02c043f5f74c41
+BUILD OK
+EXIT 0 2026-10-21T15:12:41Z

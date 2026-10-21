@@ -1,0 +1,56 @@
+{
+  "buildDefinition": {
+    "buildType": "https://forge.bluejungle.net/VDHICT/passkey-point/e2e/Containerfile@v1",
+    "externalParameters": {
+      "target": "e2e",
+      "commit": "aee4e8435c2d3414cc4a52b6a00a878836979f74",
+      "tagSuffix": "aee4e84",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    },
+    "internalParameters": {},
+    "resolvedDependencies": [
+      {
+        "uri": "git+https://forge.bluejungle.net/VDHICT/passkey-point@aee4e8435c2d3414cc4a52b6a00a878836979f74",
+        "digest": {
+          "gitCommit": "aee4e8435c2d3414cc4a52b6a00a878836979f74"
+        }
+      },
+      {
+        "uri": "pkg:docker/docker.io/library/node",
+        "name": "docker.io/library/node@sha256:1375326a10579cc1fd089d5da149ad29ae76dc3ccee6c0b0746d3de09dc5d0a1",
+        "digest": {
+          "sha256": "1375326a10579cc1fd089d5da149ad29ae76dc3ccee6c0b0746d3de09dc5d0a1"
+        }
+      }
+    ]
+  },
+  "runDetails": {
+    "builder": {
+      "id": "vdhinfra hack/ops/chg-2026-10-21-012-e2e-aee4e84-build-sign.sh (podman 6.1.3 on vdhmini01 (darwin/arm64), podman machine podman-machine-default applehv, linux/amd64 + linux/arm64 (one manifest list))"
+    },
+    "metadata": {
+      "invocationId": "aee4e84-aee4e84-e2e",
+      "startedOn": "2026-10-21T15:06:43Z",
+      "finishedOn": "2026-10-21T15:08:22Z"
+    },
+    "byproducts": [
+      {
+        "name": "sbom-e2e-aee4e84-amd64.cdx.json",
+        "mediaType": "application/vnd.cyclonedx+json",
+        "digest": {
+          "sha256": "b8d9d76fed6a4c539c6a1fca386be3cdb792c014fc65c54472ddb0d3fd24d0fe"
+        }
+      },
+      {
+        "name": "sbom-e2e-aee4e84-arm64.cdx.json",
+        "mediaType": "application/vnd.cyclonedx+json",
+        "digest": {
+          "sha256": "da453533328f98f3420a47c5d9595fc0e3554b3eff22b4bf5e67feeb7262eb1f"
+        }
+      }
+    ]
+  }
+}

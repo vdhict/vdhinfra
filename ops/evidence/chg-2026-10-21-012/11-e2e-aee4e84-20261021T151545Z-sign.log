@@ -1,0 +1,164 @@
+== chg-2026-10-21-012 e2e harness sign, started 2026-10-21T15:15:45Z by k8s-engineer (Heph) for Atlas
+source https://forge.bluejungle.net/VDHICT/passkey-point commit aee4e8435c2d3414cc4a52b6a00a878836979f74 (git archive, clean tree)
+host vdhmini01; podman machine podman-machine-default applehv
+tools: podman client 6.1.3 server 6.1.3; cosign v3.1.3
+AGR-109: tests are the gate (Passkey dev tenant, AGR-087/098); no deploy, no git push
+-- C2 pattern self-check (stdin only, no file): sigstore/cosign/encrypted forms must match, OPENSSH must not
+   pattern self-check OK
+== grype 0.120.0 re-gate amd64 on recorded sbom-e2e-aee4e84-amd64.cdx.json (sign run, before key fetch and push)
+mise WARN  unknown field in ~/Code/homelab-migration/vdhinfra/.mise.toml: settings.pipx_uvx
+-- grype gate hits sign-amd64 (Critical, or High with a fix), all listed; exception ar-015 = CVE-2026-6653 libxml2@2.12.7+dfsg+really2.9.14-2.1+deb13u3 wont-fix
+  GATE Critical CVE-2026-6653 libxml2@2.12.7+dfsg+really2.9.14-2.1+deb13u3 fix=wont-fix
+   gate hits outside ar-015: 0; excepted: CVE-2026-6653 libxml2@2.12.7+dfsg+really2.9.14-2.1+deb13u3
+grype gate sign-amd64 PASS
+== grype 0.120.0 re-gate arm64 on recorded sbom-e2e-aee4e84-arm64.cdx.json (sign run, before key fetch and push)
+mise WARN  unknown field in ~/Code/homelab-migration/vdhinfra/.mise.toml: settings.pipx_uvx
+-- grype gate hits sign-arm64 (Critical, or High with a fix), all listed; exception ar-015 = CVE-2026-6653 libxml2@2.12.7+dfsg+really2.9.14-2.1+deb13u3 wont-fix
+  GATE Critical CVE-2026-6653 libxml2@2.12.7+dfsg+really2.9.14-2.1+deb13u3 fix=wont-fix
+   gate hits outside ar-015: 0; excepted: CVE-2026-6653 libxml2@2.12.7+dfsg+really2.9.14-2.1+deb13u3
+grype gate sign-arm64 PASS
+local list localhost/passkey-point-e2e:e2e-aee4e84 children amd64 9f41820a0b5e57e2ff98106599d29ef68fd0e2fd73e0f9a7f8e6d1273fa0b1b3 arm64 12ef7f637601983de579be30ba01405532a4dedc0a7eac5f78ebb48820785afb = build record ops/evidence/chg-2026-10-21-012/BUILD-e2e-aee4e84.txt; built on this host/machine
+-- C2 key-header scan (before-key-fetch) 2026-10-21T15:15:51Z: grep -rIlE -- '-----BEGIN [A-Z ]*(SIGSTORE|COSIGN) PRIVATE KEY-----' /Users/sheijden/Code /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/tmp, then rule v2 per file
+   grep rc=0 candidate files=17 real-hit files=0 synthetic blocks=17 unreadable/vanished-path messages=0 (paths only, never content)
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/passkey-point-passkeys/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/passkey-point-tap-adapter/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/passkey-point-app/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/pp-e2e-3ccfbab/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/passkey-point-clientpkg/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/pp-e2e-ef59c24-palamedes/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/passkey-point-pk2/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/pp-devtenant-8e24b22/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/pp-e2e-aee4e84/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/pp-devtenant-ac1358d/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/scratch/passkey-point-2026-10-21-displayname/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/scratch/passkey-point-2026-10-21/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/scratch/passkey-point-2026-10-21-combined/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/scratch/passkey-point-2026-10-21-bootstrap/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/pp-e2e-build.TZBOf5/src/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/pp-devtenant-8e24b22.vkX9Oa/src/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/pp-dcd2404-build/test/review-sc-scripts.test.ts synthetic=1
+   C2 scan (before-key-fetch) done 2026-10-21T15:17:19Z: real=0 synthetic=17, PASS
+== registry auth (palamedes, token from ~/.config/pka/mack-dev-forge-package, not printed)
+Getting image list signatures
+Copying 2 images generated from 2 images in list
+Copying image sha256:e0adc4ecefaa10fe541b7feb57d5a6f5198e1a3d36dc3c1fe0817bed9a89e512 (1/2)
+Getting image source signatures
+Copying blob sha256:82513deee537881992d0e2f3285656935d8c0a0acebc512c26c18d26b0d9bf3a
+Copying blob sha256:92dbf2b4b055457aea72ba92a8dc1d9ac661bc3d2ecfeb899938d8e767d62893
+Copying blob sha256:e5593b7179d10a64cfe451e886e3ab13ccd476f906dc670865322ae1dbdf969f
+Copying blob sha256:d149a7e9806536c608b2856d7eee485f1bb72c22ecdc312f4d7cbb82bd84cdc2
+Copying blob sha256:a08f30276f7e2b241169b4252ae647679cbda1c05730e235d17ba199a77c229e
+Copying blob sha256:be94f005dbf5ae389f6d12c8032131609efb8cf69908b8f183364e4aea0aa8e7
+Copying blob sha256:a05fa5d973cfea55375e3d2f60c13ff21d3b2eb0694a99ef324294fd9cd11ae9
+Copying blob sha256:f02f9252174ab758c0d20f8ba5e7d541ae077d5f7d837cfaa1edc063c8b7014d
+Copying blob sha256:f3d470c46e90949313ffa10adf01ea4c11bd9abc1faa7f2d2fe7e2b89f4b5091
+Copying blob sha256:bb9ae08a7b24ad37440bda647a5b8a537da1e7ea2bcb617fee7eb87ca8b75ae6
+Copying config sha256:12ef7f637601983de579be30ba01405532a4dedc0a7eac5f78ebb48820785afb
+Writing manifest to image destination
+Copying image sha256:3b33b99ae1b6b0ea6070c69bb3834809e97c63a31701127eb62a81920aca0647 (2/2)
+Getting image source signatures
+Copying blob sha256:a5fa8449e17946ae85c23f4fefa15d51e3ec1ef5b475da98dc071b5c430bcbac
+Copying blob sha256:a70f6272827f64e1427d048ced77491aab5d64ab95725e56920802ff391197d7
+Copying blob sha256:a05a1d0f228b45d5e3db874c398de3e5e92073fcaae4f7f29b0f77201fa9138c
+Copying blob sha256:a88513e5e075a97f2779a6cce4027b8684a060417714211afeb62a125bafd311
+Copying blob sha256:cd129811cc7a01edf8620039d101e7bbf807777539516487e4d2f73bd5a8191b
+Copying blob sha256:dd7217fec756394bdbcbe4a14bedce41c0b4f6e9a4ca5a874a60a7bb06a6b7dc
+Copying blob sha256:147cda4110453a66fd24864bf90b375efa68b41945b634d9ba04459d73d59726
+Copying blob sha256:4b7547ba15d079a48616640a56d5fe16991128295f4916e4c54286892dd76fb9
+Copying blob sha256:a0a12e4337e6fbde6185c49112ab30bfdb031bbc3e26a13bba573afc8972744d
+Copying blob sha256:88a6a59dfbd2cb7e4662803c03522f5a4107f22dac1b246fb6c01d609b4b4354
+Copying config sha256:9f41820a0b5e57e2ff98106599d29ef68fd0e2fd73e0f9a7f8e6d1273fa0b1b3
+Writing manifest to image destination
+Writing manifest list to image destination
+Storing list signatures
+pushed forge.bluejungle.net/palamedes/passkey-point-e2e:e2e-aee4e84 sha256:e3341b128ac05b300b760fbc47a5826194e87d1aca8d822275fe07fb71d483df (list)
+== registry children (by digest): config digest must be the recorded image id
+amd64 child sha256:ca41f17a0780f93138b52c0be0946bdda69b771c7ade0c4dde0415e51101ca8f config sha256:9f41820a0b5e57e2ff98106599d29ef68fd0e2fd73e0f9a7f8e6d1273fa0b1b3 = recorded image id
+arm64 child sha256:7e7852777cc58b4e4ba000f69a9fa2c7a184d841e254cac74a3227203c3512cd config sha256:12ef7f637601983de579be30ba01405532a4dedc0a7eac5f78ebb48820785afb = recorded image id
+== verify what the registry serves (repo verify-image-lists.ts --remote, pulled by digest)
+e2e    arm64 sha256:7e7852777cc58b4e4ba000f69a9fa2c7a184d841e254cac74a3227203c3512cd title=passkey-point-e2e cmd=["--set","nightly"] uname=aarch64 files=19 mismatched=0
+e2e    amd64 sha256:ca41f17a0780f93138b52c0be0946bdda69b771c7ade0c4dde0415e51101ca8f title=passkey-point-e2e cmd=["--set","nightly"] uname=x86_64 files=19 mismatched=0
+OK: 1 lists, each its own target, amd64 + arm64, built from aee4e8435c2d3414cc4a52b6a00a878836979f74
+== provenance predicate (SLSA v1 shape of provenance.ts; built here with jq). C1: builder.id names host + machine
+prov-e2e.json sha256 82f2e12fb8bf3aaef117497f482e0afe8f03b576dd1e92acd75d011082eeadea builder.id: vdhinfra hack/ops/chg-2026-10-21-012-e2e-aee4e84-build-sign.sh (podman 6.1.3 on vdhmini01 (darwin/arm64), podman machine podman-machine-default applehv, linux/amd64 + linux/arm64 (one manifest list))
+F3: signing config /Users/sheijden/Code/homelab-migration/passkey-point-passkeys/scripts/release/signing-config.no-tlog.json sha256 6a7a661ba892f8ef2fad0929704287187b4dc302ae07176f524669d1d98e4912 (pinned), rekorTlogUrls empty
+== cosign key via 1Password Connect (PP_COSIGN_SOURCE=connect path of sign-images.sh; values never printed)
+derived public key matches out-of-band key (DER sha256 6ad2a90a972cf633d34ac03640220cf0790d59e1e0e238294fa2760d31ad66e9)
+== sign + attest e2e forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:e3341b128ac05b300b760fbc47a5826194e87d1aca8d822275fe07fb71d483df
+Signing artifact...
+Pushing signature to: forge.bluejungle.net/palamedes/passkey-point-e2e
+Signing artifact...
+Pushing signature to: forge.bluejungle.net/palamedes/passkey-point-e2e
+Signing artifact...
+Pushing signature to: forge.bluejungle.net/palamedes/passkey-point-e2e
+Using payload from: /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/pp-e2e-build.TZBOf5/prov-e2e.json
+Signing artifact...
+== key file removed; no key material left in the run's temp directory
+-- C2 key-header scan (after-key-removal) 2026-10-21T15:17:37Z: grep -rIlE -- '-----BEGIN [A-Z ]*(SIGSTORE|COSIGN) PRIVATE KEY-----' /Users/sheijden/Code /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/tmp, then rule v2 per file
+   grep rc=0 candidate files=17 real-hit files=0 synthetic blocks=17 unreadable/vanished-path messages=0 (paths only, never content)
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/passkey-point-passkeys/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/passkey-point-tap-adapter/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/passkey-point-app/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/pp-e2e-3ccfbab/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/passkey-point-clientpkg/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/pp-e2e-ef59c24-palamedes/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/passkey-point-pk2/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/pp-devtenant-8e24b22/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/pp-e2e-aee4e84/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/pp-devtenant-ac1358d/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/scratch/passkey-point-2026-10-21-displayname/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/scratch/passkey-point-2026-10-21/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/scratch/passkey-point-2026-10-21-combined/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/scratch/passkey-point-2026-10-21-bootstrap/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/pp-e2e-build.TZBOf5/src/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/pp-devtenant-8e24b22.vkX9Oa/src/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/pp-dcd2404-build/test/review-sc-scripts.test.ts synthetic=1
+   C2 scan (after-key-removal) done 2026-10-21T15:18:53Z: real=0 synthetic=17, PASS
+== verify against the out-of-band key /Users/sheijden/Code/homelab-migration/passkey-point-cosign.pub
+-- cosign verify forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:e3341b128ac05b300b760fbc47a5826194e87d1aca8d822275fe07fb71d483df
+WARNING: Skipping tlog verification is an insecure practice that lacks transparency and auditability verification for the signature.
+
+Verification for forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:e3341b128ac05b300b760fbc47a5826194e87d1aca8d822275fe07fb71d483df --
+The following checks were performed on each of these signatures:
+  - The cosign claims were validated
+  - Existence of the claims in the transparency log was verified offline
+  - The signatures were verified against the specified public key
+{"ref":"forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:e3341b128ac05b300b760fbc47a5826194e87d1aca8d822275fe07fb71d483df","digest":"sha256:e3341b128ac05b300b760fbc47a5826194e87d1aca8d822275fe07fb71d483df","type":"https://slsa.dev/provenance/v1"}
+{"ref":"forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:e3341b128ac05b300b760fbc47a5826194e87d1aca8d822275fe07fb71d483df","digest":"sha256:e3341b128ac05b300b760fbc47a5826194e87d1aca8d822275fe07fb71d483df","type":"https://sigstore.dev/cosign/sign/v1"}
+-- cosign verify forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:ca41f17a0780f93138b52c0be0946bdda69b771c7ade0c4dde0415e51101ca8f (amd64 child, signed by sign --recursive)
+WARNING: Skipping tlog verification is an insecure practice that lacks transparency and auditability verification for the signature.
+
+Verification for forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:ca41f17a0780f93138b52c0be0946bdda69b771c7ade0c4dde0415e51101ca8f --
+The following checks were performed on each of these signatures:
+  - The cosign claims were validated
+  - Existence of the claims in the transparency log was verified offline
+  - The signatures were verified against the specified public key
+{"ref":"forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:ca41f17a0780f93138b52c0be0946bdda69b771c7ade0c4dde0415e51101ca8f","digest":"sha256:ca41f17a0780f93138b52c0be0946bdda69b771c7ade0c4dde0415e51101ca8f","type":"https://sigstore.dev/cosign/sign/v1"}
+-- cosign verify forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:7e7852777cc58b4e4ba000f69a9fa2c7a184d841e254cac74a3227203c3512cd (arm64 child, signed by sign --recursive)
+WARNING: Skipping tlog verification is an insecure practice that lacks transparency and auditability verification for the signature.
+
+Verification for forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:7e7852777cc58b4e4ba000f69a9fa2c7a184d841e254cac74a3227203c3512cd --
+The following checks were performed on each of these signatures:
+  - The cosign claims were validated
+  - Existence of the claims in the transparency log was verified offline
+  - The signatures were verified against the specified public key
+{"ref":"forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:7e7852777cc58b4e4ba000f69a9fa2c7a184d841e254cac74a3227203c3512cd","digest":"sha256:7e7852777cc58b4e4ba000f69a9fa2c7a184d841e254cac74a3227203c3512cd","type":"https://sigstore.dev/cosign/sign/v1"}
+-- cosign verify-attestation --type slsaprovenance1 forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:e3341b128ac05b300b760fbc47a5826194e87d1aca8d822275fe07fb71d483df
+WARNING: Skipping tlog verification is an insecure practice that lacks transparency and auditability verification for the attestation.
+
+Verification for forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:e3341b128ac05b300b760fbc47a5826194e87d1aca8d822275fe07fb71d483df --
+The following checks were performed on each of these signatures:
+  - The cosign claims were validated
+  - Existence of the claims in the transparency log was verified offline
+  - The signatures were verified against the specified public key
+{"subject":[{"name":"forge.bluejungle.net/palamedes/passkey-point-e2e","digest":{"sha256":"e3341b128ac05b300b760fbc47a5826194e87d1aca8d822275fe07fb71d483df"}}],"commit":"aee4e8435c2d3414cc4a52b6a00a878836979f74","target":"e2e","builder_id":"vdhinfra hack/ops/chg-2026-10-21-012-e2e-aee4e84-build-sign.sh (podman 6.1.3 on vdhmini01 (darwin/arm64), podman machine podman-machine-default applehv, linux/amd64 + linux/arm64 (one manifest list))"}
+C1 OK: every verified slsaprovenance1 attestation for e2e names host vdhmini01 and machine podman-machine-default applehv
+== RESULT
+e2e forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:e3341b128ac05b300b760fbc47a5826194e87d1aca8d822275fe07fb71d483df  (tag forge.bluejungle.net/palamedes/passkey-point-e2e:e2e-aee4e84)
+DIGESTS -> ops/evidence/chg-2026-10-21-012/DIGESTS-e2e-aee4e84.txt: forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:e3341b128ac05b300b760fbc47a5826194e87d1aca8d822275fe07fb71d483df
+amd64 forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:ca41f17a0780f93138b52c0be0946bdda69b771c7ade0c4dde0415e51101ca8f
+arm64 forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:7e7852777cc58b4e4ba000f69a9fa2c7a184d841e254cac74a3227203c3512cd
+provenance predicate -> ops/evidence/chg-2026-10-21-012/prov-e2e-aee4e84.json sha256 82f2e12fb8bf3aaef117497f482e0afe8f03b576dd1e92acd75d011082eeadea
+VERIFY OK
+auth file reset: {"auths":{}}
+EXIT 0 2026-10-21T15:18:53Z

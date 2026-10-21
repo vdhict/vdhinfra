@@ -1,0 +1,27 @@
+2026-10-21T15:25:39Z
+PASS ks lab-passkey-dotnet-migrate: True refs/heads/main@sha1:bae35a86b3217d3e792845fe7dd65a6a13b2548e
+PASS ks lab-passkey-dotnet-grants: True refs/heads/main@sha1:bae35a86b3217d3e792845fe7dd65a6a13b2548e
+PASS ks lab-passkey-dotnet-desk: True refs/heads/main@sha1:bae35a86b3217d3e792845fe7dd65a6a13b2548e
+PASS ks devtenant-e2e-dotnet: True refs/heads/main@sha1:bae35a86b3217d3e792845fe7dd65a6a13b2548e
+PASS migrate job: 1
+  migrate: migrate: V009 already applied
+  migrate: migrate: V010 already applied
+  migrate: migrate: V011 already applied
+  migrate: migrate: V012 already applied
+  migrate: migrate: schema at version 12; this build needs 12
+deployment "passkey-point-api" successfully rolled out
+PASS passkey-point-api available: 1/1 updated=1
+deployment "passkey-point-web" successfully rolled out
+PASS passkey-point-web available: 1/1 updated=1
+PASS pod api count: 1
+PASS pod api imageID: sha256:9dc3dbca2df9d17ff7a0153b417313ef576b1adef34e641f5ba1894aa3f7dba8
+PASS pod api ready: true restarts=0
+PASS pod web count: 1
+PASS pod web imageID: sha256:9dc3dbca2df9d17ff7a0153b417313ef576b1adef34e641f5ba1894aa3f7dba8
+PASS pod web ready: true restarts=0
+PASS GET /readyz envoy-internal: 200
+PASS GET /readyz DNS: 200
+PASS GET / (sign-in redirect): 303
+PASS cronjob e2e-dotnet images: sha256:e3341b128ac05b300b760fbc47a5826194e87d1aca8d822275fe07fb71d483df 
+PASS cronjob e2e-dotnet LAB digest: sha256:9dc3dbca2df9d17ff7a0153b417313ef576b1adef34e641f5ba1894aa3f7dba8 suspend=false 50 3 * * *
+RESULT F=0

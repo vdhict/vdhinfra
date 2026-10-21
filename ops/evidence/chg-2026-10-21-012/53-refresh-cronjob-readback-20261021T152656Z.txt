@@ -1,0 +1,6 @@
+2026-10-21T15:26:56Z
+ks devtenant-base Ready=True rev=refs/heads/main@sha1:abf49d1f80b6f197381d33fca91bfae962324c1f
+schedule=10 2 * * * tz=Europe/Amsterdam suspend=false
+guard forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:a79ede4fd7c6781f81f6295f745b5bba84508a8a9f97a354f9c219c984df4f82
+renew forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:a79ede4fd7c6781f81f6295f745b5bba84508a8a9f97a354f9c219c984df4f82
+bootstrap forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:a79ede4fd7c6781f81f6295f745b5bba84508a8a9f97a354f9c219c984df4f82 args=["bootstrap-v01","--execute","--yes","--baseline-sha256","31b738a4a438f2464d844779c05b60994f5728d48a7f022672327225a112268b"]

@@ -1,0 +1,7 @@
+hop1 / -> https://passkey-point-dotnet-lab.bluejungle.net/signin
+hop2 200 -> 
+redirect_uri=
+Error: libgssapi_krb5.so.2: cannot open shared object file: No such file or directory
+{"level":30,"time":1792596317003,"pid":1,"audit":{"eventType":"config.loaded","outcome":"success","eventId":"52b228fa-8cb3-4ca3-8343-862315319667","actorOid":null,"targetOid":null,"siteId":null,"corre
+passkey-point-api: warning: SEC-08.2: the O365 Management Database Service is the dev fake (simulator); passes are not real
+passkey-point-api: Passkey Point api (entra), O365 Management Database Service (o365-mds), TAP 480 min, usable once: False, db postgres, mtls: True

@@ -1,0 +1,69 @@
+{
+  "buildDefinition": {
+    "buildType": "https://forge.bluejungle.net/mypka-bot/passkey-point-dotnet/Containerfile@v1",
+    "externalParameters": {
+      "target": "desk",
+      "commit": "7e090d0b0136c2d0f7a9d50cd903dafa49c1f562",
+      "tagSuffix": "7e090d0",
+      "platforms": [
+        "linux/amd64"
+      ]
+    },
+    "internalParameters": {
+      "buildArgs": {
+        "SDK_IMAGE": "mcr.microsoft.com/dotnet/sdk@sha256:894cb75b58dcbac5400eec23aaf02288f4494b01d56b85b7db42385d5deb914b"
+      }
+    },
+    "resolvedDependencies": [
+      {
+        "uri": "git+https://forge.bluejungle.net/mypka-bot/passkey-point-dotnet@7e090d0b0136c2d0f7a9d50cd903dafa49c1f562",
+        "digest": {
+          "gitCommit": "7e090d0b0136c2d0f7a9d50cd903dafa49c1f562"
+        }
+      },
+      {
+        "uri": "pkg:docker/mcr.microsoft.com/dotnet/sdk",
+        "name": "mcr.microsoft.com/dotnet/sdk@sha256:0d99ebf1ccad15037b5c98c9fe8979d6b8dbac23812feae2277a0b277b5c5ffa",
+        "digest": {
+          "sha256": "0d99ebf1ccad15037b5c98c9fe8979d6b8dbac23812feae2277a0b277b5c5ffa"
+        }
+      },
+      {
+        "uri": "pkg:docker/mcr.microsoft.com/dotnet/sdk?arch=arm64",
+        "name": "mcr.microsoft.com/dotnet/sdk@sha256:894cb75b58dcbac5400eec23aaf02288f4494b01d56b85b7db42385d5deb914b",
+        "digest": {
+          "sha256": "894cb75b58dcbac5400eec23aaf02288f4494b01d56b85b7db42385d5deb914b"
+        },
+        "annotations": {
+          "role": "build stage actually run (native arm64, cross-publish linux-x64)"
+        }
+      },
+      {
+        "uri": "pkg:docker/mcr.microsoft.com/dotnet/aspnet",
+        "name": "mcr.microsoft.com/dotnet/aspnet@sha256:84def277556c2843a44fdeefbd3145d0a2e32d8f736d0c1a7b0a96b2880b0187",
+        "digest": {
+          "sha256": "84def277556c2843a44fdeefbd3145d0a2e32d8f736d0c1a7b0a96b2880b0187"
+        }
+      }
+    ]
+  },
+  "runDetails": {
+    "builder": {
+      "id": "vdhinfra hack/ops/chg-2026-10-21-012-dotnet-desk-7e090d0-build-sign.sh (podman 6.1.3 on vdhmini01 (darwin/arm64), podman machine podman-machine-default applehv, linux/amd64 (build stage native linux/arm64, cross-publish linux-x64))"
+    },
+    "metadata": {
+      "invocationId": "7e090d0-7e090d0-desk",
+      "startedOn": "2026-10-21T15:15:40Z",
+      "finishedOn": "2026-10-21T15:16:20Z"
+    },
+    "byproducts": [
+      {
+        "name": "sbom-desk-7e090d0.cdx.json",
+        "mediaType": "application/vnd.cyclonedx+json",
+        "digest": {
+          "sha256": "cb7f967ae64c181102154e9c7c59e6f7a3e986cddd201ab34af247188a8ba775"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,158 @@
+== chg-2026-10-21-012 .NET desk build, started 2026-10-21T15:15:40Z by k8s-engineer (Heph) for Atlas
+source https://forge.bluejungle.net/mypka-bot/passkey-point-dotnet commit 7e090d0b0136c2d0f7a9d50cd903dafa49c1f562 (git archive, clean tree)
+host vdhmini01; podman machine podman-machine-default applehv
+tools: podman client 6.1.3 server 6.1.3; cosign v3.1.3
+AGR-109: tests are the gate (Passkey dev tenant, AGR-087/098); no deploy, no git push
+-- C2 pattern self-check (stdin only, no file): sigstore/cosign/encrypted forms must match, OPENSSH must not
+   pattern self-check OK
+F3: signing config /Users/sheijden/Code/homelab-migration/passkey-point-passkeys/scripts/release/signing-config.no-tlog.json sha256 6a7a661ba892f8ef2fad0929704287187b4dc302ae07176f524669d1d98e4912 (pinned), rekorTlogUrls empty
+base (as committed): sdk mcr.microsoft.com/dotnet/sdk@sha256:0d99ebf1ccad15037b5c98c9fe8979d6b8dbac23812feae2277a0b277b5c5ffa runtime mcr.microsoft.com/dotnet/aspnet@sha256:84def277556c2843a44fdeefbd3145d0a2e32d8f736d0c1a7b0a96b2880b0187
+build stage: SDK_IMAGE=mcr.microsoft.com/dotnet/sdk@sha256:894cb75b58dcbac5400eec23aaf02288f4494b01d56b85b7db42385d5deb914b (verified linux/arm64 child of the pinned index; native, cross-publish linux-x64)
+== build desk (linux/amd64)
+[1/2] STEP 1/9: FROM mcr.microsoft.com/dotnet/sdk@sha256:894cb75b58dcbac5400eec23aaf02288f4494b01d56b85b7db42385d5deb914b AS build
+Trying to pull mcr.microsoft.com/dotnet/sdk@sha256:894cb75b58dcbac5400eec23aaf02288f4494b01d56b85b7db42385d5deb914b...
+Getting image source signatures
+Copying blob sha256:ac833c9c681fc05123cd781b534ad4e1c9ec1acee58800718f40e5014d33315b
+Copying blob sha256:d5aec63251bb323f816a0f4b8a554bd84e478466a9ed1068daef07368328e9a3
+Copying blob sha256:cf578c0b46a8c061a9284dd2c98da672278d551428a32de3bd0cc54cda1643dd
+Copying blob sha256:d8b868c14c49de5b71868fb91bafae07d5cd2fc4814d1a3c6fd4e817e329635c
+Copying blob sha256:376a6d8a6fd7d03da99565c24f5294498b03ec53dd6f880ba8a5e49d74b70455
+Copying blob sha256:dc0c40db5ffbf951729ad3aea1aff64ffe0d23646daa00105321714536668b28
+Copying blob sha256:ba39cd608e8125b1d3707e91bb3b003dda96bb4c06295e7e47a4500799102216
+Copying blob sha256:8465a1ba9bb23ba3ad88d89ad9f86675d8a1a2bc99d629673c3c707e7c76e962
+Copying blob sha256:f13f156d1c72e270771a95de847ee986ddf45fc68e5d18de94bed393649bc5cf
+Copying blob sha256:946284a88183ae5a0fd40c38d638ed81610347d8b8e2ed53e509b6f02788803c
+Copying blob sha256:9b27340320c5bf2265d97e60f87b881fe0e4a719fe0c6059706abb846916febe
+Copying config sha256:0bdfe12bf151cad447d0d8e9b16a11ec9e9d687ee6f3addcea275326fc106b62
+Writing manifest to image destination
+WARNING: image platform (linux/arm64) does not match the expected platform (linux/amd64)
+[1/2] STEP 2/9: ARG TARGETARCH
+--> Using cache a4ee0d62fb97244076b1d2360856760671148a397fcd767364e836d3ba6e1aeb
+--> a4ee0d62fb97
+[1/2] STEP 3/9: WORKDIR /src
+--> Using cache 15b1bd4b03ab7afda7843bad7a1726efadddeefcfeb4fa55f0d4c8fdef352f1e
+--> 15b1bd4b03ab
+[1/2] STEP 4/9: ENV DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
+--> Using cache 3ff1b2287b5f1ac1850dc4d080aeae27af67f7a92b3a3f7dd24f81695a119388
+--> 3ff1b2287b5f
+[1/2] STEP 5/9: COPY .editorconfig global.json Directory.Build.props Directory.Packages.props PasskeyPoint.slnx ./
+--> 8dbb6d42f7e5
+[1/2] STEP 6/9: COPY src/ src/
+--> 67d4ce3646ed
+[1/2] STEP 7/9: COPY policy/ policy/
+--> 15d0ed727d04
+[1/2] STEP 8/9: COPY migrations/ migrations/
+--> 2fdc87b7fab3
+[1/2] STEP 9/9: RUN RID="linux-$([ "${TARGETARCH:-$(dpkg --print-architecture)}" = arm64 ] && echo arm64 || echo x64)"  && dotnet restore src/PasskeyPoint.Web/PasskeyPoint.Web.csproj --locked-mode  && dotnet restore src/PasskeyPoint.TapSim/PasskeyPoint.TapSim.csproj --locked-mode  && dotnet publish src/PasskeyPoint.Web/PasskeyPoint.Web.csproj -c Release --no-restore -r "$RID" --self-contained false -p:UseAppHost=false -o /out/desk  && dotnet publish src/PasskeyPoint.TapSim/PasskeyPoint.TapSim.csproj -c Release --no-restore -r "$RID" --self-contained false -p:UseAppHost=false -o /out/tapsim  && find /out -name '*.pdb' -delete  && ! find /out \( -name '*.exe' -o -path '*/runtimes/*' \) | grep -q .
+  Determining projects to restore...
+  Restored /src/src/PasskeyPoint.Siem/PasskeyPoint.Siem.csproj (in 2.97 sec).
+  Restored /src/src/PasskeyPoint.Core/PasskeyPoint.Core.csproj (in 2.97 sec).
+  Restored /src/src/PasskeyPoint.Tap/PasskeyPoint.Tap.csproj (in 10 ms).
+  Restored /src/src/PasskeyPoint.Graph/PasskeyPoint.Graph.csproj (in 9 ms).
+  Restored /src/src/PasskeyPoint.Storage/PasskeyPoint.Storage.csproj (in 3.01 sec).
+  Restored /src/src/PasskeyPoint.Web/PasskeyPoint.Web.csproj (in 3.01 sec).
+  Determining projects to restore...
+  Restored /src/src/PasskeyPoint.TapSim/PasskeyPoint.TapSim.csproj (in 117 ms).
+  2 of 3 projects are up-to-date for restore.
+  PasskeyPoint.Core -> /src/src/PasskeyPoint.Core/bin/Release/net10.0/linux-x64/PasskeyPoint.Core.dll
+  PasskeyPoint.Graph -> /src/src/PasskeyPoint.Graph/bin/Release/net10.0/linux-x64/PasskeyPoint.Graph.dll
+  PasskeyPoint.Siem -> /src/src/PasskeyPoint.Siem/bin/Release/net10.0/linux-x64/PasskeyPoint.Siem.dll
+  PasskeyPoint.Storage -> /src/src/PasskeyPoint.Storage/bin/Release/net10.0/linux-x64/PasskeyPoint.Storage.dll
+  PasskeyPoint.Tap -> /src/src/PasskeyPoint.Tap/bin/Release/net10.0/linux-x64/PasskeyPoint.Tap.dll
+  PasskeyPoint.Web -> /src/src/PasskeyPoint.Web/bin/Release/net10.0/linux-x64/PasskeyPoint.Web.dll
+  PasskeyPoint.Web -> /out/desk/
+  PasskeyPoint.Core -> /src/src/PasskeyPoint.Core/bin/Release/net10.0/linux-x64/PasskeyPoint.Core.dll
+  PasskeyPoint.Graph -> /src/src/PasskeyPoint.Graph/bin/Release/net10.0/linux-x64/PasskeyPoint.Graph.dll
+  PasskeyPoint.TapSim -> /src/src/PasskeyPoint.TapSim/bin/Release/net10.0/linux-x64/PasskeyPoint.TapSim.dll
+  PasskeyPoint.TapSim -> /out/tapsim/
+--> ef440b69b0d5
+[2/2] STEP 1/10: FROM mcr.microsoft.com/dotnet/aspnet@sha256:84def277556c2843a44fdeefbd3145d0a2e32d8f736d0c1a7b0a96b2880b0187 AS desk
+Trying to pull mcr.microsoft.com/dotnet/aspnet@sha256:84def277556c2843a44fdeefbd3145d0a2e32d8f736d0c1a7b0a96b2880b0187...
+Getting image source signatures
+Copying blob sha256:d3e1f9b44c1b52ac6f829183d47db0b7d060e85f64ae64ec79b7bf50d0030380
+Copying blob sha256:8164945af939628dbf268148232591571a422530d2732232ae7d766f9803ac85
+Copying blob sha256:d9bc119115d0b741fc70cb1d5543630d8e58fdea97e4975573af840e5f9ef722
+Copying blob sha256:0450c9ff46b1a1a38517e799cf0e555e1b483d744c0b3c1a2e599352b6fb5d15
+Copying blob sha256:897547f1db96b82294b0db10557132dddda5c036a3f276a84ff649009c4a31dc
+Copying config sha256:7a532cb07426c73beb6579f3b6c9065d47b7b4ff15a6747ee7024c8047b7223d
+Writing manifest to image destination
+[2/2] STEP 2/10: LABEL org.opencontainers.image.title="passkey-point-desk"       org.opencontainers.image.base.name="mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled"       org.opencontainers.image.base.digest="sha256:84def277556c2843a44fdeefbd3145d0a2e32d8f736d0c1a7b0a96b2880b0187"
+--> Using cache 96719f0e45d3406bcc3603d26a968df471c2fbe0a49d6041cf9e237ac35fdafe
+--> 96719f0e45d3
+[2/2] STEP 3/10: WORKDIR /app
+--> Using cache 7236785863d48b981fb677b344a7bd3839e6337ccdcd4f160612c056c68e837f
+--> 7236785863d4
+[2/2] STEP 4/10: COPY --from=build --chown=0:0 --chmod=0755 /out/desk/ /app/
+--> cce18906bc9e
+[2/2] STEP 5/10: ENV HOST=0.0.0.0     PORT=8443     PP_DATA_DIR=/var/lib/passkey-point     DOTNET_EnableDiagnostics=0     DOTNET_gcServer=0
+--> 05254eddc0d0
+[2/2] STEP 6/10: USER 1654
+--> 63cf0a49558b
+[2/2] STEP 7/10: EXPOSE 8443
+--> 30802f0f39f2
+[2/2] STEP 8/10: ENTRYPOINT ["dotnet", "/app/PasskeyPoint.Web.dll"]
+--> 916d3d0f4391
+[2/2] STEP 9/10: CMD ["single"]
+--> 58447feaef24
+[2/2] STEP 10/10: LABEL "org.opencontainers.image.revision"="7e090d0b0136c2d0f7a9d50cd903dafa49c1f562" "org.opencontainers.image.source"="https://forge.bluejungle.net/mypka-bot/passkey-point-dotnet"
+[2/2] COMMIT localhost/passkey-point-dotnet:desk-7e090d0
+--> aaaa551c4249
+Successfully tagged localhost/passkey-point-dotnet:desk-7e090d0
+aaaa551c424998c40e1903c3287c29ac864874bfc61c60e92e8fc05d45133854
+== inspect desk
+id=aaaa551c424998c40e1903c3287c29ac864874bfc61c60e92e8fc05d45133854 arch=amd64 os=linux user=1654 ports=map[8443/tcp:{}] entrypoint=[dotnet /app/PasskeyPoint.Web.dll] cmd=[single] workdir=/app
+env=[PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin APP_UID=1654 ASPNETCORE_HTTP_PORTS=8080 DOTNET_RUNNING_IN_CONTAINER=true DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=true DOTNET_VERSION=10.0.13 ASPNET_VERSION=10.0.13 HOST=0.0.0.0 PORT=8443 PP_DATA_DIR=/var/lib/passkey-point DOTNET_EnableDiagnostics=0 DOTNET_gcServer=0]
+labels=map[io.buildah.version:1.45.1 org.opencontainers.image.base.digest:sha256:84def277556c2843a44fdeefbd3145d0a2e32d8f736d0c1a7b0a96b2880b0187 org.opencontainers.image.base.name:mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled org.opencontainers.image.revision:7e090d0b0136c2d0f7a9d50cd903dafa49c1f562 org.opencontainers.image.source:https://forge.bluejungle.net/mypka-bot/passkey-point-dotnet org.opencontainers.image.title:passkey-point-desk]
+== OCI layout (local only, no registry): manifest digest; the registry digest is fixed at push in the sign run
+oci-archive manifest digest sha256:9dc3dbca2df9d17ff7a0153b417313ef576b1adef34e641f5ba1894aa3f7dba8
+== SBOM (syft 1.54.1, CycloneDX JSON, INF-SC-03)
+mise WARN  unknown field in ~/Code/homelab-migration/vdhinfra/.mise.toml: settings.pipx_uvx
+sbom components=419 specVersion=1.7
+== grype 0.120.0 on the SBOM (fails on a Critical, or a High with a fix; ci/run.sh step 10)
+mise WARN  unknown field in ~/Code/homelab-migration/vdhinfra/.mise.toml: settings.pipx_uvx
+grype matches by severity: Medium=6 Negligible=1
+  Medium CVE-2026-18374 libc6@2.39-0ubuntu8.9 fix=not-fixed
+  Medium CVE-2026-8674 libc6@2.39-0ubuntu8.9 fix=not-fixed
+  Medium CVE-2026-86805 libc6@2.39-0ubuntu8.9 fix=not-fixed
+  Medium CVE-2026-89092 libc6@2.39-0ubuntu8.9 fix=not-fixed
+  Medium CVE-2026-95818 libc6@2.39-0ubuntu8.9 fix=not-fixed
+  Medium CVE-2026-97399 libc6@2.39-0ubuntu8.9 fix=not-fixed
+  Negligible CVE-2016-20013 libc6@2.39-0ubuntu8.9 fix=wont-fix
+grype gate PASS
+-- C2 key-header scan (build-baseline) 2026-10-21T15:16:25Z: grep -rIlE -- '-----BEGIN [A-Z ]*(SIGSTORE|COSIGN) PRIVATE KEY-----' /Users/sheijden/Code /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/tmp, then rule v2 per file
+   vanished before classification (not counted): /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/pp-e2e-sign.rVDpZL/cosign.key
+   grep rc=0 candidate files=18 real-hit files=0 synthetic blocks=17 unreadable/vanished-path messages=0 (paths only, never content)
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/passkey-point-passkeys/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/passkey-point-tap-adapter/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/passkey-point-app/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/pp-e2e-3ccfbab/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/passkey-point-clientpkg/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/pp-e2e-ef59c24-palamedes/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/passkey-point-pk2/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/pp-devtenant-8e24b22/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/pp-e2e-aee4e84/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/homelab-migration/pp-devtenant-ac1358d/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/scratch/passkey-point-2026-10-21-displayname/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/scratch/passkey-point-2026-10-21/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/scratch/passkey-point-2026-10-21-combined/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /Users/sheijden/Code/scratch/passkey-point-2026-10-21-bootstrap/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/pp-e2e-build.TZBOf5/src/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/pp-devtenant-8e24b22.vkX9Oa/src/test/review-sc-scripts.test.ts synthetic=1
+   synthetic (logged, not a fail): /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/pp-dcd2404-build/test/review-sc-scripts.test.ts synthetic=1
+   C2 scan (build-baseline) done 2026-10-21T15:17:41Z: real=0 synthetic=17, PASS
+== RESULT (build, unsigned, not pushed)
+commit=7e090d0b0136c2d0f7a9d50cd903dafa49c1f562
+image_local=localhost/passkey-point-dotnet:desk-7e090d0
+image_id=aaaa551c424998c40e1903c3287c29ac864874bfc61c60e92e8fc05d45133854
+oci_manifest_digest=sha256:9dc3dbca2df9d17ff7a0153b417313ef576b1adef34e641f5ba1894aa3f7dba8
+sdk_index=mcr.microsoft.com/dotnet/sdk@sha256:0d99ebf1ccad15037b5c98c9fe8979d6b8dbac23812feae2277a0b277b5c5ffa
+sdk_used=mcr.microsoft.com/dotnet/sdk@sha256:894cb75b58dcbac5400eec23aaf02288f4494b01d56b85b7db42385d5deb914b
+runtime_index=mcr.microsoft.com/dotnet/aspnet@sha256:84def277556c2843a44fdeefbd3145d0a2e32d8f736d0c1a7b0a96b2880b0187
+started=2026-10-21T15:15:40Z
+finished=2026-10-21T15:16:20Z
+builder=podman 6.1.3 on vdhmini01 (darwin/arm64), podman machine podman-machine-default applehv, linux/amd64 (build stage native linux/arm64, cross-publish linux-x64)
+sbom_sha256=cb7f967ae64c181102154e9c7c59e6f7a3e986cddd201ab34af247188a8ba775
+grype_matches=7
+c2_build_baseline_hits=0
+BUILD OK
+EXIT 0 2026-10-21T15:17:41Z
