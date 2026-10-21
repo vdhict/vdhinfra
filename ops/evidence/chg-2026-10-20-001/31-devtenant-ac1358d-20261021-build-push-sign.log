@@ -1,0 +1,268 @@
+# devtenant image push by k8s-engineer for Atlas 2026-10-21T06:56:07Z host vdhmini01 HEAD ac1358d72a6359c363342ef4df97ef2abd08be87
+AGR-109: tests are the gate (npm test on this worktree before the build)
+tools: podman client 6.1.3 server 6.1.3; cosign v3.1.3
+== --pull: base images of /Users/sheijden/Code/homelab-migration/pp-devtenant-ac1358d/Containerfile, both platforms
+pulled docker.io/library/node@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 linux/amd64
+pulled docker.io/library/node@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 linux/arm64
+push identity: palamedes to forge.bluejungle.net/palamedes/passkey-point-devtenant (token from mack-dev-forge-package, not printed; Atlas 2026-10-21 per chg-2026-10-10-001)
+commit ac1358d72a6359c363342ef4df97ef2abd08be87
+[linux/arm64] [1/7] STEP 1/4: FROM docker.io/library/node@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS deps
+[linux/arm64] [1/7] STEP 2/4: WORKDIR /app
+--> Using cache 25940a1a2b439f1a268c49caa86c3b9d96a9ed0c5cbf017a807748f2f3375268
+--> 25940a1a2b43
+[linux/arm64] [1/7] STEP 3/4: COPY package.json package-lock.json ./
+--> Using cache a719fa22047452c5d2768d0bc3a9c37ef17467d893d6382786adb422d1f9d4f1
+--> a719fa220474
+[linux/arm64] [1/7] STEP 4/4: RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
+--> Using cache 553fdb7ba2995a39eb25aec131007a1826a95cba2be59ca8751a1ac54e34b2d8
+--> 553fdb7ba299
+[linux/arm64] [2/7] STEP 1/3: FROM docker.io/library/node@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS noderoot
+[linux/arm64] [2/7] STEP 2/3: RUN apk add --no-cache --upgrade zlib=1.3.2-r1 && grep -A1 '^P:zlib$' /lib/apk/db/installed | grep -qx 'V:1.3.2-r1'
+--> Using cache c0a87a9dce6085f76c59d75c0de8ad14981b0e240489ebf6b627eee6531d4006
+--> c0a87a9dce60
+[linux/arm64] [2/7] STEP 3/3: RUN rm -rf /usr/local/lib/node_modules /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack            /usr/local/bin/yarn /usr/local/bin/yarnpkg /opt/yarn-* /usr/local/bin/docker-entrypoint.sh /root/.npm  && ! command -v npm && node --version
+--> Using cache 1b1d2f6f907809cf72a938db007bd0e6368011db0be63a00b0eb4aff1b3a0820
+--> 1b1d2f6f9078
+[linux/amd64] [1/7] STEP 1/4: FROM docker.io/library/node@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS deps
+Trying to pull docker.io/library/node@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1...
+Getting image source signatures
+Copying blob sha256:7ce7dcbafb7f750cf0c6be3c30e34372b06dd1182fa67f6ae30782c8150c5444
+Copying blob sha256:e2de96513ba9eb53b431787ec8a65cdde380ac4772a3e4c4b714dcfde2a102b5
+Copying blob sha256:3c504d5a797be28f9de43147d49cd8ecb2eea46dfaf7beb8715db695d5f0a7f0
+Copying blob sha256:02f40d53b06f6b91fec0cd6a6719656da99270bff8ee54ed8dcdf4c157763fc1
+Copying config sha256:c10884952bb8c37122fcc3fe6f97af3ab0a80e5eb02ee5df707406b4e11a7e3e
+Writing manifest to image destination
+[linux/amd64] [1/7] STEP 2/4: WORKDIR /app
+--> Using cache 936b97ce2904ee02ecc8c55619cd7b358d9f4e64d3b26dc66f88f0dec1b68fc2
+--> 936b97ce2904
+[linux/amd64] [1/7] STEP 3/4: COPY package.json package-lock.json ./
+--> Using cache dfc0830eb7ef597445026a72afff6349a6e67e8ac42d4bf2d70f9113dfbfde0b
+--> dfc0830eb7ef
+[linux/amd64] [1/7] STEP 4/4: RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
+--> Using cache 2700be261db6c55f9e2de38cebfc95fb8958a824c934b4be1de06dfdc7315165
+--> 2700be261db6
+[linux/arm64] [3/7] STEP 1/17: FROM scratch AS runtime
+[linux/arm64] [3/7] STEP 2/17: COPY --from=noderoot / /
+--> Using cache 09caafa85089c1915bbbdcf537346f30c264c28c618400927ffbcdd5371e02cf
+--> 09caafa85089
+[linux/arm64] [3/7] STEP 3/17: LABEL org.opencontainers.image.base.name="docker.io/library/node:24-alpine"       org.opencontainers.image.base.digest="sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1"
+--> Using cache 7943c8b926f0230a6f40b3543e11812858edf2cdee48601f96466fffb9fd4cd1
+--> 7943c8b926f0
+[linux/arm64] [3/7] STEP 4/17: ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin     NODE_VERSION=24.21.0     HOST=0.0.0.0     PORT=8443     PP_DATA_DIR=/var/lib/passkey-point     NODE_OPTIONS=--disable-warning=ExperimentalWarning
+--> Using cache d7cb6430dcbf5bb7c322eb65e329f3d8c6812ed21b07b3caae7de4b5a921adaa
+--> d7cb6430dcbf
+[linux/arm64] [3/7] STEP 5/17: WORKDIR /app
+--> Using cache 9292e8fb929db31422d48bada30a31c1eaf885498b28036c08a5691e608f661c
+--> 9292e8fb929d
+[linux/arm64] [3/7] STEP 6/17: COPY --from=deps /app/node_modules ./node_modules
+--> Using cache d5ef3b3d9824cafb2139e1f34f852c24892e1c130ece4630f88d215399331d39
+--> d5ef3b3d9824
+[linux/arm64] [3/7] STEP 7/17: COPY package.json ./
+--> Using cache 157eb6e37b688d05aa771f00fe2c94bdc62a9e4c9fc393fc7637e75ed0235cae
+--> 157eb6e37b68
+[linux/arm64] [3/7] STEP 8/17: COPY src ./src
+--> Using cache c870ef31fc33b92c07a890bd5c78376a309baf9da7e8ed8e1bd249a0ab13b6d1
+--> c870ef31fc33
+[linux/arm64] [3/7] STEP 9/17: COPY views ./views
+--> Using cache 279ea3c0752c5b7493bca8f2567bb52f0946c08f76764891994664a0f5fa9cdd
+--> 279ea3c0752c
+[linux/arm64] [3/7] STEP 10/17: COPY public ./public
+--> Using cache f20cb7ef102dfa678990260b969e6a930375dbb413830e42db2fcd352e992cb6
+--> f20cb7ef102d
+[linux/arm64] [3/7] STEP 11/17: COPY policy ./policy
+--> Using cache ecd936a6ba35fbc0653b984951a72a578cd662353481e3031204f085222c4e93
+--> ecd936a6ba35
+[linux/arm64] [3/7] STEP 12/17: COPY migrations ./migrations
+--> Using cache 8e3381e707a1db0fe88e58db1520dd518bd6302aa7d63d13a4db4199d0fa9fed
+--> 8e3381e707a1
+[linux/arm64] [3/7] STEP 13/17: COPY scripts/migrate.ts scripts/mock-keys.ts scripts/backup.ts scripts/audit-export.ts ./scripts/
+--> Using cache a4a9d75101d4d1312392ff742b6a2913de486477343cf7dcb5182089203975a5
+--> a4a9d75101d4
+[linux/arm64] [3/7] STEP 14/17: RUN mkdir -p /var/lib/passkey-point && chgrp -R 0 /app /var/lib/passkey-point  && chmod -R g=u,o-w /app && chmod 0770 /var/lib/passkey-point
+--> Using cache 063d38b3d1380aaa3619337a992a6efbef9de4c47b837fcf2c0969f850eff04e
+--> 063d38b3d138
+[linux/arm64] [3/7] STEP 15/17: USER 10001:0
+--> Using cache f20165c520a35573709d938294f31099581582ee5bdcf472e858c4999e241f74
+--> f20165c520a3
+[linux/arm64] [3/7] STEP 16/17: EXPOSE 8443
+--> Using cache 96f3ede74fdd22400e032c234a8fe363dfe96716fb271181aa93924bf13091df
+--> 96f3ede74fdd
+[linux/arm64] [3/7] STEP 17/17: STOPSIGNAL SIGTERM
+--> Using cache 138ab97a7d05359363e78704a42a210df33b4c78970cfdf00bb89d1b156429e6
+--> 138ab97a7d05
+[linux/amd64] [2/7] STEP 1/3: FROM docker.io/library/node@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS noderoot
+[linux/amd64] [2/7] STEP 2/3: RUN apk add --no-cache --upgrade zlib=1.3.2-r1 && grep -A1 '^P:zlib$' /lib/apk/db/installed | grep -qx 'V:1.3.2-r1'
+--> Using cache 3d13b01e5016be73927a0dee0aaa4e31d78b769d5728d383b27b3c513b59de1c
+--> 3d13b01e5016
+[linux/amd64] [2/7] STEP 3/3: RUN rm -rf /usr/local/lib/node_modules /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack            /usr/local/bin/yarn /usr/local/bin/yarnpkg /opt/yarn-* /usr/local/bin/docker-entrypoint.sh /root/.npm  && ! command -v npm && node --version
+--> Using cache cf9d69a6ea3363c19abac174e4baed4f8de3d7e93a624c20d12e0aa0e9cf685d
+--> cf9d69a6ea33
+[linux/amd64] [3/7] STEP 1/17: FROM scratch AS runtime
+[linux/amd64] [3/7] STEP 2/17: COPY --from=noderoot / /
+--> Using cache c5ef9516f7d110f7a27058dd564bb86579ba03b2b29444820906da7506830374
+--> c5ef9516f7d1
+[linux/amd64] [3/7] STEP 3/17: LABEL org.opencontainers.image.base.name="docker.io/library/node:24-alpine"       org.opencontainers.image.base.digest="sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1"
+--> Using cache 78707aab6185ec64e99a25a89aa4839e5da9d23601714c31b5fbce613d81d851
+--> 78707aab6185
+[linux/amd64] [3/7] STEP 4/17: ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin     NODE_VERSION=24.21.0     HOST=0.0.0.0     PORT=8443     PP_DATA_DIR=/var/lib/passkey-point     NODE_OPTIONS=--disable-warning=ExperimentalWarning
+--> Using cache b7b9c5ad852b04543fe151ce7045574ab10c0002c022bcaff8038a862917423a
+--> b7b9c5ad852b
+[linux/amd64] [3/7] STEP 5/17: WORKDIR /app
+--> Using cache 6cca4047a6e63278e7465803c723b92b24241e463ba748a621a1a9a4f8b773a0
+--> 6cca4047a6e6
+[linux/amd64] [3/7] STEP 6/17: COPY --from=deps /app/node_modules ./node_modules
+--> Using cache df23e320e0b274cda58f39ccd5b2ee729a17364e515280ed6142b39d1d459d00
+--> df23e320e0b2
+[linux/amd64] [3/7] STEP 7/17: COPY package.json ./
+--> Using cache 3ca6b07401e43757ef977e80d79dfb903383fe27f798b2c096a7d99f3f99ffdd
+--> 3ca6b07401e4
+[linux/amd64] [3/7] STEP 8/17: COPY src ./src
+--> Using cache 8f1f55d02ff129f8da1404d436282ea4f260514ce86c623cad65d7f9309106e5
+--> 8f1f55d02ff1
+[linux/amd64] [3/7] STEP 9/17: COPY views ./views
+--> Using cache 204c07ed9c70f61b102a859a6c16379e93c77bd2d1ab7bdc9bda8227a334ccb6
+--> 204c07ed9c70
+[linux/amd64] [3/7] STEP 10/17: COPY public ./public
+--> Using cache b4148ffc08d6e9ed846e424e65150ebeaedfe58a036209819794ff319bf3a249
+--> b4148ffc08d6
+[linux/amd64] [3/7] STEP 11/17: COPY policy ./policy
+--> Using cache a10b708db24b3ba891eab6fd48dd90b92f5b509af426e51b3c8cc271cf95071b
+--> a10b708db24b
+[linux/amd64] [3/7] STEP 12/17: COPY migrations ./migrations
+--> Using cache 16db7772ef4b5019a3217e6cffa4f64d94f145bf8760635050e7b555b67b0f60
+--> 16db7772ef4b
+[linux/amd64] [3/7] STEP 13/17: COPY scripts/migrate.ts scripts/mock-keys.ts scripts/backup.ts scripts/audit-export.ts ./scripts/
+--> Using cache 1f51fb82c8148f9b774c8db206465be267fd9a9ad2f6672c2a8f50aa52cbef36
+--> 1f51fb82c814
+[linux/amd64] [3/7] STEP 14/17: RUN mkdir -p /var/lib/passkey-point && chgrp -R 0 /app /var/lib/passkey-point  && chmod -R g=u,o-w /app && chmod 0770 /var/lib/passkey-point
+--> Using cache f3cdada612032e8033e8517419e7d71c4846306db09003168c9323c76e54aa95
+--> f3cdada61203
+[linux/amd64] [3/7] STEP 15/17: USER 10001:0
+--> Using cache a07f4c0e56e6c9e0c2b1799c8b633f0c1874cc291a941fb03105669c52535268
+--> a07f4c0e56e6
+[linux/amd64] [3/7] STEP 16/17: EXPOSE 8443
+--> Using cache 554840ba95d1e63e75a61aaa159cf6adf5c68200303b23ac0fc9d98e5e26809d
+--> 554840ba95d1
+[linux/amd64] [3/7] STEP 17/17: STOPSIGNAL SIGTERM
+--> Using cache 94759a330811a67438d8ff5e13bdf774f866d7ab1a433e0d58dde8855c22f77b
+--> 94759a330811
+[linux/arm64] [7/7] STEP 1/9: FROM 138ab97a7d05359363e78704a42a210df33b4c78970cfdf00bb89d1b156429e6 AS devtenant
+[linux/arm64] [7/7] STEP 2/9: USER 0
+--> Using cache c64a7b6e5d9329c4d4d7e68917864e6956a70d9eceecc6fdbd8ff0dc6c2eb95b
+--> c64a7b6e5d93
+[linux/arm64] [7/7] STEP 3/9: RUN apk add --no-cache openssl=3.5.9-r0 libcrypto3=3.5.9-r0 libssl3=3.5.9-r0 && openssl version
+--> Using cache d7d4ed2293cb380ca62598cc562a5080c3a339b9e699056482b42f26b7d9f22b
+--> d7d4ed2293cb
+[linux/arm64] [7/7] STEP 4/9: COPY infra/devtenant ./infra/devtenant
+--> Using cache 2e2dfc23f1672e5c88d3a82a218b2eb630761d0cd11910ef4016f58b08e26b86
+--> 2e2dfc23f167
+[linux/arm64] [7/7] STEP 5/9: RUN mkdir -p /app/infra/devtenant/out && chgrp -R 0 /app/infra && chmod -R g=u,o-w /app/infra
+--> Using cache ac55cd1f77f5c50c740da4bccd682b7880f52ef068f5e237f10b9ce4ab302cec
+--> ac55cd1f77f5
+[linux/arm64] [7/7] STEP 6/9: USER 10001:0
+--> Using cache 9d28be26e6ef83f6a85f209ad450a6ed1b31c51d31f3d56e3c69e594d0b6f029
+--> 9d28be26e6ef
+[linux/arm64] [7/7] STEP 7/9: LABEL org.opencontainers.image.title="passkey-point-devtenant"
+--> Using cache 51cab75fc92dd2cbccd028629ed02d1c87a43936f355e6acdd70abfbb7f5b32b
+--> 51cab75fc92d
+[linux/arm64] [7/7] STEP 8/9: CMD ["node", "infra/devtenant/devtenant.ts"]
+--> Using cache 957dc5a361b6b693d31bf0a7a22557a312393c1c0523852fc7eb6d52d6daf16e
+--> 957dc5a361b6
+[linux/arm64] [7/7] STEP 9/9: LABEL "org.opencontainers.image.revision"="ac1358d72a6359c363342ef4df97ef2abd08be87"
+--> Using cache 0346451385a363411f4cbd8f22348838009621f0eefbc84e6b38fe4cadccb6fd
+--> 0346451385a3
+[linux/amd64] [7/7] STEP 1/9: FROM 94759a330811a67438d8ff5e13bdf774f866d7ab1a433e0d58dde8855c22f77b AS devtenant
+[linux/amd64] [7/7] STEP 2/9: USER 0
+--> Using cache b0ece6999bafdb9cd027462100849bb0e6f94ef993b0cf7dfc0afcd92ca3a26c
+--> b0ece6999baf
+[linux/amd64] [7/7] STEP 3/9: RUN apk add --no-cache openssl=3.5.9-r0 libcrypto3=3.5.9-r0 libssl3=3.5.9-r0 && openssl version
+--> Using cache c1c0972095cc71e69de6cc2d02ecbbc071c2fb02112b7aa5e04f8813edffe5d3
+--> c1c0972095cc
+[linux/amd64] [7/7] STEP 4/9: COPY infra/devtenant ./infra/devtenant
+0346451385a363411f4cbd8f22348838009621f0eefbc84e6b38fe4cadccb6fd
+--> Using cache e1e74399fac1b15ae68929777683c7b7a9f4ef3e22d7b8e3fcdd0e786c6b7d2c
+--> e1e74399fac1
+[linux/amd64] [7/7] STEP 5/9: RUN mkdir -p /app/infra/devtenant/out && chgrp -R 0 /app/infra && chmod -R g=u,o-w /app/infra
+--> Using cache bb9b4e8ed1425851f5cb6edd12a5e166cd33641502b7878715ed0ccf91f48ce4
+--> bb9b4e8ed142
+[linux/amd64] [7/7] STEP 6/9: USER 10001:0
+--> Using cache b57a65665ab0fcdf60557ba96a51761ddffd40159d30bd20ef52e4c87bd53e9e
+--> b57a65665ab0
+[linux/amd64] [7/7] STEP 7/9: LABEL org.opencontainers.image.title="passkey-point-devtenant"
+--> Using cache 4debc57fc49a4e38e2eea1d48bc2b79ab12160845287068d7749774f6a6fa0fa
+--> 4debc57fc49a
+[linux/amd64] [7/7] STEP 8/9: CMD ["node", "infra/devtenant/devtenant.ts"]
+--> Using cache a0d476f80709c267fbcbb04e07d388344703d0a08e85756b3ba711919afa2806
+--> a0d476f80709
+[linux/amd64] [7/7] STEP 9/9: LABEL "org.opencontainers.image.revision"="ac1358d72a6359c363342ef4df97ef2abd08be87"
+--> Using cache 95a9ef31307125a55133be6fc117d765d970647b0fd4cfdb7695e06b98937e57
+--> 95a9ef313071
+95a9ef31307125a55133be6fc117d765d970647b0fd4cfdb7695e06b98937e57
+== verify local lists
+devtenant arm64 sha256:0c51fb236c9b7b3a97537d2c2fbff478aca05c1f9198f615cddcd7b281e11cb4 title=passkey-point-devtenant cmd=["node","infra/devtenant/devtenant.ts"] uname=aarch64 files=131 mismatched=0 bins={"openssl":"OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)"} keygenPem=2
+devtenant amd64 sha256:9347ee2c38280e28e3c252c07491b1eeb609ee3747c299068d350f2e2b97e480 title=passkey-point-devtenant cmd=["node","infra/devtenant/devtenant.ts"] uname=x86_64 files=131 mismatched=0 bins={"openssl":"OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)"} keygenPem=2
+OK: 1 lists, each its own target, amd64 + arm64, built from ac1358d72a6359c363342ef4df97ef2abd08be87
+Getting image list signatures
+Copying 2 images generated from 2 images in list
+Copying image sha256:0c51fb236c9b7b3a97537d2c2fbff478aca05c1f9198f615cddcd7b281e11cb4 (1/2)
+Getting image source signatures
+Copying blob sha256:c66c31f9cb193b9d43c8eeb4e576451cf85b5fd336a715431c488d2c7a8c32c4
+Copying blob sha256:1458fbcae14e383a72348be771917ae57608a09f4a9f2f5d9627de05044d1f95
+Copying blob sha256:53f8797eb5b3b4be0e30b95b0e543d1d9e1bf2222ddf591eb6942bd186eb6c6b
+Copying blob sha256:147b9742d9879c32c6f15a98147ec961982305a467bc7563efba26c87789c89d
+Copying blob sha256:16f8ea0da127db45170acc9814259c808d863d6f1f8a45d55950d304d201b5ff
+Copying blob sha256:afcf9e6de167d272f410eb47fdb0c1a60da4a4d72e8d3e5d93d2b0cf150d7382
+Copying blob sha256:588f7c2675bfff8b6836affbc4b1af8bbda315f024d595ba9820fc664307d757
+Copying blob sha256:c9bccaca8a003cac6da563fa664ab591b1840b7ccf7bbfb39afd75be8bef5b2c
+Copying blob sha256:037d6e587b434fd682658c49020695b76d6452fa11162cdd4bc8b7fb7799852d
+Copying blob sha256:57607037e6c17ac167b9563554d243a4dad18f6a336ff61fdc34c9805c5c4bc1
+Copying blob sha256:975a74b344afa53d554d57f94aafa30ae1731f54417a8c4449bfb7694a922ee0
+Copying blob sha256:2fa9ad509c07975d5a088119c6f4a2862bd215b06c82907347c192b0664357e2
+Copying blob sha256:2078207d3e115e297a4bdb6346bad1858a309e7dba2b872bb4e460fc17aacc03
+Copying config sha256:0346451385a363411f4cbd8f22348838009621f0eefbc84e6b38fe4cadccb6fd
+Writing manifest to image destination
+Copying image sha256:9347ee2c38280e28e3c252c07491b1eeb609ee3747c299068d350f2e2b97e480 (2/2)
+Getting image source signatures
+Copying blob sha256:b2a95ddcd492493ffd62f7e483ca48869a0c8bb4a64264e9659c582d32b92bcb
+Copying blob sha256:bfb192190fd8252a6ca7a840c431cc515ff2c6f366ab850cf2dea8a0329d50ba
+Copying blob sha256:13fbc8d54b8bda6faa666c8238a5ce8ad55cfda4338c1a29a2dba4220e14457a
+Copying blob sha256:a6d053dc391b64a28006ad47d4fdf6e6cef14bf56eefc434ac20b94dd0d7f799
+Copying blob sha256:6203fbea97c452e8198ee3c24516fa563ef6e6aa8679c88beb15caef3cd6b4fc
+Copying blob sha256:2600db74483b1d076692ccdbac91f98170eb9d8db5fdcda9c5f56e3bbf13e5e2
+Copying blob sha256:6ababaff9fcfc52f83fe92b0d8b5348579460b1e7dbd2072b81c46d14bc20f8d
+Copying blob sha256:018d0ffc994976006eab0ea350096d6a2adb471b22e4f9486f46ac37cffc555a
+Copying blob sha256:fb98b98e2cc3f98bd638d561d52a42c0a80d913f7a6f3bdcbac256ae1abcbb76
+Copying blob sha256:a2dc605c18140d5f553f76350da96fe44497a0ffedb0dcfe08b90b6492c5b26d
+Copying blob sha256:97ff4cbc7bb6d14d4d5f52681ceb999ff48ace0284d31f7349bde8380f086a2b
+Copying blob sha256:72f566eea1351ccbe37b7b2a079c9e9382ee4954028a027edc577b5d8305bbf5
+Copying blob sha256:4becec2dc4dc2e08f355e813fc4585d95f6c4cc19d792b17c999b1116b3f2c0b
+Copying config sha256:95a9ef31307125a55133be6fc117d765d970647b0fd4cfdb7695e06b98937e57
+Writing manifest to image destination
+Writing manifest list to image destination
+Storing list signatures
+pushed forge.bluejungle.net/palamedes/passkey-point-devtenant:devtenant-dac1358d-unverified sha256:0f8411ac993fc5515778f91497268ee5d02750fdd6a1ecd88da2f4e54e45763c
+== verify what the registry serves (pulled by digest)
+devtenant arm64 sha256:776e6ce1f5bed924d2a287eef385904e2a6f124d4b233e0a6bbce7dea8702972 title=passkey-point-devtenant cmd=["node","infra/devtenant/devtenant.ts"] uname=aarch64 files=131 mismatched=0 bins={"openssl":"OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)"} keygenPem=2
+devtenant amd64 sha256:62025643e066fecac9966a6ff79e94e2446d7d6882422320292cd1a39e56e961 title=passkey-point-devtenant cmd=["node","infra/devtenant/devtenant.ts"] uname=x86_64 files=131 mismatched=0 bins={"openssl":"OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)"} keygenPem=2
+OK: 1 lists, each its own target, amd64 + arm64, built from ac1358d72a6359c363342ef4df97ef2abd08be87
+== devtenant forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:0f8411ac993fc5515778f91497268ee5d02750fdd6a1ecd88da2f4e54e45763c
+Signing artifact...
+Pushing signature to: forge.bluejungle.net/palamedes/passkey-point-devtenant
+Signing artifact...
+Pushing signature to: forge.bluejungle.net/palamedes/passkey-point-devtenant
+Signing artifact...
+Pushing signature to: forge.bluejungle.net/palamedes/passkey-point-devtenant
+Using payload from: /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/tmp/pp-sign.nLgR5W/prov-devtenant.json
+Signing artifact...
+== key file removed; no key material left in the run's temp directory
+== verify signatures and provenance as the registry serves them
+devtenant signature sha256:0f8411ac993f: verified
+devtenant signature sha256:776e6ce1f5be: verified
+devtenant signature sha256:62025643e066: verified
+devtenant provenance: verified (commit ac1358d, target devtenant)
+OK: 1 images signed, provenance for ac1358d
+== release tags, on the verified digests only
+tagged forge.bluejungle.net/palamedes/passkey-point-devtenant:devtenant-dac1358d -> sha256:0f8411ac993fc5515778f91497268ee5d02750fdd6a1ecd88da2f4e54e45763c
+devtenant sha256:0f8411ac993fc5515778f91497268ee5d02750fdd6a1ecd88da2f4e54e45763c
+auth file reset: {"auths":{}}
+EXIT 0 2026-10-21T06:56:42Z

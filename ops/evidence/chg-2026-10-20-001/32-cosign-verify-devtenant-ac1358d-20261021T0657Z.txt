@@ -1,0 +1,7 @@
+# cosign verify by k8s-engineer 2026-10-21T06:56:55Z, key /Users/sheijden/Code/homelab-migration/passkey-point-cosign.pub sha256 1d1fd3e4f5cf1995, no tlog
+$ cosign verify --key <oob> --insecure-ignore-tlog forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:0f8411ac993fc5515778f91497268ee5d02750fdd6a1ecd88da2f4e54e45763c
+jq: parse error: Invalid numeric literal at line 1, column 8
+verify rc 5
+$ cosign verify-attestation --type slsaprovenance1
+{"commit":"ac1358d72a6359c363342ef4df97ef2abd08be87","platforms":["linux/amd64","linux/arm64"],"tagSuffix":"dac1358d","target":"devtenant"}
+attest rc 0

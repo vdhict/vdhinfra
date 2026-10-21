@@ -1,0 +1,128 @@
+{
+  "apiVersion": "batch/v1",
+  "kind": "Job",
+  "metadata": {
+    "name": "redirect-uris-dry-20261021t070052z",
+    "namespace": "devtenant-build",
+    "labels": {
+      "app.kubernetes.io/name": "devtenant"
+    }
+  },
+  "spec": {
+    "backoffLimit": 0,
+    "activeDeadlineSeconds": 600,
+    "ttlSecondsAfterFinished": 86400,
+    "template": {
+      "metadata": {
+        "labels": {
+          "app.kubernetes.io/name": "devtenant",
+          "vdhinfra.io/chg": "chg-2026-10-20-001"
+        }
+      },
+      "spec": {
+        "serviceAccountName": "devtenant",
+        "automountServiceAccountToken": false,
+        "restartPolicy": "Never",
+        "enableServiceLinks": false,
+        "imagePullSecrets": [
+          {
+            "name": "devtenant-pull"
+          }
+        ],
+        "dnsConfig": {
+          "options": [
+            {
+              "name": "ndots",
+              "value": "1"
+            }
+          ]
+        },
+        "securityContext": {
+          "runAsNonRoot": true,
+          "runAsUser": 10001,
+          "runAsGroup": 10001,
+          "fsGroup": 10001,
+          "fsGroupChangePolicy": "OnRootMismatch",
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        },
+        "containers": [
+          {
+            "name": "redirect-uris",
+            "image": "forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:7a0d9c7fc096a7a712554196e2eefd15c5f70ddfde2f071bd4efa471ec5e0616",
+            "command": [
+              "node",
+              "/work/redirect-uris.mjs"
+            ],
+            "args": [
+              "dry"
+            ],
+            "env": [
+              {
+                "name": "DEVTENANT_KEY_DIR",
+                "value": "/var/run/secrets/devtenant"
+              }
+            ],
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "readOnlyRootFilesystem": true,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              }
+            },
+            "resources": {
+              "requests": {
+                "cpu": "100m",
+                "memory": "256Mi"
+              },
+              "limits": {
+                "memory": "512Mi"
+              }
+            },
+            "volumeMounts": [
+              {
+                "name": "build-key",
+                "mountPath": "/var/run/secrets/devtenant/build",
+                "readOnly": true
+              },
+              {
+                "name": "work",
+                "mountPath": "/work",
+                "readOnly": true
+              },
+              {
+                "name": "tmp",
+                "mountPath": "/tmp"
+              }
+            ]
+          }
+        ],
+        "volumes": [
+          {
+            "name": "build-key",
+            "secret": {
+              "secretName": "atlas-devtenant-build-key",
+              "defaultMode": 256
+            }
+          },
+          {
+            "name": "work",
+            "configMap": {
+              "name": "chg-2026-10-20-001-redirect-uris-13a1129daa",
+              "defaultMode": 292
+            }
+          },
+          {
+            "name": "tmp",
+            "emptyDir": {
+              "sizeLimit": "64Mi"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+# re-run of 32 (jq got stderr there), 2026-10-21T06:57:04Z
+verify rc 0
+WARNING: Skipping tlog verification is an insecure practice that lacks transparency and auditability verification for the signature.
+
+Verification for forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:0f8411ac993fc5515778f91497268ee5d02750fdd6a1ecd88da2f4e54e45763c --
+The following checks were performed on each of these signatures:
+  - The cosign claims were validated
+  - Existence of the claims in the transparency log was verified offline
+  - The signatures were verified against the specified public key
+{"ref":"forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:0f8411ac993fc5515778f91497268ee5d02750fdd6a1ecd88da2f4e54e45763c","digest":"sha256:0f8411ac993fc5515778f91497268ee5d02750fdd6a1ecd88da2f4e54e45763c","type":"https://sigstore.dev/cosign/sign/v1"}
+{"ref":"forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:0f8411ac993fc5515778f91497268ee5d02750fdd6a1ecd88da2f4e54e45763c","digest":"sha256:0f8411ac993fc5515778f91497268ee5d02750fdd6a1ecd88da2f4e54e45763c","type":"https://slsa.dev/provenance/v1"}
