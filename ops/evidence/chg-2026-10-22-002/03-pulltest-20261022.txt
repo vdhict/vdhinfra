@@ -1,0 +1,32 @@
+chg-2026-10-22-002 step 3: pull tests in ns mypka, 2026-10-22, image forge.bluejungle.net/wires-publisher/cluster-wires@sha256:d535ffb96b995344103a93eab89d894b9fb37590d9773d574b07e9b80f6beee8 (v8 index)
+all pods: imagePullPolicy Always, command /bin/sh -c 'exit 0', PSA restricted-compliant, automountServiceAccountToken false; all deleted after (label app.kubernetes.io/name=chg002-pulltest: none left)
+
+A. NEGATIVE, uncached node: chg002-pulltest-neg, imagePullSecrets cluster-wires-registry (forge user mypka-bot), node vdhclu01node02
+TIME                   REASON      MSG
+<nil>                  Scheduled   Successfully assigned mypka/chg002-pulltest-neg to vdhclu01node02
+2026-10-22T03:28:10Z   Pulling     Pulling image "forge.bluejungle.net/wires-publisher/cluster-wires@sha256:d535ffb96b995344103a93eab89d894b9fb37590d9773d574b07e9b80f6beee8"
+2026-10-22T03:28:10Z   Failed      Failed to pull image "forge.bluejungle.net/wires-publisher/cluster-wires@sha256:d535ffb96b995344103a93eab89d894b9fb37590d9773d574b07e9b80f6beee8": failed to pull and
+2026-10-22T03:28:10Z   Failed      Error: ErrImagePull
+2026-10-22T03:27:56Z   BackOff     Back-off pulling image "forge.bluejungle.net/wires-publisher/cluster-wires@sha256:d535ffb96b995344103a93eab89d894b9fb37590d9773d574b07e9b80f6beee8"
+2026-10-22T03:27:56Z   Failed      Error: ImagePullBackOff
+registry error (from Failed event): 401 Unauthorized
+=> RESULT: mypka-bot gets 401 from the forge on v8 (no access granted to it)
+
+B. POSITIVE: chg002-pulltest-pos, imagePullSecrets cluster-wires-pull-v8, node vdhclu01node02
+TIME                   REASON    MSG
+2026-10-22T03:28:14Z   Pulling   Pulling image "forge.bluejungle.net/wires-publisher/cluster-wires@sha256:d535ffb96b995344103a93eab89d894b9fb37590d9773d574b07e9b80f6beee8"
+2026-10-22T03:28:31Z   Pulled    Successfully pulled image "forge.bluejungle.net/wires-publisher/cluster-wires@sha256:d535ffb96b995344103a93eab89d894b9fb37590d9773d574b07e9b80f6beee8" in 16.531s (16.531s including waiting). Image 
+2026-10-22T03:28:31Z   Created   Container created
+2026-10-22T03:28:31Z   Started   Container started
+status: phase Succeeded, exitCode 0, imageID forge.bluejungle.net/wires-publisher/cluster-wires@sha256:d535ffb9...beee8
+=> RESULT: GREEN, the new secret pulls v8
+
+C. NEGATIVE repeat, CACHED node (after B): chg002-pulltest-neg2, cluster-wires-registry, node vdhclu01node02
+TIME                   REASON    MSG
+2026-10-22T03:28:43Z   Pulling   Pulling image "forge.bluejungle.net/wires-publisher/cluster-wires@sha256:d535ffb96b995344103a93eab89d894b9fb37590d9773d574b07e9b80f6beee8"
+2026-10-22T03:28:43Z   Pulled    Successfully pulled image "forge.bluejungle.net/wires-publisher/cluster-wires@sha256:d535ffb96b995344103a93eab89d894b9fb37590d9773d574b07e9b80f6beee8" in 96ms (96ms in
+2026-10-22T03:28:43Z   Created   Container created
+2026-10-22T03:28:43Z   Started   Container started
+=> Pulled in 96ms without a registry round-trip: containerd served the by-digest content from its local store.
+   kubelet configz on node02: imagePullCredentialsVerificationPolicy=NeverVerifyPreloadedImages.
+   FINDING (pre-existing, estate-wide, not caused by this change): once a private image is on a node, any pod on that node can run it by digest regardless of its pull secret. Same holds for v7 and every private forge image. Forge-side access is proven by A, not by C.

@@ -1,0 +1,13 @@
+chg-2026-10-22-002 step 1: token mint, 2026-10-22 03:25:08Z
+command: kubectl -n devtools exec forgejo-fd4b64ccd-sh2gz -c forgejo -- forgejo admin user generate-access-token --username wires-publisher --token-name cluster-pull-v8-20261022 --scopes read:package --raw
+output captured to scratchpad file (mode 600, 40 hex chars); value never printed; exit 0, stderr empty
+DB read-back (access_token where uid=7): cluster-pull-v8-20261022 | read:package | 2026-10-22 03:25:08+00 (only token of this user)
+API checks with the token (HTTP status):
+  GET  /api/v1/packages/wires-publisher         200  -> 3 versions of container/cluster-wires (v8-975984b + 2 arch manifests), nothing else
+  GET  /api/v1/user                              403
+  GET  /api/v1/user/repos                        403
+  GET  /api/v1/admin/users                       403
+  DELETE /api/v1/packages/wires-publisher/generic/does-not-exist-chg002/0   403 (write refused by scope)
+  GET  /api/v1/packages/vdhict                   403
+  GET  /api/v1/packages/mypka-bot                403
+  GET  /api/v1/packages/palamedes                403

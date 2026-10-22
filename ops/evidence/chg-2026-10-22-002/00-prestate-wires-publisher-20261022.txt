@@ -1,0 +1,10 @@
+chg-2026-10-22-002 pre-state, 2026-10-22 (forge-pg-1, db forgejo; forgejo 15.0.9 pod forgejo-fd4b64ccd-sh2gz)
+user|id=7|name=wires-publisher|is_admin=f|visibility=2 (private)|type=0 (individual)
+forgejo admin user list: wires-publisher IsActive=true IsAdmin=false
+repos owned (repository.owner_id=7): 0
+org memberships (org_user.uid=7): 0
+collaborations (collaboration.user_id=7): 0
+packages (package.owner_id=7): 1 -> id 9, type container, name cluster-wires
+package versions: v8-975984b, sha256:a75a9468...96e3 (amd64), sha256:9f9f8f3d...1561 (arm64)
+access tokens (access_token.uid=7): 0
+mypka pull secret in use by all 8 CronJobs: cluster-wires-registry (ExternalSecret, tenant-managed, forge user mypka-bot)
