@@ -77,25 +77,39 @@ while read -r name host port expect; do
   echo "$name pod=$a container=${b:-error} expect=$expect" >> /work/out/probes.txt
 done < /work/in/probes.txt
 log "probes written"
+# ci/run.sh runs as an unprivileged user (uid 1000): its tests check file modes, which root ignores
+# (TapSimRealTests B10, run 20261022t1019z). Containers still go to the root podman service, over its socket.
+id ci >/dev/null 2>&1 || useradd -m -u 1000 -s /bin/bash ci
+mkdir -p /run/podman && podman system service --time=0 unix:///run/podman/podman.sock >/work/out/podman-service.log 2>&1 &
+for _ in $(seq 1 30); do [ -S /run/podman/podman.sock ] && break; sleep 1; done
+[ -S /run/podman/podman.sock ] || die "podman service socket"
+chgrp ci /run/podman /run/podman/podman.sock && chmod 0750 /run/podman && chmod 0660 /run/podman/podman.sock
+runuser -u ci -- env CONTAINER_HOST=unix:///run/podman/podman.sock podman info --format '{{.Host.Arch}}' >/dev/null 2>&1 || die "podman socket not usable by ci"
+chmod -R a+rX /work/tools
+log "ci user uid $(id -u ci) uses the root podman service over its socket"
 touch /work/out/READY
 log "ready; waiting for the driver (probe check, then inputs)"
 for _ in $(seq 1 360); do [ -e /work/in/GO ] && break; [ -e /work/in/ABORT ] && die "driver aborted (probe check failed)"; sleep 10; done
 [ -e /work/in/GO ] || die "no inputs within 60 min"
 
 REF_COMMIT=$(cat /work/in/ref.commit)
-git clone -q /work/in/ref.bundle /work/ref && git -C /work/ref checkout -q --detach "$REF_COMMIT" || die "reference checkout $REF_COMMIT"
+mkdir -p /work/ref /work/src && chown ci:ci /work/ref /work/src /work/out
+asci() { runuser -u ci -- env HOME=/home/ci PATH="$PATH" DOTNET_ROOT="$DOTNET_ROOT" DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 CONTAINER_HOST=unix:///run/podman/podman.sock BUILDAH_ISOLATION=chroot "$@"; }
+chmod a+r /work/in/*
+asci git clone -q /work/in/ref.bundle /work/ref && asci git -C /work/ref checkout -q --detach "$REF_COMMIT" || die "reference checkout $REF_COMMIT"
 log "reference $(git -C /work/ref rev-parse HEAD)"
-( cd /work/ref/e2e && npm ci --ignore-scripts --no-audit --no-fund >/work/out/ref-npm.log 2>&1 \
-  && node node_modules/playwright-core/cli.js install --with-deps chromium-headless-shell >>/work/out/ref-npm.log 2>&1 ) || die "reference e2e install (see ref-npm.log)"
+( cd /work/ref/e2e && asci npm ci --ignore-scripts --no-audit --no-fund >/work/out/ref-npm.log 2>&1 \
+  && node node_modules/playwright-core/cli.js install-deps chromium-headless-shell >>/work/out/ref-npm.log 2>&1 \
+  && asci node node_modules/playwright-core/cli.js install chromium-headless-shell >>/work/out/ref-npm.log 2>&1 ) || die "reference e2e install (see ref-npm.log)"
 log "reference e2e installed"
 
 while read -r label bundle commit; do
   [ -n "$label" ] || continue
-  src="/work/src/$label"; out="/work/out/$label"; mkdir -p "$out"
-  git clone -q "/work/in/$bundle" "$src" && git -C "$src" checkout -q --detach "$commit" || { echo 90 > "$out/exit"; log "$label: checkout $commit failed"; continue; }
+  src="/work/src/$label"; out="/work/out/$label"; mkdir -p "$out"; chown ci:ci "$out"
+  asci git clone -q "/work/in/$bundle" "$src" && asci git -C "$src" checkout -q --detach "$commit" || { echo 90 > "$out/exit"; log "$label: checkout $commit failed"; continue; }
   [ "$(git -C "$src" rev-parse HEAD)" = "$commit" ] || { echo 91 > "$out/exit"; log "$label: HEAD mismatch"; continue; }
   log "$label: ci/run.sh at $commit"
-  ( cd "$src" && CI_OUT="$out/ci" PP_E2E_REF=/work/ref bash ci/run.sh ) > "$out/run.log" 2>&1
+  ( cd "$src" && asci env CI_OUT="$out/ci" PP_E2E_REF=/work/ref bash ci/run.sh ) > "$out/run.log" 2>&1
   rc=$?; echo "$rc" > "$out/exit"; log "$label: exit $rc"
   podman images --digests --format '{{.Repository}}@{{.Digest}}' | sort -u > "$out/images-pulled.txt"
   podman container prune -f >/dev/null 2>&1; podman pod prune -f >/dev/null 2>&1
