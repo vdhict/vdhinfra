@@ -1,0 +1,59 @@
+---
+# Every pod in pp-ci: nothing in, nothing out, unless a rule below allows it. An empty rule ({}) enrols the endpoint
+# in default-deny for that direction without allowing a peer.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny
+  namespace: pp-ci
+spec:
+  endpointSelector: {}
+  ingress:
+    - {}
+  egress:
+    - {}
+---
+# Gate runner: DNS via kube-dns, then the internet on 80/443 only (NuGet, npm, dnf/apt mirrors, registries, GitHub).
+# Other pods, nodes and the API server are not "world", so default-deny already refuses them; the deny rules also
+# take out the LAN and private/CGNAT ranges, which Cilium counts as "world" (CIDR rules never match cluster pods).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: pp-ci-runner
+  namespace: pp-ci
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: pp-ci-runner
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - {port: "443", protocol: TCP}
+            - {port: "80", protocol: TCP}
+  egressDeny:
+    - toEntities:
+        - kube-apiserver
+        - host
+        - remote-node
+    - toCIDRSet:
+        - cidr: 10.0.0.0/8
+        - cidr: 172.16.0.0/12
+        - cidr: 192.168.0.0/16
+        - cidr: 100.64.0.0/10
+        - cidr: 169.254.0.0/16
+    # The house's own WAN addresses (no hairpin back into the UDM or its port-forwards). The CiliumCIDRGroup is made
+    # in-cluster by the gate driver from the UDM API and is never in git (public repo, Argus C11/C12).
+    - toCIDRSet:
+        - cidrGroupRef: pp-ci-house-wan

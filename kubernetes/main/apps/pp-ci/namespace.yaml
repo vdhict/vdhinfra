@@ -1,0 +1,14 @@
+---
+# PSA privileged: podman inside the gate Job needs namespaced capabilities (SYS_ADMIN, NET_ADMIN), an unmasked /proc
+# and unconfined seccomp/AppArmor. The Job sets hostUsers: false, so those powers stay inside the pod's own user
+# namespace (Argus, chg-2026-10-22-006 condition 1). Nothing else may run here.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pp-ci
+  labels:
+    vdhinfra.io/tenant: pp-ci
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
