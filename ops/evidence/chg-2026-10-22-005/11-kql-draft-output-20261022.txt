@@ -1,0 +1,4 @@
+AppDisplayName:String | ResourceDisplayName:String | SignIns:Int64 | Methods:Object
+Passkey Point TP (dev) | Passkey Point TP (dev) | 835 | ["Passkey (device-bound)", ""]
+pp-obo-test-client | pp-obo-test-client | 10 | ["Passkey (device-bound)"]
+pp-obo-test-client | pp-obo-test-api | 4 | ["Passkey (device-bound)"]

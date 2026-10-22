@@ -1,0 +1,15 @@
+let users = dynamic(["pp-e2e-tp-employee@7m5b27gbc.onmicrosoft.com","pp-e2e-tp-password@7m5b27gbc.onmicrosoft.com","pp-e2e-tp-contractor-ok@7m5b27gbc.onmicrosoft.com","pp-e2e-tp-noe3@7m5b27gbc.onmicrosoft.com"]);
+let s = union SigninLogs, AADNonInteractiveUserSignInLogs
+    | where TimeGenerated > ago(30d) and UserPrincipalName in~ (users)
+    | extend AD = todynamic(AuthenticationDetails);
+let sessionMethods = s
+    | mv-expand ad = AD
+    | extend Method = tostring(ad.authenticationMethod), Detail = tostring(ad.authenticationStepResultDetail)
+    | where isnotempty(Method) and Method !in ("Previously satisfied", "Password") and Detail !has "claim in the token"
+    | summarize SessionMethods = make_set(Method) by SessionId;
+s
+| summarize SignIns = count() by AppDisplayName, ResourceDisplayName, SessionId
+| join kind=leftouter sessionMethods on SessionId
+| mv-expand M = SessionMethods to typeof(string)
+| summarize SignIns = sum(SignIns), Methods = make_set(M) by AppDisplayName, ResourceDisplayName
+| order by SignIns desc

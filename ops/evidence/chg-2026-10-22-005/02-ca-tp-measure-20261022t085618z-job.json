@@ -1,0 +1,139 @@
+{
+  "apiVersion": "batch/v1",
+  "kind": "Job",
+  "metadata": {
+    "name": "ca-tp-measure-20261022t085618z",
+    "namespace": "devtenant-build",
+    "labels": {
+      "app.kubernetes.io/name": "devtenant",
+      "vdhinfra.io/chg": "chg-2026-10-22-005"
+    }
+  },
+  "spec": {
+    "activeDeadlineSeconds": 600,
+    "backoffLimit": 0,
+    "completionMode": "NonIndexed",
+    "completions": 1,
+    "parallelism": 1,
+    "podReplacementPolicy": "TerminatingOrFailed",
+    "suspend": false,
+    "template": {
+      "metadata": {
+        "labels": {
+          "app.kubernetes.io/name": "devtenant",
+          "vdhinfra.io/chg": "chg-2026-10-22-005"
+        }
+      },
+      "spec": {
+        "automountServiceAccountToken": false,
+        "containers": [
+          {
+            "args": [],
+            "command": [
+              "node",
+              "/work/ca-tp-measure.mjs"
+            ],
+            "env": [
+              {
+                "name": "DEVTENANT_KEY_DIR",
+                "value": "/var/run/secrets/devtenant"
+              }
+            ],
+            "image": "forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:a79ede4fd7c6781f81f6295f745b5bba84508a8a9f97a354f9c219c984df4f82",
+            "imagePullPolicy": "IfNotPresent",
+            "name": "runner-role-revoke",
+            "resources": {
+              "limits": {
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "256Mi"
+              }
+            },
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              },
+              "readOnlyRootFilesystem": true
+            },
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/devtenant/build",
+                "name": "build-key",
+                "readOnly": true
+              },
+              {
+                "mountPath": "/work",
+                "name": "work",
+                "readOnly": true
+              },
+              {
+                "mountPath": "/tmp",
+                "name": "tmp"
+              }
+            ]
+          }
+        ],
+        "dnsConfig": {
+          "options": [
+            {
+              "name": "ndots",
+              "value": "1"
+            }
+          ]
+        },
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": false,
+        "imagePullSecrets": [
+          {
+            "name": "devtenant-pull"
+          }
+        ],
+        "restartPolicy": "Never",
+        "schedulerName": "default-scheduler",
+        "securityContext": {
+          "fsGroup": 10001,
+          "fsGroupChangePolicy": "OnRootMismatch",
+          "runAsGroup": 10001,
+          "runAsNonRoot": true,
+          "runAsUser": 10001,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        },
+        "serviceAccount": "devtenant",
+        "serviceAccountName": "devtenant",
+        "terminationGracePeriodSeconds": 30,
+        "volumes": [
+          {
+            "name": "build-key",
+            "secret": {
+              "defaultMode": 256,
+              "secretName": "atlas-devtenant-build-key"
+            }
+          },
+          {
+            "configMap": {
+              "defaultMode": 292,
+              "name": "chg-2026-10-22-005-ca-tp-measure-d8785c7967"
+            },
+            "name": "work"
+          },
+          {
+            "emptyDir": {
+              "sizeLimit": "64Mi"
+            },
+            "name": "tmp"
+          }
+        ]
+      }
+    },
+    "ttlSecondsAfterFinished": 86400
+  }
+}

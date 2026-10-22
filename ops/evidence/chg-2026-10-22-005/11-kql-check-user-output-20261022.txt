@@ -1,0 +1,7 @@
+UserPrincipalName:String | AppDisplayName:String | NoSid:SByte | SignIns:Int64 | Methods:Object | PrevSatisfied:Int64
+pp-e2e-tp-password | Passkey Point TP (dev) | false | 30 | ["Password only (no MFA)"] | 0
+pp-e2e-tp-noe3 | Passkey Point TP (dev) | false | 57 | ["Passkey (device-bound)"] | 57
+pp-e2e-tp-employee | Passkey Point TP (dev) | false | 680 | ["Passkey (device-bound)"] | 680
+pp-e2e-tp-employee | pp-obo-test-client | false | 14 | ["Passkey (device-bound)"] | 12
+pp-e2e-tp-employee | Passkey Point TP (dev) | true | 5 | ["Passkey (device-bound)"] | 0
+pp-e2e-tp-contractor-ok | Passkey Point TP (dev) | false | 63 | ["Passkey (device-bound)"] | 63

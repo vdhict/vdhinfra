@@ -1,0 +1,59 @@
+run 20261022t1029z target dotnet-7e090d0 exit 1
+=== [10:51:28Z] 0 context
+=== [10:51:28Z] 1 tool restore
+=== [10:51:28Z] 1b forge workflow files parse (ci/workflow-check.py)
+=== [10:51:28Z] 2 restore (locked mode, NuGetAudit as errors)
+=== [10:51:30Z] 3 format --verify-no-changes
+=== [10:52:14Z] 4 build Release, warnings as errors
+=== [10:52:56Z] 5 test (unit, architecture, platform, hosting)
+  total: 402
+  failed: 0
+  succeeded: 402
+  skipped: 0
+=== [10:53:10Z] 5b storage provider matrix
+--- provider mssql
+  total: 21
+  failed: 0
+  succeeded: 21
+  skipped: 0
+--- provider postgres
+  total: 22
+  failed: 0
+  succeeded: 22
+  skipped: 0
+--- provider sqlite
+  total: 17
+  failed: 0
+  succeeded: 17
+  skipped: 0
+=== [10:53:38Z] 5c guard coverage (every configuration guard executed by a test)
+guards=123 exercised=123 not-exercised=0
+=== [10:53:39Z] 5d traceability (requirements, source references and this run's TRX)
+FAIL: SEC-01.3: planned: {'step': 'external-evidence', 'part': 'External ownership is recorded, but execution evidence for this repository and deployment has not been measured locally.'}
+FAIL: SEC-03.1: planned: {'step': 'external-evidence', 'part': 'External ownership is recorded, but execution evidence for this repository and deployment has not been measured locally.'}
+FAIL: SEC-03.2: planned: {'step': 'external-evidence', 'part': 'External ownership is recorded, but execution evidence for this repository and deployment has not been measured locally.'}
+FAIL: SEC-04.2: planned: {'step': 'external-evidence', 'part': 'External ownership is recorded, but execution evidence for this repository and deployment has not been measured locally.'}
+FAIL: SEC-11.1: planned: {'step': 'external-evidence', 'part': 'External ownership is recorded, but execution evidence for this repository and deployment has not been measured locally.'}
+FAIL: CTL-C2: planned: {'step': 'external-evidence', 'part': 'External ownership is recorded, but execution evidence for this repository and deployment has not been measured locally.'}
+FAIL: R9-04a: planned: {'step': 'external-evidence', 'part': 'External ownership is recorded, but execution evidence for this repository and deployment has not been measured locally.'}
+FAIL: R9-04b: planned: {'step': 'external-evidence', 'part': 'External ownership is recorded, but execution evidence for this repository and deployment has not been measured locally.'}
+FAIL: VER-01: planned: {'step': 'external-evidence', 'part': 'External ownership is recorded, but execution evidence for this repository and deployment has not been measured locally.'}
+FAIL: VER-02: planned: {'step': 'port traceability follow-up VER-02', 'part': 'No port tenant throttling measurement harness or evidence; build and run it before main.'}
+FAIL: INF-SC-05: planned: {'step': 'external-evidence', 'part': 'Atlas cosign path has not yet run for this repository .NET image; see deploy/README.md.'}
+FAIL: INF-SC-07: planned: {'step': 'external-evidence', 'part': 'External ownership is recorded, but execution evidence for this repository and deployment has not been measured locally.'}
+FAIL: INF-SC-08: planned: {'step': 'external-evidence', 'part': 'External ownership is recorded, but execution evidence for this repository and deployment has not been measured locally.'}
+FAIL: LAB-01: planned: {'step': 'external-evidence', 'part': 'External ownership is recorded, but execution evidence for this repository and deployment has not been measured locally.'}
+FAIL: LAB-02: planned: {'step': 'external-evidence', 'part': 'External ownership is recorded, but execution evidence for this repository and deployment has not been measured locally.'}
+FAIL: LAB-03: planned: {'step': 'external-evidence', 'part': 'External ownership is recorded, but execution evidence for this repository and deployment has not been measured locally.'}
+FAIL: LAB-04: planned: {'step': 'external-evidence', 'part': 'External ownership is recorded, but execution evidence for this repository and deployment has not been measured locally.'}
+FAIL: LAB-05: planned: {'step': 'external-evidence', 'part': 'External ownership is recorded, but execution evidence for this repository and deployment has not been measured locally.'}
+FAIL: LAB-06: planned: {'step': 'external-evidence', 'part': 'External ownership is recorded, but execution evidence for this repository and deployment has not been measured locally.'}
+FAIL: DEC-07: planned: {'step': 'port decision evidence DEC-07', 'part': 'Normal-account/key-touch qualification requires a tenant Windows Hello fresh-authentication measurement; no .NET measurement realises this decisio
+FAIL: DEC-08: planned: {'step': 'port decision evidence DEC-08', 'part': 'Superseded 10/20-minute per-site TAP lifetime has no .NET realisation: the current policy requires 480-minute TAPs (LIM-02).'}
+FAIL: DEC-11: planned: {'step': 'port decision evidence DEC-11', 'part': 'Superseded pilot exceptions are not implemented by the current .NET flow; no owner acceptance is recorded.'}
+FAIL: DEC-12: planned: {'step': 'port decision evidence DEC-12', 'part': 'Residual risk acceptance is an owner decision; no .NET implementation or acceptance evidence exists.'}
+FAIL: DEC-13: planned: {'step': 'port decision evidence DEC-13', 'part': 'Cosign key custody and transparency-log policy are in the Atlas release path; no .NET realisation or owner decision is evidenced here.'}
+FAIL: DEC-25: planned: {'step': 'port decision evidence DEC-25', 'part': 'Corporate-location enforcement requires the Conditional Access tenant policy and tenant verification; there is no .NET enforcement of location.'}
+FAIL: DEC-27: planned: {'step': 'port decision evidence DEC-27', 'part': 'Manual <term-b> evidence is not a .NET implementation; the required device/SSO verification remains outside the local tests.'}
+traceability: built+tested=78, built-untested=0, designed-only=0, missing=0, partial=0, planned=26, external=0, drift=0, failing=0; failures=26
+ci: FAILED: traceability

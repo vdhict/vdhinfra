@@ -1,0 +1,4 @@
+RESULT {"selfCheck":{"tid":"95cf7dac-b898-4b02-a22a-1379e2fde497","appid":"dca464ef-5b97-4d32-b80d-d98532b26652","roles":4,"auditLogRead":true}}
+RESULT {"table":"SigninLogs","rows":657,"pages":2}
+RESULT {"table":"AADNonInteractiveUserSignInLogs","rows":309,"pages":1}
+RESULT {"total":966,"days":30,"since":"2026-09-22T09:35:44Z","graphKeysSeen":["clientAppUsed:string","clientSessionId:empty","correlationId:string","incomingTokenType:string","sessionId:empty","sessionId:string","sessionLifetimePolicies:object","signInTokenProtectionStatus:string","tokenIssuerName:empty","tokenIssuerType:string","tokenProtectionStatusDetails:object","uniqueTokenIdentifier:string","userAgent:string"]}

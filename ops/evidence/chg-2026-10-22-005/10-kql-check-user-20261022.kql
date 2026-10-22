@@ -1,0 +1,30 @@
+// MFA method per app for a set of users, last 30 days. SSO sign-ins ("Previously satisfied") inherit the methods of
+// their session (SessionId); sessions without any MFA method show "Password only (no MFA)".
+let users = dynamic(["pp-e2e-tp-employee@7m5b27gbc.onmicrosoft.com","pp-e2e-tp-password@7m5b27gbc.onmicrosoft.com","pp-e2e-tp-contractor-ok@7m5b27gbc.onmicrosoft.com","pp-e2e-tp-noe3@7m5b27gbc.onmicrosoft.com"]);
+let lookback = 30d;
+// Methods that count: drop "Previously satisfied" (SSO) and empty steps; Password alone means no MFA.
+let normalize = (m: dynamic) {
+    let mfa = set_difference(m, dynamic(["Password"]));
+    iff(array_length(mfa) > 0, mfa,
+        iff(set_has_element(m, "Password"), dynamic(["Password only (no MFA)"]), dynamic(["(no method in log)"])))
+};
+let s = union SigninLogs, AADNonInteractiveUserSignInLogs
+    | where TimeGenerated > ago(lookback) and UserPrincipalName in~ (users)
+    | extend AD = todynamic(AuthenticationDetails)
+    | mv-apply ad = AD on (
+        summarize RowMethods = make_set_if(tostring(ad.authenticationMethod),
+            isnotempty(tostring(ad.authenticationMethod)) and tostring(ad.authenticationMethod) != "Previously satisfied"));
+// Session -> methods, only for sign-ins that have a SessionId (an empty key would join every empty-session row).
+let sessionMethods = s
+    | where isnotempty(SessionId)
+    | summarize SessionRaw = make_set(RowMethods) by SessionId;
+let perSignIn = s
+    | join kind=leftouter sessionMethods on SessionId
+    | extend Raw = iff(isnotempty(SessionId), SessionRaw, RowMethods)
+    | extend Methods = normalize(coalesce(Raw, dynamic([])));
+let agents = s
+    | top-nested of AppDisplayName by Ignore1 = count(),
+      top-nested of ResourceDisplayName by Ignore2 = count(),
+      top-nested 3 of UserAgent by UaSignIns = count()
+    | summarize TopUserAgents = make_list(strcat(UaSignIns, "x ", substring(UserAgent, 0, 100))) by AppDisplayName, ResourceDisplayName;
+perSignIn | summarize SignIns=count(), Methods=make_set(Methods), PrevSatisfied=countif(AuthenticationDetails has "Previously satisfied") by UserPrincipalName=tostring(split(UserPrincipalName,"@")[0]), AppDisplayName, NoSid=isempty(SessionId) | order by UserPrincipalName;

@@ -1,0 +1,63 @@
+run 20261022t1029z target v3-cc7c850d exit 1
+=== [10:33:06Z] 0 context
+=== [10:33:06Z] 1 tool restore
+=== [10:33:08Z] 1b GitHub Actions workflow files parse (ci/workflow-check.py)
+=== [10:33:08Z] 2 restore (locked mode, NuGetAudit as errors)
+=== [10:33:15Z] 3 format --verify-no-changes
+=== [10:33:57Z] 4 build Release, warnings as errors
+=== [10:34:42Z] 5 test (unit, architecture, platform, hosting)
+  total: 401
+  failed: 0
+  succeeded: 401
+  skipped: 0
+=== [10:34:55Z] 5b storage provider matrix
+--- provider mssql
+  total: 21
+  failed: 0
+  succeeded: 21
+  skipped: 0
+--- provider postgres
+  total: 22
+  failed: 0
+  succeeded: 22
+  skipped: 0
+--- provider sqlite
+  total: 17
+  failed: 0
+  succeeded: 17
+  skipped: 0
+=== [10:35:46Z] 5c guard coverage (every configuration guard executed by a test)
+guards=123 exercised=123 not-exercised=0
+=== [10:35:47Z] 5d traceability (requirements, source references and this run's TRX)
+traceability: built+tested=72, built-untested=0, designed-only=0, missing=0, partial=0, planned=0, external=28, drift=0, failing=0; failures=0
+=== [10:35:55Z] 5e reference docs (configuration, HTTP routes and requirement matrix)
+=== [10:35:55Z] 6 SBOM (CycloneDX JSON, test project excluded)
+=== [10:36:03Z] 6a third-party notices match shipped SBOM
+=== [10:36:03Z] 6b Linux publish (linux-x64, linux-arm64): no Windows binaries
+=== [10:37:14Z] 7 NuGet vulnerabilities (direct and transitive)
+=== [10:37:23Z] 8 grype on the SBOM
+grype matches=0 db_built=2026-10-22T06:29:52Z
+=== [10:38:40Z] 9 Linux (registry.access.redhat.com/hi/dotnet-sdk@sha256:0465844ba1d9f5689ac64626537e275f59b65569703e90edc46b33f93f872d8b)
+  total: 401
+  failed: 0
+  succeeded: 401
+  skipped: 0
+  total: 17
+  failed: 0
+  succeeded: 17
+  skipped: 0
+=== [10:40:04Z] 10 image (Red Hat Hardened) and its vulnerability gate
+image matches=1 blocking=0
+=== [10:41:11Z] 11 E2E (the reference's harness, mock self-test) against the image
+e2e: target image localhost/passkey-point-dotnet:ci-cc7c850 (sha256:a1c6d785ade4142b1a0702ffeda34ff84e624ea5883ad81b4b285e6fa23506fb)
+  E01: fail (locator.check: Timeout 30000ms exceeded. [at localhost:3077/employee/check, title "Check the ID · Passkey Point"; trail localhost:3077/auth/mock > localhost:307)
+  E02: fail (locator.check: Timeout 30000ms exceeded. [at localhost:3077/employee/check, title "Check the ID · Passkey Point"; trail localhost:3077/auth/mock > localhost:307)
+  E04: fail ()
+  E05: pass
+  E06: fail (locator.check: Timeout 30000ms exceeded. [at localhost:3077/employee/check, title "Check the ID · Passkey Point"; trail localhost:3077/auth/mock > localhost:307)
+  E07: pass
+  E09: pass
+  E12: fail (locator.check: Timeout 30000ms exceeded. [at localhost:3077/employee/check, title "Check the ID · Passkey Point"; trail localhost:3077/auth/mock > localhost:307)
+  E19: pass
+e2e: pass 4, fail 5, exit 1
+ci: FAILED: e2e

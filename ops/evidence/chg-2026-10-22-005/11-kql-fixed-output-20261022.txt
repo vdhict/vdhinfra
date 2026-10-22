@@ -1,0 +1,4 @@
+AppDisplayName:String | ResourceDisplayName:String | SignIns:Int64 | Sessions:Int64 | NoSessionId:Int64 | Methods:Object | ClientApps:Object | TopUserAgents:Object
+Passkey Point TP (dev) | Passkey Point TP (dev) | 835 | 303 | 5 | ["Passkey (device-bound)", "Password only (no MFA)"] | ["Browser", "Unknown"] | ["571x Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.8078.4 S", "264x node"]
+pp-obo-test-client | pp-obo-test-client | 10 | 4 | 0 | ["Passkey (device-bound)"] | ["Browser"] | ["8x Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.8078.4 S", "2x node"]
+pp-obo-test-client | pp-obo-test-api | 4 | 2 | 0 | ["Passkey (device-bound)"] | ["Browser"] | ["4x node"]
