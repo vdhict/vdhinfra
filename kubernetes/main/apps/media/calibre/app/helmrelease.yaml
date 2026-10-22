@@ -29,7 +29,7 @@ spec:
           app:
             image:
               repository: ghcr.io/linuxserver/calibre
-              tag: version-v7.21.0@sha256:e1c5964a0ce8781978e6fbfd0702804c189819aa4d5fadf2ade399678b5b2120
+              tag: version-v9.16.0@sha256:2b931709295ca59808520428b05e0a2aec8695268e96f8baf76359da0e9c0f5c
             env:
               TZ: "Europe/Amsterdam"
               PUID: "1026"
