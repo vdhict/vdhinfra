@@ -9,3 +9,10 @@ resources:
   - ./networkpolicy.yaml
   - ./clusterwide-networkpolicy.yaml
   - ./admission-policy.yaml
+  # Read-only pull credential for forge.bluejungle.net/wires-publisher/cluster-wires
+  # (cluster-wires v8+, chg-2026-10-22-002). Forgejo token of the bot user
+  # wires-publisher (non-admin, private, owns only that package), scope
+  # read:package, no expiry: listed in the token register
+  # (observability/aiops-token-expiry), rotate-by 90 days with the others. The dockerconfigjson key is path-scoped to that image.
+  # The tenant CronJobs reference it by name in imagePullSecrets.
+  - ./cluster-wires-pull-v8.sops.yaml
