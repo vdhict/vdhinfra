@@ -4,9 +4,10 @@
 # pp-ci: amd64 runner for the Passkey Point container gates (ci/run.sh steps 5b, 9, 10, 11), chg-2026-10-22-006
 # (Mack 22-10, tsk-2026-10-17-002). Only the namespace and its network boundary live here; each gate run is an ad-hoc
 # Job from hack/ops/chg-2026-10-22-006-pp-ci-gates.sh (debian:13.4 + rootful podman, tools pinned by sha256).
-# The Job runs in its own user namespace (hostUsers: false; root in the pod is not root on the node), no Secret, no
-# ServiceAccount token; egress is the internet on 80/443 plus kube-dns only, no LAN, no cluster, no API server, no own
-# WAN. Teardown = remove this directory once the v4 gates are done.
+# The Job is privileged (rootful podman) = node-root equivalent, so it only runs on a dedicated worker that carries the
+# taint pp-ci=run:NoSchedule and no sensitive pods (Argus C2; Talos has user namespaces off, so rootless is not
+# possible). No Secret, no ServiceAccount token; egress is the internet on 80/443 plus kube-dns only, no LAN, no
+# cluster, no API server, no own WAN. Teardown = remove this directory once the v4 gates are done.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:

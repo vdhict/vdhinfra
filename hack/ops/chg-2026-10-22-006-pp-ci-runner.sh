@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# chg-2026-10-22-006: runs INSIDE the pp-ci gate Job (docker.io/library/debian:13.4, hostUsers: false: podman as root
-# of the pod's own user namespace, not of the node).
+# chg-2026-10-22-006: runs INSIDE the pp-ci gate Job (docker.io/library/debian:13.4, privileged, rootful podman) on the
+# dedicated, tainted worker (Argus C2).
 # Installs the toolchain with every download checked against a pinned sha, waits for the inputs that the driver
 # (chg-2026-10-22-006-pp-ci-gates.sh) copies in, runs `ci/run.sh` per target with PP_E2E_REF set, and waits for the
 # driver to collect /work/out. No credential exists in this pod; nothing here pushes anywhere.
@@ -49,8 +49,8 @@ done
 export DOTNET_ROOT=/work/tools/dotnet PATH="/work/tools/dotnet:/work/tools/bin:$HOME/.dotnet/tools:$PATH"
 log "tools: node $(node -v), dotnet sdks $(dotnet --list-sdks | awk '{print $1}' | paste -sd, -), $(grype version 2>/dev/null | awk '/^Version/{print "grype "$2}'), $(syft version 2>/dev/null | awk '/^Version/{print "syft "$2}')"
 
-# Podman as root of the pod's user namespace: overlay on the emptyDir (falls back to vfs if the kernel refuses an
-# overlay mount here), cgroups disabled (no delegated cgroup in the pod), chroot isolation for builds, file events.
+# Rootful podman: overlay on the emptyDir (vfs fallback), cgroups disabled (no delegated cgroup in the pod), chroot
+# isolation for builds, file events (no systemd/journald here).
 mkdir -p /etc/containers
 conf_storage() { printf '[storage]\ndriver = "%s"\nrunroot = "/run/containers/storage"\ngraphroot = "/var/lib/containers/storage"\n' "$1" > /etc/containers/storage.conf; }
 printf '[engine]\ncgroup_manager = "cgroupfs"\nevents_logger = "file"\n[containers]\nnetns = "bridge"\ncgroups = "disabled"\n' > /etc/containers/containers.conf
@@ -63,7 +63,6 @@ if ! podman run --rm "$PROBE_IMG" true >>/work/out/runner.log 2>&1; then
   podman run --rm "$PROBE_IMG" true >>/work/out/runner.log 2>&1 || die "podman cannot run a container here"
 fi
 log "podman: $(podman info --format '{{.Host.Arch}} storage={{.Store.GraphDriverName}} cgroups={{.Host.CgroupsVersion}} rootless={{.Host.Security.Rootless}}' 2>&1)"
-log "user namespace: $(cat /proc/self/uid_map | awk '{print "uid0->host "$2" (count "$3")"}')"
 touch /work/out/TOOLS
 for _ in $(seq 1 60); do [ -e /work/in/probes.txt ] && break; sleep 5; done
 [ -e /work/in/probes.txt ] || die "no probe list"

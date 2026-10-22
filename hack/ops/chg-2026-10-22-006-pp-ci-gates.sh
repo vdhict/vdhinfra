@@ -8,9 +8,10 @@
 # is extracted from it afterwards (step lines, exit codes, pulled image digests, grype counts) after a term scan.
 # 1. CiliumCIDRGroup pp-ci-house-wan from the UDM API (the house's WAN addresses; values never printed, never in git).
 # 2. ConfigMap with the in-pod runner (chg-2026-10-22-006-pp-ci-runner.sh, named by its sha256 prefix).
-# 3. Job pp-ci-<run-id>: debian:13.4 by index digest, hostUsers: false (own user namespace) with namespaced
-#    SYS_ADMIN/NET_ADMIN for podman, no ServiceAccount token, no Secret, workers only, emptyDirs. Refuses to go on
-#    unless the pod's uid_map shows a non-zero host uid for root.
+# 3. Job pp-ci-<run-id>: debian:13.4 by index digest, privileged (rootful podman), no ServiceAccount token, no Secret,
+#    emptyDirs, pinned to the dedicated worker PP_CI_NODE with the taint pp-ci=run:NoSchedule tolerated (Argus C2).
+#    hostUsers: false is not possible: Talos sets user.max_user_namespaces=0 (measured 22-10, sandbox ENOSPC on unshare).
+#    Refuses to start while any pod of a sensitive namespace runs on that node, or while the node lacks the taint.
 # 4. Network proof (Argus C3): negative probes from the pod and from a podman container must all be closed, the
 #    positive control open; plus Hubble drop records. Otherwise ABORT before any input is copied.
 # 5. Copies the bundles + targets.txt in, GO; waits for DONE; copies /work/out to <raw-dir>/raw-<run-id>/
@@ -21,6 +22,12 @@ RUN=${1:?run-id}; REFB=${2:?ref bundle}; REFC=${3:?ref commit}; EVD=${4:?raw dir
 case "$EVD" in */vdhinfra/*) echo "raw dir inside the repo; refusing (Argus C5)" >&2; exit 64 ;; esac
 [ $# -ge 1 ] || { echo "need at least one <label>=<bundle>@<commit>" >&2; exit 64; }
 NS=pp-ci; JOB=pp-ci-$RUN; HERE=$(cd "$(dirname "$0")" && pwd)
+NODE_PIN=${PP_CI_NODE:?PP_CI_NODE (the dedicated, tainted worker)}
+SENSITIVE='^(flux-system|security|devtools|devtenant-build|devtenant-ops|lab-passkey|lab-passkey-dotnet|passkey-point-e2e|database|mypka|family|family-ai|cert-manager|external-secrets|kube-system-secrets)$'
+kubectl get node "$NODE_PIN" -o json | jq -e '[.spec.taints[]? | select(.key=="pp-ci" and .value=="run" and .effect=="NoSchedule")] | length == 1' >/dev/null || { echo "node $NODE_PIN lacks taint pp-ci=run:NoSchedule; refusing" >&2; exit 67; }
+LEFT=$(kubectl get pods -A --field-selector spec.nodeName="$NODE_PIN",status.phase=Running -o json | jq -r --arg re "$SENSITIVE" '.items[] | select(.metadata.namespace|test($re)) | "\(.metadata.namespace)/\(.metadata.name)"')
+[ -z "$LEFT" ] || { echo "sensitive pods still on $NODE_PIN, refusing (Argus C2):"; echo "$LEFT"; exit 68; }
+echo "node $NODE_PIN: tainted, no sensitive pods"
 IMAGE=docker.io/library/debian:13.4@sha256:e2d08da6f42ef4b09b165d55528a12727aeed8240dc9edf888e3ec07e10ef9da
 OUT="$EVD/raw-$RUN"; [ ! -e "$OUT" ] || { echo "$OUT exists; write-once, refusing" >&2; exit 64; }
 [ -f "$REFB" ] && [[ "$REFC" =~ ^[0-9a-f]{40}$ ]] || { echo "reference bundle/commit" >&2; exit 64; }
@@ -63,26 +70,19 @@ spec:
       labels: {app.kubernetes.io/name: pp-ci-runner, vdhinfra.io/chg: chg-2026-10-22-006}
     spec:
       restartPolicy: Never
-      hostUsers: false
+      tolerations: [{key: pp-ci, operator: Equal, value: run, effect: NoSchedule}]
       automountServiceAccountToken: false
       enableServiceLinks: false
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
-              - matchExpressions: [{key: node-role.kubernetes.io/control-plane, operator: DoesNotExist}]
+              - matchExpressions: [{key: kubernetes.io/hostname, operator: In, values: [$NODE_PIN]}]
       containers:
         - name: runner
           image: $IMAGE
           command: [bash, /runner/runner.sh]
-          env: [{name: BUILDAH_ISOLATION, value: chroot}]
-          securityContext:
-            privileged: false
-            allowPrivilegeEscalation: true
-            procMount: Unmasked
-            seccompProfile: {type: Unconfined}
-            appArmorProfile: {type: Unconfined}
-            capabilities: {add: [SYS_ADMIN, NET_ADMIN, NET_RAW, MKNOD, SETFCAP, SYS_CHROOT]}
+          securityContext: {privileged: true}
           resources:
             requests: {cpu: "4", memory: 12Gi, ephemeral-storage: 40Gi}
             limits: {memory: 24Gi, ephemeral-storage: 120Gi}
@@ -103,9 +103,7 @@ for _ in $(seq 1 60); do POD=$(kubectl -n $NS get pod -l job-name=$JOB -o jsonpa
 kubectl -n $NS wait --for=condition=Ready pod/$POD --timeout=10m
 NODE=$(kubectl -n $NS get pod $POD -o jsonpath='{.spec.nodeName}'); NODEIP=$(kubectl get node $NODE -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
 echo "pod $POD on $NODE; hostUsers=$(kubectl -n $NS get pod $POD -o jsonpath='{.spec.hostUsers}')"
-UIDMAP=$(kubectl -n $NS exec $POD -- cat /proc/self/uid_map | awk '{print $2}')
-[ -n "$UIDMAP" ] && [ "$UIDMAP" != 0 ] || { echo "root in the pod maps to host uid ${UIDMAP:-?}: no user namespace; refusing"; kubectl -n $NS delete job $JOB --wait=false; exit 66; }
-echo "user namespace: pod uid 0 -> host uid $UIDMAP"
+[ "$(kubectl -n $NS get pod $POD -o jsonpath='{.spec.nodeName}')" = "$NODE_PIN" ] || { echo "pod not on $NODE_PIN; refusing"; kubectl -n $NS delete job $JOB --wait=false; exit 66; }
 until kubectl -n $NS exec $POD -- test -e /work/out/TOOLS 2>/dev/null; do
   kubectl -n $NS exec $POD -- test -e /work/out/DONE 2>/dev/null && break; sleep 15
 done
