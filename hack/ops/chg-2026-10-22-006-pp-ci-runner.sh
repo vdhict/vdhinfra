@@ -97,7 +97,7 @@ mkdir -p /work/ref /work/src && chown ci:ci /work/ref /work/src /work/out
 asci() { runuser -u ci -- env HOME=/home/ci PATH="$PATH" DOTNET_ROOT="$DOTNET_ROOT" DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 CONTAINER_HOST=unix:///run/podman/podman.sock BUILDAH_ISOLATION=chroot "$@"; }
 chmod a+r /work/in/*
 asci git clone -q /work/in/ref.bundle /work/ref && asci git -C /work/ref checkout -q --detach "$REF_COMMIT" || die "reference checkout $REF_COMMIT"
-log "reference $(git -C /work/ref rev-parse HEAD)"
+log "reference $(asci git -C /work/ref rev-parse HEAD)"
 ( cd /work/ref/e2e && asci npm ci --ignore-scripts --no-audit --no-fund >/work/out/ref-npm.log 2>&1 \
   && node node_modules/playwright-core/cli.js install-deps chromium-headless-shell >>/work/out/ref-npm.log 2>&1 \
   && asci node node_modules/playwright-core/cli.js install chromium-headless-shell >>/work/out/ref-npm.log 2>&1 ) || die "reference e2e install (see ref-npm.log)"
@@ -107,7 +107,7 @@ while read -r label bundle commit; do
   [ -n "$label" ] || continue
   src="/work/src/$label"; out="/work/out/$label"; mkdir -p "$out"; chown ci:ci "$out"
   asci git clone -q "/work/in/$bundle" "$src" && asci git -C "$src" checkout -q --detach "$commit" || { echo 90 > "$out/exit"; log "$label: checkout $commit failed"; continue; }
-  [ "$(git -C "$src" rev-parse HEAD)" = "$commit" ] || { echo 91 > "$out/exit"; log "$label: HEAD mismatch"; continue; }
+  [ "$(asci git -C "$src" rev-parse HEAD)" = "$commit" ] || { echo 91 > "$out/exit"; log "$label: HEAD mismatch"; continue; }
   log "$label: ci/run.sh at $commit"
   ( cd "$src" && asci env CI_OUT="$out/ci" PP_E2E_REF=/work/ref bash ci/run.sh ) > "$out/run.log" 2>&1
   rc=$?; echo "$rc" > "$out/exit"; log "$label: exit $rc"
