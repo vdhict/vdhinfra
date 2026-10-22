@@ -27,7 +27,7 @@ fetch() { curl -fsSL --retry 3 -o "$2" "$1" || die "download $1"; }
 
 log "runner start on $(uname -m), $(. /etc/os-release; echo "$PRETTY_NAME")"
 apt-get update -qq >/dev/null && apt-get install -y -qq --no-install-recommends \
-  podman crun netavark aardvark-dns passt slirp4netns uidmap fuse-overlayfs iptables \
+  podman crun netavark aardvark-dns nftables passt slirp4netns uidmap fuse-overlayfs iptables \
   git curl ca-certificates xz-utils tar gzip python3 python3-yaml jq libicu76 >/dev/null 2>&1 || die "apt install"
 log "apt: podman $(podman --version | awk '{print $3}'), git $(git --version | awk '{print $3}'), python $(python3 -V | awk '{print $2}')"
 
@@ -57,8 +57,10 @@ printf '[engine]\ncgroup_manager = "cgroupfs"\nevents_logger = "file"\n[containe
 export BUILDAH_ISOLATION=chroot
 PROBE_IMG=docker.io/library/debian:13.4@sha256:e2d08da6f42ef4b09b165d55528a12727aeed8240dc9edf888e3ec07e10ef9da
 conf_storage overlay
-if ! podman run --rm "$PROBE_IMG" true >>/work/out/runner.log 2>&1; then
-  log "overlay storage refused in the user namespace; switching to vfs"
+if ! podman run --rm "$PROBE_IMG" true >/work/out/podman-first.log 2>&1; then
+  cat /work/out/podman-first.log >> /work/out/runner.log
+  grep -qiE 'overlay|mount' /work/out/podman-first.log || die "podman cannot run a container (not a storage error, see runner.log)"
+  log "overlay storage refused; switching to vfs"
   podman system reset -f >/dev/null 2>&1; conf_storage vfs
   podman run --rm "$PROBE_IMG" true >>/work/out/runner.log 2>&1 || die "podman cannot run a container here"
 fi
