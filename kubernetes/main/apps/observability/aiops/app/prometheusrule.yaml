@@ -232,3 +232,33 @@ spec:
           annotations:
             summary: "{{ $labels.host }} wrote a kernel panic report {{ $value | humanizeDuration }} ago"
             description: See /Library/Logs/DiagnosticReports/*.panic on the host.
+        # ── Is anybody listening on ntfy? (inc-2026-10-23-002) ───────────────
+        # ntfy accepted every alert for 9 days while subscribers stayed 0:
+        # publish success says nothing about delivery. These two are critical
+        # + component aiops-hosts on purpose, so they go through ha-critical
+        # (aiops-* child, by day only); the HA push does NOT depend on ntfy.
+        # The ntfy-critical copy they also get is moot by definition.
+        - alert: NtfyNoSubscribers
+          # ntfy_subscribers_total is a GAUGE despite the name: open
+          # subscriptions (the Android app's JSON/WS stream) right now, summed
+          # over all topics. Caveat: a phone on topic gezin only also counts;
+          # ntfy exports no per-topic subscriber count.
+          expr: max(ntfy_subscribers_total{job="ntfy", namespace="ntfy"}) < 1
+          for: 1h
+          labels:
+            severity: critical
+            component: aiops-hosts
+          annotations:
+            summary: "ntfy has had no subscriber for 1 h: ntfy alerts reach nobody"
+            description: Warnings go ONLY to ntfy, so they are currently unseen. Open the ntfy Android app, check the server ntfy.<domain> and the alerts topic are subscribed with instant delivery on, and that the phone can reach the server (LAN or WireGuard). Then run hack/aiops/postcheck-self-hosted-ntfy.sh.
+        - alert: NtfyDown
+          # Target gone, scrape failing, or metrics no longer exported: then
+          # NtfyNoSubscribers cannot evaluate, so this covers it.
+          expr: absent(up{job="ntfy", namespace="ntfy"} == 1) or absent(ntfy_subscribers_total{job="ntfy", namespace="ntfy"})
+          for: 10m
+          labels:
+            severity: critical
+            component: aiops-hosts
+          annotations:
+            summary: "ntfy is down or not exporting metrics: ntfy alerts are not delivered and NtfyNoSubscribers is blind"
+            description: Check `kubectl -n ntfy get pod,servicemonitor` and `kubectl -n ntfy logs deploy/ntfy`; the metrics listener is NTFY_METRICS_LISTEN_HTTP :9090 (Prometheus ingress allowed by CNP ntfy).

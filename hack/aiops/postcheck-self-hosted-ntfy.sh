@@ -5,7 +5,11 @@
 # Sends ONE test warning (alertname SibylSelfHostedNtfyProbe, 10 min) through
 # Alertmanager's own API and proves it was delivered to the self-hosted topic
 # (Alertmanager webhook success + ntfy published-message counter rising).
-# Exit 0 PASS, 1 FAIL + rollback, 3 no verdict.
+# Then requires at least one live subscriber (ntfy_subscribers_total >= 1,
+# inc-2026-10-23-002): "published" is not "delivered" when nobody listens.
+# Exit 0 PASS, 1 FAIL + rollback, 2 FAIL no subscriber (path OK, NO rollback:
+# a phone that is not subscribed is not fixed by reverting a commit),
+# 3 no verdict.
 set -u
 SHA="${1:?usage: postcheck-self-hosted-ntfy.sh <sha>}"
 NS=observability
@@ -21,6 +25,9 @@ amx() { kubectl -n $NS exec "alertmanager-kube-prometheus-stack-$1" -c alertmana
 ntfy_pub() { # published-message counter of the ntfy server
   kubectl -n ntfy exec deploy/ntfy -- wget -qO- http://localhost:9090/metrics 2>/dev/null \
     | awk '/^ntfy_messages_published_success/ {s+=$2} END {print s+0}'; }
+ntfy_subs() { # open subscriptions right now (gauge); "" if unreadable
+  kubectl -n ntfy exec deploy/ntfy -- wget -qO- http://localhost:9090/metrics 2>/dev/null \
+    | awk '/^ntfy_subscribers_total / {print $2+0; f=1} END {if (!f) print ""}'; }
 
 config_checks() {
   fail=0
@@ -67,7 +74,19 @@ if [ "$fail" = 0 ]; then
     | grep -iE 'ntfy-(day|night|low|critical).*(error|fail)' | tail -3 | grep . && bad "Alertmanager logged ntfy notify errors" || ok "no ntfy notify errors in am-0 log"
 fi
 
-if [ "$fail" = 0 ]; then echo "POSTCHECK PASS"; exit 0; fi
+if [ "$fail" = 0 ]; then
+  subs=$(ntfy_subs)
+  if [ -z "$subs" ]; then
+    echo "FAIL ntfy_subscribers_total unreadable on ntfy :9090/metrics"
+    echo "POSTCHECK FAIL (no subscriber count; delivery path OK, NOT rolling back)"; exit 2
+  elif [ "$subs" -lt 1 ]; then
+    echo "FAIL ntfy has 0 subscribers: the test warning was published but NOBODY received it"
+    echo "     fix: ntfy Android app -> subscribe to topic alerts on the self-hosted server, instant delivery on"
+    echo "POSTCHECK FAIL (nobody listening; delivery path OK, NOT rolling back)"; exit 2
+  fi
+  ok "ntfy has $subs live subscriber(s)"
+  echo "POSTCHECK PASS"; exit 0
+fi
 echo "POSTCHECK FAIL -> rolling back $SHA"
 wt="$(mktemp -d "${TMPDIR:-/tmp}/self-ntfy-rollback.XXXXXX")"
 git fetch -q origin main && git worktree add -q --detach "$wt" origin/main \
