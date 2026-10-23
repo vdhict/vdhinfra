@@ -63,7 +63,7 @@ spec:
         # otherwise the image seeds its all-tools example config). Never
         # touches memories/, state.db* or sessions/. See seed-once.sh.
         - name: seed-once
-          image: docker.io/nousresearch/hermes-agent:v2026.9.24@sha256:fca358f12efd65bfaaca05884166f15c0e2788375ca30d77061ac1ebc96452b7
+          image: docker.io/nousresearch/hermes-agent:v0.22.5@sha256:9c5561579f3ffdf333401797094ac3a743738d6c25d40f4331c7bf77b694238d
           command: ["/bin/sh", "/seed/seed-once.sh"]
           env:
             # Checked by seed-once: empty or __MACK_* => the pod never starts.
@@ -85,7 +85,7 @@ spec:
             - {name: bundle, mountPath: /bundle, readOnly: true}
       containers:
         - name: app
-          image: docker.io/nousresearch/hermes-agent:v2026.9.24@sha256:fca358f12efd65bfaaca05884166f15c0e2788375ca30d77061ac1ebc96452b7
+          image: docker.io/nousresearch/hermes-agent:v0.22.5@sha256:9c5561579f3ffdf333401797094ac3a743738d6c25d40f4331c7bf77b694238d
           args: ["gateway", "run"]
           ports:
             - name: api
