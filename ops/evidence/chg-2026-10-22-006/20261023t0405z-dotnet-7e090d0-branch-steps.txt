@@ -1,0 +1,51 @@
+run 20261023t0405z target dotnet-7e090d0-branch exit 0 ref aee4e84
+=== [04:14:29Z] 0 context
+=== [04:14:30Z] 1 tool restore
+=== [04:14:30Z] 1b forge workflow files parse (ci/workflow-check.py)
+=== [04:14:30Z] 2 restore (locked mode, NuGetAudit as errors)
+=== [04:14:32Z] 3 format --verify-no-changes
+=== [04:15:14Z] 4 build Release, warnings as errors
+=== [04:15:56Z] 5 test (unit, architecture, platform, hosting)
+  total: 402
+  failed: 0
+  succeeded: 402
+  skipped: 0
+=== [04:16:12Z] 5b storage provider matrix
+  total: 21
+  failed: 0
+  succeeded: 21
+  skipped: 0
+  total: 22
+  failed: 0
+  succeeded: 22
+  skipped: 0
+  total: 17
+  failed: 0
+  succeeded: 17
+  skipped: 0
+=== [04:16:39Z] 5c guard coverage (every configuration guard executed by a test)
+guards=123 exercised=123 not-exercised=0
+=== [04:16:40Z] 5d traceability (requirements, source references and this run's TRX)
+traceability: built+tested=78, built-untested=0, designed-only=0, missing=0, partial=0, planned=26, external=0, drift=0, failing=0; failures=0
+=== [04:16:48Z] 5e reference docs (configuration, HTTP routes and requirement matrix)
+=== [04:16:48Z] 5f release tooling (W7 package images, W8 bundle)
+=== [04:16:49Z] 6 SBOM (CycloneDX JSON, test project excluded)
+=== [04:16:57Z] 6b Linux publish (linux-x64, linux-arm64): no Windows binaries
+=== [04:17:38Z] 7 NuGet vulnerabilities (direct and transitive)
+=== [04:17:44Z] 8 grype on the SBOM
+grype matches=0 db_built=2026-10-22T18:51:21Z
+=== [04:17:45Z] 9 Linux (mcr.microsoft.com/dotnet/sdk@sha256:0d99ebf1ccad15037b5c98c9fe8979d6b8dbac23812feae2277a0b277b5c5ffa)
+  total: 402
+  failed: 0
+  succeeded: 402
+  skipped: 0
+  total: 17
+  failed: 0
+  succeeded: 17
+  skipped: 0
+linux: PASSED
+=== [04:19:06Z] 10 image (chiseled) and its vulnerability gate
+image matches=7 blocking=0
+=== [04:20:04Z] 11 E2E (the reference's harness, mock self-test) against the image
+=== [04:20:42Z] done
+ci: PASSED commit 7e090d0b0136c2d0f7a9d50cd903dafa49c1f562 (uncommitted paths 0); output /work/out/dotnet-7e090d0-branch/ci

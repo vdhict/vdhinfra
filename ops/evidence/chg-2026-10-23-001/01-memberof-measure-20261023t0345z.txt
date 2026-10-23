@@ -1,0 +1,5 @@
+# chg-2026-10-23-001 memberOf permission measurement, Job memberof-measure-20261023t0345z (lab-passkey-dotnet), script sha256 6dcfce3a486f01774a78c6e02cee0c7165e3f74ce1a0dce6c7480fdb6bb75bfd
+# identity AR1 (desk api app-only), persona pp-e2e-tp-employee, image passkey-point-e2e@e3341b12 (node only)
+RESULT {"selfCheck":{"tid":"95cf7dac-b898-4b02-a22a-1379e2fde497","appid":"6e05d927-e0c2-418b-9f01-ab909aec5699"},"appRoles":["User.Read.All"]}
+RESULT {"read":"memberOf (v5 directMemberships)","status":200,"error":null,"count":3,"nextLink":false,"types":{"#microsoft.graph.group":3},"tpGroupPresent":true,"requestId":"b89b4d2d-8a2a-4227-afc3-3d71f446997f"}
+RESULT {"read":"transitiveMemberOf (v4 memberships)","status":200,"error":null,"count":3,"nextLink":false,"types":{"#microsoft.graph.group":3},"tpGroupPresent":true,"requestId":"356f2a58-8f27-49d7-bfec-d6f56f54a483"}

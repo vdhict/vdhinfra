@@ -1,0 +1,12 @@
+{"time":"2026-10-23T03:53:48.578Z","msg":"runner self-check passed","tid":"95cf7dac-b898-4b02-a22a-1379e2fde497","roles":["AuditLog.Read.All","Policy.Read.All","User.Read.All","UserAuthMethod-TAP.Read.All"]}
+{"time":"2026-10-23T03:53:48.786Z","msg":"persona object id refreshed","alias":"tp-contractor-new"}
+{"time":"2026-10-23T03:54:03.837Z","msg":"case done","id":"E01","status":"pass"}
+{"time":"2026-10-23T03:54:22.765Z","msg":"case done","id":"E02","status":"pass"}
+{"time":"2026-10-23T03:54:33.647Z","msg":"case done","id":"E04","status":"pass"}
+{"time":"2026-10-23T03:54:44.756Z","msg":"case done","id":"E05","status":"pass"}
+{"time":"2026-10-23T03:54:57.471Z","msg":"case done","id":"E06","status":"pass"}
+{"time":"2026-10-23T03:56:00.271Z","msg":"case done","id":"E07","status":"pass"}
+{"time":"2026-10-23T03:56:20.150Z","msg":"case done","id":"E09","status":"pass"}
+{"time":"2026-10-23T03:59:24.850Z","msg":"case done","id":"E12","status":"pass"}
+{"time":"2026-10-23T03:59:25.945Z","msg":"case done","id":"E16","status":"pass"}
+{"time":"2026-10-23T03:59:26.530Z","msg":"run done","runId":"2026-10-23T03-53-48-400Z-dev-tenant","exitCode":0,"pass":9,"fail":0,"outDir":"/out/2026-10-23T03-53-48-400Z-dev-tenant"}

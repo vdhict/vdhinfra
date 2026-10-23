@@ -1,0 +1,14 @@
+{"time":"2026-10-23T03:40:44.552Z","msg":"runner self-check passed","tid":"95cf7dac-b898-4b02-a22a-1379e2fde497","roles":["AuditLog.Read.All","Policy.Read.All","User.Read.All","UserAuthMethod-TAP.Read.All"]}
+{"time":"2026-10-23T03:40:44.746Z","msg":"persona object id refreshed","alias":"tp-contractor-new"}
+{"time":"2026-10-23T03:40:59.986Z","msg":"case done","id":"E01","status":"pass"}
+{"time":"2026-10-23T03:41:17.745Z","msg":"case done","id":"E02","status":"pass"}
+{"time":"2026-10-23T03:41:28.439Z","msg":"case done","id":"E04","status":"pass"}
+{"time":"2026-10-23T03:41:39.574Z","msg":"case done","id":"E05","status":"pass"}
+{"time":"2026-10-23T03:41:51.998Z","msg":"case done","id":"E06","status":"pass"}
+{"time":"2026-10-23T03:42:55.314Z","msg":"case done","id":"E07","status":"pass"}
+{"time":"2026-10-23T03:43:12.538Z","msg":"case done","id":"E09","status":"pass"}
+{"time":"2026-10-23T03:46:15.371Z","msg":"case done","id":"E12","status":"pass"}
+{"time":"2026-10-23T03:46:16.270Z","msg":"case done","id":"E16","status":"pass"}
+{"time":"2026-10-23T03:46:17.057Z","msg":"run done","runId":"2026-10-23T03-40-44-388Z-dev-tenant","exitCode":0,"pass":9,"fail":0,"outDir":"/out/2026-10-23T03-40-44-388Z-dev-tenant"}
+desk-ready: /readyz HTTP 200
+persona-gate: PASS at 0540 CEST: no other e2e Job active, cutoff 0718

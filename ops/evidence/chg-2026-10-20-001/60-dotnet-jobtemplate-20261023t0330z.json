@@ -1,0 +1,300 @@
+{
+  "metadata": {},
+  "spec": {
+    "activeDeadlineSeconds": 3600,
+    "backoffLimit": 0,
+    "template": {
+      "metadata": {
+        "labels": {
+          "app.kubernetes.io/name": "passkey-point-e2e-dotnet"
+        }
+      },
+      "spec": {
+        "automountServiceAccountToken": false,
+        "containers": [
+          {
+            "args": [
+              "--set",
+              "nightly"
+            ],
+            "env": [
+              {
+                "name": "E2E_SECRETS_DIR",
+                "value": "/secrets"
+              },
+              {
+                "name": "E2E_COMMIT",
+                "value": "7e090d0b0136c2d0f7a9d50cd903dafa49c1f562"
+              },
+              {
+                "name": "E2E_LAB_IMAGE_DIGEST",
+                "value": "sha256:9dc3dbca2df9d17ff7a0153b417313ef576b1adef34e641f5ba1894aa3f7dba8"
+              }
+            ],
+            "image": "forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:e3341b128ac05b300b760fbc47a5826194e87d1aca8d822275fe07fb71d483df",
+            "imagePullPolicy": "IfNotPresent",
+            "name": "e2e",
+            "resources": {
+              "limits": {
+                "memory": "2Gi"
+              },
+              "requests": {
+                "cpu": "500m",
+                "memory": "1Gi"
+              }
+            },
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              },
+              "readOnlyRootFilesystem": true
+            },
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/secrets",
+                "name": "secrets",
+                "readOnly": true
+              },
+              {
+                "mountPath": "/e2e/config/dev-tenant.json",
+                "name": "config",
+                "readOnly": true,
+                "subPath": "dev-tenant.json"
+              },
+              {
+                "mountPath": "/e2e/config/denylist.txt",
+                "name": "denylist",
+                "readOnly": true,
+                "subPath": "denylist.txt"
+              },
+              {
+                "mountPath": "/out",
+                "name": "out"
+              },
+              {
+                "mountPath": "/tmp",
+                "name": "tmp"
+              }
+            ]
+          }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "hostAliases": [
+          {
+            "hostnames": [
+              "passkey-point-dotnet-lab.bluejungle.net"
+            ],
+            "ip": "172.16.2.241"
+          }
+        ],
+        "imagePullSecrets": [
+          {
+            "name": "passkey-point-e2e-pull"
+          }
+        ],
+        "initContainers": [
+          {
+            "command": [
+              "node",
+              "-e",
+              "const u='https://passkey-point-dotnet-lab.bluejungle.net/readyz'; const end=Date.now()+600000; (async()=>{ for(;;){ try{ const r=await fetch(u, {redirect:'manual'}); console.log('desk-ready: /readyz HTTP '+r.status); if(r.status===200) process.exit(0); }catch(e){ console.log('desk-ready: '+((e.cause&&e.cause.code)||e.name)); } if(Date.now()>end){ console.log('desk-ready: desk not ready in 10 min, no tenant step taken'); process.exit(1); } await new Promise(x=>setTimeout(x,15000)); } })();"
+            ],
+            "image": "forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:e3341b128ac05b300b760fbc47a5826194e87d1aca8d822275fe07fb71d483df",
+            "imagePullPolicy": "IfNotPresent",
+            "name": "desk-ready",
+            "resources": {
+              "limits": {
+                "memory": "128Mi"
+              },
+              "requests": {
+                "cpu": "10m",
+                "memory": "64Mi"
+              }
+            },
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              },
+              "readOnlyRootFilesystem": true
+            },
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File"
+          },
+          {
+            "command": [
+              "/bin/sh",
+              "-c",
+              "set -u\nlog() { echo \"persona-gate: $*\"; }\ncutoff=\"${GATE_CUTOFF_HHMM:-0400}\"\ncase \"$cutoff\" in [0-2][0-9][0-5][0-9]) ;; *) log \"bad GATE_CUTOFF_HHMM, fail closed, no tenant step taken\"; exit 1;; esac\nself=\"${GATE_SELF_JOB:-}\"\n[ -n \"$self\" ] || { log \"own job-name label missing, fail closed, no tenant step taken\"; exit 1; }\n[ -f /usr/share/zoneinfo/Europe/Amsterdam ] || { log \"no tzdata for Europe/Amsterdam, fail closed, no tenant step taken\"; exit 1; }\nexport TZ=Europe/Amsterdam\n# Explicit kubeconfig: with --request-timeout kubectl ignores in-cluster config (falls back to localhost).\nsa=/var/run/secrets/kubernetes.io/serviceaccount\n[ -n \"${KUBERNETES_SERVICE_HOST:-}\" ] && [ -n \"${KUBERNETES_SERVICE_PORT:-}\" ] && [ -r \"$sa/token\" ] && [ -r \"$sa/ca.crt\" ] \\\n  || { log \"no API endpoint or token, fail closed, no tenant step taken\"; exit 1; }\nexport KUBECONFIG=\"$HOME/kubeconfig\"\nprintf '%s\\n' 'apiVersion: v1' 'kind: Config' 'current-context: gate' \\\n  \"clusters: [{name: in, cluster: {server: \\\"https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT\\\", certificate-authority: $sa/ca.crt}}]\" \\\n  \"users: [{name: gate, user: {tokenFile: $sa/token}}]\" \\\n  'contexts: [{name: gate, context: {cluster: in, user: gate, namespace: passkey-point-e2e}}]' > \"$KUBECONFIG\" \\\n  || { log \"cannot write kubeconfig, fail closed, no tenant step taken\"; exit 1; }\ntmpl='{{range .items}}{{.metadata.name}}|{{with .spec.template.metadata.labels}}{{index . \"app.kubernetes.io/name\"}}{{end}}|{{with .metadata.labels}}{{index . \"app.kubernetes.io/name\"}}{{end}}|{{.status.active}}|{{.status.terminating}}|{{range .status.conditions}}{{if eq .status \"True\"}}{{.type}},{{end}}{{end}}{{\"\\n\"}}{{end}}'\nwhile :; do\n  now=\"$(date +%H%M)\" && zone=\"$(date +%Z)\" || { log \"date failed, fail closed, no tenant step taken\"; exit 1; }\n  case \"$zone\" in CET|CEST) ;; *) log \"zone '$zone' is not CET/CEST, fail closed, no tenant step taken\"; exit 1;; esac\n  case \"$now\" in [0-2][0-9][0-5][0-9]) ;; *) log \"bad local time, fail closed, no tenant step taken\"; exit 1;; esac\n  if [ \"$now\" -ge \"$cutoff\" ]; then log \"local $now $zone >= cutoff $cutoff, no tenant step taken\"; exit 1; fi\n  out=\"$(kubectl -n passkey-point-e2e get jobs.batch --request-timeout=10s -o go-template=\"$tmpl\")\" \\\n    || { log \"API error, fail closed, no tenant step taken\"; exit 1; }\n  blocking=\"\"; seen=0\n  while IFS='|' read -r name tl ml active term conds; do\n    [ -n \"$name\" ] || continue\n    if [ \"$name\" = \"$self\" ]; then seen=1; continue; fi\n    rel=0\n    for l in \"$tl\" \"$ml\"; do case \"$l\" in passkey-point-e2e|passkey-point-e2e-dotnet) rel=1;; esac; done\n    [ \"$rel\" = 1 ] || continue\n    [ \"$active\" = \"<no value>\" ] && active=0\n    fin=0\n    case \",$conds\" in *,Complete,*|*,Failed,*) fin=1;; esac\n    [ \"$fin\" = 1 ] && [ \"$active\" = 0 ] && [ \"$term\" = 0 ] && continue\n    blocking=\"$blocking $name(active=$active,terminating=$term,conditions=$conds)\"\n  done <<EOF\n$out\nEOF\n  [ \"$seen\" = 1 ] || { log \"own Job $self not in the list, fail closed, no tenant step taken\"; exit 1; }\n  if [ -z \"$blocking\" ]; then\n    now=\"$(date +%H%M)\" || { log \"date failed, fail closed, no tenant step taken\"; exit 1; }\n    case \"$now\" in [0-2][0-9][0-5][0-9]) ;; *) log \"bad local time, fail closed, no tenant step taken\"; exit 1;; esac\n    if [ \"$now\" -ge \"$cutoff\" ]; then log \"local $now $zone >= cutoff $cutoff after the check, no tenant step taken\"; exit 1; fi\n    log \"PASS at $now $zone: no other e2e Job active, cutoff $cutoff\"; exit 0\n  fi\n  log \"waiting at $now $zone:$blocking\"\n  sleep 15\ndone\n"
+            ],
+            "env": [
+              {
+                "name": "GATE_CUTOFF_HHMM",
+                "value": "0400"
+              },
+              {
+                "name": "TZ",
+                "value": "Europe/Amsterdam"
+              },
+              {
+                "name": "HOME",
+                "value": "/gate-tmp"
+              },
+              {
+                "name": "TMPDIR",
+                "value": "/gate-tmp"
+              },
+              {
+                "name": "GATE_SELF_JOB",
+                "valueFrom": {
+                  "fieldRef": {
+                    "apiVersion": "v1",
+                    "fieldPath": "metadata.labels['batch.kubernetes.io/job-name']"
+                  }
+                }
+              }
+            ],
+            "image": "docker.io/bitnamilegacy/kubectl:1.33.4@sha256:ed0b31a0508da84ee655c5c6e01bd3897fc56ad6cf69debb27fa1893a06d2246",
+            "imagePullPolicy": "IfNotPresent",
+            "name": "persona-gate",
+            "resources": {
+              "limits": {
+                "memory": "128Mi"
+              },
+              "requests": {
+                "cpu": "10m",
+                "memory": "64Mi"
+              }
+            },
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              },
+              "readOnlyRootFilesystem": true
+            },
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "gate-token",
+                "readOnly": true
+              },
+              {
+                "mountPath": "/gate-tmp",
+                "name": "gate-tmp"
+              }
+            ]
+          }
+        ],
+        "nodeSelector": {
+          "kubernetes.io/hostname": "vdhclu01node02"
+        },
+        "restartPolicy": "Never",
+        "schedulerName": "default-scheduler",
+        "securityContext": {
+          "fsGroup": 10001,
+          "runAsGroup": 0,
+          "runAsNonRoot": true,
+          "runAsUser": 10001,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        },
+        "serviceAccount": "passkey-point-e2e-dotnet-gate",
+        "serviceAccountName": "passkey-point-e2e-dotnet-gate",
+        "terminationGracePeriodSeconds": 30,
+        "volumes": [
+          {
+            "name": "secrets",
+            "secret": {
+              "defaultMode": 288,
+              "secretName": "passkey-point-e2e"
+            }
+          },
+          {
+            "configMap": {
+              "defaultMode": 420,
+              "name": "passkey-point-e2e-dotnet-config"
+            },
+            "name": "config"
+          },
+          {
+            "configMap": {
+              "defaultMode": 420,
+              "name": "passkey-point-e2e-denylist"
+            },
+            "name": "denylist"
+          },
+          {
+            "name": "out",
+            "persistentVolumeClaim": {
+              "claimName": "passkey-point-e2e-out"
+            }
+          },
+          {
+            "emptyDir": {
+              "sizeLimit": "512Mi"
+            },
+            "name": "tmp"
+          },
+          {
+            "emptyDir": {
+              "sizeLimit": "16Mi"
+            },
+            "name": "gate-tmp"
+          },
+          {
+            "name": "gate-token",
+            "projected": {
+              "defaultMode": 420,
+              "sources": [
+                {
+                  "serviceAccountToken": {
+                    "expirationSeconds": 600,
+                    "path": "token"
+                  }
+                },
+                {
+                  "configMap": {
+                    "items": [
+                      {
+                        "key": "ca.crt",
+                        "path": "ca.crt"
+                      }
+                    ],
+                    "name": "kube-root-ca.crt"
+                  }
+                },
+                {
+                  "downwardAPI": {
+                    "items": [
+                      {
+                        "fieldRef": {
+                          "apiVersion": "v1",
+                          "fieldPath": "metadata.namespace"
+                        },
+                        "path": "namespace"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "ttlSecondsAfterFinished": 604800
+  }
+}

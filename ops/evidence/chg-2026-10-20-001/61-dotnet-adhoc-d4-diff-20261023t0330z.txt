@@ -1,0 +1,7 @@
+# D4 diff: CronJob jobTemplate.spec (live, saved 60-*) vs ad-hoc Job spec; plus Job name
+name: e2e-dotnet-adhoc-20261023t0330z
+138c138
+<               "value": "0400"
+---
+>               "value": "0718"
+diff exit 1

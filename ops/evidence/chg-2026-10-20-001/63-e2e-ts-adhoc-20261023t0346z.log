@@ -1,0 +1,12 @@
+{"time":"2026-10-23T03:47:00.591Z","msg":"runner self-check passed","tid":"95cf7dac-b898-4b02-a22a-1379e2fde497","roles":["AuditLog.Read.All","Policy.Read.All","User.Read.All","UserAuthMethod-TAP.Read.All"]}
+{"time":"2026-10-23T03:47:00.827Z","msg":"persona object id refreshed","alias":"tp-contractor-new"}
+{"time":"2026-10-23T03:47:16.695Z","msg":"case done","id":"E01","status":"pass"}
+{"time":"2026-10-23T03:47:35.613Z","msg":"case done","id":"E02","status":"pass"}
+{"time":"2026-10-23T03:47:47.131Z","msg":"case done","id":"E04","status":"pass"}
+{"time":"2026-10-23T03:48:25.774Z","msg":"case done","id":"E05","status":"fail","reason":"locator.click: Timeout 30000ms exceeded. [at passkey-point-lab.bluejungle.net/signin, title \"Sign in to Passkey Point · Passkey Point\"; trail login.microsoft.com/95cf7dac-b898-4b02-a22a-1379e2fde497/bridge/fido > login.microsoftonline.com/95cf7dac-b898-4b02-a22a-1379e2fde497/auth/finish > login.microsoftonline.com/95cf7dac-b898-4b02-a22a-1379e2fde497/auth/finish > login.microsoftonline.com/95cf7dac-b898-4b02-a22a-1379e2fde497/auth/finish > login.microsoftonline.com/95cf7dac-b898-4b02-a22a-1379e2fde497/auth/finish > login.microsoftonline.com/95cf7dac-b898-4b02-a22a-1379e2fde497/auth/finish > passkey-point-lab.bluejungle.net/auth/callback > passkey-point-lab.bluejungle.net/signin]","failed":[]}
+{"time":"2026-10-23T03:48:39.408Z","msg":"case done","id":"E06","status":"pass"}
+{"time":"2026-10-23T03:49:42.265Z","msg":"case done","id":"E07","status":"pass"}
+{"time":"2026-10-23T03:50:01.594Z","msg":"case done","id":"E09","status":"pass"}
+{"time":"2026-10-23T03:53:08.666Z","msg":"case done","id":"E12","status":"pass"}
+{"time":"2026-10-23T03:53:09.556Z","msg":"case done","id":"E16","status":"pass"}
+{"time":"2026-10-23T03:53:10.292Z","msg":"run done","runId":"2026-10-23T03-47-00-452Z-dev-tenant","exitCode":1,"pass":8,"fail":1,"outDir":"/out/2026-10-23T03-47-00-452Z-dev-tenant"}
