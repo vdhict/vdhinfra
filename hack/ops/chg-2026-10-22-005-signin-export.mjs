@@ -8,6 +8,8 @@
 // /auditLogs/signIns only. The token stays in memory and is never printed.
 //
 //   node /work/signin-export.mjs <days> [upn-prefix]   (prefix '' lists UPN counts only, no rows)
+//   node /work/signin-export.mjs <days> id:<user-object-id> [since-iso]   (point 5, C1/C13: times + results only, no UPN)
+//   node /work/signin-export.mjs <days> p5:<upn-prefix> [since-iso]   (point 5, C13: per sign-in acrs, CA results, methods)
 //
 // Output: "ROW <json>" per sign-in, "RESULT <json>" summary lines. Exit 0 ok | 2 refused (self-check) | 1 error.
 import { createHash, createPrivateKey, createSign, randomUUID, X509Certificate } from 'node:crypto';
@@ -16,7 +18,11 @@ import { readFileSync } from 'node:fs';
 const TENANT_ID = '95cf7dac-b898-4b02-a22a-1379e2fde497';
 const RUNNER_APP_ID = 'dca464ef-5b97-4d32-b80d-d98532b26652';
 const GRAPH = 'https://graph.microsoft.com';
-const PREFIX = (process.argv[3] ?? 'tp-').toLowerCase(); // '' = every user (UPN counts only, no rows)
+const ARG = process.argv[3] ?? 'tp-';
+const BYID = /^id:[0-9a-f-]{36}$/.test(ARG) ? ARG.slice(3) : null;
+const P5 = /^p5:pp-e2e-tp-catest-20\d{6}$/.test(ARG) ? ARG.slice(3) : null;
+const PREFIX = BYID ? 'byid' : (P5 ?? ARG).toLowerCase(); // '' = every user (UPN counts only, no rows)
+const SINCE = process.argv[4] && /^20\d\d-\d\d-\d\dT\d\d:\d\d:\d\dZ$/.test(process.argv[4]) ? process.argv[4] : null;
 const MAX_ROWS = 20000;
 const out = (o) => console.log('RESULT ' + JSON.stringify(o));
 const b64url = (b) => Buffer.from(b).toString('base64url');
@@ -44,10 +50,11 @@ async function main() {
   if (c.tid !== TENANT_ID || c.appid !== RUNNER_APP_ID || !(c.roles ?? []).includes('AuditLog.Read.All')) { out({ refused: 'self-check: tenant, app or AuditLog.Read.All' }); return 2; }
   out({ selfCheck: { tid: c.tid, appid: c.appid, roles: (c.roles ?? []).length, auditLogRead: true } });
 
-  const since = new Date(Date.now() - days * 86400e3).toISOString().replace(/\.\d+Z$/, 'Z');
+  const since = SINCE ?? new Date(Date.now() - days * 86400e3).toISOString().replace(/\.\d+Z$/, 'Z');
+  const who = BYID ? `and userId eq '${BYID}' ` : PREFIX ? `and startswith(userPrincipalName,'${PREFIX}') ` : '';
   const sources = [
-    { table: 'SigninLogs', url: `${GRAPH}/beta/auditLogs/signIns?$filter=createdDateTime ge ${since} ${PREFIX ? `and startswith(userPrincipalName,'${PREFIX}') ` : ''}and signInEventTypes/any(t: t eq 'interactiveUser')&$top=500` },
-    { table: 'AADNonInteractiveUserSignInLogs', url: `${GRAPH}/beta/auditLogs/signIns?$filter=createdDateTime ge ${since} ${PREFIX ? `and startswith(userPrincipalName,'${PREFIX}') ` : ''}and signInEventTypes/any(t: t eq 'nonInteractiveUser')&$top=500` },
+    { table: 'SigninLogs', url: `${GRAPH}/beta/auditLogs/signIns?$filter=createdDateTime ge ${since} ${who}and signInEventTypes/any(t: t eq 'interactiveUser')&$top=500` },
+    { table: 'AADNonInteractiveUserSignInLogs', url: `${GRAPH}/beta/auditLogs/signIns?$filter=createdDateTime ge ${since} ${who}and signInEventTypes/any(t: t eq 'nonInteractiveUser')&$top=500` },
   ];
   let total = 0; const keysSeen = new Set(); const upns = {};
   for (const src of sources) {
@@ -61,6 +68,14 @@ async function main() {
       for (const e of p.value ?? []) {
         const upn = String(e.userPrincipalName ?? '').toLowerCase();
         if (!PREFIX) { const k = `${src.table}:${upn.split('@')[0]}`; upns[k] = (upns[k] ?? 0) + 1; total++; continue; }
+        if (BYID) { if (e.userId === BYID) { console.log('BYID ' + JSON.stringify({ table: src.table, at: e.createdDateTime, app: e.appDisplayName, errorCode: e.status?.errorCode ?? null })); n++; total++; } continue; }
+        if (P5) {
+          if (!upn.startsWith(P5)) continue;
+          console.log('P5 ' + JSON.stringify({ table: src.table, at: e.createdDateTime, app: e.appDisplayName, resource: e.resourceDisplayName, errorCode: e.status?.errorCode ?? null, failureReason: (e.status?.failureReason ?? '').slice(0, 120),
+            acrs: e.authenticationContextClassReferences ?? [], requirement: e.authenticationRequirement, methods: (e.authenticationDetails ?? []).map((d) => [d.authenticationMethod, d.succeeded, d.authenticationStepResultDetail]),
+            ca: (e.appliedConditionalAccessPolicies ?? []).filter((c) => c.result !== 'notApplied' && c.result !== 'notEnabled').map((c) => ({ id: String(c.id).slice(0, 8), result: c.result, strength: c.authenticationStrength?.displayName ?? null, acr: c.includeRulesSatisfied?.map?.((r) => r.ruleSatisfied) ?? null })), caD63: (e.appliedConditionalAccessPolicies ?? []).filter((c) => String(c.id).startsWith('d63ae654')).map((c) => c.result) }));
+          n++; total++; continue;
+        }
         if (!upn.startsWith(PREFIX)) continue;
         for (const k of Object.keys(e)) if (/session|correlation|token|clientApp|userAgent/i.test(k)) keysSeen.add(`${k}:${e[k] === null || e[k] === '' ? 'empty' : typeof e[k]}`);
         console.log('ROW ' + JSON.stringify({
