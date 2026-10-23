@@ -2,7 +2,7 @@
 # chg-2026-10-22-006: Passkey Point container gates (ci/run.sh, steps 0-11) on an amd64 cluster runner in pp-ci
 # (Mack 22-10, tsk-2026-10-17-002). Driver, run from the Mini:
 #
-#   chg-2026-10-22-006-pp-ci-gates.sh <run-id> <ref-bundle> <ref-commit> <raw-dir> <label>=<bundle>@<full-commit>...
+#   chg-2026-10-22-006-pp-ci-gates.sh <run-id> <ref-bundle> <ref-commit> <raw-dir> <label>=<bundle>@<full-commit>[:<branch>]...
 #
 # <raw-dir> is a scratchpad directory, never the repo (Argus C5): raw logs may carry repo text. Evidence for the repo
 # is extracted from it afterwards (step lines, exit codes, pulled image digests, grype counts) after a term scan.
@@ -34,11 +34,13 @@ OUT="$EVD/raw-$RUN"; [ ! -e "$OUT" ] || { echo "$OUT exists; write-once, refusin
 STAGE=$(mktemp -d "${TMPDIR:-/tmp}/ppci-in.XXXXXX"); : > "$STAGE/targets.txt"
 cp "$REFB" "$STAGE/ref.bundle"; echo "$REFC" > "$STAGE/ref.commit"
 for t in "$@"; do
-  label=${t%%=*}; rest=${t#*=}; b=${rest%@*}; c=${rest##*@}
-  [[ "$label" =~ ^[a-z0-9-]+$ && "$c" =~ ^[0-9a-f]{40}$ && -f "$b" ]] || { echo "bad target $t" >&2; exit 64; }
+  # optional :<branch> = check the commit out as that local branch (the .NET gate reads the branch name; detached = main)
+  label=${t%%=*}; rest=${t#*=}; b=${rest%@*}; c=${rest##*@}; br=-
+  [[ "$c" == *:* ]] && { br=${c#*:}; c=${c%%:*}; }
+  [[ "$label" =~ ^[a-z0-9-]+$ && "$c" =~ ^[0-9a-f]{40}$ && "$br" =~ ^([A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*|-)$ && -f "$b" ]] || { echo "bad target $t" >&2; exit 64; }
   git bundle verify -q "$b" >/dev/null 2>&1 || { echo "bundle $b does not verify" >&2; exit 64; }
-  cp "$b" "$STAGE/$label.bundle"; echo "$label $label.bundle $c" >> "$STAGE/targets.txt"
-  echo "target $label commit $c bundle sha256 $(shasum -a 256 "$b" | cut -c1-64)"
+  cp "$b" "$STAGE/$label.bundle"; echo "$label $label.bundle $c $br" >> "$STAGE/targets.txt"
+  echo "target $label commit $c branch $br bundle sha256 $(shasum -a 256 "$b" | cut -c1-64)"
 done
 echo "reference commit $REFC bundle sha256 $(shasum -a 256 "$REFB" | cut -c1-64)"
 

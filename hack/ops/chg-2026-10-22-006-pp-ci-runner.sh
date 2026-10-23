@@ -7,7 +7,7 @@
 #
 # Network proof first (Argus C3): /work/out/probes.txt, from the pod and from a podman container; the driver checks it
 # and only then gives GO. Probe targets come from the driver in /work/in/probes.txt ("name host port expect").
-# Inputs in /work/in (driver): targets.txt lines "<label> <bundle file> <full commit>", ref.bundle + ref.commit, GO.
+# Inputs in /work/in (driver): targets.txt lines "<label> <bundle file> <full commit> <branch|->", ref.bundle + ref.commit, GO.
 # Output in /work/out/<label>: run.log, exit, and the repo's artifacts/ci (CI_OUT). /work/out/DONE when finished.
 set -uo pipefail
 export HOME=/work/home DEBIAN_FRONTEND=noninteractive DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
@@ -103,12 +103,12 @@ log "reference $(asci git -C /work/ref rev-parse HEAD)"
   && asci node node_modules/playwright-core/cli.js install chromium-headless-shell >>/work/out/ref-npm.log 2>&1 ) || die "reference e2e install (see ref-npm.log)"
 log "reference e2e installed"
 
-while read -r label bundle commit; do
+while read -r label bundle commit branch; do
   [ -n "$label" ] || continue
   src="/work/src/$label"; out="/work/out/$label"; mkdir -p "$out"; chown ci:ci "$out"
-  asci git clone -q "/work/in/$bundle" "$src" && asci git -C "$src" checkout -q --detach "$commit" || { echo 90 > "$out/exit"; log "$label: checkout $commit failed"; continue; }
+  asci git clone -q "/work/in/$bundle" "$src" && if [ "${branch:--}" = - ]; then asci git -C "$src" checkout -q --detach "$commit"; else asci git -C "$src" checkout -q -B "$branch" "$commit"; fi || { echo 90 > "$out/exit"; log "$label: checkout $commit failed"; continue; }
   [ "$(asci git -C "$src" rev-parse HEAD)" = "$commit" ] || { echo 91 > "$out/exit"; log "$label: HEAD mismatch"; continue; }
-  log "$label: ci/run.sh at $commit"
+  log "$label: ci/run.sh at $commit (branch ${branch:--})"
   ( cd "$src" && asci env CI_OUT="$out/ci" PP_E2E_REF=/work/ref bash ci/run.sh ) > "$out/run.log" 2>&1
   rc=$?; echo "$rc" > "$out/exit"; log "$label: exit $rc"
   podman images --digests --format '{{.Repository}}@{{.Digest}}' | sort -u > "$out/images-pulled.txt"
