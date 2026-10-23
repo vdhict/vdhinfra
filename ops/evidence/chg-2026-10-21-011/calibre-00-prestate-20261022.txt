@@ -1,0 +1,12 @@
+2026-10-22T03:24:37Z
+image: ghcr.io/linuxserver/calibre@sha256:e1c5964a0ce8781978e6fbfd0702804c189819aa4d5fadf2ade399678b5b2120
+node: v18.19.1
+calibre: calibre (calibre 7.21)
+metadata.db under /config:
+0
+metadata.db under /media (depth 3):
+0
+/media entries: 0
+/config/Calibre Library entries: 0
+  "library_path": null,
+7.8M	/config

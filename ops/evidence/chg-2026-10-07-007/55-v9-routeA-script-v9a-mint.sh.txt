@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# chg-2026-10-07-007 route A step 1b: the bot mints its own token, scope write:package only. Value goes to 0600 bot.token
+# and into the 0600 podman authfile; the response file is emptied. Prints id/name/scopes and HTTP codes only.
+set -euo pipefail
+umask 077
+S=$(cd "$(dirname "$0")/.." && pwd)
+"$S/bin/forge-as-bot.sh" POST /api/v1/users/wires-publisher/tokens \
+  '{"name":"cluster-wires-v9-routeA-20261023","scopes":["write:package"]}' > "$S/auth/token.resp"
+tail -1 "$S/auth/token.resp"
+grep -q '^HTTP 201$' "$S/auth/token.resp" || { sed '$d' "$S/auth/token.resp" | jq -c '{message}' 2>/dev/null; : > "$S/auth/token.resp"; echo "STOP mint not 201"; exit 2; }
+sed '$d' "$S/auth/token.resp" | jq -r '.sha1' > "$S/auth/bot.token"
+sed '$d' "$S/auth/token.resp" | jq -c '{id, name, scopes}' | tee "$S/auth/token.meta"
+: > "$S/auth/token.resp"
+printf '{"auths":{"forge.bluejungle.net":{"auth":"%s"}}}\n' \
+  "$(printf 'wires-publisher:%s' "$(head -1 "$S/auth/bot.token")" | base64 | tr -d '\n')" > "$S/auth/wires-publisher-auth.json"
+stat -f '%N mode %Lp size %z' "$S/auth/bot.token" "$S/auth/wires-publisher-auth.json" "$S/auth/token.resp" | sed "s|$S/||"
+# v9 addition (as done ad hoc for v8): token scope tests + package versions before the push. Codes and names only.
+E="$S/v9a"; mkdir -p "$E"; TS=$(date -u +%Y%m%dT%H%M%SZ)
+{ echo "# token $(jq -r .id "$S/auth/token.meta") scope tests $TS"
+  "$S/bin/forge-as-token.sh" /api/v1/user /api/v1/user/repos '/api/v1/packages/wires-publisher?type=container' \
+    '/api/v1/packages/VDHICT?type=container' /api/v1/repos/VDHICT/passkey-point /api/v1/admin/users; } | tee "$E/token-tests-$TS.txt"
+{ echo "# versions before $TS"
+  "$S/bin/forge-as-bot.sh" GET '/api/v1/packages/wires-publisher?type=container' | sed '$d' | jq -c '[.[] | {name, version, created_at}]'; } | tee "$E/versions-before-$TS.txt"
+F="$E/token-tests-$TS.txt"
+grep -q "^/api/v1/packages/wires-publisher?type=container -> 200$" "$F" || { echo "STOP token cannot read own packages"; exit 3; }
+[ "$(grep -c -- '-> 403$' "$F")" = 5 ] || { echo "STOP token scope wider than write:package (expected 5x 403)"; exit 3; }
+echo "OK token scope as v8"

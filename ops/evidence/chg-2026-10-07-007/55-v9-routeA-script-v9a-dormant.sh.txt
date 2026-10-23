@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# chg-2026-10-07-007 route A: make wires-publisher dormant again. Password generated inside the pod, held in a shell var for
+# one command, never written or printed. Then prove the previous local password is dead and empty the local copy.
+set -euo pipefail
+umask 077
+S=$(cd "$(dirname "$0")/.." && pwd)
+A="$S/auth"; E="$S/v9a"; TS=$(date -u +%Y%m%dT%H%M%SZ)
+eval "$(mise env -s bash 2>/dev/null)" 2>/dev/null
+kubectl -n devtools exec deploy/forgejo -c forgejo -- sh -c 'P=$(head -c 48 /dev/urandom | base64 | tr -d "\n"); forgejo admin user change-password -u wires-publisher -p "$P" --must-change-password=false; P=""' \
+  > "$A/dormant2-chpw.out" 2>&1
+grep -q 'successfully updated' "$A/dormant2-chpw.out" || { echo "STOP change-password failed"; exit 2; }
+echo "change-password (in-pod random): success" | tee "$E/dormant-$TS.txt"
+C=$("$S/bin/forge-as-bot.sh" GET /api/v1/user | tail -1)
+echo "previous password GET /api/v1/user -> $C" | tee -a "$E/dormant-$TS.txt"
+[ "$C" = "HTTP 401" ] || { echo "STOP previous password still works"; exit 3; }
+: > "$A/bot.pass"
+stat -f '%N %z' "$A/bot.pass" "$A/bot.curlcfg" "$A/bot.token" "$A/tok.hdr" "$A/wires-publisher-auth.json" "$A/token.resp" | sed "s|$S/||" | tee -a "$E/dormant-$TS.txt"
+eval "$(mise env -s bash 2>/dev/null)" 2>/dev/null
+kubectl -n devtools exec deploy/forgejo -c forgejo -- forgejo admin user list 2>/dev/null | awk '$2=="wires-publisher"{print "cli list: id "$1" user "$2" active "$(NF-2)" admin "$(NF-1)" 2fa "$NF}' | tee -a "$E/dormant-$TS.txt"

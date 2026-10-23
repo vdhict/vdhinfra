@@ -1,0 +1,23 @@
+chg-2026-10-07-007 v9 C3a runtime proof, k8s-engineer, run 20261023T093126Z, host vdhmini01, podman 6.1.3 machine applehv
+images by ID = config digest of the as-pushed child: arm64 f2d2046f (native), amd64 0c7656a4 (--platform linux/amd64, emulated in the podman machine; ran, platform.machine()=x86_64)
+podman run --rm --pull=never --network none --user 10001:10001 --read-only --tmpfs /tmp, live-step env (HOME, PATH, TZ, LANG, PYTHONDONTWRITEBYTECODE, PLAYWRIGHT_BROWSERS_PATH, PYTHONPATH=/opt/wires/<repo>, cwd /opt/wires/<repo>), no secrets, no state, no wire run
+probe: import entry module (wires: pka_<w>_sync.sync per runner SYNCS; system python: runner/wire_run.py + vlagschema-watch loaded under a non-__main__ name), then read sys.modules, import certifi, print version + where()
+probe.py sha256 f9433e99cc432782beea420322e5dd8ad5621ce4b0e901890b90be39c92240e0, run.sh sha256 6119116afeaf4787c64d091244c8ebcb7331873461a4fa219398393ca91b0a9e; raw jsonl sha256 7597906a74f3683ecc135528fd7c87bd07c2cde001930ade70f8642f11ca8743
+
+label | machine | uid | import errors | 'pip' in sys.modules | pip.* loaded | certifi.__version__ | certifi.where() | net
+arm64/ortho | aarch64 | 10001 | 0 | false | 0 | 2026.10.19 | /opt/venvs/pka-ortho-sync/lib/python3.13/site-packages/certifi/cacert.pem | lo
+arm64/school | aarch64 | 10001 | 0 | false | 0 | 2026.10.19 | /opt/venvs/pka-school-sync/lib/python3.13/site-packages/certifi/cacert.pem | lo
+arm64/tennis | aarch64 | 10001 | 0 | false | 0 | 2026.10.19 | /opt/venvs/pka-tennis-sync/lib/python3.13/site-packages/certifi/cacert.pem | lo
+arm64/voetbal | aarch64 | 10001 | 0 | false | 0 | 2026.10.19 | /opt/venvs/pka-voetbal-sync/lib/python3.13/site-packages/certifi/cacert.pem | lo
+arm64/travel-vdh | aarch64 | 10001 | 0 | false | 0 | not installed | - | lo
+arm64/system | aarch64 | 10001 | 0 | false | 0 | not installed | - | lo
+amd64/ortho | x86_64 | 10001 | 0 | false | 0 | 2026.10.19 | /opt/venvs/pka-ortho-sync/lib/python3.13/site-packages/certifi/cacert.pem | lo
+amd64/school | x86_64 | 10001 | 0 | false | 0 | 2026.10.19 | /opt/venvs/pka-school-sync/lib/python3.13/site-packages/certifi/cacert.pem | lo
+amd64/tennis | x86_64 | 10001 | 0 | false | 0 | 2026.10.19 | /opt/venvs/pka-tennis-sync/lib/python3.13/site-packages/certifi/cacert.pem | lo
+amd64/voetbal | x86_64 | 10001 | 0 | false | 0 | 2026.10.19 | /opt/venvs/pka-voetbal-sync/lib/python3.13/site-packages/certifi/cacert.pem | lo
+amd64/travel-vdh | x86_64 | 10001 | 0 | false | 0 | not installed | - | lo
+amd64/system | x86_64 | 10001 | 0 | false | 0 | not installed | - | lo
+
+container rc: 12/12 rc=0
+checks: pip False 12/12; certifi 2026.10.19 in 4/4 wire venvs per arch; certifi.where() under pip/_vendor 0/12 (wire venvs: site-packages/certifi/cacert.pem; travel venv + system python: no certifi module, so no certifi path); import errors 0/12; network: only lo
+RESULT: C3a PASS both arches

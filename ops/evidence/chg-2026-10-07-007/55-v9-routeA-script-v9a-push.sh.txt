@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# chg-2026-10-07-007 route A: push cluster-wires v9 manifest list to forge under the bot's own namespace wires-publisher.
+# Never prints the token. Evidence: digests and HTTP codes only.
+set -euo pipefail
+umask 077
+S=$(cd "$(dirname "$0")/.." && pwd)
+P=$HOME/.local/opt/podman-6.1.3/bin/podman
+SRC=localhost/cluster-wires:v9-f1e841f
+REPO=wires-publisher/cluster-wires
+DST=docker://forge.bluejungle.net/$REPO:v9-f1e841f
+WANT=sha256:4c1b09c56225697d0da4653bf99c57c04cd89355a99e04efffae5e4d5b4a6f3b
+WANT_AMD=sha256:a11659787ddeaecf5bf1cedc0b9a387d29b5c03badc886b23b50510ef5c816c5
+WANT_ARM=sha256:adef99cc72c9e845c1e1f59c8f4af2995f0aa51ed58ad9b262deff9d974a3be5
+TS=$(date -u +%Y%m%dT%H%M%SZ); E="$S/v9a"; mkdir -p "$E"
+AUTH="$S/auth/wires-publisher-auth.json"
+[ "$(stat -f %Lp "$AUTH")" = 600 ] || { echo "STOP authfile not 0600"; exit 2; }
+# 1 preconditions: the token reaches the bot's own package namespace; the namespace is private
+"$S/bin/forge-as-token.sh" '/api/v1/packages/wires-publisher?type=container' | tee "$E/pre-$TS.txt"
+grep -q -- '-> 200$' "$E/pre-$TS.txt" || { echo "STOP token cannot reach wires-publisher packages"; exit 3; }
+VIS=$("$S/bin/forge-as-bot.sh" GET /api/v1/user | sed '$d' | jq -r .visibility); echo "owner visibility $VIS" | tee -a "$E/pre-$TS.txt"
+[ "$VIS" = private ] || { echo "STOP owner namespace not private"; exit 3; }
+# 2 push
+"$P" manifest push --all --authfile "$AUTH" --digestfile "$E/digest-$TS.txt" "$SRC" "$DST" > "$E/push-$TS.log" 2>&1
+GOT=$(cat "$E/digest-$TS.txt"); echo "pushed index $GOT"
+[ "$GOT" = "$WANT" ] || { echo "STOP digest mismatch (want $WANT)"; exit 4; }
+# 3 read-back by digest (index + both arch manifests) with a pull bearer for the bot
+BT=$(curl -sS -K <(printf 'user = "wires-publisher:%s"\n' "$(head -1 "$S/auth/bot.token")") \
+  "https://forge.bluejungle.net/v2/token?service=container_registry&scope=repository:$REPO:pull" | jq -r '.token // empty')
+[ -n "$BT" ] || { echo "STOP no registry bearer"; exit 5; }
+get() { curl -sS -K <(printf 'header = "Authorization: Bearer %s"\n' "$BT") \
+  -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json' \
+  "https://forge.bluejungle.net/v2/$REPO/manifests/$1" > "$2"; }
+get "$WANT" "$E/readback-index-$TS.json"
+get "$WANT_AMD" "$E/readback-amd64-$TS.json"
+get "$WANT_ARM" "$E/readback-arm64-$TS.json"
+BT=""
+jq -c '[.manifests[] | {a: .platform.architecture, d: .digest}]' "$E/readback-index-$TS.json"
+rc=0
+for x in "index $WANT" "amd64 $WANT_AMD" "arm64 $WANT_ARM"; do
+  set -- $x; H="sha256:$(shasum -a 256 "$E/readback-$1-$TS.json" | cut -c1-64)"
+  if [ "$H" = "$2" ]; then echo "readback $1 hash OK $H"; else echo "readback $1 hash MISMATCH got $H want $2"; rc=6; fi
+done | tee "$E/readback-hashes-$TS.txt"
+grep -q MISMATCH "$E/readback-hashes-$TS.txt" && { echo "STOP read-back hash mismatch"; exit 6; }
+jq -e --arg a "$WANT_AMD" --arg r "$WANT_ARM" '([.manifests[]|select(.platform.architecture=="amd64")|.digest][0]==$a) and ([.manifests[]|select(.platform.architecture=="arm64")|.digest][0]==$r)' "$E/readback-index-$TS.json" >/dev/null || { echo "STOP child digests differ"; exit 7; }
+# v9 addition: full pull by digest of both arches (crane validate downloads every blob and checks its digest),
+# config digest must equal the locally built image ID; then the package version list. Auth via a 0600 docker config
+# copy of the authfile, emptied by v9a-revoke.sh.
+CR=$HOME/.local/share/mise/installs/aqua-google-go-containerregistry/latest/crane
+DC="$S/auth/v9-docker"; mkdir -p "$DC"; cp "$AUTH" "$DC/config.json"; chmod 600 "$DC/config.json"
+for x in "amd64 $WANT_AMD sha256:0c7656a44e191f27a03956cff6eebc763d82c3c01529e4b0605dc01bea68b203" \
+         "arm64 $WANT_ARM sha256:f2d2046fb3b6e0865f6a7353cb5b5f7fd2ef5752316654adeb6c7715115c55c7"; do
+  set -- $x
+  DOCKER_CONFIG="$DC" "$CR" validate --remote "forge.bluejungle.net/$REPO@$2" > "$E/pull-$1-$TS.txt" 2>&1 || { cat "$E/pull-$1-$TS.txt"; echo "STOP full pull $1 failed"; exit 8; }
+  CFG=$(DOCKER_CONFIG="$DC" "$CR" manifest "forge.bluejungle.net/$REPO@$2" | jq -r .config.digest)
+  echo "pull $1 $2 crane validate rc 0 ($(tail -1 "$E/pull-$1-$TS.txt")), config $CFG" | tee -a "$E/pull-$1-$TS.txt"
+  [ "$CFG" = "$3" ] || { echo "STOP $1 config $CFG != built $3"; exit 9; }
+done
+IDX=$(DOCKER_CONFIG="$DC" "$CR" digest "forge.bluejungle.net/$REPO:v9-f1e841f")
+echo "tag v9-f1e841f resolves to $IDX" | tee "$E/tag-$TS.txt"; [ "$IDX" = "$WANT" ] || { echo "STOP tag digest"; exit 10; }
+{ echo "# versions after $TS"; "$S/bin/forge-as-bot.sh" GET '/api/v1/packages/wires-publisher?type=container' | sed '$d' | jq -c '[.[] | {name, version, created_at}]'; } | tee "$E/versions-after-$TS.txt"
+echo "OK v9 on forge: $REPO@$WANT (evidence $E/*-$TS.*)"

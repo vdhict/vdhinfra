@@ -71,7 +71,7 @@ async function main() {
         if (BYID) { if (e.userId === BYID) { console.log('BYID ' + JSON.stringify({ table: src.table, at: e.createdDateTime, app: e.appDisplayName, errorCode: e.status?.errorCode ?? null })); n++; total++; } continue; }
         if (P5) {
           if (!upn.startsWith(P5)) continue;
-          console.log('P5 ' + JSON.stringify({ table: src.table, at: e.createdDateTime, app: e.appDisplayName, resource: e.resourceDisplayName, errorCode: e.status?.errorCode ?? null, failureReason: (e.status?.failureReason ?? '').slice(0, 120),
+          console.log('P5 ' + JSON.stringify({ table: src.table, at: e.createdDateTime, correlationId: e.correlationId ?? null, appId: e.appId ?? null, app: e.appDisplayName, caStatus: e.conditionalAccessStatus ?? null, resource: e.resourceDisplayName, errorCode: e.status?.errorCode ?? null, failureReason: (e.status?.failureReason ?? '').slice(0, 120),
             acrs: e.authenticationContextClassReferences ?? [], requirement: e.authenticationRequirement, methods: (e.authenticationDetails ?? []).map((d) => [d.authenticationMethod, d.succeeded, d.authenticationStepResultDetail]),
             ca: (e.appliedConditionalAccessPolicies ?? []).filter((c) => c.result !== 'notApplied' && c.result !== 'notEnabled').map((c) => ({ id: String(c.id).slice(0, 8), result: c.result, strength: c.authenticationStrength?.displayName ?? null, acr: c.includeRulesSatisfied?.map?.((r) => r.ruleSatisfied) ?? null })), caD63: (e.appliedConditionalAccessPolicies ?? []).filter((c) => String(c.id).startsWith('d63ae654')).map((c) => c.result) }));
           n++; total++; continue;

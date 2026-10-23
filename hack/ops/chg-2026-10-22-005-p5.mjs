@@ -245,12 +245,44 @@ async function setup(d) {
   if ([...(b.tpGroup?.ids ?? []), ...ALLOW_OTHER_MEMBERS].includes(u.id)) throw new Refused('created id collides with a protected user');
   T.catestId = u.id;
   out('created', { id: u.id, upn: personaUpn(d).split('@')[0], group: cg.id });
-  for (const gid of [TP_GROUP, cg.id]) ok(await g('POST', `/v1.0/groups/${gid}/members/$ref`, { '@odata.id': `https://graph.microsoft.com/v1.0/directoryObjects/${u.id}` }), 'add member');
+  await addMemberships(u.id, cg.id);
+}
+
+// The two memberships of the catest persona. A new user can 404 on the first add while it replicates (run
+// 20261023t080006z), so a 404 is retried for up to 60 s; any other error stops. A membership already present is kept.
+async function addMemberships(uid, cgid) {
+  const expect = [TP_GROUP, cgid].sort();
+  const current = async () => (await list(`/v1.0/users/${uid}/memberOf?$select=id`)).map((x) => x.id).sort();
+  const have = await current();
+  if (have.some((id) => !expect.includes(id))) throw new Refused('catest persona has a membership outside the two');
+  for (const gid of expect.filter((id) => !have.includes(id))) {
+    for (let i = 0; ; i++) {
+      const r = await g('POST', `/v1.0/groups/${gid}/members/$ref`, { '@odata.id': `https://graph.microsoft.com/v1.0/directoryObjects/${uid}` });
+      if (r.status === 404 && i < 12) { out('addMemberRetry', { group: gid.slice(0, 8), attempt: i + 1 }); await sleep(5000); continue; }
+      ok(r, 'add member'); break;
+    }
+  }
   let mem = [];
-  for (let i = 0; i < 12; i++) { mem = (await list(`/v1.0/users/${u.id}/memberOf?$select=id`)).map((x) => x.id).sort(); if (mem.length === 2) break; await sleep(5000); }
-  const expect = [TP_GROUP, cg.id].sort();
-  out('memberships', { count: mem.length, exactlyTheTwo: JSON.stringify(mem) === JSON.stringify(expect), methods: (await methods(u.id)).map((m) => m.type) });
+  for (let i = 0; i < 12; i++) { mem = await current(); if (mem.length === 2) break; await sleep(5000); }
+  out('memberships', { count: mem.length, exactlyTheTwo: JSON.stringify(mem) === JSON.stringify(expect), methods: (await methods(uid)).map((m) => m.type) });
   if (JSON.stringify(mem) !== JSON.stringify(expect)) throw new Refused('memberships differ');
+}
+
+// Finish a setup that stopped after creating the persona and its group (run 20261023t080006z: add member 404). Only
+// when the persona and the group exist, the TAP config equals its before-state plus exactly that group, and the
+// persona has no authentication method other than the password.
+async function resume(d) {
+  const b = before();
+  const u = await findCatest(d); const cgid = await findCatestGroup(d);
+  if (!u || !cgid) throw new Refused('resume: persona or catest group missing');
+  const now = tapWritable(await tapConfig());
+  const targets = now.includeTargets ?? [];
+  const rest = { ...now, includeTargets: targets.filter((x) => x.id !== cgid) };
+  if (!targets.some((x) => x.id === cgid) || sha(rest) !== b.tapConfigSha256) throw new Refused('resume: TAP config is not before-state plus the catest group');
+  const m = (await methods(u.id)).map((x) => x.type);
+  if (m.some((t) => t !== 'passwordAuthenticationMethod')) throw new Refused('resume: persona has a method other than the password');
+  out('resume', { id: u.id, group: cgid, tapConfigBeforePlusGroup: true, methods: m });
+  await addMemberships(u.id, cgid);
 }
 
 async function weaken(kase) {
@@ -434,6 +466,7 @@ async function main() {
   if (mode === 'setup') { T.date = a1; return setup(a1); }
   if (mode === 'case' && ['baseline', 'a', 'b', 'c', 'recheck'].includes(a1)) return kase(a1, a2);
   if (mode === 'cleanup') return cleanup(a1);
+  if (mode === 'resume') return resume(a1);
   throw new Refused('mode');
 }
 main().then(() => process.exit(0)).catch((e) => { out(e instanceof Refused ? 'refused' : 'error', String(e?.message ?? e).slice(0, 300)); process.exit(e instanceof Refused ? 2 : 1); });

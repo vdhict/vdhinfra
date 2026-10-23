@@ -1,0 +1,12 @@
+chg-2026-10-21-011 calibre v9 test boot on COPY — 2026-10-22 (Heph)
+copy: PVC media/calibre-v9test-config cloned from VolumeSnapshot calibre-config-pre-v9-20261022; /media = emptyDir (NFS library NOT mounted)
+original library: EMPTY (no metadata.db anywhere; NFS share 0 entries; library_path null; GUI never past welcome wizard)
+book count original = 0 ; copy before seeding = 0 (byte-identical clone)
+seed on copy with v7.21 image (calibredb add --empty x3): books=3, metadata.db user_version=26
+v9 image: ghcr.io/linuxserver/calibre:v9.16.0-ls428@sha256:2b931709295ca59808520428b05e0a2aec8695268e96f8baf76359da0e9c0f5c (amd64 12013dbe)
+- container start: Running 1/1, restarts 0; log has no traceback/sqlite/schema error (only nvenc/libcuda absent, expected)
+- OS: Ubuntu 26.04.1 LTS; calibre 9.16; node: "node: not found" (Node.js no longer bundled -> EOL node 18.19.1 gone)
+- v9 backend open of copy library: "Upgrading database to version 27... 28", books=3, titles intact, integrity_check ok (pre-upgrade), user_version 28
+- web UI port-forward :8080 -> HTTP 200, Selkies 2.0.0 (replaces KasmVNC); screenshot calibre-04-v9test-ui-20261022.png = calibre Welcome wizard (same never-configured state as prod)
+- memory: v9 220Mi vs prod v7 204Mi (limit 604M)
+RESULT: GREEN

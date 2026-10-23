@@ -1,0 +1,2 @@
+PASS: forge.bluejungle.net/wires-publisher/cluster-wires@sha256:a11659787ddeaecf5bf1cedc0b9a387d29b5c03badc886b23b50510ef5c816c5
+pull amd64 sha256:a11659787ddeaecf5bf1cedc0b9a387d29b5c03badc886b23b50510ef5c816c5 crane validate rc 0 (PASS: forge.bluejungle.net/wires-publisher/cluster-wires@sha256:a11659787ddeaecf5bf1cedc0b9a387d29b5c03badc886b23b50510ef5c816c5), config sha256:0c7656a44e191f27a03956cff6eebc763d82c3c01529e4b0605dc01bea68b203

@@ -1,0 +1,7 @@
+chg-2026-10-07-007 wave1 ortho+tennis, steps a+b on vdhmini01 (uid 501), 2026-10-23 ~08:54Z
+a. launchctl bootout gui/501/com.sander.pka-ortho-sync rc=0 ; com.sander.pka-tennis-sync rc=0
+   mv <name>.plist -> <name>.plist.cutover-20261023 (both ok)
+   read-back: launchctl print both -> rc=113 (not loaded); 0 active plists for ortho/tennis in ~/Library/LaunchAgents
+b. fingerprint (find state -path ./recon -prune ... ! -name *.lock | shasum | shasum), one hash only, no contents read
+   ortho  measured 0f182d821d8becafc34b2bea63c6e42793a502e2e05e0064def2d4f0cb3a0542 expected same -> MATCH
+   tennis measured f744033701c3451b467f717baf550d27a38cee77dec2f4d204e14218e64c2542 expected same -> MATCH

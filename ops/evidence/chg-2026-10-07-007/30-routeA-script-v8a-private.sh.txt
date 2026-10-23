@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# chg-2026-10-07-007 route A: set wires-publisher's own visibility to private (2) via the bot's own web session
+# (non-admin; the API has no visibility field). Narrowing only. Prints HTTP codes and the read-back fields only.
+set -euo pipefail
+umask 077
+S=$(cd "$(dirname "$0")/.." && pwd)
+A="$S/auth"; B=https://forge.bluejungle.net
+J="$A/web.jar"; R="$A/pw.raw"
+trap ': > "$J"; : > "$R"; : > "$A/web.html"' EXIT
+: > "$J"
+head -1 "$A/bot.pass" | tr -d '\n' > "$R"
+curl -sS -c "$J" -b "$J" -o "$A/web.html" -w 'GET /user/login -> %{http_code}\n' "$B/user/login"
+curl -sS -c "$J" -b "$J" -o /dev/null -w 'POST /user/login -> %{http_code} redirect=%{redirect_url}\n' \
+  --data-urlencode "user_name=wires-publisher" --data-urlencode "password@$R" "$B/user/login"
+: > "$R"
+curl -sS -c "$J" -b "$J" -o "$A/web.html" -w 'GET /user/settings -> %{http_code}\n' "$B/user/settings"
+grep -q 'name="visibility"' "$A/web.html" || { echo "STOP settings form not served (not logged in?)"; exit 3; }
+curl -sS -c "$J" -b "$J" -o /dev/null -w 'POST /user/settings -> %{http_code} redirect=%{redirect_url}\n' \
+  --data-urlencode "name=wires-publisher" --data-urlencode "full_name=" \
+  --data-urlencode "website=" --data-urlencode "location=" --data-urlencode "description=" --data-urlencode "pronouns=" \
+  --data-urlencode "visibility=2" --data-urlencode "keep_email_private=on" "$B/user/settings"
+curl -sS -c "$J" -b "$J" -o /dev/null -w 'POST /user/logout -> %{http_code}\n' "$B/user/logout" || true
+"$S/bin/forge-as-bot.sh" GET /api/v1/user > "$A/vis-check.out"
+tail -1 "$A/vis-check.out"; sed '$d' "$A/vis-check.out" | jq -c '{login, id, is_admin, restricted, visibility, full_name}'

@@ -1,0 +1,17 @@
+chg-2026-10-07-007 v9 Argus C1 (fetch-sources at f1e841f from forge clones vs Mack tarball), k8s-engineer, 20261023T0911Z, host vdhmini01
+build tree: cluster-wires f1e841f36b38c6af393c237209236a336c512656 (bundle sha256 3ae74c80..., applied on c148314; same commit id as forge branch image/v9-certifi)
+mack tarball: v9-build-src.tar.gz sha256 d79133ab9c5d78a835ff9c3ecb9029d329962da8b715439a6bf300f43b164cf3 (SHA256SUMS OK), 309 members, 0 absolute/.. paths, extracted to new empty dir
+forge clones: git bundle create --branches from forgejo pod bare repos (read-only, kubectl exec), cloned bare:
+  pka-voetbal-sync bundle sha256 cec7686d70d902112d2cc2a6a16a2a3f2a922fba2d8984181ce817e3aa055d2a
+  pka-tennis-sync bundle sha256 bf5cc00e6d9445b2f89f1828b8053caf3549b1a24a427bbeff1d7afbcec1a9d7
+  cluster-wires bundle sha256 b5a6846be1d7a73a563725cf14bb707fb41b3802e49caf369895cd13d9741afa
+forge refs: pka-voetbal-sync main=3c9ec61, pka-tennis-sync main=c95b7cd, cluster-wires source/pka-school-sync=ab9a430 source/pka-ortho-sync=718e695 source/pka-vlagschema-watch=c573b0a source/pka-alert=24e2d07, no source/pka-travel-vdh
+travel-vdh b510f6a0516cea730f6f057ddd41cd57de98cb3c: NOT on the forge (cat-file over every repo in /data/git/gitea-repositories/*/*.git: 0 hits), NOT in any git repo under ~, ~/Code, ~/pka-* or the session scratchpad
+run: HOME=<scratch>/home (Code/pka-wires/<dir> -> forge cluster-wires clone) FORGE_CLONES=<scratch>/clones LOCK=<sources.lock minus the pka-travel-vdh line> sh image/fetch-sources.sh
+output:
+  pka-voetbal-sync 3c9ec61 / pka-tennis-sync c95b7cd / pka-school-sync ab9a430 / pka-ortho-sync 718e695 / pka-vlagschema-watch c573b0a / pka-alert 24e2d07 ; rc=0
+diff -r build/src <mack-extract>:
+Only in v9-build/mack-extract: pka-travel-vdh
+  diff rc=1 (only difference: pka-travel-vdh absent from the forge-fetched tree)
+context (not C1): Mack pka-travel-vdh == v8 build tree pka-travel-vdh (diff -r rc 0, 16 files); v8 lock pinned the same b510f6a; Argus untrusted extract == Mack extract (rc 0)
+RESULT: C1 NOT MET. 6/7 trees byte-identical to forge commits; travel-vdh cannot be fetched from the forge. STOP before build (no podman build, no push, no token minted).

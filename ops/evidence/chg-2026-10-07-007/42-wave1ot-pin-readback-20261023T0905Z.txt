@@ -1,0 +1,20 @@
+# pin c148314 read-back 2026-10-23T08:55:36Z; vdhinfra main 1032d2781a31bf62956e49a13385e4f8539ba58e
+cutover/wave1-ortho-tennis c14831461084d4969744b4171dacf684d470a98e ready=True cutover/wave1-ortho-tennis@sha1:c14831461084d4969744b4171dacf684d470a98e
+ks mypka-wires ready=True cutover/wave1-ortho-tennis@sha1:c14831461084d4969744b4171dacf684d470a98e
+NAME               SUSPEND   PULL                     IMAGE
+mypka-runner       true      cluster-wires-registry   forge.bluejungle.net/vdhict/mypka-runner@sha256:4727600ce6fc8df786c4a7f979129f8c57dc9f4c41ff34a7a5361a882b8ad150
+ortho              false     cluster-wires-pull-v8    forge.bluejungle.net/wires-publisher/cluster-wires@sha256:d535ffb96b995344103a93eab89d894b9fb37590d9773d574b07e9b80f6beee8
+school             false     cluster-wires-pull-v8    forge.bluejungle.net/wires-publisher/cluster-wires@sha256:d535ffb96b995344103a93eab89d894b9fb37590d9773d574b07e9b80f6beee8
+tennis             false     cluster-wires-pull-v8    forge.bluejungle.net/wires-publisher/cluster-wires@sha256:d535ffb96b995344103a93eab89d894b9fb37590d9773d574b07e9b80f6beee8
+travel-vdh         true      cluster-wires-pull-v8    forge.bluejungle.net/wires-publisher/cluster-wires@sha256:d535ffb96b995344103a93eab89d894b9fb37590d9773d574b07e9b80f6beee8
+voetbal            true      cluster-wires-pull-v8    forge.bluejungle.net/wires-publisher/cluster-wires@sha256:d535ffb96b995344103a93eab89d894b9fb37590d9773d574b07e9b80f6beee8
+voetbal-gate       true      cluster-wires-pull-v8    forge.bluejungle.net/wires-publisher/cluster-wires@sha256:d535ffb96b995344103a93eab89d894b9fb37590d9773d574b07e9b80f6beee8
+voetbal-saturday   true      cluster-wires-pull-v8    forge.bluejungle.net/wires-publisher/cluster-wires@sha256:d535ffb96b995344103a93eab89d894b9fb37590d9773d574b07e9b80f6beee8
+ortho-config-7b246m2bbk WIRE_MODE=live WIRE_IMAGE=v8-975984b
+school-config-46g25hbd96 WIRE_MODE=live WIRE_IMAGE=v8-975984b
+tennis-config-78ktkgcd2g WIRE_MODE=live WIRE_IMAGE=v8-975984b
+travel-vdh-config-b7hfm9g5g7 WIRE_MODE=shadow WIRE_IMAGE=v8-975984b
+voetbal-config-b7hfm9g5g7 WIRE_MODE=shadow WIRE_IMAGE=v8-975984b
+NAME                     TYPE
+cluster-wires-pull-v8    kubernetes.io/dockerconfigjson
+cluster-wires-registry   kubernetes.io/dockerconfigjson

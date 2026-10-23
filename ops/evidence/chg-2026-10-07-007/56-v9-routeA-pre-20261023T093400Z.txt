@@ -1,0 +1,2 @@
+/api/v1/packages/wires-publisher?type=container -> 200
+owner visibility private

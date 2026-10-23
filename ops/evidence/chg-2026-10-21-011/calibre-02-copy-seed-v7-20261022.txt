@@ -1,0 +1,7 @@
+Added book ids: 1
+Added book ids: 2
+Added book ids: 3
+BOOKS_V7=3
+SQL_BOOKS 3
+USER_VERSION 26
+EXIT=0

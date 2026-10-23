@@ -1,0 +1,7 @@
+# token 43 scope tests 20261023T093348Z
+/api/v1/user -> 403
+/api/v1/user/repos -> 403
+/api/v1/packages/wires-publisher?type=container -> 200
+/api/v1/packages/VDHICT?type=container -> 403
+/api/v1/repos/VDHICT/passkey-point -> 403
+/api/v1/admin/users -> 403

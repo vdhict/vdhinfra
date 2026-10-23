@@ -1,0 +1,24 @@
+chg-2026-10-07-007 Argus C1: school v8 shadow canary, Job school-canary-chg007-1 (from cronjob/school, env WIRE_MODE=shadow override, nodeSelector vdhclu01node01), created 2026-10-23T08:56:38Z
+node choice: status.images per node before the run: v8 (d535ffb9/a75a9468/9f9f8f3d) cached only on vdhclu01node02; node01 had none
+pod school-canary-chg007-1-gcr5w node=vdhclu01node01 phase=Succeeded exit=0 job succeeded=1 (backoffLimit 0)
+imageID forge.bluejungle.net/wires-publisher/cluster-wires@sha256:d535ffb96b995344103a93eab89d894b9fb37590d9773d574b07e9b80f6beee8
+pod imagePullSecrets = [cluster-wires-pull-v8] (only); events: Pulling -> Pulled "Successfully pulled ... in 15.901s, 700136873 bytes" (real pull, not cached); namespace private, anonymous 401 (Argus 08:52Z)
+run report (status/count fields only; free text withheld):
+  school-29878895.log {'seed_applied': False, 'plan': 'LIVE', 'total': 3578, 'in_window': 341, 'duplicates': 0, 'malformed': 0, 'trusted': True, 'files': 2, 'exit': 0, 'mode': 'live'} {'UPSERT': 0, 'DELETE': 0, 'BLOCKED': 0, 'KEPT': 0, 'COLLISION': 0, 'HELD': 0, 'UNCHANGED': 47, 'DROPPED': 294}
+  school-canary-chg007-1.log {'seed_applied': False, 'plan': 'DRY', 'total': 3578, 'in_window': 341, 'duplicates': 0, 'malformed': 0, 'trusted': True, 'files': 2, 'exit': 0, 'mode': 'shadow'} {'UPSERT': 0, 'DELETE': 0, 'BLOCKED': 0, 'KEPT': 0, 'COLLISION': 0, 'HELD': 0, 'UNCHANGED': 47, 'DROPPED': 294}
+  -> canary equals today's v7 live school run (05:35Z) on every count; 0 UPSERT/DELETE = 0 calendar writes; plan DRY RUN; shadow_guard_loaded event present
+egress (Hubble, pod school-canary-chg007-1-*):
+  verdicts {'REDIRECTED': 24, 'FORWARDED': 121}
+  dns queries:
+    1 ('calendar.google.com', 'A')
+    1 ('calendar.google.com', 'AAAA')
+    1 ('oauth2.googleapis.com', 'A')
+    1 ('oauth2.googleapis.com', 'AAAA')
+    2 ('www.googleapis.com', 'A')
+    1 ('www.googleapis.com', 'AAAA')
+  world flows by name:
+    5 ('FORWARDED', 'calendar.google.com')
+    6 ('FORWARDED', 'oauth2.googleapis.com')
+    6 ('FORWARDED', 'www.googleapis.com')
+  -> 0 DROPPED; world 443 only calendar.google.com, oauth2.googleapis.com, www.googleapis.com (all in wire-school-egress); in-cluster forgejo-ssh 2222; no ntfy.sh
+C1 RESULT: PASS

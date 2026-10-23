@@ -12,7 +12,7 @@
 # The temporary CNP pp-p5-browser gives the step pods the Entra sign-in hosts and the .NET LAB desk (via envoy-internal,
 # as the .NET E2E does); devtenant-entra already allows login + graph. `teardown` removes the CNP and the ConfigMaps.
 #
-#   chg-2026-10-22-005-p5-driver.sh precheck | arm <d> <fire-iso> | setup <d> | case <k> <d> | cleanup <d> | disarm | teardown
+#   chg-2026-10-22-005-p5-driver.sh precheck | arm <d> <fire-iso> | setup <d> | resume <d> | case <k> <d> | cleanup <d> | disarm | teardown
 set -euo pipefail
 NS=devtenant-build; HERE=$(cd "$(dirname "$0")" && pwd); SCRIPT=$HERE/chg-2026-10-22-005-p5.mjs
 STATE=${P5_STATE:?P5_STATE: scratchpad dir holding before.json (write-once)}
@@ -100,6 +100,7 @@ case $mode in
       sleep 15
     done
     waitlog $name || { echo "case $k did not pass: the window dead-man stays armed"; exit 1; } ;;
+  resume) gate; [ -f "$STATE/before.json" ] || exit 64; deadman_ok || { echo "R4: window dead-man not Running/armed; refusing"; exit 3; }; job p5-resume-$TS setup 300 resume "${1:?date}"; waitlog p5-resume-$TS ;;
   cleanup) gate; job p5-cleanup-$TS cleanup 600 cleanup "${1:?date}"; waitlog p5-cleanup-$TS ;;
   disarm) kubectl get jobs -n $NS -l vdhinfra.io/p5-role=deadman -o name | while read -r j; do kubectl logs -n $NS "$j" | grep '^RESULT' | tail -3; kubectl delete -n $NS "$j" >/dev/null; echo "disarmed $j"; done ;;
   selftest) node "$SCRIPT" selftest ;;

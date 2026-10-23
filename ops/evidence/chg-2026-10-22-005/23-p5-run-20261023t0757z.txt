@@ -1,0 +1,22 @@
+# chg-2026-10-22-005 point 5 run 2026-10-23 (RESULT lines of every p5 Job, in order). p5.mjs e13f320c..., driver 1db13ca4..., before.json 90efcde4...
+## p5-setup-20261023t080006z
+RESULT {"selfCheck":{"tid":"95cf7dac-b898-4b02-a22a-1379e2fde497","appid":"9d98adaf-499f-49b2-ba94-cab1a5e42514","rolesNeeded":["Policy.ReadWrite.ConditionalAccess","Policy.Read.All","Policy.ReadWrite.AuthenticationMethod","UserAuthMethod-TAP.ReadWrite.All","UserAuthenticationMethod.Read.All","Group.ReadWrite.All","User.ReadWrite.All"],"allPresent":true,"at":"2026-10-23T08:00:07.712Z"}}
+RESULT {"tapPolicy":{"addedTarget":"829e4ae4","targets":6,"everythingElseUnchanged":true}}
+RESULT {"created":{"id":"da882d65-9547-42c0-a168-ed67b9233e5d","upn":"pp-e2e-tp-catest-20261023","group":"829e4ae4-14fb-4cf9-bd5f-659cc3db6ac4"}}
+RESULT {"error":"add member: 404 Request_ResourceNotFound"}
+## p5-resume-20261023t080244z
+RESULT {"selfCheck":{"tid":"95cf7dac-b898-4b02-a22a-1379e2fde497","appid":"9d98adaf-499f-49b2-ba94-cab1a5e42514","rolesNeeded":["Policy.ReadWrite.ConditionalAccess","Policy.Read.All","Policy.ReadWrite.AuthenticationMethod","UserAuthMethod-TAP.ReadWrite.All","UserAuthenticationMethod.Read.All","Group.ReadWrite.All","User.ReadWrite.All"],"allPresent":true,"at":"2026-10-23T08:02:45.996Z"}}
+RESULT {"resume":{"id":"da882d65-9547-42c0-a168-ed67b9233e5d","group":"829e4ae4-14fb-4cf9-bd5f-659cc3db6ac4","tapConfigBeforePlusGroup":true,"methods":["passwordAuthenticationMethod"]}}
+RESULT {"memberships":{"count":2,"exactlyTheTwo":true,"methods":["passwordAuthenticationMethod"]}}
+## p5-case-baseline-20261023t080309z
+RESULT {"selfCheck":{"tid":"95cf7dac-b898-4b02-a22a-1379e2fde497","appid":"9d98adaf-499f-49b2-ba94-cab1a5e42514","rolesNeeded":["Policy.ReadWrite.ConditionalAccess","Policy.Read.All","Policy.ReadWrite.AuthenticationMethod","UserAuthMethod-TAP.ReadWrite.All","UserAuthenticationMethod.Read.All","Group.ReadWrite.All","User.ReadWrite.All"],"allPresent":true,"at":"2026-10-23T08:03:11.837Z"}}
+RESULT {"signIn":{"case":"baseline","at":"2026-10-23T08:03:37.259Z","tapId":"db085032-db22-4c7f-874d-265037ec4c11","isUsableOnce":true,"lifetimeInMinutes":10,"createdAt":"2026-10-23T08:03:13.2557984Z","error":"locator.waitFor: Timeout 20000ms exceeded.","landed":"login.microsoftonline.com/95cf7dac-b898-4b02-a22a-1379e2fde497/oauth2/v2.0/authorize","deskOutcome":"unknown","prompts":[],"trail":["passkey-point-dotnet-lab.bluejungle.net/signin","login.microsoftonline.com/95cf7dac-b898-4b02-a22a-1379e2fde497/oauth2/v2.0/authorize","login.microsoftonline.com/95cf7dac-b898-4b02-a22a-1379e2fde497/oauth2/v2.0/authorize","login.microsoftonline.com/95cf7dac-b898-4b02-a22a-1379e2fde497/oauth2/v2.0/authorize","login.microsoftonline.com/95cf7dac-b898-4b02-a22a-1379e2fde497/oauth2/v2.0/authorize","login.microsoftonline.com/95cf7dac-b898-4b02-a22a-1379e2fde497/oauth2/v2.0/authorize","login.microsoftonline.com/95cf7dac-b898-4b02-a22a-1379e2fde497/oauth2/v2.0/authorize"],"tapsDeleted":1,"deletedAt":"2026-10-23T08:03:37.259Z","methodsAfter":["passwordAuthenticationMethod","temporaryAccessPassAuthenticationMethod"]}}
+RESULT {"c5c":{"case":"baseline","invalid":true,"methodsAfter":["passwordAuthenticationMethod","temporaryAccessPassAuthenticationMethod"]}}
+RESULT {"refused":"extra authentication method (or unreadable): case invalid, run stops; cleanup deletes the persona"}
+## p5-cleanup-20261023t080414z
+RESULT {"selfCheck":{"tid":"95cf7dac-b898-4b02-a22a-1379e2fde497","appid":"9d98adaf-499f-49b2-ba94-cab1a5e42514","rolesNeeded":["Policy.ReadWrite.ConditionalAccess","Policy.Read.All","Policy.ReadWrite.AuthenticationMethod","UserAuthMethod-TAP.ReadWrite.All","UserAuthenticationMethod.Read.All","Group.ReadWrite.All","User.ReadWrite.All"],"allPresent":true,"at":"2026-10-23T08:04:15.647Z"}}
+RESULT {"cleanupTaps":{"deleted":0}}
+RESULT {"cleanupGroups":{"tpGroupEqualsBefore":true,"tpGroupSha256":"50fa905e6dcae03745ca1af6ea4ca9a8f39c34624b8c599e8db0ff5b08ac690d","tapConfigEqualsBefore":true,"catestGroupDeleted":true}}
+RESULT {"cleanupMethods":{"before":["passwordAuthenticationMethod"]}}
+RESULT {"cleanupPersona":{"deleted":true,"readBack404":true,"note":"soft-deleted; purge is not in the allow-list, it expires in 30 days"}}
+RESULT {"cleanupFinal":{"policyEqualsBefore":true,"allPoliciesEqualBefore":true}}

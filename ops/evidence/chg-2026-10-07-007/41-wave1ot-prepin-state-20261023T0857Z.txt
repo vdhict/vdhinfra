@@ -1,0 +1,17 @@
+# pre-pin live state 2026-10-23T08:53:59Z
+cutover/wave1-school fea3ea6f0b3d373f088c0b09100dc3f1f724bd46 cutover/wave1-school@sha1:fea3ea6f0b3d373f088c0b09100dc3f1f724bd46
+NAME                     TYPE
+cluster-wires-pull-v8    kubernetes.io/dockerconfigjson
+cluster-wires-registry   kubernetes.io/dockerconfigjson
+flux-system   mypka-wires-alerts                    10d    True    Applied revision: refs/heads/main@sha1:f2c88fa3cb1f1151189e41425a20db031b10e2d4
+flux-system   mypka-wires-source                    17d    True    Applied revision: refs/heads/main@sha1:f2c88fa3cb1f1151189e41425a20db031b10e2d4
+mypka         mypka-wires                           17d    True    Applied revision: cutover/wave1-school@sha1:fea3ea6f0b3d373f088c0b09100dc3f1f724bd46
+NAME               SUSPEND   PULL                     IMAGE
+mypka-runner       true      cluster-wires-registry   forge.bluejungle.net/vdhict/mypka-runner@sha256:4727600ce6fc8df786c4a7f979129f8c57dc9f4c41ff34a7a5361a882b8ad150
+ortho              true      cluster-wires-registry   forge.bluejungle.net/vdhict/cluster-wires@sha256:651085462e57effe6e9a2d0f8d6ad8b09bdbdf1acf85e98df8290fa1b3464884
+school             false     cluster-wires-registry   forge.bluejungle.net/vdhict/cluster-wires@sha256:651085462e57effe6e9a2d0f8d6ad8b09bdbdf1acf85e98df8290fa1b3464884
+tennis             true      cluster-wires-registry   forge.bluejungle.net/vdhict/cluster-wires@sha256:651085462e57effe6e9a2d0f8d6ad8b09bdbdf1acf85e98df8290fa1b3464884
+travel-vdh         true      cluster-wires-registry   forge.bluejungle.net/vdhict/cluster-wires@sha256:651085462e57effe6e9a2d0f8d6ad8b09bdbdf1acf85e98df8290fa1b3464884
+voetbal            true      cluster-wires-registry   forge.bluejungle.net/vdhict/cluster-wires@sha256:651085462e57effe6e9a2d0f8d6ad8b09bdbdf1acf85e98df8290fa1b3464884
+voetbal-gate       true      cluster-wires-registry   forge.bluejungle.net/vdhict/cluster-wires@sha256:651085462e57effe6e9a2d0f8d6ad8b09bdbdf1acf85e98df8290fa1b3464884
+voetbal-saturday   true      cluster-wires-registry   forge.bluejungle.net/vdhict/cluster-wires@sha256:651085462e57effe6e9a2d0f8d6ad8b09bdbdf1acf85e98df8290fa1b3464884

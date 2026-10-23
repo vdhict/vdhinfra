@@ -1,0 +1,119 @@
+--- /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/bin/v8a-mint.sh	2026-10-21 05:30:28
++++ /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/bin/v9a-mint.sh	2026-10-23 11:32:51
+@@ -5,7 +5,7 @@
+ umask 077
+ S=$(cd "$(dirname "$0")/.." && pwd)
+ "$S/bin/forge-as-bot.sh" POST /api/v1/users/wires-publisher/tokens \
+-  '{"name":"cluster-wires-v8-routeA-20261021","scopes":["write:package"]}' > "$S/auth/token.resp"
++  '{"name":"cluster-wires-v9-routeA-20261023","scopes":["write:package"]}' > "$S/auth/token.resp"
+ tail -1 "$S/auth/token.resp"
+ grep -q '^HTTP 201$' "$S/auth/token.resp" || { sed '$d' "$S/auth/token.resp" | jq -c '{message}' 2>/dev/null; : > "$S/auth/token.resp"; echo "STOP mint not 201"; exit 2; }
+ sed '$d' "$S/auth/token.resp" | jq -r '.sha1' > "$S/auth/bot.token"
+@@ -14,3 +14,14 @@
+ printf '{"auths":{"forge.bluejungle.net":{"auth":"%s"}}}\n' \
+   "$(printf 'wires-publisher:%s' "$(head -1 "$S/auth/bot.token")" | base64 | tr -d '\n')" > "$S/auth/wires-publisher-auth.json"
+ stat -f '%N mode %Lp size %z' "$S/auth/bot.token" "$S/auth/wires-publisher-auth.json" "$S/auth/token.resp" | sed "s|$S/||"
++# v9 addition (as done ad hoc for v8): token scope tests + package versions before the push. Codes and names only.
++E="$S/v9a"; mkdir -p "$E"; TS=$(date -u +%Y%m%dT%H%M%SZ)
++{ echo "# token $(jq -r .id "$S/auth/token.meta") scope tests $TS"
++  "$S/bin/forge-as-token.sh" /api/v1/user /api/v1/user/repos '/api/v1/packages/wires-publisher?type=container' \
++    '/api/v1/packages/VDHICT?type=container' /api/v1/repos/VDHICT/passkey-point /api/v1/admin/users; } | tee "$E/token-tests-$TS.txt"
++{ echo "# versions before $TS"
++  "$S/bin/forge-as-bot.sh" GET '/api/v1/packages/wires-publisher?type=container' | sed '$d' | jq -c '[.[] | {name, version, created_at}]'; } | tee "$E/versions-before-$TS.txt"
++F="$E/token-tests-$TS.txt"
++grep -q "^/api/v1/packages/wires-publisher?type=container -> 200$" "$F" || { echo "STOP token cannot read own packages"; exit 3; }
++[ "$(grep -c -- '-> 403$' "$F")" = 5 ] || { echo "STOP token scope wider than write:package (expected 5x 403)"; exit 3; }
++echo "OK token scope as v8"
+--- /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/bin/v8a-push.sh	2026-10-21 05:33:03
++++ /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/bin/v9a-push.sh	2026-10-23 11:33:10
+@@ -1,17 +1,17 @@
+ #!/usr/bin/env bash
+-# chg-2026-10-07-007 route A: push cluster-wires v8 manifest list to forge under the bot's own namespace wires-publisher.
++# chg-2026-10-07-007 route A: push cluster-wires v9 manifest list to forge under the bot's own namespace wires-publisher.
+ # Never prints the token. Evidence: digests and HTTP codes only.
+ set -euo pipefail
+ umask 077
+ S=$(cd "$(dirname "$0")/.." && pwd)
+ P=$HOME/.local/opt/podman-6.1.3/bin/podman
+-SRC=localhost/cluster-wires:v8-975984b
++SRC=localhost/cluster-wires:v9-f1e841f
+ REPO=wires-publisher/cluster-wires
+-DST=docker://forge.bluejungle.net/$REPO:v8-975984b
+-WANT=sha256:d535ffb96b995344103a93eab89d894b9fb37590d9773d574b07e9b80f6beee8
+-WANT_AMD=sha256:a75a9468877643a3c1d42f00a1e35e07457049928f3b358fac2b6867664196e3
+-WANT_ARM=sha256:9f9f8f3dfd1ce0b69c43df18280595a6c1f683df64dca7b01983e72c46a21561
+-TS=$(date -u +%Y%m%dT%H%M%SZ); E="$S/v8a"; mkdir -p "$E"
++DST=docker://forge.bluejungle.net/$REPO:v9-f1e841f
++WANT=sha256:4c1b09c56225697d0da4653bf99c57c04cd89355a99e04efffae5e4d5b4a6f3b
++WANT_AMD=sha256:a11659787ddeaecf5bf1cedc0b9a387d29b5c03badc886b23b50510ef5c816c5
++WANT_ARM=sha256:adef99cc72c9e845c1e1f59c8f4af2995f0aa51ed58ad9b262deff9d974a3be5
++TS=$(date -u +%Y%m%dT%H%M%SZ); E="$S/v9a"; mkdir -p "$E"
+ AUTH="$S/auth/wires-publisher-auth.json"
+ [ "$(stat -f %Lp "$AUTH")" = 600 ] || { echo "STOP authfile not 0600"; exit 2; }
+ # 1 preconditions: the token reaches the bot's own package namespace; the namespace is private
+@@ -42,4 +42,20 @@
+ done | tee "$E/readback-hashes-$TS.txt"
+ grep -q MISMATCH "$E/readback-hashes-$TS.txt" && { echo "STOP read-back hash mismatch"; exit 6; }
+ jq -e --arg a "$WANT_AMD" --arg r "$WANT_ARM" '([.manifests[]|select(.platform.architecture=="amd64")|.digest][0]==$a) and ([.manifests[]|select(.platform.architecture=="arm64")|.digest][0]==$r)' "$E/readback-index-$TS.json" >/dev/null || { echo "STOP child digests differ"; exit 7; }
+-echo "OK v8 on forge: $REPO@$WANT (evidence $E/*-$TS.*)"
++# v9 addition: full pull by digest of both arches (crane validate downloads every blob and checks its digest),
++# config digest must equal the locally built image ID; then the package version list. Auth via a 0600 docker config
++# copy of the authfile, emptied by v9a-revoke.sh.
++CR=$HOME/.local/share/mise/installs/aqua-google-go-containerregistry/latest/crane
++DC="$S/auth/v9-docker"; mkdir -p "$DC"; cp "$AUTH" "$DC/config.json"; chmod 600 "$DC/config.json"
++for x in "amd64 $WANT_AMD sha256:0c7656a44e191f27a03956cff6eebc763d82c3c01529e4b0605dc01bea68b203" \
++         "arm64 $WANT_ARM sha256:f2d2046fb3b6e0865f6a7353cb5b5f7fd2ef5752316654adeb6c7715115c55c7"; do
++  set -- $x
++  DOCKER_CONFIG="$DC" "$CR" validate --remote "forge.bluejungle.net/$REPO@$2" > "$E/pull-$1-$TS.txt" 2>&1 || { cat "$E/pull-$1-$TS.txt"; echo "STOP full pull $1 failed"; exit 8; }
++  CFG=$(DOCKER_CONFIG="$DC" "$CR" manifest "forge.bluejungle.net/$REPO@$2" | jq -r .config.digest)
++  echo "pull $1 $2 crane validate rc 0 ($(tail -1 "$E/pull-$1-$TS.txt")), config $CFG" | tee -a "$E/pull-$1-$TS.txt"
++  [ "$CFG" = "$3" ] || { echo "STOP $1 config $CFG != built $3"; exit 9; }
++done
++IDX=$(DOCKER_CONFIG="$DC" "$CR" digest "forge.bluejungle.net/$REPO:v9-f1e841f")
++echo "tag v9-f1e841f resolves to $IDX" | tee "$E/tag-$TS.txt"; [ "$IDX" = "$WANT" ] || { echo "STOP tag digest"; exit 10; }
++{ echo "# versions after $TS"; "$S/bin/forge-as-bot.sh" GET '/api/v1/packages/wires-publisher?type=container' | sed '$d' | jq -c '[.[] | {name, version, created_at}]'; } | tee "$E/versions-after-$TS.txt"
++echo "OK v9 on forge: $REPO@$WANT (evidence $E/*-$TS.*)"
+--- /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/bin/v8a-revoke.sh	2026-10-21 05:33:10
++++ /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/bin/v9a-revoke.sh	2026-10-23 11:33:30
+@@ -1,12 +1,14 @@
+ #!/usr/bin/env bash
+-# Bot revokes its own token id 41. Requires DELETE 204, then proves the token is dead, then truncates local copies.
++# Bot revokes its own token (id from auth/token.meta, v9 mint). Requires DELETE 204, then proves the token is dead, then truncates local copies.
+ # Prints HTTP codes and token ids/names only.
+ set -euo pipefail
+ umask 077
+ S=$(cd "$(dirname "$0")/.." && pwd)
+-E="$S/v8a"; mkdir -p "$E"; TS=$(date -u +%Y%m%dT%H%M%SZ)
+-DEL=$("$S/bin/forge-as-bot.sh" DELETE /api/v1/users/wires-publisher/tokens/41 | tail -1)
+-echo "DELETE tokens/41 -> $DEL" | tee "$E/revoke-$TS.txt"
++E="$S/v9a"; mkdir -p "$E"; TS=$(date -u +%Y%m%dT%H%M%SZ)
++ID=$(jq -r .id "$S/auth/token.meta"); NM=$(jq -r .name "$S/auth/token.meta")
++case "$NM" in cluster-wires-v9-routeA-*) ;; *) echo "STOP token.meta is not the v9 token ($NM)"; exit 1;; esac
++DEL=$("$S/bin/forge-as-bot.sh" DELETE /api/v1/users/wires-publisher/tokens/$ID | tail -1)
++echo "DELETE tokens/$ID -> $DEL" | tee "$E/revoke-$TS.txt"
+ [ "$DEL" = "HTTP 204" ] || { echo "STOP DELETE not 204, nothing emptied"; exit 2; }
+ U=$("$S/bin/forge-as-token.sh" /api/v1/user)
+ echo "token $U" | tee -a "$E/revoke-$TS.txt"
+@@ -17,7 +19,7 @@
+ echo "token list -> $L" | tee -a "$E/revoke-$TS.txt"
+ case "$U" in *'-> 401') ;; *) echo "STOP /api/v1/user not 401"; exit 3;; esac
+ [ "$V" = 401 ] || { echo "STOP /v2/token not 401"; exit 4; }
+-echo "$L" | jq -e 'all(.[]; .id != 41)' >/dev/null || { echo "STOP id 41 still listed"; exit 5; }
+-: > "$S/auth/bot.token"; : > "$S/auth/wires-publisher-auth.json"
+-stat -f '%N %z' "$S/auth/bot.token" "$S/auth/wires-publisher-auth.json" | sed "s|$S/||" | tee -a "$E/revoke-$TS.txt"
+-echo "OK token 41 dead, local copies emptied"
++echo "$L" | jq -e --arg i "$ID" 'all(.[]; .id != ($i|tonumber))' >/dev/null || { echo "STOP id $ID still listed"; exit 5; }
++: > "$S/auth/bot.token"; : > "$S/auth/wires-publisher-auth.json"; mkdir -p "$S/auth/v9-docker"; : > "$S/auth/v9-docker/config.json"
++stat -f "%N %z" "$S/auth/bot.token" "$S/auth/wires-publisher-auth.json" "$S/auth/v9-docker/config.json" | sed "s|$S/||" | tee -a "$E/revoke-$TS.txt"
++echo "OK token $ID dead, local copies emptied"
+--- /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/bin/v8a-dormant.sh	2026-10-21 05:34:26
++++ /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/bin/v9a-dormant.sh	2026-10-23 11:32:44
+@@ -4,7 +4,7 @@
+ set -euo pipefail
+ umask 077
+ S=$(cd "$(dirname "$0")/.." && pwd)
+-A="$S/auth"; E="$S/v8a"; TS=$(date -u +%Y%m%dT%H%M%SZ)
++A="$S/auth"; E="$S/v9a"; TS=$(date -u +%Y%m%dT%H%M%SZ)
+ eval "$(mise env -s bash 2>/dev/null)" 2>/dev/null
+ kubectl -n devtools exec deploy/forgejo -c forgejo -- sh -c 'P=$(head -c 48 /dev/urandom | base64 | tr -d "\n"); forgejo admin user change-password -u wires-publisher -p "$P" --must-change-password=false; P=""' \
+   > "$A/dormant2-chpw.out" 2>&1

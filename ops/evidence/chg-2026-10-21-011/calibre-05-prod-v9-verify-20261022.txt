@@ -1,0 +1,15 @@
+2026-10-22T03:31:49Z
+commit 368a91f7 on origin/main
+calibre   200d   True   Helm upgrade succeeded for release media/calibre.v8 with chart app-template@3.7.3
+pod calibre-5d8f49645b-pskvs imageID ghcr.io/linuxserver/calibre@sha256:2b931709295ca59808520428b05e0a2aec8695268e96f8baf76359da0e9c0f5c ready=true restarts=0
+node: sh: 1: node: not found
+PRETTY_NAME="Ubuntu 26.04.1 LTS"
+calibre (calibre 9.16)
+metadata.db under /config: 0
+NFS /media mounted: 172.16.2.246:/volume1/MULTIMEDIA/CalibreBooks   35T   24T   
+/media entries: 0
+calibre procs: 3
+log errors (excl nvenc/libcuda):        0
+HTTPRoute host: <calibre.SECRET_DOMAIN>
+HTTPRoute via envoy-internal: HTTP 500 0B
+calibre-5d8f49645b-pskvs   2m    192Mi   

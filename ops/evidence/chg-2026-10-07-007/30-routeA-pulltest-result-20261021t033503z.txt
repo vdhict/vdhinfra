@@ -1,0 +1,4 @@
+# pull test 20261021t033503z (kubelet, pull secret mypka/cluster-wires-registry, user mypka-bot, imagePullPolicy Always)
+wires-pulltest-v7-20261021t033503z node=vdhclu01node02 phase=Succeeded terminated:Completed
+wires-pulltest-v8-20261021t033503z node=vdhclu01node02 phase=Pending waiting:ImagePullBackOff
+failed to resolve reference "forge.bluejungle.net/wires-publisher/cluster-wires@sha256:d535ffb96b995344103a93eab89d894b9fb37590d9773d574b07e9b80f6beee8": unexpected status from HEAD request to https://forge.bluejungle.net/v2/wires-publisher/cluster-wires/manifests/sha256:d535ffb96b995344103a93eab89d894b9fb37590d9773d574b07e9b80f6beee8: 401 Unauthorized

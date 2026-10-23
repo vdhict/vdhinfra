@@ -1,0 +1,24 @@
+chg-2026-10-07-007 v9 C4 + C1a, k8s-engineer, 20261023T0928Z
+v8 reference, content-addressed to d535ffb9 (route A read-back 30-routeA-readback-*-20261021T033314Z.json, hashes OK):
+  arm64: v8-build/idx.tar OCI layout, 11 blobs re-hashed OK, manifest 9f9f8f3d (= d535ffb9 arm64 child), loaded to loopback registry at the same digest 9f9f8f3d
+  amd64: v8-build/v8-amd64.tar docker-archive, config sha256 43f273b3 (= config of d535ffb9 amd64 child a75a9468), 9 layer tars re-hashed == config rootfs.diff_ids in order
+v9: loopback registry by digest amd64 sha256:a11659787ddeaecf5bf1cedc0b9a387d29b5c03badc886b23b50510ef5c816c5, arm64 sha256:adef99cc72c9e845c1e1f59c8f4af2995f0aa51ed58ad9b262deff9d974a3be5
+method: crane export | tar opt/wires; per entry type, mode, sha256 (files) or link target (symlinks)
+entries: v8 amd64 274, v8 arm64 274 (identical lists), v9 amd64 276, v9 arm64 276 (identical lists)
+v8 -> v9 /opt/wires (M modified, A added, D deleted; no mode changes outside these):
+  M opt/wires/pka-ortho-sync/requirements-dev.lock
+  M opt/wires/pka-ortho-sync/requirements.lock
+  M opt/wires/pka-school-sync/requirements-dev.lock
+  M opt/wires/pka-school-sync/requirements.lock
+  M opt/wires/pka-tennis-sync/requirements-dev.lock
+  M opt/wires/pka-tennis-sync/requirements.lock
+  M opt/wires/pka-tennis-sync/tests/test_sync.py
+  M opt/wires/pka-voetbal-sync/pka_voetbal_sync/voetbalnl.py
+  M opt/wires/pka-voetbal-sync/requirements-dev.lock
+  M opt/wires/pka-voetbal-sync/requirements.lock
+  A opt/wires/pka-voetbal-sync/tests/fixtures/voetbalnl-o15-4-ajax-2026-10-13.json
+  A opt/wires/pka-voetbal-sync/tests/fixtures/voetbalnl-o15-4-programma-2026-10-13.html
+  M opt/wires/pka-voetbal-sync/tests/test_voetbalnl.py
+lock content: 8/8 lock files change only certifi 2026.7.22 -> 2026.10.19 (pin + its 2 hash lines); ortho and school lock headers also change the uv --exclude-newer date 2026-09-25 -> 2026-10-23 (comment line)
+C4: PASS (only lock/certifi, tennis tests/test_sync.py, voetbal voetbalnl.py + tests/test_voetbalnl.py + 2 fixtures)
+C1a: PASS pka-travel-vdh byte-identical v8 vs v9: 17 entries (16 files + state symlink), cmp of path/mode/sha256 lists rc 0, both arches

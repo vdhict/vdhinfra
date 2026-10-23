@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Bot revokes its own token (id from auth/token.meta, v9 mint). Requires DELETE 204, then proves the token is dead, then truncates local copies.
+# Prints HTTP codes and token ids/names only.
+set -euo pipefail
+umask 077
+S=$(cd "$(dirname "$0")/.." && pwd)
+E="$S/v9a"; mkdir -p "$E"; TS=$(date -u +%Y%m%dT%H%M%SZ)
+ID=$(jq -r .id "$S/auth/token.meta"); NM=$(jq -r .name "$S/auth/token.meta")
+case "$NM" in cluster-wires-v9-routeA-*) ;; *) echo "STOP token.meta is not the v9 token ($NM)"; exit 1;; esac
+DEL=$("$S/bin/forge-as-bot.sh" DELETE /api/v1/users/wires-publisher/tokens/$ID | tail -1)
+echo "DELETE tokens/$ID -> $DEL" | tee "$E/revoke-$TS.txt"
+[ "$DEL" = "HTTP 204" ] || { echo "STOP DELETE not 204, nothing emptied"; exit 2; }
+U=$("$S/bin/forge-as-token.sh" /api/v1/user)
+echo "token $U" | tee -a "$E/revoke-$TS.txt"
+V=$(curl -sS -o /dev/null -w '%{http_code}' -K <(printf 'user = "wires-publisher:%s"\n' "$(head -1 "$S/auth/bot.token")") \
+  'https://forge.bluejungle.net/v2/token?service=container_registry&scope=repository:wires-publisher/cluster-wires:pull')
+echo "token /v2/token -> $V" | tee -a "$E/revoke-$TS.txt"
+L=$("$S/bin/forge-as-bot.sh" GET /api/v1/users/wires-publisher/tokens | sed '$d' | jq -c '[.[] | {id, name}]')
+echo "token list -> $L" | tee -a "$E/revoke-$TS.txt"
+case "$U" in *'-> 401') ;; *) echo "STOP /api/v1/user not 401"; exit 3;; esac
+[ "$V" = 401 ] || { echo "STOP /v2/token not 401"; exit 4; }
+echo "$L" | jq -e --arg i "$ID" 'all(.[]; .id != ($i|tonumber))' >/dev/null || { echo "STOP id $ID still listed"; exit 5; }
+: > "$S/auth/bot.token"; : > "$S/auth/wires-publisher-auth.json"; mkdir -p "$S/auth/v9-docker"; : > "$S/auth/v9-docker/config.json"
+stat -f "%N %z" "$S/auth/bot.token" "$S/auth/wires-publisher-auth.json" "$S/auth/v9-docker/config.json" | sed "s|$S/||" | tee -a "$E/revoke-$TS.txt"
+echo "OK token $ID dead, local copies emptied"

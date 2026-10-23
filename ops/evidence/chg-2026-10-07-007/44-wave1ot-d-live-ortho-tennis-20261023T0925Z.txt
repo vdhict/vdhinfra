@@ -1,0 +1,30 @@
+chg-2026-10-07-007 step d: first live runs on v8, once each, created 2026-10-23T09:00:16Z (11:00 CEST, > 1 h after the 07:25 slot)
+Jobs: kubectl -n mypka create job --from=cronjob/<wire> <wire>-live-chg007-1 ; CronJob template backoffLimit 0, restartPolicy Never, activeDeadlineSeconds 1800 (no retry possible)
+
+ORTHO ortho-live-chg007-1 pod ortho-live-chg007-1-dk7ql node vdhclu01node02 09:00:19Z-09:00:42Z
+  job succeeded=1 failed=0; container exit 0; restarts 0
+  imageID forge.bluejungle.net/wires-publisher/cluster-wires@sha256:d535ffb96b995344103a93eab89d894b9fb37590d9773d574b07e9b80f6beee8
+  report (status/count fields only; child ids mapped to #1/#2; per-child text lines withheld):
+    seed applied=true, seed_id == 20261023T080130Z-ortho (equality check)
+    login_submitted: 2 (child#1 x1, child#2 x1) = one per account, no retry
+    child_read: child#1 status ok appointments 0 empty_marker true; child#2 status ok appointments 0 empty_marker true
+    plan header LIVE; plan rows UPSERT 0, UNCHANGED 0, SKIP-MANUAL 0, DELETE 0, BLOCKED 0, KEPT 0, COLLISION 0, STALE-MANUAL 0 -> 0 calendar writes
+    step_end exit 0; exchange_published files 2 markers 0; run_end exit 0 mode live
+  = Mini 10-23 05:25Z run (both ok, 0 appointments)
+  egress (Hubble, one continuous relay session 09:00:19-09:00:56 covers the pod lifetime; relay buffer pull 08:59:30-09:10 added 0 new flows):
+    verdicts FORWARDED 290, REDIRECTED 53 (DNS proxy), ERROR 1 (DNS proxy L7 on search-domain expansion fonts.gstatic.com.cluster.local, not a policy drop), DROPPED 0
+    world 443: fonts.googleapis.com 32, fonts.gstatic.com 12, portal host 14, www.googleapis.com 6 -> all in wire-ortho-egress; DNS queried also oauth2.googleapis.com (in CNP); ntfy.sh 0 flows (allowed for ortho only)
+  ORTHO RESULT: PASS
+
+TENNIS tennis-live-chg007-1 pod tennis-live-chg007-1-zf9z8 node vdhclu01node02 09:00:19Z-09:00:23Z
+  job succeeded=1 failed=0; container exit 0; restarts 0; imageID same d535ffb9
+  report: seed applied=true, seed_id == 20261023T080134Z-tennis (equality check)
+    start dry_run=false; skipped_not_a_fetch_day weekday 5 open_start_times false (code path raises before collect(): no KNLTB login, no fetch, no calendar call)
+    logins 0 (non-fetch day), no 'failed' event; plist_not_installed notice (expected in container)
+    step_end exit 0; exchange_published files 2 markers 0; run_end exit 0 mode live
+  = Mini today 05:15Z skipped_not_a_fetch_day
+  egress: verdicts FORWARDED 54, REDIRECTED 8, DROPPED 0; world flows 0; external DNS queries 0; ntfy.sh 0 (not in wire-tennis-egress)
+  TENNIS RESULT: PASS
+
+alerting: PrometheusRule observability/mypka-wires-heartbeat covers ortho (MypkaWireStale school|ortho 172800 s), tennis (561600 s) and MypkaJobFailed for namespace mypka
+rollback (step e): not needed

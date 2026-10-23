@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# chg-2026-10-07-007 route A: push cluster-wires v8 manifest list to forge under the bot's own namespace wires-publisher.
+# Never prints the token. Evidence: digests and HTTP codes only.
+set -euo pipefail
+umask 077
+S=$(cd "$(dirname "$0")/.." && pwd)
+P=$HOME/.local/opt/podman-6.1.3/bin/podman
+SRC=localhost/cluster-wires:v8-975984b
+REPO=wires-publisher/cluster-wires
+DST=docker://forge.bluejungle.net/$REPO:v8-975984b
+WANT=sha256:d535ffb96b995344103a93eab89d894b9fb37590d9773d574b07e9b80f6beee8
+WANT_AMD=sha256:a75a9468877643a3c1d42f00a1e35e07457049928f3b358fac2b6867664196e3
+WANT_ARM=sha256:9f9f8f3dfd1ce0b69c43df18280595a6c1f683df64dca7b01983e72c46a21561
+TS=$(date -u +%Y%m%dT%H%M%SZ); E="$S/v8a"; mkdir -p "$E"
+AUTH="$S/auth/wires-publisher-auth.json"
+[ "$(stat -f %Lp "$AUTH")" = 600 ] || { echo "STOP authfile not 0600"; exit 2; }
+# 1 preconditions: the token reaches the bot's own package namespace; the namespace is private
+"$S/bin/forge-as-token.sh" '/api/v1/packages/wires-publisher?type=container' | tee "$E/pre-$TS.txt"
+grep -q -- '-> 200$' "$E/pre-$TS.txt" || { echo "STOP token cannot reach wires-publisher packages"; exit 3; }
+VIS=$("$S/bin/forge-as-bot.sh" GET /api/v1/user | sed '$d' | jq -r .visibility); echo "owner visibility $VIS" | tee -a "$E/pre-$TS.txt"
+[ "$VIS" = private ] || { echo "STOP owner namespace not private"; exit 3; }
+# 2 push
+"$P" manifest push --all --authfile "$AUTH" --digestfile "$E/digest-$TS.txt" "$SRC" "$DST" > "$E/push-$TS.log" 2>&1
+GOT=$(cat "$E/digest-$TS.txt"); echo "pushed index $GOT"
+[ "$GOT" = "$WANT" ] || { echo "STOP digest mismatch (want $WANT)"; exit 4; }
+# 3 read-back by digest (index + both arch manifests) with a pull bearer for the bot
+BT=$(curl -sS -K <(printf 'user = "wires-publisher:%s"\n' "$(head -1 "$S/auth/bot.token")") \
+  "https://forge.bluejungle.net/v2/token?service=container_registry&scope=repository:$REPO:pull" | jq -r '.token // empty')
+[ -n "$BT" ] || { echo "STOP no registry bearer"; exit 5; }
+get() { curl -sS -K <(printf 'header = "Authorization: Bearer %s"\n' "$BT") \
+  -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json' \
+  "https://forge.bluejungle.net/v2/$REPO/manifests/$1" > "$2"; }
+get "$WANT" "$E/readback-index-$TS.json"
+get "$WANT_AMD" "$E/readback-amd64-$TS.json"
+get "$WANT_ARM" "$E/readback-arm64-$TS.json"
+BT=""
+jq -c '[.manifests[] | {a: .platform.architecture, d: .digest}]' "$E/readback-index-$TS.json"
+rc=0
+for x in "index $WANT" "amd64 $WANT_AMD" "arm64 $WANT_ARM"; do
+  set -- $x; H="sha256:$(shasum -a 256 "$E/readback-$1-$TS.json" | cut -c1-64)"
+  if [ "$H" = "$2" ]; then echo "readback $1 hash OK $H"; else echo "readback $1 hash MISMATCH got $H want $2"; rc=6; fi
+done | tee "$E/readback-hashes-$TS.txt"
+grep -q MISMATCH "$E/readback-hashes-$TS.txt" && { echo "STOP read-back hash mismatch"; exit 6; }
+jq -e --arg a "$WANT_AMD" --arg r "$WANT_ARM" '([.manifests[]|select(.platform.architecture=="amd64")|.digest][0]==$a) and ([.manifests[]|select(.platform.architecture=="arm64")|.digest][0]==$r)' "$E/readback-index-$TS.json" >/dev/null || { echo "STOP child digests differ"; exit 7; }
+echo "OK v8 on forge: $REPO@$WANT (evidence $E/*-$TS.*)"

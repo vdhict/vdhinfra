@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# chg-2026-10-07-007 route A step 1a: wake wires-publisher (server CLI, no login). New random password into 0600 bot.pass,
+# passed to the pod over stdin only. Prints status lines only, never the value.
+set -euo pipefail
+umask 077
+S=$(cd "$(dirname "$0")/.." && pwd)
+eval "$(mise env -s bash 2>/dev/null)" 2>/dev/null
+openssl rand -base64 48 | tr -d '\n/+=' | cut -c1-48 > "$S/auth/bot.pass"
+printf '\n' >> "$S/auth/bot.pass"
+echo "bot.pass mode $(stat -f %Lp "$S/auth/bot.pass") len $(head -1 "$S/auth/bot.pass" | tr -d '\n' | wc -c | tr -d ' ')"
+kubectl -n devtools exec -i deploy/forgejo -c forgejo -- sh -c 'IFS= read -r P; forgejo admin user change-password -u wires-publisher -p "$P" --must-change-password=false' \
+  < "$S/auth/bot.pass" > "$S/auth/wake-chpw.out" 2>&1
+grep -q 'successfully updated' "$S/auth/wake-chpw.out" && echo "change-password: success line present" || { echo "STOP change-password failed"; exit 2; }
+"$S/bin/forge-as-bot.sh" GET /api/v1/user > "$S/auth/wake-check.out"
+tail -1 "$S/auth/wake-check.out"
+sed '$d' "$S/auth/wake-check.out" | jq -c '{login, id, is_admin, restricted, visibility}'

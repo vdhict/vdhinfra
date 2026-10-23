@@ -1,0 +1,9 @@
+change-password (in-pod random): success
+previous password GET /api/v1/user -> HTTP 401
+auth/bot.pass 0
+auth/bot.curlcfg 0
+auth/bot.token 0
+auth/tok.hdr 0
+auth/wires-publisher-auth.json 0
+auth/token.resp 0
+cli list: id 7 user wires-publisher active true admin false 2fa false

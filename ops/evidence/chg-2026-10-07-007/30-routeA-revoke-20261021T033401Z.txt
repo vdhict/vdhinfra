@@ -1,0 +1,6 @@
+DELETE tokens/41 -> HTTP 204
+token /api/v1/user -> 401
+token /v2/token -> 401
+token list -> []
+auth/bot.token 0
+auth/wires-publisher-auth.json 0
