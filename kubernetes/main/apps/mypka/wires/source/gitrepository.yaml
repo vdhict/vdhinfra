@@ -21,13 +21,15 @@ spec:
   # this SHA: Argus reviews the cluster-wires range <old>..<new>, then the
   # bump goes through the normal change log. The commit must be on the
   # branch named below. Wave 1 (chg-2026-10-07-007): branch
-  # cutover/wave1-school, school live only (range 65291a5..fea3ea6).
+  # cutover/wave1-ortho-tennis, school + ortho + tennis live on image v8,
+  # pull secret cluster-wires-pull-v8 (Argus range fea3ea6..c148314).
   # The commit pin is the truth; a push to that branch moves nothing.
   # Back to branch main once Mack fast-forwards cluster-wires main.
-  # Rollback: commit 65291a5 on the same branch (school suspended, shadow).
+  # Rollback: branch cutover/wave1-school commit fea3ea6 (school live on v7,
+  # ortho + tennis suspended and shadow).
   ref:
-    branch: cutover/wave1-school
-    commit: fea3ea6f0b3d373f088c0b09100dc3f1f724bd46
+    branch: cutover/wave1-ortho-tennis
+    commit: c14831461084d4969744b4171dacf684d470a98e
   # Fetch only what the tenant Kustomization applies (as Mack proposed).
   ignore: |
     /*
