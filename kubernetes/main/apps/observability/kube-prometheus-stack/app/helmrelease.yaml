@@ -45,7 +45,7 @@ spec:
         replicas: 2
         useExistingSecret: true
         configSecret: alertmanager-secret
-        # Bearer token for the self-hosted ntfy (write-only on topic
+        # Bearer token for the self-hosted ntfy (write-only on topics pka-team and
         # "alerts"), read by the ntfy-* receivers via credentials_file;
         # mounted at /etc/alertmanager/secrets/ntfy-alertmanager-token/.
         # Secret owned by the ntfy app (kubernetes/main/apps/ntfy/ntfy/clients).

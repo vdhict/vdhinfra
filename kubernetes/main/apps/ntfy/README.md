@@ -6,8 +6,8 @@ This is the self-hosted ntfy server. The owner's phone pushes run on it, so they
 - **Topic `alerts`:**
   - write-only: `alertmanager` (in-cluster, Secret `observability/ntfy-alertmanager-token`) and `pka-alert` (the Macs);
   - read-only: `owner-phone` (ntfy Android app, `Authorization: Bearer` custom header).
-- **Topic `pka-team`:** the pka-alert team channel. `pka-alert` has read-write (publish plus `--selftest`/`--pending` polls). No phone subscribes to it, ever.
-- **Auth:** `auth-default-access: deny-all`. Users and tokens are provisioned on every start from the SOPS Secret `ntfy-auth` in `ntfy/app/secret.sops.yaml`. **That Secret is the source of truth.**
+- **Topic `pka-team`:** the pka-alert team channel. `pka-alert` has read-write (publish plus `--selftest`/`--pending` polls). `alertmanager` is write-only on it for the Mac host alerts (chg-2026-10-24-003). No phone subscribes to it, ever.
+- **Auth:** `auth-default-access: deny-all`. Users and tokens are provisioned on every start from the SOPS Secret `ntfy-auth` in `ntfy/app/secret.sops.yaml`. **That Secret is the source of truth** for users and tokens. The topic ACL is NOT in it: it is `NTFY_AUTH_ACCESS` in `ntfy/app/helmrelease.yaml`.
 - **Account API:** closed at Envoy (404 for `/v1/account*`). Run `hack/ntfy/prune-tokens.sh` (dry run) and `--apply` after any rotation; the script header has the rotation steps.
 - **No egress at all** (CNP). `upstream-base-url` is unset, so ntfy.sh gets zero calls. If an iOS phone ever needs instant delivery, every message would cost one ntfy.sh poll request from the shared IP, and the CNP would need a `toFQDNs ntfy.sh:443` rule.
 
