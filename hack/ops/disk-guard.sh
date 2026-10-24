@@ -6,6 +6,9 @@
 #       and Claude session scratchpads under /private/tmp/claude-501 not touched for 7+ days.
 #     Never touched: home directories, models (ollama), VMs, repos, backups, anything of Sander's.
 #   < 10% free after that: one line to Larry in ~/mypka-handoff/<date>/ (once per host per day; silent, AGR-074).
+#   Every run, whatever the free space (chg-2026-10-24-002, Larry G5): empty the team trash, i.e. remove
+#   ~/.team-trash/<YYYY-MM-DD>/ folders whose folder date is more than 7 days ago. The folder name is the date the data
+#   was moved there (mv keeps mtimes, so mtime would be wrong). Anything else in ~/.team-trash is left alone.
 # Every cleanup writes one change event on chg-2026-10-23-003. Prometheus keeps MacDiskSpaceLow/Critical as the alerts.
 #   disk-guard.sh [--dry-run]
 set -uo pipefail
@@ -36,6 +39,22 @@ fi
 EOS
 )
 
+# Team trash; runs on the target host. Prints "trash:<n>" (folders removed).
+TRASH=$(cat <<'EOS'
+T="$HOME/.team-trash"; n=0
+if [ -d "$T" ]; then
+  cutoff=$(date -v-7d +%Y-%m-%d)
+  for d in "$T"/*/; do
+    d=${d%/}; b=${d##*/}
+    [[ "$b" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || continue   # only <date> folders
+    [[ "$b" < "$cutoff" ]] || continue                        # 7 days or younger: keep
+    /bin/rm -rf -- "${d:?}" && n=$((n+1))
+  done
+fi
+echo "trash:$n"
+EOS
+)
+
 free_pct() { # <host>
   local line
   if [ "$1" = vdhmini01 ]; then line=$(df -k /System/Volumes/Data | tail -1); else line=$(ssh -o ConnectTimeout=10 -o BatchMode=yes studio-host 'df -k /System/Volumes/Data | tail -1') || return 1; fi
@@ -44,8 +63,14 @@ free_pct() { # <host>
 run_clean() { if [ "$1" = vdhmini01 ]; then bash -s <<<"$CLEAN"; else ssh -o ConnectTimeout=10 -o BatchMode=yes studio-host 'bash -s' <<<"$CLEAN"; fi; }
 log_event() { (cd "$REPO" && ./ops/ops change event chg-2026-10-23-003 executed --actor infra-ops --payload "$1" >/dev/null 2>&1) || true; }
 
+run_trash() { if [ "$1" = vdhmini01 ]; then bash -s <<<"$TRASH"; else ssh -o ConnectTimeout=10 -o BatchMode=yes studio-host 'bash -s' <<<"$TRASH"; fi; }
+
 for host in vdhmini01 vdhllmsrv01; do
   before=$(free_pct "$host") || { echo "$host: unreachable"; continue; }
+  if [ "$DRY" != --dry-run ]; then
+    t=$(run_trash "$host" | sed -n 's/^trash://p')
+    [ "${t:-0}" -gt 0 ] && { echo "$host: team trash: $t folder(s) older than 7 days removed"; (cd "$REPO" && ./ops/ops change event chg-2026-10-24-002 executed --actor infra-ops --payload "{\"step\":\"team-trash $host\",\"summary\":\"removed $t ~/.team-trash/<date> folder(s) older than 7 days\"}" >/dev/null 2>&1) || true; }
+  fi
   echo "$host: ${before}% free"
   [ "$before" -lt "$CLEAN_BELOW" ] || continue
   if [ "$DRY" = --dry-run ]; then echo "$host: would clean"; continue; fi

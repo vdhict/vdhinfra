@@ -1,0 +1,10 @@
+chg-2026-10-22-006 registry checks around runs 20261024t0345z and 20261024t0357z (from the Mini, read-only, anonymous)
+image registry.access.redhat.com/hi/dotnet-sdk@sha256:0465844ba1d9f5689ac64626537e275f59b65569703e90edc46b33f93f872d8b (step 9 base)
+03:53:53Z run 0345z step 9 in pod: blob sha256:d46de6b0008590122867f5242f44a1898d38cce697d98eb0184a4452bc23fb4f GET 503 Service Unavailable
+03:55:59Z Mini: GET /v2/ 200
+03:56:39Z Mini: HEAD blob d46de6b0 200 (precondition for the rerun)
+04:06:08Z run 0357z step 9 in pod: blob sha256:b5546b439fb04f6fdc4bf2c6900c216478cd6404cc5e3c0f8c0305bd10e5f5aa GET 503 Service Unavailable
+04:07:29Z Mini: HEAD blob b5546b43 200, HEAD blob d46de6b0 200
+04:07:38Z Mini: GET range 0-1023 both blobs 206 (1 redirect); full GET b5546b43 200 1190588 bytes 0.41s, d46de6b0 200 1964821 bytes 0.41s
+blob GET redirects (302) to host cdn01.quay.io
+pp-ci egress policy: L3/L4 only (world 443/80), no L7 proxy in the path, so the 503 is an HTTP answer from the registry/CDN side

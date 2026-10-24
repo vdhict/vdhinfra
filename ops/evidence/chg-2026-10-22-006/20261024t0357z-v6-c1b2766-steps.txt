@@ -1,0 +1,41 @@
+run 20261024t0357z target v6-c1b2766 exit 1 ref aee4e84
+=== [04:00:32Z] 0 context
+=== [04:00:33Z] 1 tool restore
+=== [04:00:34Z] 1b GitHub Actions workflow files parse (ci/workflow-check.py)
+=== [04:00:34Z] 1c prose style: no en or em dash, no double hyphen as a dash (ci/prose-check.py)
+=== [04:00:34Z] 2 restore (locked mode, NuGetAudit as errors)
+=== [04:00:41Z] 3 format --verify-no-changes
+=== [04:01:24Z] 4 build Release, warnings as errors
+=== [04:02:08Z] 5 test (unit, architecture, platform, hosting)
+  total: 419
+  failed: 0
+  succeeded: 419
+  skipped: 0
+=== [04:02:23Z] 5b storage provider matrix
+  total: 21
+  failed: 0
+  succeeded: 21
+  skipped: 0
+  total: 22
+  failed: 0
+  succeeded: 22
+  skipped: 0
+  total: 17
+  failed: 0
+  succeeded: 17
+  skipped: 0
+=== [04:03:13Z] 5c guard coverage (every configuration guard executed by a test)
+guards=124 exercised=124 not-exercised=0
+=== [04:03:14Z] 5d traceability (requirements, source references and this run's TRX)
+traceability: built+tested=72, built-untested=0, designed-only=0, missing=0, partial=0, planned=0, external=28, drift=0, failing=0; failures=0
+=== [04:03:23Z] 5e reference docs (configuration, HTTP routes and requirement matrix)
+=== [04:03:23Z] 6 SBOM (CycloneDX JSON, test project excluded)
+=== [04:03:31Z] 6a third-party notices match shipped SBOM
+=== [04:03:31Z] 6b Linux publish (linux-x64, linux-arm64): no Windows binaries
+=== [04:04:44Z] 7 NuGet vulnerabilities (direct and transitive)
+projects=8 vulnerable=0 problems=0
+=== [04:04:51Z] 8 grype on the SBOM
+grype matches=0 db_built=2026-10-23T06:30:15Z
+=== [04:06:08Z] 9 Linux (registry.access.redhat.com/hi/dotnet-sdk@sha256:0465844ba1d9f5689ac64626537e275f59b65569703e90edc46b33f93f872d8b)
+Error: creating build container: copying system image from manifest list: reading blob sha256:b5546b439fb04f6fdc4bf2c6900c216478cd6404cc5e3c0f8c0305bd10e5f5aa: fetching blob: received unexpected HTTP status: 503 Service Unavailable
+ci: FAILED: linux CI image (git-core on the pinned SDK)

@@ -1,0 +1,29 @@
+Checking '/dev/stdin'  SUCCESS
+Found:
+ - global config
+ - route
+ - 3 inhibit rules
+ - 8 receivers
+ - 0 templates
+
+== alertname=MacDiskSpaceCritical severity=critical component=aiops-hosts host=vdhmini01
+  new: ntfy-team-day,ntfy-team-night,ha-critical,ntfy-critical,ntfy-night
+  live: ha-critical,ntfy-critical,ntfy-night
+== alertname=MacDiskSpaceLow severity=warning component=aiops-hosts host=vdhllmsrv01
+  new: ntfy-team-day,ntfy-team-night,ntfy-day,ntfy-night
+  live: ntfy-day,ntfy-night
+== alertname=BlackboxProbeFailure severity=warning component=blackbox-exporter target_friendly=vdhmini01
+  new: ntfy-team-day,ntfy-team-night,ntfy-day,ntfy-night
+  live: ntfy-day,ntfy-night
+== alertname=NtfyDown severity=critical component=aiops-hosts
+  new: ha-critical,ntfy-critical,ntfy-night
+  live: ha-critical,ntfy-critical,ntfy-night
+== alertname=KubePodCrashLooping severity=warning namespace=media
+  new: ntfy-day,ntfy-night
+  live: ntfy-day,ntfy-night
+== alertname=Watchdog severity=none
+  new: null
+  live: null
+== alertname=PkaCheckerStale severity=warning component=mypka-wires host=vdhmini01
+  new: ntfy-team-day,ntfy-team-night,ntfy-day,ntfy-night
+  live: ntfy-day,ntfy-night
