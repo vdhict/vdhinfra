@@ -34,3 +34,30 @@ data:
           valid_status_codes: [200, 204]
           fail_if_ssl: false
           fail_if_not_ssl: false
+      # chg-2026-10-25-006 (Argus F2): the setup state of Jellyfin and
+      # Dispatcharr must stay CLOSED. Probed in-cluster (not via the
+      # routes, which block the setup endpoints with a 500). Fails, and so
+      # fires the generic BlackboxProbeFailure (warning -> ntfy, silent at
+      # night), when the service is down OR its setup is open again (e.g.
+      # after data loss).
+      http_jellyfin_setup_closed:
+        prober: http
+        timeout: 5s
+        http:
+          preferred_ip_protocol: ip4
+          ip_protocol_fallback: false
+          valid_status_codes: [200]
+          # GET /System/Info/Public (PublicSystemInfo.StartupWizardCompleted)
+          fail_if_body_not_matches_regexp:
+            - '"StartupWizardCompleted"\s*:\s*true'
+      http_dispatcharr_setup_closed:
+        prober: http
+        timeout: 5s
+        http:
+          preferred_ip_protocol: ip4
+          ip_protocol_fallback: false
+          valid_status_codes: [200]
+          # GET /api/accounts/initialize-superuser/ (no login, no network
+          # list; superuser_exists is true once a user_level>=10 exists)
+          fail_if_body_not_matches_regexp:
+            - '"superuser_exists"\s*:\s*true'

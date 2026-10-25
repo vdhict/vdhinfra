@@ -44,16 +44,22 @@ spec:
               TZ: Europe/Amsterdam
               DISPATCHARR_ENV: aio
               DISPATCHARR_LOG_LEVEL: INFO
-              # Never trust X-Forwarded-*/X-Real-IP (team choice). Effect,
-              # from dispatcharr/utils.py + core/utils.py at v0.33.0:
-              #   * the client IP for every network-access list is the TCP
-              #     peer, i.e. an envoy-internal pod (10.42.x) for routed
-              #     clients, or the in-cluster pod;
-              #   * output URLs (M3U stream URLs, Xtream server_info) use the
-              #     raw scheme http and the Host header without port, so
-              #     LAN clients get http://iptv... URLs and envoy-internal
-              #     301-redirects them to https.
-              DISPATCHARR_TRUSTED_PROXIES: none
+              # Argus F3: trust forwarded headers from the pod CIDR (the
+              # envoy-internal pods; Flux substitutes it from
+              # cluster-settings). Effect, from dispatcharr/utils.py +
+              # core/utils.py at v0.33.0:
+              #   * output URLs (M3U stream URLs, Xtream server_info) take
+              #     X-Forwarded-Proto https from Envoy, so clients get
+              #     https://iptv... and Xtream credentials never cross the
+              #     LAN in cleartext (with `none` they were http, 301-ed);
+              #   * the client IP for the network-access lists is the
+              #     address Envoy appends to X-Forwarded-For. The route
+              #     strips client-sent X-Real-IP / X-Forwarded-Host /
+              #     X-Forwarded-Port first (../route/httproute.yaml).
+              # Other pods in the CIDR could send forged headers directly,
+              # but the ingress CNP admits only envoy-internal, the two
+              # jellyfin pods, the bootstrap Job and blackbox on 9191.
+              DISPATCHARR_TRUSTED_PROXIES: ${CLUSTER_CIDR}
               # DISPATCHARR_SETUP_ALLOWED_IP is deliberately NOT set; the
               # admin is created by dispatcharr-bootstrap before any route
               # exists (../install.yaml).
@@ -117,6 +123,13 @@ spec:
     defaultPodOptions:
       automountServiceAccountToken: false
       enableServiceLinks: false
+      # hostUsers: false (a user namespace, so root in the container is not
+      # root on the node) would be the strongest fit for this root image,
+      # and app-template 3.7.3 renders it. NOT set: measured 2026-10-25,
+      # /proc/sys/user/max_user_namespaces is 0 on vdhclu01node01/02/03
+      # (talosctl read), so such a pod cannot be created. Enabling it is a
+      # Talos machine-config change that opens user namespaces to every
+      # pod on the node: its own high-risk change, not this one.
       securityContext:
         seccompProfile: {type: RuntimeDefault}
     service:

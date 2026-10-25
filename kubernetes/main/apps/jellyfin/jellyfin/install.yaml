@@ -14,6 +14,12 @@
 # With no route, only pods in the cluster can reach the ClusterIP in that
 # window. jellyfin-bootstrap has wait: true, so jellyfin-route is applied
 # only after the Job has COMPLETED. A failed Job keeps the route away.
+#
+# That ordering protects the FIRST install only. After data loss the setup
+# endpoint would be open again behind an existing route, so the route also
+# blocks it permanently (../route/httproute.yaml), and the blackbox Probe
+# setup-closed (observability) alerts when the setup state is not closed
+# (Argus F2).
 # yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -26,6 +32,8 @@ spec:
     labels:
       app.kubernetes.io/part-of: jellyfin
   dependsOn:
+    # The CNPs must exist before any jellyfin pod (Argus F1).
+    - name: jellyfin-network-policies
     - name: external-secrets-stores
     - name: rook-ceph-cluster
     - name: node-feature-discovery

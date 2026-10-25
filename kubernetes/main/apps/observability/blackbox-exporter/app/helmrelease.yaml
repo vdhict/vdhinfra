@@ -31,6 +31,10 @@ spec:
         seccompProfile: { type: RuntimeDefault }
     controllers:
       blackbox-exporter:
+        # The config is a subPath mount, which never sees ConfigMap updates:
+        # without a restart new modules are not loaded (chg-2026-10-25-006).
+        annotations:
+          reloader.stakater.com/auto: "true"
         replicas: 1
         containers:
           app:

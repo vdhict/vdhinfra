@@ -1,8 +1,10 @@
 ---
 # dispatcharr: in on TCP 9191 (nginx) from
 #   * envoy-internal (the iptv.${SECRET_DOMAIN} route: LAN and WireGuard),
-#   * the jellyfin namespace (Jellyfin's tuner/guide and its bootstrap Job),
-#   * the dispatcharr-bootstrap Job pod.
+#   * the Jellyfin pod and the jellyfin-bootstrap Job pod ONLY, not the
+#     whole jellyfin namespace (Argus F1),
+#   * the dispatcharr-bootstrap Job pod,
+#   * blackbox-exporter (observability), for the setup-closed probe.
 # yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -21,10 +23,20 @@ spec:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: network
             gateway.envoyproxy.io/owning-gateway-name: envoy-internal
+        # Pod labels measured with helm template (Jellyfin, app-template
+        # 3.7.3: app.kubernetes.io/name jellyfin) and the Job manifest
+        # (app.kubernetes.io/name jellyfin-bootstrap).
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: jellyfin
+          matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values: [jellyfin, jellyfin-bootstrap]
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: dispatcharr
             app.kubernetes.io/name: dispatcharr-bootstrap
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: observability
+            app.kubernetes.io/name: blackbox-exporter
       toPorts:
         - ports: [{port: "9191", protocol: TCP}]

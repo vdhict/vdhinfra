@@ -8,6 +8,8 @@
 #                          network-access lists, and (once the 1Password
 #                          field server_url exists) the Xtream account with
 #                          max 1 stream and its XMLTV source
+#   dispatcharr-provider-server  ExternalSecret for 1Password field
+#                          server_url only; wait: false, blocks nothing
 #   dispatcharr-route      the HTTPRoute on envoy-internal
 #
 # Why the route comes LAST: until an admin exists, POST
@@ -17,6 +19,12 @@
 # in-cluster pods (and, under the CNP, only the admitted ones) reach 9191 in
 # that window. dispatcharr-bootstrap has wait: true, so the route is applied
 # only after the Job has COMPLETED.
+#
+# That ordering protects the FIRST install only. After data loss the setup
+# endpoint would be open again behind an existing route, so the route also
+# blocks it permanently (../route/httproute.yaml), and the blackbox Probe
+# setup-closed (observability) alerts when the setup state is not closed
+# (Argus F2).
 # yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -81,6 +89,34 @@ spec:
   interval: 30m
   retryInterval: 2m
   timeout: 30m
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# The server_url ExternalSecret, on its own and NOT waited on: it is
+# expected to be NotReady until the 1Password field exists, and must never
+# block dispatcharr-bootstrap or the routes (see
+# ../provider-server/externalsecret.yaml).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: dispatcharr-provider-server
+  namespace: flux-system
+spec:
+  targetNamespace: dispatcharr
+  commonMetadata:
+    labels:
+      app.kubernetes.io/part-of: dispatcharr
+  dependsOn:
+    - name: external-secrets-stores
+  path: ./kubernetes/main/apps/dispatcharr/dispatcharr/provider-server
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: false
+  interval: 30m
+  retryInterval: 2m
+  timeout: 5m
 ---
 # yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
 apiVersion: kustomize.toolkit.fluxcd.io/v1

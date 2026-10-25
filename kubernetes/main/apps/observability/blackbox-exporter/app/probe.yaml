@@ -133,3 +133,57 @@ spec:
       labels:
         target_friendly: pikvm
         target_role: oob-console
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/probe_v1.json
+#
+# chg-2026-10-25-006 (Argus F2): Jellyfin's startup wizard and Dispatcharr's
+# initialize-superuser must stay CLOSED. Both are blocked on their routes;
+# this catches the state behind the block (data loss, a PVC recreate). In-
+# cluster ClusterIP targets; both namespaces' CNPs admit blackbox-exporter
+# on the app port. Failures surface through the generic
+# BlackboxProbeFailure rule (warning, 3m).
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: setup-closed
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: blackbox-exporter
+spec:
+  jobName: blackbox-setup-closed
+  prober:
+    url: blackbox-exporter.observability.svc.cluster.local:9115
+    path: /probe
+  module: http_jellyfin_setup_closed
+  interval: 5m
+  scrapeTimeout: 10s
+  targets:
+    staticConfig:
+      static:
+        - http://jellyfin.jellyfin.svc.cluster.local:8096/System/Info/Public
+      labels:
+        target_friendly: jellyfin-setup-closed
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/probe_v1.json
+# Same check for Dispatcharr (a Probe takes one module, hence two Probes).
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: setup-closed-dispatcharr
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: blackbox-exporter
+spec:
+  jobName: blackbox-setup-closed
+  prober:
+    url: blackbox-exporter.observability.svc.cluster.local:9115
+    path: /probe
+  interval: 5m
+  scrapeTimeout: 10s
+  module: http_dispatcharr_setup_closed
+  targets:
+    staticConfig:
+      static:
+        - http://dispatcharr.dispatcharr.svc.cluster.local:9191/api/accounts/initialize-superuser/
+      labels:
+        target_friendly: dispatcharr-setup-closed

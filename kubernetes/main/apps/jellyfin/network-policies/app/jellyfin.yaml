@@ -1,0 +1,29 @@
+---
+# jellyfin: in on TCP 8096 only, from envoy-internal, the jellyfin-bootstrap
+# Job and blackbox-exporter. Nothing else in the cluster reaches 8096, so
+# /Startup/* is not open to arbitrary pods while the wizard is incomplete.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: jellyfin
+spec:
+  # app-template 3.7.3 pod labels (helm template, 2026-10-25): name,
+  # instance, component; no app.kubernetes.io/controller in this version.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: jellyfin
+      app.kubernetes.io/component: jellyfin
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            gateway.envoyproxy.io/owning-gateway-name: envoy-internal
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: jellyfin
+            app.kubernetes.io/name: jellyfin-bootstrap
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: observability
+            app.kubernetes.io/name: blackbox-exporter
+      toPorts:
+        - ports: [{port: "8096", protocol: TCP}]

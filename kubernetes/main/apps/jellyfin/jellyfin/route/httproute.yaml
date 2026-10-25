@@ -19,7 +19,7 @@
 #
 # Applied by jellyfin-route, which dependsOn jellyfin-bootstrap (wait: true):
 # this route exists only after the startup wizard has been completed by the
-# Job. See ../install.yaml.
+# Job, and the wizard is blocked below for good. See ../install.yaml.
 # Direct play and remux (/Videos/<id>/stream, live TV .ts) are long single
 # responses. Envoy's default route timeout is 15s for the WHOLE response
 # (measured: 36 of 39 envoy-internal routes have no timeout set), so
@@ -41,6 +41,20 @@ spec:
   hostnames:
     - jellyfin.${SECRET_DOMAIN}
   rules:
+    # Argus F2: the startup wizard (/Startup/*) is NEVER reachable through
+    # this route, permanently. After data loss (empty jellyfin-config) the
+    # wizard is incomplete again and its endpoints need no login
+    # (FirstTimeSetupHandler). ASP.NET routing is case-insensitive, hence a
+    # case-insensitive RE2 regex; Envoy matches it against the normalised
+    # path without the query. No backendRefs = direct 500 in Envoy Gateway
+    # v1.3.0, and RegularExpression sorts ahead of PathPrefix (sort.go). The
+    # web client only calls /Startup while StartupWizardCompleted is false.
+    # jellyfin-bootstrap runs the wizard in-cluster
+    # (jellyfin.jellyfin.svc), never through this route.
+    - matches:
+        - path:
+            type: RegularExpression
+            value: "(?i)^/startup(/.*)?$"
     - matches:
         - path:
             type: PathPrefix

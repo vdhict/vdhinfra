@@ -4,9 +4,10 @@
 #
 # Plain Job owned by dispatcharr-bootstrap (force: true, wait: true), no
 # TTL, same as jellyfin-bootstrap. When Sander adds server_url to the
-# 1Password item, ESO refreshes the Secret within 12h, but a Secret change
-# is NOT a Job spec change: re-run it by bumping RUN_GENERATION below (or
-# by deleting the Job as a recorded step; Flux recreates it).
+# 1Password item, ESO writes Secret dispatcharr-provider-server within 12h,
+# but a Secret change is NOT a Job spec change: re-run it by bumping
+# RUN_GENERATION below (or by deleting the Job as a recorded step; Flux
+# recreates it).
 #
 # NETWORK_CIDRS uses ${CLUSTER_CIDR} from cluster-settings (Flux postBuild;
 # this file is NOT substitute-disabled).
@@ -43,11 +44,14 @@ spec:
               value: "1"
             - name: DISPATCHARR_URL
               value: http://dispatcharr.dispatcharr.svc.cluster.local:9191
-            # Network Access for UI, STREAMS, XC_API and M3U_EPG. The pod
-            # CIDR (Jellyfin, envoy-internal) sits inside 10.0.0.0/8 but is
-            # listed on its own so the intent survives a later narrowing.
+            # Network Access for UI, STREAMS, XC_API and M3U_EPG (Argus F3):
+            #   172.16.2.0/23   CLIENT-VLAN (the LAN; also the node IPs that
+            #                   Cilium SNATs LoadBalancer clients to)
+            #   192.168.4.0/24  WireGuard VDHVPN02 (CMDB wireguard.vdhvpn02;
+            #                   the only WireGuard server there)
+            #   CLUSTER_CIDR    Jellyfin, this Job (cluster-settings)
             - name: NETWORK_CIDRS
-              value: "172.16.0.0/12,10.0.0.0/8,${CLUSTER_CIDR}"
+              value: "172.16.2.0/23,192.168.4.0/24,${CLUSTER_CIDR}"
             - name: PROVIDER_MAX_STREAMS
               value: "1"
             - name: DISPATCHARR_ADMIN_USER
@@ -56,9 +60,13 @@ spec:
             - name: DISPATCHARR_ADMIN_PASS
               valueFrom:
                 secretKeyRef: {name: dispatcharr-admin, key: DISPATCHARR_ADMIN_PASS}
+            # From ../provider-server. optional: until the 1Password field
+            # server_url exists that ExternalSecret stays NotReady and
+            # writes no Secret; the variable is then unset and the Job logs
+            # "provider: not configured" and exits 0.
             - name: PROVIDER_SERVER_URL
               valueFrom:
-                secretKeyRef: {name: dispatcharr-provider, key: PROVIDER_SERVER_URL}
+                secretKeyRef: {name: dispatcharr-provider-server, key: PROVIDER_SERVER_URL, optional: true}
             - name: PROVIDER_USERNAME
               valueFrom:
                 secretKeyRef: {name: dispatcharr-provider, key: PROVIDER_USERNAME}

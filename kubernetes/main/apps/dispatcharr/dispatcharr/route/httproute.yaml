@@ -17,7 +17,8 @@
 #     it on revert. Do NOT also hand-write a static record.
 #
 # Applied by dispatcharr-route, after dispatcharr-bootstrap COMPLETED (the
-# admin exists). See ../install.yaml.
+# admin exists), and the setup endpoint is blocked below for good. See
+# ../install.yaml.
 # Streams are endless single responses (MPEG-TS on /proxy/ts/stream/...,
 # /live/..., and the Xtream short form /<user>/<pass>/<id>, which no path
 # prefix can single out). Envoy's default route timeout is 15s for the WHOLE
@@ -40,10 +41,45 @@ spec:
   hostnames:
     - iptv.${SECRET_DOMAIN}
   rules:
+    # Argus F2: initialize-superuser is NEVER reachable through this route,
+    # permanently, not only on first install. After data loss (empty
+    # dispatcharr-data) Dispatcharr has no admin again and would accept a
+    # POST from any private-range client. A rule with no backendRefs gets a
+    # direct 500 in Envoy Gateway v1.3.0 (internal/gatewayapi/route.go: no
+    # valid backends -> DirectResponse 500), and the longer prefix sorts
+    # ahead of / (sort.go). PathPrefix matches per path element, with and
+    # without the trailing slash; envoy-internal normalises the path first
+    # (normalize_path, merge_slashes, escaped slashes unescape+redirect,
+    # read from the live listener 2026-10-25). Django paths are
+    # case-sensitive, so case variants do not resolve upstream either.
+    # The web UI's GET on page load fails OPEN to the login screen on any
+    # error (frontend/src/App.jsx checkSuperuser), so the UI keeps working.
+    # dispatcharr-bootstrap creates the admin in-cluster
+    # (dispatcharr.dispatcharr.svc), never through this route.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/accounts/initialize-superuser
     - matches:
         - path:
             type: PathPrefix
             value: /
+      # Argus F3: DISPATCHARR_TRUSTED_PROXIES is the pod CIDR (Envoy), so
+      # Dispatcharr now reads forwarded headers from Envoy. It honours
+      # X-Real-IP BEFORE X-Forwarded-For (dispatcharr/utils.py
+      # get_client_ip) and X-Forwarded-Host/-Port for its output URLs
+      # (core/utils.py _resolve_host_port_scheme); Envoy passes all three
+      # through from the client unchanged. Remove them, so the client IP is
+      # the address Envoy appends to X-Forwarded-For itself
+      # (use_remote_address: true) and the host is the Host header.
+      # X-Forwarded-Proto is set by Envoy (https), not by the client.
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            remove:
+              - X-Real-IP
+              - X-Forwarded-Host
+              - X-Forwarded-Port
       backendRefs:
         - name: dispatcharr
           port: 9191

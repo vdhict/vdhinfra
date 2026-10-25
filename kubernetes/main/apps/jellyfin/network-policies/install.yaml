@@ -1,0 +1,25 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# The jellyfin CNPs land BEFORE the workload (jellyfin dependsOn this), so
+# no jellyfin pod ever runs with open ingress, on every path: a combined
+# push, a DR rebuild or a re-bootstrap (Argus F1, chg-2026-10-25-006).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: jellyfin-network-policies
+  namespace: flux-system
+spec:
+  targetNamespace: jellyfin
+  commonMetadata:
+    labels:
+      app.kubernetes.io/part-of: jellyfin
+  path: ./kubernetes/main/apps/jellyfin/network-policies/app
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: true
+  interval: 30m
+  retryInterval: 1m
+  timeout: 5m

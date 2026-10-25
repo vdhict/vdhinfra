@@ -1,0 +1,20 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+#
+# jellyfin network policy (chg-2026-10-25-006, Argus F1). INGRESS ONLY:
+#   default-deny   every pod in the namespace (Jellyfin, the bootstrap Job,
+#                  VolSync movers): nothing in
+#   jellyfin       in on TCP 8096 from exactly:
+#                    * envoy-internal pods (the jellyfin route)
+#                    * the jellyfin-bootstrap Job pod
+#                    * blackbox-exporter (observability), for the
+#                      setup-closed probe
+#
+# Egress is deliberately NOT restricted: Jellyfin fetches metadata and
+# artwork from the internet, and reads Dispatcharr in-cluster (whose own
+# CNP admits only the jellyfin and jellyfin-bootstrap pods).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./default-deny.yaml
+  - ./jellyfin.yaml

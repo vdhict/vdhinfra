@@ -3,9 +3,9 @@
 #
 # dispatcharr network policy (chg-2026-10-25-006). INGRESS ONLY:
 #   default-deny   every pod in the namespace: nothing in
-#   dispatcharr    in: envoy-internal pods, the jellyfin namespace (Jellyfin
-#                      and its bootstrap Job) and dispatcharr-bootstrap,
-#                      all on TCP 9191 (nginx) only
+#   dispatcharr    in: envoy-internal pods, the jellyfin and
+#                      jellyfin-bootstrap pods, dispatcharr-bootstrap and
+#                      blackbox-exporter, all on TCP 9191 (nginx) only
 #
 # Why: the all-in-one pod also listens on 5432 (postgres, listen_addresses
 # '*', md5 from 0.0.0.0/0, role `dispatch` is SUPERUSER), 5656 (uwsgi http,
