@@ -33,6 +33,12 @@ CACHE="$HOME/.cache/chg-2026-10-20-010"; WT="$CACHE/wt-$TS-rollback-${MODE#--}"
 EV="$REPO/ops/evidence/chg-2026-10-20-010/k8s-rollback-$TS-${MODE#--}.txt"
 mkdir -p "$CACHE"; [ ! -e "$EV" ] || { echo "evidence file exists" >&2; exit 1; }
 log() { echo "$*" | tee -a "$EV"; }
+# >>> c010-rev (Flux lastAppliedRevision check; identical in golive.sh and rollback.sh; tested by test-rev.sh)
+rev_is() { # $1 = ks .status.lastAppliedRevision, $2 = full 40-hex sha: exactly main@sha1:<sha> or refs/heads/main@sha1:<sha>
+  [[ "$2" =~ ^[0-9a-f]{40}$ ]] || return 1
+  [ "$1" = "main@sha1:$2" ] || [ "$1" = "refs/heads/main@sha1:$2" ]
+}
+# <<< c010-rev
 red=0; chk() { if eval "$2"; then log "  ok   $1"; else log "  RED  $1"; red=1; fi; }
 eval "$(cd "$REPO" && mise env -s bash 2>/dev/null)"
 log "chg-2026-10-20-010 rollback $MODE $TS deploy=$SHA (k8s-engineer; uitgevoerd onder programmagoedkeuring family-ai; AGR-109: tests are the gate)"
@@ -110,7 +116,7 @@ PUSHED=$(git -C "$WT" rev-parse HEAD); log "pushed $PUSHED to main"
 flux reconcile source git flux-system -n flux-system >/dev/null
 for ks in family-ai-network-policies family-ai-hermes; do
   flux reconcile ks "$ks" -n flux-system --timeout=10m >/dev/null || true
-  chk "ks $ks Ready at $PUSHED" "[ \"\$(kubectl -n flux-system get ks $ks -o jsonpath='{.status.lastAppliedRevision}')\" = 'main@sha1:$PUSHED' ] && kubectl -n flux-system wait ks/$ks --for=condition=Ready --timeout=5m >/dev/null"
+  chk "ks $ks Ready at $PUSHED" "rev_is \"\$(kubectl -n flux-system get ks $ks -o jsonpath='{.status.lastAppliedRevision}')\" '$PUSHED' && kubectl -n flux-system wait ks/$ks --for=condition=Ready --timeout=5m >/dev/null"
 done
 kubectl -n $NS rollout status deploy/hermes-profiel-3 --timeout=10m >/dev/null || true
 P3=$(kubectl -n $NS get pod -l app.kubernetes.io/instance=hermes-profiel-3 --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}')

@@ -62,6 +62,12 @@ TS=$(date -u +%Y%m%dT%H%M%SZ); CACHE="$HOME/.cache/$CHG/golive-$TS"; mkdir -p "$
 EV="$REPO/ops/evidence/$CHG/k8s-golive-$TS-${MODE#--}.txt"; [ ! -e "$EV" ] || { echo "evidence $EV exists (write-once): retry in a second" >&2; exit 1; }
 eval "$(cd "$REPO" && mise env -s bash 2>/dev/null)"
 log() { echo "$*" | tee -a "$EV"; }
+# >>> c010-rev (Flux lastAppliedRevision check; identical in golive.sh and rollback.sh; tested by test-rev.sh)
+rev_is() { # $1 = ks .status.lastAppliedRevision, $2 = full 40-hex sha: exactly main@sha1:<sha> or refs/heads/main@sha1:<sha>
+  [[ "$2" =~ ^[0-9a-f]{40}$ ]] || return 1
+  [ "$1" = "main@sha1:$2" ] || [ "$1" = "refs/heads/main@sha1:$2" ]
+}
+# <<< c010-rev
 RED=0; PUSHED=""; C4STATE=""; CANARY_UID=""
 chk() { if eval "$2" >>"$CACHE/chk.log" 2>&1; then log "  ok   $1"; else log "  RED  $1"; RED=1; fi; }
 # >>> c010-auth (Argus G-b + L1; sourced as-is by hack/ops/chg-2026-10-20-010-test-golive-auth.sh)
@@ -322,7 +328,7 @@ PUSHED="$SHA"; log "  pushed $SHA to main"
 flux reconcile source git flux-system -n flux-system >>"$CACHE/chk.log" 2>&1
 for ks in family-ai-network-policies family-ai-hermes; do
   flux reconcile ks $ks -n flux-system --timeout=10m >>"$CACHE/chk.log" 2>&1
-  chk "ks $ks Ready at $SHA" "[ \"\$(kubectl -n flux-system get ks $ks -o jsonpath='{.status.lastAppliedRevision}')\" = 'main@sha1:$SHA' ] && kubectl -n flux-system wait ks/$ks --for=condition=Ready --timeout=5m"
+  chk "ks $ks Ready at $SHA" "rev_is \"\$(kubectl -n flux-system get ks $ks -o jsonpath='{.status.lastAppliedRevision}')\" '$(git -C "$SRC" rev-parse "$SHA")' && kubectl -n flux-system wait ks/$ks --for=condition=Ready --timeout=5m"
 done
 chk "p3 rollout complete" "kubectl -n $NS rollout status deploy/hermes-profiel-3 --timeout=10m"
 gate "reconcile"
