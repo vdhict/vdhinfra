@@ -64,6 +64,7 @@ scenario() { # $1 name, $2 push-deploy (yes|no) -> sets S, SHA, TSHA, env
   cp "$CUT_SRC" "$GOLIVE_SRC" "$PLIST_SRC" "$S/repo/hack/ops/"; rollback_stub > "$S/repo/hack/ops/$CHG-rollback.sh"
   echo 'print("stub")' > "$S/repo/kubernetes/main/apps/observability/cluster-health/app/scripts/gh_app_token.py"
   echo '# stub' > "$S/repo/kubernetes/main/apps/observability/cluster-health/app/scripts/git_push.py"
+  echo '# stub' > "$S/repo/kubernetes/main/apps/observability/cluster-health/app/scripts/lib.py"
   gq -C "$S/repo" add -A; gq -C "$S/repo" commit -m tooling
   echo 'kind: CiliumNetworkPolicy' > "$S/repo/$CNP"; gq -C "$S/repo" add -A; gq -C "$S/repo" commit -m wiring
   SHA=$(git -C "$S/repo" rev-parse HEAD); TSHA=$(git -C "$S/repo" rev-parse HEAD^)
@@ -109,7 +110,7 @@ t "A1 rendered plist lints, no placeholder left" bash -c "/usr/bin/plutil -lint 
 t "A1 family-ai worktree on land2-cloud-on-live (main checkout stays on other)" bash -c "[ \"\$(git -C '$S/fai-wt' rev-parse --abbrev-ref HEAD)\" = land2-cloud-on-live ] && [ \"\$(git -C '$S/fai' rev-parse --abbrev-ref HEAD)\" = other ]"
 t "A1 rollback --dry-run ran once with FAMILY_AI_REPO = worktree" bash -c "[ \"\$(grep -c -- '--dry-run' '$S/rb.log')\" = 1 ] && grep -q 'FAMILY_AI_REPO=$S/fai-wt' '$S/rb.log'"
 t "A1 one 'cutoff armed' event: readback GREEN, trigger + source logged" bash -c "[ $(nev) = 1 ] && grep -q 'cutoff armed' '$S/events.log' && grep -q 'readback.: .GREEN' '$S/events.log' && grep -q 'trigger_utc.: .$EXP_A' '$S/events.log' && grep -q 'w2_event.: .$A_TS' '$S/events.log'"
-t "A1 install pinned: SHA256SUMS covers cutoff, rollback, minter" bash -c "[ \$(wc -l < \$(ls -d '$S'/inst/*/SHA256SUMS | head -1)) = 4 ]"
+t "A1 install pinned: SHA256SUMS covers cutoff, rollback, minter (3 files)" bash -c "[ \$(wc -l < \$(ls -d '$S'/inst/*/SHA256SUMS | head -1)) = 5 ]"
 sleep 1; out=$(cut arm "$SHA" --w2-event "$A_TS" 2>&1); rc=$?; export OUT="$out"
 t "A2 second arm, same event: rc 0, 'already armed', no new event, no new install" bash -c "[ $rc = 0 ] && grep -q 'already armed' <<< \"\$OUT\" && [ $(nev) = 1 ] && [ \$(ls '$S/inst' | wc -l) = 1 ]"
 out=$(cut arm "$TSHA" --w2-event "$A_TS" 2>&1); rc=$?; export OUT="$out"

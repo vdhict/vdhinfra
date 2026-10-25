@@ -171,8 +171,9 @@ install_and_load() { # $1 sha  $2 cutoff  $3 label  $4 w2 event ts ; uses SRC
   git -C "$SRC" show "$SHA:hack/ops/$CHG-rollback.sh" > "$INST/$CHG-rollback.sh" &&
   git -C "$SRC" show "$SHA:$MINTER_DIR/gh_app_token.py" > "$INST/mint/gh_app_token.py" &&
   git -C "$SRC" show "$SHA:$MINTER_DIR/git_push.py" > "$INST/mint/git_push.py" &&
+  git -C "$SRC" show "$SHA:$MINTER_DIR/lib.py" > "$INST/mint/lib.py" &&
   git -C "$SRC" show "$SHA:hack/ops/net.vdhict.$CHG-cutoff.plist" > "$INST/template.plist" || { echo "deploy commit lacks the cut-off files" >&2; return 1; }
-  (cd "$INST" && shasum -a 256 "$CHG-cutoff.sh" "$CHG-rollback.sh" mint/gh_app_token.py mint/git_push.py > SHA256SUMS)
+  (cd "$INST" && shasum -a 256 "$CHG-cutoff.sh" "$CHG-rollback.sh" mint/gh_app_token.py mint/git_push.py mint/lib.py > SHA256SUMS)
   local APPID="${GITHUB_APP_ID:-${GH_APP_ID:-}}" INSTID="${GITHUB_APP_INSTALLATION_ID:-${GH_APP_INSTALLATION_ID:-}}" KEYP="${GITHUB_APP_KEY_PATH:-${GH_APP_PRIVATE_KEY_FILE:-}}"
   [ -n "$APPID" ] && [ -n "$INSTID" ] && [ -n "$KEYP" ] || { echo "GitHub App env (GH_APP_ID, GH_APP_INSTALLATION_ID, GH_APP_PRIVATE_KEY_FILE) missing" >&2; return 1; }
   REND="$INST/$LABEL.plist"
