@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- chg-2026-10-20-010 cloud cut-off for hermes-profiel-3 (Argus 25-10 09:42:10Z item 3).
+     TEMPLATE: rendered and loaded only by hack/ops/chg-2026-10-20-010-cutoff.sh arm|launchd-selftest.
+     Every 300 s (and at load / after a wake or reboot) it runs the pinned install's fire mode; fire acts only when
+     now >= the cutoff, so a Mini that was off at the trigger time still cuts off as soon as it runs again. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>@@LABEL@@</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>@@INST@@/chg-2026-10-20-010-cutoff.sh</string>
+    <string>fire</string>
+    <string>--sha</string><string>@@SHA@@</string>
+    <string>--cutoff</string><string>@@CUTOFF@@</string>
+    <string>--inst</string><string>@@INST@@</string>
+    <string>--fai</string><string>@@FAI@@</string>
+    <string>--label</string><string>@@LABEL@@</string>
+    <string>--w2-event</string><string>@@W2EVENT@@</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key><string>@@HOME@@</string>
+    <key>PATH</key><string>/opt/homebrew/bin:@@HOME@@/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>VDH_REPO</key><string>@@REPO@@</string>
+    <key>GITHUB_APP_ID</key><string>@@APP_ID@@</string>
+    <key>GITHUB_APP_INSTALLATION_ID</key><string>@@APP_INSTALLATION_ID@@</string>
+    <key>GITHUB_APP_KEY_PATH</key><string>@@APP_KEY_PATH@@</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>StartInterval</key><integer>@@INTERVAL@@</integer>
+  <key>ProcessType</key><string>Background</string>
+  <key>StandardOutPath</key><string>@@HOME@@/Library/Logs/@@LABEL@@.log</string>
+  <key>StandardErrorPath</key><string>@@HOME@@/Library/Logs/@@LABEL@@.log</string>
+</dict>
+</plist>

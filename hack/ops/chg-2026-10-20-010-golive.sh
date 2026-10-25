@@ -13,8 +13,16 @@
 #                                the file exists and its UTC timestamp field (captured_utc | ts_utc | ts) is <= 24 h old
 #                                (older -> re-measure first);
 #                w2_readback_by  "atlas" | "security-engineer" (who re-read the evidence);
-#                w2a             "no_payment_method_no_autoreload" | "workspace_limit_usd=<n>" with n <= 200
-#              -> else refuse. W2b is read back in the pod after deploy (input ceiling 65536, the ledger guard never
+#                w2a             "no_payment_method_no_autoreload" | "workspace_limit_usd=<n>" with n <= 200 |
+#                                "prepaid_autoreload_off_purchased_usd=0_org_limit_usd=<n>" with 0 < n <= 200
+#                                (Argus 25-10 09:42:10Z): then the evidence JSON must ALSO hold captured_utc and
+#                                auto_reload "off", purchased_balance_usd 0, invoicing "none", org_monthly_limit_usd
+#                                == n, key_scope "organization", key_hint_match true, promo_credit_usd > 0 and
+#                                promo_credit_expires_utc (...Z) later than now, and the bundle's plugin budget_usd
+#                                <= promo_credit_usd (Argus 09:56:03Z: the cap follows the grant)
+#              -> else refuse. The cloud cut-off at THAT capture's promo_credit_expires_utc
+#              (chg-2026-10-20-010-cutoff.sh arm <sha> --w2-event <ts>, launchd on the Mini) must be armed for this
+#              deploy at exactly that time and read back before --go. W2b is read back in the pod after deploy (input ceiling 65536, the ledger guard never
 #              overwrote an existing month.json). Then: preflight again, VolumeSnapshots of
 #              hermes-profiel-data-3 + open-webui-data, push to main, Flux reconcile, checks C2 C3 W3 W4 W5 W6,
 #              restart + W5/W6 again, C4 (owui-c4.sh --apply), C5, C6+W7 synthetic canary, C7 Studio turns.
@@ -46,6 +54,8 @@ W2TS=""; while [ $# -gt 0 ]; do case "$1" in --w2-event) W2TS="$2"; shift 2;; *)
 REPO="${VDH_REPO:-/Users/sheijden/Code/homelab-migration/vdhinfra}"
 SRC="$(git rev-parse --show-toplevel)"            # the worktree holding the deploy commit
 HACK="$SRC/hack"; NS=family-ai; CHG=chg-2026-10-20-010
+# the automatic rollback needs a land2-cloud-on-live checkout; the main family-ai checkout may be on another branch
+export FAMILY_AI_REPO="${FAMILY_AI_REPO:-$HOME/.cache/$CHG/fai-cutoff-wt}"
 PIN_IMAGE="docker.io/nousresearch/hermes-agent:v2026.9.24@sha256:fca358f12efd65bfaaca05884166f15c0e2788375ca30d77061ac1ebc96452b7"
 TS=$(date -u +%Y%m%dT%H%M%SZ); CACHE="$HOME/.cache/$CHG/golive-$TS"; mkdir -p "$CACHE"
 EV="$REPO/ops/evidence/$CHG/k8s-golive-$TS-${MODE#--}.txt"; [ ! -e "$EV" ] || { echo "evidence $EV exists (write-once): retry in a second" >&2; exit 1; }
@@ -68,11 +78,16 @@ log "$CHG go-live ${MODE#--} $TS deploy=$SHA (k8s-engineer; uitgevoerd onder pro
 # ---------------------------------------------------------------- W2 hard gate (go only, before anything else)
 if [ "$MODE" = --go ] || [ "$MODE" = --gate-only ]; then
   [ -n "$W2TS" ] || { log "REFUSED: --w2-event <ts> missing (W2 closes by the console evidence, Argus 03:31:48Z)"; exit 2; }
-  # test-only overrides (scratch copies): C010_CHANGES, C010_EVIDENCE_DIR; never set them for a real go
+  # test-only overrides (scratch copies): C010_CHANGES, C010_EVIDENCE_DIR, C010_SETTINGS; never set them for a real go
+  # budget_usd comes from the family-cloud settings.json inside THIS deploy commit's profiel-3 bundle (Argus 09:56:03Z)
+  W2SET="${C010_SETTINGS:-$CACHE/gate-settings.json}"
+  [ -n "${C010_SETTINGS:-}" ] || sops -d --extract '["data"]["bundle.tar.gz"]' \
+      "$SRC/kubernetes/main/apps/family-ai/hermes/profiel-3/bundle.sops.yaml" 2>/dev/null | base64 -d 2>/dev/null |
+      tar -xzO plugins/model-providers/family-cloud/settings.json > "$W2SET" 2>/dev/null
   W2OUT=$(python3 -I - "${C010_CHANGES:-$REPO/ops/changes.jsonl}" "$CHG" "$W2TS" \
-      "${C010_EVIDENCE_DIR:-$REPO/ops/evidence/$CHG}" "$REPO" 2>&1 <<'PY'
+      "${C010_EVIDENCE_DIR:-$REPO/ops/evidence/$CHG}" "$REPO" "$W2SET" 2>&1 <<'PY'
 import datetime as dt, json, os, re, sys
-path, chg, ts, evdir, repo = sys.argv[1:6]
+path, chg, ts, evdir, repo, settings_path = sys.argv[1:7]
 evs = [e for e in map(json.loads, filter(str.strip, open(path)))
        if e.get("chg") == chg and e.get("ts") == ts and e.get("actor") == "infra-ops"]
 if not evs:
@@ -102,10 +117,68 @@ if age > 24 * 3600 or age < -300:
 if p.get("w2_readback_by") not in ("atlas", "security-engineer"):
     sys.exit("w2_readback_by must be atlas or security-engineer")
 w2a = p.get("w2a")
+W2A_HELP = ("w2a must be no_payment_method_no_autoreload, workspace_limit_usd=<n> or "
+            "prepaid_autoreload_off_purchased_usd=0_org_limit_usd=<n>, with 0 < n <= 200")
 m = re.fullmatch(r"workspace_limit_usd=(\d+(\.\d+)?)", w2a) if isinstance(w2a, str) else None
-if not (w2a == "no_payment_method_no_autoreload" or (m and 0 < float(m.group(1)) <= 200)):
-    sys.exit("w2a must be no_payment_method_no_autoreload or workspace_limit_usd=<n> with 0 < n <= 200")
-print("evidence %s (%.1f h old), readback %s, w2a %s" % (os.path.basename(f), age / 3600, p["w2_readback_by"], w2a))
+pp = re.fullmatch(r"prepaid_autoreload_off_purchased_usd=0_org_limit_usd=(\d+(\.\d+)?)", w2a) if isinstance(w2a, str) else None
+extra = ""
+if pp:
+    # Argus 25-10 09:42:10Z pre-go item 1: prepaid account, the evidence JSON itself must show every bound
+    n = float(pp.group(1))
+    if not 0 < n <= 200:
+        sys.exit(W2A_HELP)
+    import math
+    def num(k):
+        v = doc.get(k)
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+            sys.exit("w2_evidence field %s missing or not a finite number" % k)
+        return float(v)
+    def txt(k):
+        v = doc.get(k)
+        if not isinstance(v, str):
+            sys.exit("w2_evidence field %s missing or not a string" % k)
+        return v
+    if not isinstance(doc.get("captured_utc"), str):
+        sys.exit("w2_evidence field captured_utc missing (required for the prepaid w2a)")
+    if txt("auto_reload") != "off":
+        sys.exit("w2_evidence auto_reload is not 'off'")
+    if num("purchased_balance_usd") != 0:
+        sys.exit("w2_evidence purchased_balance_usd is not 0 (purchased credit is new money: owner directly)")
+    if txt("invoicing") != "none":
+        sys.exit("w2_evidence invoicing is not 'none'")
+    if num("org_monthly_limit_usd") != n:
+        sys.exit("w2_evidence org_monthly_limit_usd does not equal the w2a limit")
+    if txt("key_scope") != "organization":
+        sys.exit("w2_evidence key_scope is not 'organization'")
+    if "key_hint_match" not in doc:
+        sys.exit("w2_evidence field key_hint_match missing")
+    if doc["key_hint_match"] is not True:
+        sys.exit("w2_evidence key_hint_match is not true")
+    if not num("promo_credit_usd") > 0:
+        sys.exit("w2_evidence promo_credit_usd is not > 0")
+    exp_s = txt("promo_credit_expires_utc")
+    try:
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?Z", exp_s):
+            raise ValueError
+        exp = dt.datetime.fromisoformat(exp_s.replace("Z", "+00:00"))
+    except Exception:
+        sys.exit("w2_evidence promo_credit_expires_utc is not a UTC timestamp (...Z)")
+    if not dt.datetime.now(dt.timezone.utc) < exp:
+        sys.exit("w2_evidence promotional credit expired at %s: cloud stays off" % exp_s)
+    # the plugin cap follows the grant (Argus 09:56:03Z): settings budget_usd <= promo_credit_usd
+    try:
+        budget = json.load(open(settings_path)).get("budget_usd")
+    except Exception:
+        budget = None
+    if isinstance(budget, bool) or not isinstance(budget, (int, float)) or not math.isfinite(budget):
+        sys.exit("plugin settings budget_usd unreadable (bundle settings.json of this deploy)")
+    if budget > num("promo_credit_usd"):
+        sys.exit("plugin budget_usd %g > promo_credit_usd %g: the cap must follow the grant" % (budget, num("promo_credit_usd")))
+    # cut-off time for chg-2026-10-20-010-cutoff.sh: the expiry of THIS accepted grant, floored to whole seconds
+    extra = ", budget_usd %g <= promo %g, promo_credit_expires_utc=%s" % (budget, num("promo_credit_usd"), exp.strftime("%Y-%m-%dT%H:%M:%SZ"))
+elif not (w2a == "no_payment_method_no_autoreload" or (m and 0 < float(m.group(1)) <= 200)):
+    sys.exit(W2A_HELP)
+print("evidence %s (%.1f h old), readback %s, w2a %s%s" % (os.path.basename(f), age / 3600, p["w2_readback_by"], w2a, extra))
 PY
 ) || { log "REFUSED W2: $W2OUT"; exit 2; }
   log "W2 gate: event $W2TS by infra-ops: $W2OUT"
@@ -119,6 +192,19 @@ git -C "$REPO" fetch -q origin
 chk "deploy commit is HEAD of $SRC and descends from origin/main" \
   "[ \"\$(git -C '$SRC' rev-parse HEAD)\" = \"\$(git -C '$SRC' rev-parse '$SHA')\" ] && git -C '$SRC' merge-base --is-ancestor origin/main '$SHA'"
 chk "worktree clean" "[ -z \"\$(git -C '$SRC' status --porcelain)\" ]"
+# rollback.sh reverts exactly <deploy-sha>: it must be the wiring commit (adds the cloud CNP), never a tooling commit
+chk "deploy commit is the one that adds the cloud CNP (what rollback/cut-off revert)" \
+  "git -C '$SRC' diff-tree --no-commit-id --name-status -r '$SHA' | grep -qxF \"A\$(printf '\t')kubernetes/main/apps/family-ai/network-policies/app/hermes-profiel-3-cloud.yaml\""
+chk "rollback prerequisite: FAMILY_AI_REPO is a clean land2-cloud-on-live checkout" \
+  "[ \"\$(git -C '$FAMILY_AI_REPO' rev-parse --abbrev-ref HEAD)\" = land2-cloud-on-live ] && [ -z \"\$(git -C '$FAMILY_AI_REPO' status --porcelain -- content/cloudmodel.json)\" ]"
+chk "push auth to origin (git push --dry-run, no ref changes)" "GIT_TERMINAL_PROMPT=0 git -C '$REPO' push --dry-run -q origin origin/main:refs/heads/main"
+if [ "$MODE" = --go ]; then
+  W2EXP=$(printf '%s\n' "$W2OUT" | sed -n 's/.*promo_credit_expires_utc=\([0-9TZ:-]*\).*/\1/p')
+  chk "cut-off armed for $SHA at the accepted grant expiry ${W2EXP:-(no grant in this w2a)} and read back (launchd, Argus item 3)" \
+    "'$SRC/hack/ops/$CHG-cutoff.sh' readback '$SHA' | tee -a '$EV' | grep \"trigger_utc=${W2EXP:-[0-9]}\" >/dev/null"
+else
+  log "  info cut-off: $("$SRC/hack/ops/$CHG-cutoff.sh" readback "$SHA" 2>&1 | head -1) (--go refuses unless armed for $SHA)"
+fi
 # plugin from the deployed bundle -> PINNED_IMAGE source for the wiring check
 B="$SRC/kubernetes/main/apps/family-ai/hermes/profiel-3/bundle.sops.yaml"; mkdir -p "$CACHE/new" "$CACHE/main"
 sops -d --extract '["data"]["bundle.tar.gz"]' "$B" | base64 -d > "$CACHE/new.tgz"
