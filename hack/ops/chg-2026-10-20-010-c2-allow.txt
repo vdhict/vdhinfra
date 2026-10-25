@@ -1,0 +1,3 @@
+# chg-2026-10-20-010 C2 keys: the ONLY key path Hermes may add to the deployed config.yaml, with its exact value
+# (Argus 25-10 11:58:52Z ruling_c2: exactly ["_config_version"] = 51, integer). Format: <JSON path list><TAB><JSON value>.
+["_config_version"]	51

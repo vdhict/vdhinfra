@@ -281,6 +281,11 @@ for rs in hermes-profiel-3 open-webui; do
 done
 chk "quota: >= 1 PVC and 64Mi limits.memory headroom" "kubectl -n $NS get resourcequota -o json | python3 -I -c 'import sys,json; q=json.load(sys.stdin)[\"items\"][0][\"status\"]; mi=lambda v: float(v[:-2])*(1024 if v.endswith(\"Gi\") else 1) if v[-2:] in (\"Gi\",\"Mi\") else float(v)/2**20; sys.exit(0 if int(q[\"hard\"][\"persistentvolumeclaims\"])-int(q[\"used\"][\"persistentvolumeclaims\"])>=1 and mi(q[\"hard\"][\"limits.memory\"])-mi(q[\"used\"][\"limits.memory\"])>=64 else 1)'"
 P3=$(pod 3); P1=$(pod 1); P2=$(pod 2)
+c2_config() { # $1 = p3 pod: fetch the deployed config.yaml (env-var NAMES only, no secrets); posthash AND keys
+  kubectl -n $NS exec "$1" -c app -- cat /opt/data/config.yaml > "$CACHE/pod-config-$1.yaml" || return 1
+  python3 -I "$HACK/ops/$CHG-c2-config.py" gate "$CACHE/new/config.yaml" "$CACHE/pod-config-$1.yaml" \
+    "$HACK/ops/$CHG-c2-allow.txt" "$HACK/ops/$CHG-c2-posthash.txt" | tee -a "$EV"
+}
 replay_in() { # $1 = pre|post, $2 = since epoch : JSON for the replay (pins from the bundle; pre also ships family-cloud)
   python3 -I - "$CACHE/new/plugins" "$1" "$2" <<'PY'
 import base64, hashlib, json, sys
@@ -295,6 +300,8 @@ PY
 replay() { replay_in "$1" "$2" | kubectl -n $NS exec -i "$(pod 3)" -c app -- env PYTHONDONTWRITEBYTECODE=1 /opt/hermes/.venv/bin/python -c "$(cat "$HACK/ops/$CHG-replay.py")" > "$CACHE/replay-$1.json"; local rc=$?; jq -c '{mode, result, system_sha, want_sha, prompt_sha}' "$CACHE/replay-$1.json" | sed 's/^/  replay /' | tee -a "$EV"; return $rc; }
 chk "(a)+(b) replay pre-deploy: wis -> Studio x2 (only wis_alles stubbed), Hermes prompt -> cloud-SOUL + date only" "replay pre 0"
 chk "cloud CNP not yet present" "! kubectl -n $NS get cnp hermes-profiel-3-cloud"
+chk "C2 posthash reference: derive(this bundle's config.yaml) == committed c2-posthash.txt" "[ \"\$(python3 -I '$HACK/ops/$CHG-c2-config.py' derive '$CACHE/new/config.yaml')\" = \"\$(awk '!/^#/ && NF {print \$1; exit}' '$HACK/ops/$CHG-c2-posthash.txt')\" ]"
+chk "C2 pod image DEFAULT_CONFIG['_config_version'] == 51 (the stamp the posthash assumes)" "[ \"\$(xp $P3 env PYTHONDONTWRITEBYTECODE=1 /opt/hermes/.venv/bin/python -c 'import sys; sys.path.insert(0, \"/opt/hermes\"); from hermes_cli.config_defaults import DEFAULT_CONFIG; print(DEFAULT_CONFIG[\"_config_version\"])')\" = 51 ]"
 chk "p3 has no CLOUD_API_KEY yet (name only)" "! envnames $P3 | grep -qx CLOUD_API_KEY"
 if [ "$MODE" = --preflight ]; then
   w2=$(python3 -I -c 'import json,sys; print(sum(1 for e in map(json.loads, filter(str.strip, open(sys.argv[1]))) if e.get("chg")==sys.argv[2] and isinstance((e.get("payload") or {}).get("w2_source"), str)))' "$REPO/ops/changes.jsonl" $CHG)
@@ -339,16 +346,12 @@ post_checks() {
   local tag="$1"; P3=$(pod 3)
   log "== checks ($tag) on $P3"
   chk "C2 p3 seeded bundle = new outer" "[ \"\$(xp $P3 cat /opt/data/.family-ai-seeded)\" = '$NEW_OUTER' ]"
-  chk "C2 p3 deployed files == bundle SHA256SUMS (18)" "xp $P3 sh -c 'cd /opt/data && sha256sum -c --strict --quiet -' < '$CACHE/new/SHA256SUMS' && [ \"\$(xp $P3 sh -c 'cd /opt/data && { ls config.yaml SOUL.md; find plugins -type f ! -path \"*/__pycache__/*\"; } | LC_ALL=C sort')\" = \"\$(awk '{print \$2}' '$CACHE/new/SHA256SUMS' | LC_ALL=C sort)\" ]"
+  # bytes for every bundle file except config.yaml (Hermes v0.22.5 appends _config_version); stdin needs exec -i
+  chk "C2 p3 deployed files == bundle SHA256SUMS except config.yaml (17)" "grep -v '  config.yaml\$' '$CACHE/new/SHA256SUMS' | kubectl -n $NS exec -i $P3 -c app -- sh -c 'cd /opt/data && sha256sum -c --strict --quiet -' && [ \"\$(xp $P3 sh -c 'cd /opt/data && { ls config.yaml SOUL.md; find plugins -type f ! -path \"*/__pycache__/*\"; } | LC_ALL=C sort')\" = \"\$(awk '{print \$2}' '$CACHE/new/SHA256SUMS' | LC_ALL=C sort)\" ]"
+  chk "C2 p3 config.yaml: posthash AND keys (Argus 11:58:52Z ruling_c2)" "c2_config $P3"
   chk "C2 p1/p2 untouched (pod uid + seeded bundle)" "[ \"\$(kubectl -n $NS get pod -l app.kubernetes.io/instance=hermes-profiel-1 -o jsonpath='{.items[0].metadata.uid}')\" = '$U1' ] && [ \"\$(kubectl -n $NS get pod -l app.kubernetes.io/instance=hermes-profiel-2 -o jsonpath='{.items[0].metadata.uid}')\" = '$U2' ] && [ \"\$(xp $P1 cat /opt/data/.family-ai-seeded)\" = '$M1' ] && [ \"\$(xp $P2 cat /opt/data/.family-ai-seeded)\" = '$M2' ]"
   chk "C3/W5 env HERMES_IMAGE == pod image == PINNED_IMAGE" "[ \"\$(xp $P3 printenv HERMES_IMAGE)\" = \"\$(kubectl -n $NS get pod $P3 -o jsonpath='{.spec.containers[?(@.name==\"app\")].image}')\" ] && [ \"\$(xp $P3 printenv HERMES_IMAGE)\" = '$PIN_IMAGE' ]"
-  chk "C3/W5 runtime_pinned()=True in the pod" "xp $P3 env PYTHONDONTWRITEBYTECODE=1 /opt/hermes/.venv/bin/python -c '
-import importlib.util, os, sys
-os.chdir(\"/opt/hermes\"); sys.path.insert(0, \"/opt/hermes\")
-import hermes_cli, agent.chat_completion_helpers, gateway.platforms.api_server
-s = importlib.util.spec_from_file_location(\"c010_probe\", \"/opt/data/plugins/model-providers/family-cloud/__init__.py\")
-m = importlib.util.module_from_spec(s); s.loader.exec_module(m)
-sys.exit(0 if m.runtime_pinned() is True else 1)'"
+  chk "C3/W5 pinned runtime in the pod (pin-probe: imports exactly the plugin's PINNED_MODULES)" "xp $P3 env PYTHONDONTWRITEBYTECODE=1 /opt/hermes/.venv/bin/python -c \"\$(cat '$HACK/ops/$CHG-pin-probe.py')\" | tee -a '$EV' | grep '\"ok\": true' >/dev/null"
   chk "C3 p1/p2 no family-cloud dir, no CLOUD_* / HERMES_IMAGE env" "for p in $P1 $P2; do ! xp \$p test -e /opt/data/plugins/model-providers/family-cloud || exit 1; ! envnames \$p | grep -q '^CLOUD_\|^HERMES_IMAGE$' || exit 1; done"
   # W3
   chk "W3 CNP live spec == repo file" "[ \"\$(kubectl -n $NS get cnp hermes-profiel-3-cloud -o json | jq -cS .spec)\" = \"\$(yq -o=json '.spec' '$SRC/kubernetes/main/apps/family-ai/network-policies/app/hermes-profiel-3-cloud.yaml' | jq -cS .)\" ]"

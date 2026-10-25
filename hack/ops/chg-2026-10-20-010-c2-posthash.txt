@@ -1,0 +1,1 @@
+54374b29fdc1aed2624ef00dd1a92eac9918d338105630ce3b7dd1748d54849c  config.yaml  # chg-2026-10-20-010 C2 variant "posthash": post-seed reference for profiel-3 bundle c242f8b6 (config.yaml 0437f3f6) + "_config_version: 51" appended by hermes-agent v0.22.5@sha256:9c556157; derived with c2-config.py derive. Pending the Argus C2 ruling.
