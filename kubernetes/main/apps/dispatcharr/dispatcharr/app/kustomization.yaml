@@ -1,0 +1,34 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./postgres-secret.yaml
+  - ./dispatcharr-data-pvc.yaml
+  - ./helmrelease.yaml
+# Backup of dispatcharr-data: the shared component, s3://volsync/dispatcharr
+# on MinIO (restic, shared repo password). THAT BUCKET LEAVES THE HOUSE:
+# storage/minio-offsite-mirror rclone-syncs the whole volsync bucket to Azure
+# Blob daily (04:30). Azure holds restic ciphertext only; the repo password
+# is in 1Password (item minio), not in Azure.
+components:
+  - ../../../../components/volsync
+patches:
+  # :30 staggers it from the :00 component sources, jellyfin (:20) and the
+  # :40/:50 movers. The namespace enforces PSA baseline, which admits the
+  # component's mover as is; runAsNonRoot + seccomp keep it restricted-clean
+  # (VolSync 0.13.1 drops ALL and sets a read-only root itself).
+  - target:
+      group: volsync.backube
+      version: v1alpha1
+      kind: ReplicationSource
+    patch: |-
+      - op: replace
+        path: /spec/trigger/schedule
+        value: "30 * * * *"
+      - op: add
+        path: /spec/restic/moverSecurityContext/runAsNonRoot
+        value: true
+      - op: add
+        path: /spec/restic/moverSecurityContext/seccompProfile
+        value: {type: RuntimeDefault}

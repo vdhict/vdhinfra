@@ -1,0 +1,14 @@
+---
+# Every pod in dispatcharr: nothing in, unless dispatcharr.yaml allows it.
+# An empty ingress rule ({}) enrols the endpoint in default-deny for ingress
+# without allowing any peer. Egress is not enrolled (no egress section).
+# Kubelet probes still work: Cilium allows the local host identity.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-ingress
+spec:
+  endpointSelector: {}
+  ingress:
+    - {}

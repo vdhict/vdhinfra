@@ -1,0 +1,107 @@
+---
+# Three Flux Kustomizations, applied strictly in order (chg-2026-10-25-006):
+#
+#   dispatcharr            HelmRelease + data PVC + VolSync backup + a
+#                          generated postgres password
+#   dispatcharr-bootstrap  ExternalSecrets dispatcharr-admin and
+#                          dispatcharr-provider + a one-shot Job: admin user,
+#                          network-access lists, and (once the 1Password
+#                          field server_url exists) the Xtream account with
+#                          max 1 stream and its XMLTV source
+#   dispatcharr-route      the HTTPRoute on envoy-internal
+#
+# Why the route comes LAST: until an admin exists, POST
+# /api/accounts/initialize-superuser/ creates one for ANY private-range
+# client (dispatcharr/utils.py setup_ip_allowed; DISPATCHARR_SETUP_ALLOWED_IP
+# is deliberately unset). The LAN is a private range. With no route only
+# in-cluster pods (and, under the CNP, only the admitted ones) reach 9191 in
+# that window. dispatcharr-bootstrap has wait: true, so the route is applied
+# only after the Job has COMPLETED.
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app dispatcharr
+  namespace: flux-system
+spec:
+  targetNamespace: dispatcharr
+  commonMetadata:
+    labels:
+      app.kubernetes.io/part-of: dispatcharr
+  dependsOn:
+    # The CNPs must exist before any dispatcharr pod.
+    - name: dispatcharr-network-policies
+    - name: external-secrets-stores
+    - name: rook-ceph-cluster
+    - name: volsync
+  path: ./kubernetes/main/apps/dispatcharr/dispatcharr/app
+  postBuild:
+    substitute:
+      # components/volsync
+      APP: *app
+      VOLSYNC_CLAIM: dispatcharr-data
+      VOLSYNC_CAPACITY: 10Gi
+      # PUID/PGID the entrypoint chowns /data and /data/db to
+      VOLSYNC_PUID: "1000"
+      VOLSYNC_PGID: "1000"
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: true
+  interval: 30m
+  retryInterval: 1m
+  timeout: 15m
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: dispatcharr-bootstrap
+  namespace: flux-system
+spec:
+  targetNamespace: dispatcharr
+  commonMetadata:
+    labels:
+      app.kubernetes.io/part-of: dispatcharr
+  dependsOn:
+    - name: dispatcharr
+    - name: external-secrets-stores
+  path: ./kubernetes/main/apps/dispatcharr/dispatcharr/bootstrap
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  # Same Job pattern as jellyfin-bootstrap: the script ConfigMap is hashed,
+  # force recreates the Job when its spec changes, and only then.
+  force: true
+  prune: true
+  wait: true
+  interval: 30m
+  retryInterval: 2m
+  timeout: 30m
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: dispatcharr-route
+  namespace: flux-system
+spec:
+  targetNamespace: dispatcharr
+  commonMetadata:
+    labels:
+      app.kubernetes.io/part-of: dispatcharr
+  dependsOn:
+    - name: dispatcharr-bootstrap
+  path: ./kubernetes/main/apps/dispatcharr/dispatcharr/route
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: true
+  interval: 30m
+  retryInterval: 1m
+  timeout: 5m

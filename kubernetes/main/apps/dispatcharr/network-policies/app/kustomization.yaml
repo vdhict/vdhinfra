@@ -1,0 +1,22 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+#
+# dispatcharr network policy (chg-2026-10-25-006). INGRESS ONLY:
+#   default-deny   every pod in the namespace: nothing in
+#   dispatcharr    in: envoy-internal pods, the jellyfin namespace (Jellyfin
+#                      and its bootstrap Job) and dispatcharr-bootstrap,
+#                      all on TCP 9191 (nginx) only
+#
+# Why: the all-in-one pod also listens on 5432 (postgres, listen_addresses
+# '*', md5 from 0.0.0.0/0, role `dispatch` is SUPERUSER), 5656 (uwsgi http,
+# bypasses nginx), 8001 (daphne) and redis. Without this, any pod in the
+# cluster could reach them. Only nginx on 9191 is admitted.
+#
+# Egress is deliberately NOT restricted: Dispatcharr must reach the
+# provider, whose host comes from a 1Password field that does not exist yet
+# and must never be written into this public repo, plus logo/EPG hosts.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./default-deny.yaml
+  - ./dispatcharr.yaml

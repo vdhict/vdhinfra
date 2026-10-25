@@ -1,0 +1,15 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./externalsecret.yaml
+  - ./job.yaml
+# Hashed name (see jellyfin/bootstrap): a script change re-runs the Job.
+configMapGenerator:
+  - name: dispatcharr-bootstrap
+    files:
+      - bootstrap.py=./bootstrap.py
+generatorOptions:
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled

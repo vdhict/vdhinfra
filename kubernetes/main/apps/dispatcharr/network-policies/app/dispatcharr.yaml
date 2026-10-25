@@ -1,0 +1,30 @@
+---
+# dispatcharr: in on TCP 9191 (nginx) from
+#   * envoy-internal (the iptv.${SECRET_DOMAIN} route: LAN and WireGuard),
+#   * the jellyfin namespace (Jellyfin's tuner/guide and its bootstrap Job),
+#   * the dispatcharr-bootstrap Job pod.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: dispatcharr
+spec:
+  # app-template 3.7.3 pod labels (helm template, 2026-10-25): name,
+  # instance, component. There is NO app.kubernetes.io/controller label in
+  # this chart version (vikunja's CNP uses it with a newer chart).
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: dispatcharr
+      app.kubernetes.io/component: dispatcharr
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            gateway.envoyproxy.io/owning-gateway-name: envoy-internal
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: jellyfin
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: dispatcharr
+            app.kubernetes.io/name: dispatcharr-bootstrap
+      toPorts:
+        - ports: [{port: "9191", protocol: TCP}]

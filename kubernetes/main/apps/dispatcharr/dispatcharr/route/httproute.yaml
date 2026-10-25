@@ -1,0 +1,51 @@
+---
+# https://iptv.${SECRET_DOMAIN} -> envoy-internal (wildcard cert) ->
+# dispatcharr:9191. LAN and WireGuard only. One PathPrefix / rule, so the
+# web UI AND every client endpoint pass: /output/m3u, /output/epg,
+# /player_api.php, /get.php, /xmltv.php, /live/..., /proxy/..., /hdhr/...
+# and the /ws/ websocket (Envoy Gateway upgrades websockets by default).
+#
+# NEVER envoy-external, never the Cloudflare tunnel. No forward-auth: native
+# IPTV apps cannot do an Authelia login; Dispatcharr's own login (UI) and
+# Xtream user credentials (XC API) apply. /output/m3u and /output/epg have
+# NO login, only Dispatcharr's M3U_EPG network list.
+#
+# DNS, same as vikunja and jellyfin:
+#   * external-dns.alpha.kubernetes.io/controller: none keeps BOTH
+#     Cloudflare instances off (no public CNAME, no public TXT).
+#   * external-dns-unifi still writes the LAN record on the UDM and removes
+#     it on revert. Do NOT also hand-write a static record.
+#
+# Applied by dispatcharr-route, after dispatcharr-bootstrap COMPLETED (the
+# admin exists). See ../install.yaml.
+# Streams are endless single responses (MPEG-TS on /proxy/ts/stream/...,
+# /live/..., and the Xtream short form /<user>/<pass>/<id>, which no path
+# prefix can single out). Envoy's default route timeout is 15s for the WHOLE
+# response (measured: 36 of 39 envoy-internal routes have no timeout set),
+# so `request: 0s` turns it off for this route, as ntfy does for SSE.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/gateway.networking.k8s.io/httproute_v1.json
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: dispatcharr
+  annotations:
+    external-dns.alpha.kubernetes.io/controller: none
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: envoy-internal
+      namespace: network
+      sectionName: https
+  hostnames:
+    - iptv.${SECRET_DOMAIN}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: dispatcharr
+          port: 9191
+      timeouts:
+        request: 0s

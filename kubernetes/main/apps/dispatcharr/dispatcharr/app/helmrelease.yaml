@@ -1,0 +1,141 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app dispatcharr
+spec:
+  interval: 30m
+  maxHistory: 2
+  chart:
+    spec:
+      chart: app-template
+      version: 3.7.3
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  dependsOn:
+    - name: rook-ceph-cluster
+      namespace: rook-ceph
+  values:
+    controllers:
+      dispatcharr:
+        # One pod owns /data (RWO, its own postgres): never two at once.
+        strategy: Recreate
+        containers:
+          app:
+            image:
+              # Vendor image, GitHub release v0.33.0 (2026-10-24). Multi-arch
+              # index digest, read back with crane 2026-10-25 (`0.33.0` and
+              # `latest` agree; the dated 0.33.0-<build> tags are rebuilds
+              # with other digests).
+              repository: ghcr.io/dispatcharr/dispatcharr
+              tag: 0.33.0@sha256:96bc548978c68e684677da7895692eeeefb7f0b2edfa38311dac2b702c61d236
+            env:
+              TZ: Europe/Amsterdam
+              DISPATCHARR_ENV: aio
+              DISPATCHARR_LOG_LEVEL: INFO
+              # Never trust X-Forwarded-*/X-Real-IP (team choice). Effect,
+              # from dispatcharr/utils.py + core/utils.py at v0.33.0:
+              #   * the client IP for every network-access list is the TCP
+              #     peer, i.e. an envoy-internal pod (10.42.x) for routed
+              #     clients, or the in-cluster pod;
+              #   * output URLs (M3U stream URLs, Xtream server_info) use the
+              #     raw scheme http and the Host header without port, so
+              #     LAN clients get http://iptv... URLs and envoy-internal
+              #     301-redirects them to https.
+              DISPATCHARR_TRUSTED_PROXIES: none
+              # DISPATCHARR_SETUP_ALLOWED_IP is deliberately NOT set; the
+              # admin is created by dispatcharr-bootstrap before any route
+              # exists (../install.yaml).
+              PUID: "1000"
+              PGID: "1000"
+              POSTGRES_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: dispatcharr-postgres
+                    key: POSTGRES_PASSWORD
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    # AllowAny, no network-access check (core/api_views.py)
+                    path: /api/core/version/
+                    port: &port 9191
+                  periodSeconds: 15
+                  timeoutSeconds: 5
+                  failureThreshold: 4
+              readiness: *probes
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/core/version/
+                    port: *port
+                  # initdb + Django migrations on first start
+                  failureThreshold: 90
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+            # Hardened as far as the all-in-one entrypoint allows. It must
+            # START AS ROOT (see ../../namespace.yaml), so NOT possible:
+            # runAsNonRoot, readOnlyRootFilesystem (it edits /etc/passwd,
+            # /etc/group, /etc/nginx, /etc/environment and chowns /app).
+            # Dropped: everything except what the entrypoint uses:
+            #   CHOWN         chown /data, /data/db, /app, /var/run/postgresql
+            #   DAC_OVERRIDE  root writing into dirs owned by uid 1000
+            #   FOWNER        chmod on files owned by uid 1000
+            #   SETUID/SETGID `su - dispatch` (postgres, uwsgi, migrate) and
+            #                 nginx dropping its workers to `dispatch`
+            #   KILL          the shutdown trap pkills uid-1000 processes
+            #   AUDIT_WRITE   su/PAM session audit
+            # Not granted (Docker would): NET_RAW, MKNOD, SETFCAP, SETPCAP,
+            # SYS_CHROOT, FSETID, NET_BIND_SERVICE (nginx listens on 9191).
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities:
+                drop: ["ALL"]
+                add: ["AUDIT_WRITE", "CHOWN", "DAC_OVERRIDE", "FOWNER", "KILL", "SETGID", "SETUID"]
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                memory: 3Gi
+    defaultPodOptions:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        seccompProfile: {type: RuntimeDefault}
+    service:
+      app:
+        controller: dispatcharr
+        # ClusterIP only: Jellyfin uses the in-cluster name, LAN/VPN clients
+        # the HTTPRoute (../route). No LoadBalancer IP.
+        ports:
+          http:
+            port: *port
+    persistence:
+      data:
+        existingClaim: dispatcharr-data
+        globalMounts:
+          - path: /data
+      # postgres parallel workers use POSIX shared memory
+      shm:
+        type: emptyDir
+        medium: Memory
+        sizeLimit: 256Mi
+        globalMounts:
+          - path: /dev/shm

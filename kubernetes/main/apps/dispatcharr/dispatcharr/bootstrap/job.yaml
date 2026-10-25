@@ -1,0 +1,84 @@
+---
+# One-shot, idempotent configuration of Dispatcharr through its API
+# (chg-2026-10-25-006). Logic and logging rule: ./bootstrap.py.
+#
+# Plain Job owned by dispatcharr-bootstrap (force: true, wait: true), no
+# TTL, same as jellyfin-bootstrap. When Sander adds server_url to the
+# 1Password item, ESO refreshes the Secret within 12h, but a Secret change
+# is NOT a Job spec change: re-run it by bumping RUN_GENERATION below (or
+# by deleting the Job as a recorded step; Flux recreates it).
+#
+# NETWORK_CIDRS uses ${CLUSTER_CIDR} from cluster-settings (Flux postBuild;
+# this file is NOT substitute-disabled).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/batch/v1/job.json
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: dispatcharr-bootstrap
+spec:
+  backoffLimit: 6
+  activeDeadlineSeconds: 1800
+  template:
+    metadata:
+      labels:
+        # selected by network-policies/app/dispatcharr.yaml
+        app.kubernetes.io/name: dispatcharr-bootstrap
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: bootstrap
+          image: docker.io/library/python:3.13.17-slim@sha256:d98cc29d3266e535dd9da1099688d9cb3ca4753813571e071763d17725460962
+          command: ["python3", "-I", "-B", "/scripts/bootstrap.py"]
+          env:
+            - name: RUN_GENERATION
+              value: "1"
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: DISPATCHARR_URL
+              value: http://dispatcharr.dispatcharr.svc.cluster.local:9191
+            # Network Access for UI, STREAMS, XC_API and M3U_EPG. The pod
+            # CIDR (Jellyfin, envoy-internal) sits inside 10.0.0.0/8 but is
+            # listed on its own so the intent survives a later narrowing.
+            - name: NETWORK_CIDRS
+              value: "172.16.0.0/12,10.0.0.0/8,${CLUSTER_CIDR}"
+            - name: PROVIDER_MAX_STREAMS
+              value: "1"
+            - name: DISPATCHARR_ADMIN_USER
+              valueFrom:
+                secretKeyRef: {name: dispatcharr-admin, key: DISPATCHARR_ADMIN_USER}
+            - name: DISPATCHARR_ADMIN_PASS
+              valueFrom:
+                secretKeyRef: {name: dispatcharr-admin, key: DISPATCHARR_ADMIN_PASS}
+            - name: PROVIDER_SERVER_URL
+              valueFrom:
+                secretKeyRef: {name: dispatcharr-provider, key: PROVIDER_SERVER_URL}
+            - name: PROVIDER_USERNAME
+              valueFrom:
+                secretKeyRef: {name: dispatcharr-provider, key: PROVIDER_USERNAME}
+            - name: PROVIDER_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: dispatcharr-provider, key: PROVIDER_PASSWORD}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 10m, memory: 64Mi}
+            limits: {memory: 256Mi}
+          volumeMounts:
+            - {name: scripts, mountPath: /scripts, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: scripts
+          configMap:
+            name: dispatcharr-bootstrap
+            defaultMode: 0444
+        - name: tmp
+          emptyDir: {sizeLimit: 16Mi}

@@ -1,0 +1,25 @@
+---
+# Dispatcharr's /data: its all-in-one postgres (/data/db, which holds the
+# provider credential once the bootstrap has added the account), the Django
+# secret (/data/jwt), logs, logo and EPG caches, recordings.
+#
+# Backed up by the shared components/volsync to s3://volsync/dispatcharr,
+# which is mirrored to Azure (see ./kustomization.yaml). The snapshot is
+# crash-consistent for postgres (Ceph RBD snapshot; postgres replays WAL).
+#
+# prune disabled: taking this file out of Git must NOT delete the data.
+# A full removal deletes the PVC BY HAND, as a recorded step.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/v1/persistentvolumeclaim.json
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dispatcharr-data
+  labels:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: rook-ceph-block
+  resources:
+    requests:
+      storage: 10Gi

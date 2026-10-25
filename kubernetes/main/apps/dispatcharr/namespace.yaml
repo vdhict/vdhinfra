@@ -1,0 +1,32 @@
+---
+# dispatcharr (chg-2026-10-25-006): the ONLY client of the IPTV provider.
+# Jellyfin (namespace jellyfin) and native apps on the LAN/VPN read its M3U,
+# XMLTV and Xtream outputs; nothing else talks to the provider.
+#
+# Its own namespace, not `jellyfin`, because of Pod Security:
+#   * The Dispatcharr all-in-one image MUST start as root. Measured in the
+#     v0.33.0 source (docker/entrypoint.sh, docker/init/01-user-setup.sh,
+#     03-init-dispatcharr.sh): it runs groupadd/useradd/usermod, sed -i on
+#     /etc/nginx and /etc/environment, chowns /app and /data, starts
+#     postgres/uwsgi via `su - dispatch`, and starts nginx as root. So no
+#     runAsNonRoot, no read-only root, and it needs a few capabilities.
+#   * PSA `restricted` rejects that; `baseline` admits it (the added
+#     capabilities are all in the baseline allow-list). Keeping it here
+#     leaves `jellyfin` on restricted.
+# warn/audit stay at restricted so every deviation stays visible.
+#
+# Holds the provider credential: Secret dispatcharr-provider, and
+# Dispatcharr's own postgres in /data (PVC dispatcharr-data).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dispatcharr
+  labels:
+    # Taking this directory out of Git must NOT delete the namespace and with
+    # it the data PVC. A full removal deletes them BY HAND, as a recorded
+    # step.
+    kustomize.toolkit.fluxcd.io/prune: disabled
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
