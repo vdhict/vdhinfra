@@ -3,7 +3,7 @@
 #
 #   bash hack/ops/chg-2026-10-20-010-test-cutoff.sh [<scratch-dir>]
 #
-# Fully offline and hermetic: per scenario a bare "origin", a repo clone, a family-ai repo with land2-cloud-on-live,
+# Fully offline and hermetic: per scenario a bare "origin", a repo clone, a family-ai repo with land2-cloud-v0225,
 # a stub launchctl (bootstrap runs the job once, synchronously, like RunAtLoad), a stub rollback.sh that reverts
 # the deploy commit in the scratch origin, a stub ops (events to a file), stub kubectl/flux and a fake token.
 # The real cut-off script and the real golive.sh W2 gate are what is tested. Never touches the real repo, change
@@ -98,7 +98,7 @@ scenario() { # $1 name, $2 push-deploy (yes|no) [$3 real = pin the REAL rollback
   SHA=$(git -C "$S/repo" rev-parse HEAD); TSHA=$(git -C "$S/repo" rev-parse HEAD^)
   [ "$2" = yes ] && gq -C "$S/repo" push origin HEAD:main
   gq init "$S/fai"; mkdir -p "$S/fai/content"; printf '{\n  "price_confirmed": true\n}\n' > "$S/fai/content/cloudmodel.json"
-  gq -C "$S/fai" add -A; gq -C "$S/fai" commit -m c; gq -C "$S/fai" branch land2-cloud-on-live; gq -C "$S/fai" checkout -b other
+  gq -C "$S/fai" add -A; gq -C "$S/fai" commit -m c; gq -C "$S/fai" branch land2-cloud-v0225; gq -C "$S/fai" checkout -b other
   export VDH_REPO="$S/repo" FAMILY_AI_SRC="$S/fai" C010_FAI_WT="$S/fai-wt" C010_STATE_DIR="$S/state" C010_INST_BASE="$S/inst" \
     C010_AGENTS_DIR="$S/agents" C010_LAUNCHCTL="$S/bin/launchctl" C010_OPS="$S/bin/ops" C010_MINT_CMD="$S/bin/mint" C010_REVOKE_CMD="$S/bin/revoke" C010_NOTIFY_LOG="$S/notify.log" \
     C010_PATH_PREPEND="$S/bin" C010_SELFTEST_WAIT=5 C010_TEST_DIR="$S" C010_CHANGES="$S/repo/changes.jsonl" \
@@ -135,7 +135,7 @@ t "A1 readback names the W2 event the trigger came from" grep -q "from w2 event 
 t "A1 no constant: the script holds no 2026-11-14 date" bash -c "! grep -q '2026-11-14' '$CUT_SRC'"
 t "A1 launchd self-test ran under launchd and is ok" grep -q 'selftest .*: ok launchd .*family_ai_worktree=ok .*push_auth=ok' <<< "$out"
 t "A1 rendered plist lints, no placeholder left" bash -c "/usr/bin/plutil -lint -s '$S/agents/net.vdhict.$CHG-cutoff.plist' && ! grep -q @@ '$S/agents/net.vdhict.$CHG-cutoff.plist'"
-t "A1 family-ai worktree on land2-cloud-on-live (main checkout stays on other)" bash -c "[ \"\$(git -C '$S/fai-wt' rev-parse --abbrev-ref HEAD)\" = land2-cloud-on-live ] && [ \"\$(git -C '$S/fai' rev-parse --abbrev-ref HEAD)\" = other ]"
+t "A1 family-ai worktree on land2-cloud-v0225 (main checkout stays on other)" bash -c "[ \"\$(git -C '$S/fai-wt' rev-parse --abbrev-ref HEAD)\" = land2-cloud-v0225 ] && [ \"\$(git -C '$S/fai' rev-parse --abbrev-ref HEAD)\" = other ]"
 t "A1 rollback --dry-run ran twice (arm + A4 self-test, deploy is on main), both with FAMILY_AI_REPO = worktree" bash -c "[ \"\$(grep -c -- '--dry-run' '$S/rb.log')\" = 2 ] && [ \"\$(grep -c 'FAMILY_AI_REPO=$S/fai-wt' '$S/rb.log')\" = 2 ] && grep -q -- '--dry-run $SHA | reason=' '$S/rb.log'"
 t "A1 one 'cutoff armed' event: readback GREEN, trigger + source logged" bash -c "[ $(nev) = 1 ] && grep -q 'cutoff armed' '$S/events.log' && grep -q 'readback.: .GREEN' '$S/events.log' && grep -q 'trigger_utc.: .$EXP_A' '$S/events.log' && grep -q 'w2_event.: .$A_TS' '$S/events.log'"
 t "A1 install pinned: SHA256SUMS covers cutoff, rollback, scoped minter" bash -c "[ \$(wc -l < \$(ls -d '$S'/inst/*/SHA256SUMS | head -1)) = 3 ] && grep -q $CHG-mint.py \$(ls -d '$S'/inst/*/SHA256SUMS | head -1)"

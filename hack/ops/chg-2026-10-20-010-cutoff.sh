@@ -18,7 +18,7 @@
 #   (fire --sha S --cutoff T --inst D --fai D --label L   is what launchd runs every 300 s)
 #
 # fire: integrity check of the pinned install (SHA256SUMS) -> self-test once per arm per UTC day (kubectl via relay,
-# flux, git fetch, App-token push --dry-run, family-ai worktree on land2-cloud-on-live) -> before the cutoff: exit 0
+# flux, git fetch, App-token push --dry-run, family-ai worktree on land2-cloud-v0225) -> before the cutoff: exit 0
 # -> at/after the cutoff (now >= T): if done: exit 0; if the cloud CNP is already absent on origin/main: done, one
 # event, no rollback; else rollback.sh --execute <sha> (at most 3 attempts, 5 min apart; then one FAILED event and
 # stop). Exactly one change event per outcome (the rollback logs its own action line too). Never prints a token.
@@ -38,7 +38,7 @@ CHG=chg-2026-10-20-010
 LABEL_REAL="net.vdhict.$CHG-cutoff"
 LABEL_TEST="net.vdhict.$CHG-cutoff-test"
 TEST_CUTOFF=2099-01-01T00:00:00Z
-FAI_BRANCH=land2-cloud-on-live
+FAI_BRANCH=land2-cloud-v0225
 CNP_PATH=kubernetes/main/apps/family-ai/network-policies/app/hermes-profiel-3-cloud.yaml
 MAX_ATTEMPTS=3          # fast attempts (5 min apart); then FAILED alert + one retry per RETRY_S until done
 RETRY_S=3600
@@ -47,7 +47,7 @@ INTERVAL=300
 REPO="${VDH_REPO:-/Users/sheijden/Code/homelab-migration/vdhinfra}"
 FAI_SRC="${FAMILY_AI_SRC:-/Users/sheijden/Code/pka-wires/family-ai-familie-2026-10-19}"
 CACHE="$HOME/.cache/$CHG"
-FAI_WT="${C010_FAI_WT:-$CACHE/fai-cutoff-wt}"
+FAI_WT="${C010_FAI_WT:-$CACHE/fai-cutoff-wt-v0225}"
 STATE="${C010_STATE_DIR:-$HOME/.local/state/$CHG-cutoff}"
 INST_BASE="${C010_INST_BASE:-$HOME/.local/share/$CHG-cutoff}"
 AGENTS="${C010_AGENTS_DIR:-$HOME/Library/LaunchAgents}"

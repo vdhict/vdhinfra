@@ -54,8 +54,9 @@ W2TS=""; while [ $# -gt 0 ]; do case "$1" in --w2-event) W2TS="$2"; shift 2;; *)
 REPO="${VDH_REPO:-/Users/sheijden/Code/homelab-migration/vdhinfra}"
 SRC="$(git rev-parse --show-toplevel)"            # the worktree holding the deploy commit
 HACK="$SRC/hack"; NS=family-ai; CHG=chg-2026-10-20-010
-# the automatic rollback needs a land2-cloud-on-live checkout; the main family-ai checkout may be on another branch
-export FAMILY_AI_REPO="${FAMILY_AI_REPO:-$HOME/.cache/$CHG/fai-cutoff-wt}"
+# the automatic rollback needs a land2-cloud-v0225 checkout (the branch the deployed render comes from, 2634ce0); the
+# main family-ai checkout may be on another branch
+export FAMILY_AI_REPO="${FAMILY_AI_REPO:-$HOME/.cache/$CHG/fai-cutoff-wt-v0225}"
 PIN_IMAGE="docker.io/nousresearch/hermes-agent:v0.22.5@sha256:9c5561579f3ffdf333401797094ac3a743738d6c25d40f4331c7bf77b694238d"   # = main hermes/base (f2c88fa3)
 TS=$(date -u +%Y%m%dT%H%M%SZ); CACHE="$HOME/.cache/$CHG/golive-$TS"; mkdir -p "$CACHE"
 EV="$REPO/ops/evidence/$CHG/k8s-golive-$TS-${MODE#--}.txt"; [ ! -e "$EV" ] || { echo "evidence $EV exists (write-once): retry in a second" >&2; exit 1; }
@@ -225,8 +226,8 @@ chk "worktree clean" "[ -z \"\$(git -C '$SRC' status --porcelain)\" ]"
 # rollback.sh reverts exactly <deploy-sha>: it must be the wiring commit (adds the cloud CNP), never a tooling commit
 chk "deploy commit is the one that adds the cloud CNP (what rollback/cut-off revert)" \
   "git -C '$SRC' diff-tree --no-commit-id --name-status -r '$SHA' | grep -qxF \"A\$(printf '\t')kubernetes/main/apps/family-ai/network-policies/app/hermes-profiel-3-cloud.yaml\""
-chk "rollback prerequisite: FAMILY_AI_REPO is a clean land2-cloud-on-live checkout" \
-  "[ \"\$(git -C '$FAMILY_AI_REPO' rev-parse --abbrev-ref HEAD)\" = land2-cloud-on-live ] && [ -z \"\$(git -C '$FAMILY_AI_REPO' status --porcelain -- content/cloudmodel.json)\" ]"
+chk "rollback prerequisite: FAMILY_AI_REPO is a clean land2-cloud-v0225 checkout" \
+  "[ \"\$(git -C '$FAMILY_AI_REPO' rev-parse --abbrev-ref HEAD)\" = land2-cloud-v0225 ] && [ -z \"\$(git -C '$FAMILY_AI_REPO' status --porcelain -- content/cloudmodel.json)\" ]"
 chk "push auth: a fresh scoped App token can push (git push --dry-run, no ref changes), then revoked" \
   "fresh_token preflight && GIT_TERMINAL_PROMPT=0 git -C '$REPO' push --dry-run -q origin origin/main:refs/heads/main; r=\$?; revoke_token preflight; [ \$r = 0 ]"
 if [ "$MODE" = --go ]; then
@@ -248,8 +249,8 @@ chk "C2 offline: new inner SHA256SUMS verify" "(cd '$CACHE/new' && shasum -a 256
 chk "C2 offline: vs main only config.yaml changed + 4 family-cloud added" \
   "[ \"\$(diff -rq '$CACHE/main' '$CACHE/new' | sed 's#$CACHE/##g' | LC_ALL=C sort)\" = \"\$(printf '%s\n' 'Files main/SHA256SUMS and new/SHA256SUMS differ' 'Files main/config.yaml and new/config.yaml differ' 'Only in new/plugins/model-providers: family-cloud' | LC_ALL=C sort)\" ] && [ \"\$(ls '$CACHE/new/plugins/model-providers/family-cloud' | tr '\n' ' ')\" = '__init__.py cloud-SOUL.md plugin.yaml settings.json ' ]"
 chk "C2 offline: pins" "cd '$CACHE/new' && printf '%s\n' \
-  'fdd58658371d2ceb9226620739a004545a20fa5902cc4c4e16b6a22ffff67780  config.yaml' \
-  'b75a620fd26198edc665d4b9b05f60a768d7fb667400b3ecf110b395cd31b827  plugins/model-providers/family-cloud/__init__.py' \
+  '0437f3f6b58ecbc993bb00b1d7d7ab7c980ffb2da4fab715d884dd92c4e1b29f  config.yaml' \
+  '650bd56f7d234e94c5d749e2a86d55f73d9f6a4148c313edef8c23c6fd8d9f83  plugins/model-providers/family-cloud/__init__.py' \
   'ba0794c5647d780f2edfddc806ba58f7519e80cc9975c86be7f0c7e950af4046  plugins/model-providers/family-cloud/plugin.yaml' \
   'd3ea565e3280419b44567f57b87050d644cb25e26b015091eadb71ea99b7c542  plugins/model-providers/family-cloud/settings.json' \
   'b67506a71c1f29cbbacee91e487ad74c5a8736a32047cf6575ac61c70b356fd0  plugins/model-providers/family-cloud/cloud-SOUL.md' | shasum -a 256 -c --strict --quiet"

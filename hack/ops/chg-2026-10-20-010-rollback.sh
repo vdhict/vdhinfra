@@ -8,7 +8,7 @@
 #   1. git revert <deploy-sha> on top of origin/main in a fresh detached worktree (never the caller's tree),
 #      and proves the reverted family-ai renders are byte-identical to <deploy-sha>^ (the pre-deploy state);
 #   2. family-ai repo: content/cloudmodel.json price_confirmed -> false as a local commit on
-#      land2-cloud-on-live, so no later render can switch the cloud on without a new owner-confirmed commit;
+#      land2-cloud-v0225 (the branch the deployed render comes from), so no later render can switch the cloud on without a new owner-confirmed commit;
 #   3. push the revert to main, flux reconcile family-ai-network-policies + family-ai-hermes, wait Ready
 #      at the pushed revision;
 #   4. read back: CNP hermes-profiel-3-cloud gone; profiel-3 pod Ready, no family-cloud plugin dir, no
@@ -24,7 +24,7 @@ MODE="${1:?--dry-run|--execute}"; SHA="${2:?deploy sha}"; ARG3="${3:-}"
 case "$MODE" in --dry-run|--execute) ;; *) echo "mode must be --dry-run or --execute" >&2; exit 2;; esac
 REPO="${VDH_REPO:-/Users/sheijden/Code/homelab-migration/vdhinfra}"
 FAI="${FAMILY_AI_REPO:-/Users/sheijden/Code/pka-wires/family-ai-familie-2026-10-19}"
-FAI_BRANCH=land2-cloud-on-live
+FAI_BRANCH=land2-cloud-v0225
 OPS="$REPO/ops/ops"
 NS=family-ai
 PRE_OUTER=fe64b2a128258e45d23c70b1cb642ceae1750ce901891f59b667cc3e860274f2   # live p3 bundle before land 2 (F4, main 1014ab1a)
