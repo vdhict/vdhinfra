@@ -103,6 +103,45 @@ log "reference $(asci git -C /work/ref rev-parse HEAD)"
   && asci node node_modules/playwright-core/cli.js install chromium-headless-shell >>/work/out/ref-npm.log 2>&1 ) || die "reference e2e install (see ref-npm.log)"
 log "reference e2e installed"
 
+# >>> prepull (Mack 25-10): pull the step 9 base by its pinned digest before any ci/run.sh, so a registry/CDN 5xx
+# (runs 20261024t0345z/0357z) gets three tries instead of failing step 9. Never a tag. The ref is the one ci/run.sh
+# prints at step 9 (evidence 20261024t0357z-v6-c1b2766-steps.txt). Every try goes to /work/out/prepull.txt.
+# Self-test: hack/ops/chg-2026-10-22-006-pp-ci-prepull-selftest.sh (sources this block between the markers).
+PREPULL_REF=registry.access.redhat.com/hi/dotnet-sdk@sha256:0465844ba1d9f5689ac64626537e275f59b65569703e90edc46b33f93f872d8b
+PREPULL_WAITS="10 30"
+PREPULL_LOG=/work/out/prepull.txt
+pl() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >> "$PREPULL_LOG"; }
+# 0 = pulled and digest verified; 1 = pull failed on all 3 tries; 2 = digest mismatch; 3 = ref not pinned by digest
+prepull() {
+  local ref=$1 want n err dig rds w
+  [[ "$ref" =~ @sha256:[0-9a-f]{64}$ ]] || { pl "ref $ref is not pinned by a sha256 digest; refusing"; return 3; }
+  want=${ref##*@}
+  pl "pre-pull $ref (max 3 tries, waits $PREPULL_WAITS s)"
+  for n in 1 2 3; do
+    if err=$(timeout 900 podman pull -q "$ref" 2>&1 >/dev/null); then
+      dig=$(podman image inspect --format '{{.Digest}}' "$ref" 2>/dev/null)
+      rds=$(podman image inspect --format '{{range .RepoDigests}}{{.}} {{end}}' "$ref" 2>/dev/null)
+      if [ "$dig" = "$want" ] || [[ " $rds " == *" $ref "* ]]; then
+        pl "try $n/3: pull ok; digest check ok (Digest=${dig:-none}, RepoDigests has pinned ref: $([[ " $rds " == *" $ref "* ]] && echo yes || echo no))"
+        return 0
+      fi
+      pl "try $n/3: pull ok; digest check MISMATCH (want $want, Digest=${dig:-none}, RepoDigests=${rds:-none})"
+      return 2
+    fi
+    pl "try $n/3: pull failed: $(printf '%s\n' "$err" | grep -v '^[[:space:]]*$' | tail -1 | cut -c1-300)"
+    w=$(echo $PREPULL_WAITS | awk -v i="$n" '{print $i}')
+    [ -n "$w" ] && { pl "waiting ${w}s before try $((n + 1))"; sleep "$w"; }
+  done
+  return 1
+}
+# <<< prepull
+prepull "$PREPULL_REF"; rc=$?
+case $rc in
+  0) log "pre-pull ok: $PREPULL_REF (see prepull.txt)" ;;
+  2) pl "GATE FAILED: pre-pull failed (digest mismatch)"; die "pre-pull failed: digest mismatch for $PREPULL_REF (see prepull.txt)" ;;
+  *) pl "GATE FAILED: pre-pull failed (rc $rc)"; die "pre-pull failed: $PREPULL_REF (rc $rc, see prepull.txt)" ;;
+esac
+
 while read -r label bundle commit branch; do
   [ -n "$label" ] || continue
   src="/work/src/$label"; out="/work/out/$label"; mkdir -p "$out"; chown ci:ci "$out"
