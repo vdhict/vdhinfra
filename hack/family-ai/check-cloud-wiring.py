@@ -165,7 +165,7 @@ def check(docs, pinned_image=None):
 
 
 MUTATIONS = {
-    "W5 image drift": lambda d: _app3(d).__setitem__("image", _app3(d)["image"].replace("v2026.9.24", "v2026.9.25")),
+    "W5 image drift": lambda d: _app3(d).__setitem__("image", re.sub(r":([^:@]+)@", r":\1-drift@", _app3(d)["image"])),
     "W5 env drift": lambda d: _env3(d, "HERMES_IMAGE").__setitem__("value", "docker.io/nousresearch/hermes-agent:latest"),
     "W4 key in p2 env": lambda d: _app(d, 2).setdefault("env", []).append({"name": "CLOUD_API_KEY", "value": "x"}),
     "W4 init envFrom": lambda d: [c for c in pod(_dep(d, 3))["initContainers"] if c["name"] == "seed-once"][0]

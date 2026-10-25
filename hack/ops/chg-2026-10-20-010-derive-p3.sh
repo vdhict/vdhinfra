@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # chg-2026-10-20-010 land 2 (cloud on profiel-3 only): derived delivery = what is LIVE on profiel-3 (bundle from
-# origin/main, outer sha256 40e5b93f, delivery 8d8d27a-web7m6-huiswerk1-lesstof1) with config.yaml replaced and the
+# origin/main, outer sha256 fe64b2a1, delivery 8d8d27a-web7m6-huiswerk1-lesstof4-f4 = chg-2026-10-25-002 F4, Argus D1-D6)
+# with config.yaml replaced and the
 # 4 family-cloud files added, all 5 taken from the family-ai render (efee802; settings.json from 1e8f887, Argus W2b) and checked against full sha256 pins.
-# Nothing else may differ: the other live files must be byte-equal in live and in the render.
+# Nothing else may differ: the other live files must be byte-equal in live and in the render, with ONE named exception
+# (A1, 25-10): plugins/lesstof/__init__.py is the F4 blob (sha256 36802671...dec79, Mack lesstof-v5-f4 480456c), newer
+# than the render's lesstof; the delivery takes the LIVE file, which must equal that full pin.
 #
 #   hack/ops/chg-2026-10-20-010-derive-p3.sh <render-root> <out-root>
 #
@@ -12,7 +15,10 @@ set -euo pipefail
 RENDER="${1:?render root}"; OUT="${2:?out root}"
 [ ! -e "$OUT" ] || { echo "$OUT exists" >&2; exit 1; }
 ROOT="$(git rev-parse --show-toplevel)"
-LIVE_OUTER=40e5b93f026c31f1f9444739a4618cac924fb5c77d28b7c6411f9b237a9d9c72
+LIVE_OUTER=fe64b2a128258e45d23c70b1cb642ceae1750ce901891f59b667cc3e860274f2
+# live file that is newer than the render (live wins; full sha256 pin)
+LIVE_WINS='368026712682a80d6763e0f7c84a6ec6db12eb576a60725d5f7c0ee17a4dec79 plugins/lesstof/__init__.py'
+live_win_of() { echo "$LIVE_WINS" | awk -v f="$1" '$2==f{print $1}'; }
 # bash 3.2 (macOS): no associative arrays; one "sha256 path" per line
 PINS='fdd58658371d2ceb9226620739a004545a20fa5902cc4c4e16b6a22ffff67780 config.yaml
 b75a620fd26198edc665d4b9b05f60a768d7fb667400b3ecf110b395cd31b827 plugins/model-providers/family-cloud/__init__.py
@@ -51,10 +57,14 @@ for f in $(echo "$PINS" | awk '{print $2}'); do
 done
 
 # 4. every non-pinned file: delivery == live == render (byte-equal)
-same=0
+same=0; livewins=0
 while IFS= read -r f; do
   [ -n "$(pin_of "$f")" ] && continue
   a=$(sha "$OUT/live/$f"); b=$(sha "$OUT/delivery/profiel-3/$f"); c=$(sha "$R/$f")
+  if [ -n "$(live_win_of "$f")" ]; then
+    [ "$a" = "$(live_win_of "$f")" ] && [ "$b" = "$a" ] || { echo "live-wins file not the pinned live blob: $f" >&2; exit 1; }
+    livewins=$((livewins + 1)); continue
+  fi
   [ "$a" = "$b" ] && [ "$a" = "$c" ] || { echo "non-pinned file differs: $f" >&2; exit 1; }
   same=$((same + 1))
 done <<<"$live_files"
@@ -62,5 +72,5 @@ done <<<"$live_files"
 
 ( cd "$OUT/delivery" && find . -type f ! -name SHA256SUMS | sed 's|^\./||' | LC_ALL=C sort | xargs shasum -a 256 > SHA256SUMS )
 total=$(grep -c . "$OUT/delivery/SHA256SUMS")
-echo "derive-p3: live outer $LIVE_OUTER OK; live files $(echo "$live_files" | wc -l | tr -d ' '); same=$same; changed=1 (config.yaml); added=4 (family-cloud); delivery files $total"
+echo "derive-p3: live outer $LIVE_OUTER OK; live files $(echo "$live_files" | wc -l | tr -d ' '); same=$same; live-wins=$livewins (lesstof F4); changed=1 (config.yaml); added=4 (family-cloud); delivery files $total"
 echo "$PINS" | awk '{print "pin " substr($1,1,12) " " $2}'

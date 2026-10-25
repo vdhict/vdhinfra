@@ -56,7 +56,7 @@ SRC="$(git rev-parse --show-toplevel)"            # the worktree holding the dep
 HACK="$SRC/hack"; NS=family-ai; CHG=chg-2026-10-20-010
 # the automatic rollback needs a land2-cloud-on-live checkout; the main family-ai checkout may be on another branch
 export FAMILY_AI_REPO="${FAMILY_AI_REPO:-$HOME/.cache/$CHG/fai-cutoff-wt}"
-PIN_IMAGE="docker.io/nousresearch/hermes-agent:v2026.9.24@sha256:fca358f12efd65bfaaca05884166f15c0e2788375ca30d77061ac1ebc96452b7"
+PIN_IMAGE="docker.io/nousresearch/hermes-agent:v0.22.5@sha256:9c5561579f3ffdf333401797094ac3a743738d6c25d40f4331c7bf77b694238d"   # = main hermes/base (f2c88fa3)
 TS=$(date -u +%Y%m%dT%H%M%SZ); CACHE="$HOME/.cache/$CHG/golive-$TS"; mkdir -p "$CACHE"
 EV="$REPO/ops/evidence/$CHG/k8s-golive-$TS-${MODE#--}.txt"; [ ! -e "$EV" ] || { echo "evidence $EV exists (write-once): retry in a second" >&2; exit 1; }
 eval "$(cd "$REPO" && mise env -s bash 2>/dev/null)"

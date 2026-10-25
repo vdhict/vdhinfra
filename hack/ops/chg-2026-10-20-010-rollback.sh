@@ -27,7 +27,7 @@ FAI="${FAMILY_AI_REPO:-/Users/sheijden/Code/pka-wires/family-ai-familie-2026-10-
 FAI_BRANCH=land2-cloud-on-live
 OPS="$REPO/ops/ops"
 NS=family-ai
-PRE_OUTER=40e5b93f026c31f1f9444739a4618cac924fb5c77d28b7c6411f9b237a9d9c72   # live p3 bundle before land 2
+PRE_OUTER=fe64b2a128258e45d23c70b1cb642ceae1750ce901891f59b667cc3e860274f2   # live p3 bundle before land 2 (F4, main 1014ab1a)
 TS=$(date -u +%Y%m%dT%H%M%SZ)
 CACHE="$HOME/.cache/chg-2026-10-20-010"; WT="$CACHE/wt-$TS-rollback-${MODE#--}"
 EV="$REPO/ops/evidence/chg-2026-10-20-010/k8s-rollback-$TS-${MODE#--}.txt"
