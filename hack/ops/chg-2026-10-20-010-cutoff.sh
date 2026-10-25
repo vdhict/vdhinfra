@@ -13,6 +13,7 @@
 #   hack/ops/chg-2026-10-20-010-cutoff.sh readback [<deploy-sha>]           # read-only; exit 0 iff armed (for that sha)
 #   hack/ops/chg-2026-10-20-010-cutoff.sh launchd-selftest <deploy-sha>     # load a TEST label (cutoff 2099), wait for
 #                                                                           # its launchd self-test, unload it again
+#   hack/ops/chg-2026-10-20-010-cutoff.sh alert-drill                       # one labelled drill push on the alert path
 #   hack/ops/chg-2026-10-20-010-cutoff.sh retire                            # only after the cut-off fired + cloud off
 #   (fire --sha S --cutoff T --inst D --fai D --label L   is what launchd runs every 300 s)
 #
@@ -349,6 +350,9 @@ case "$MODE" in
     mkdir -p "$AGENTS/_retired"; [ -e "$AGENTS/$LABEL_TEST.plist" ] && mv "$AGENTS/$LABEL_TEST.plist" "$AGENTS/_retired/$LABEL_TEST.$(date -u +%Y%m%dT%H%M%SZ).plist"
     echo "launchd-selftest $([ $ok = 0 ] && [ $rb = 0 ] && echo GREEN || echo RED) (test label unloaded and moved to _retired)"
     [ $ok = 0 ] && [ $rb = 0 ];;
+  alert-drill)
+    LOGF="$STATE/cutoff.log"; notify "[drill] $CHG cut-off alert path, no action needed" "test of the push the cut-off sends on FAILED / self-test RED"
+    tail -1 "$LOGF"; tail -1 "$LOGF" | grep -q 'notified p[0-9] (team channel)\|notified (test)';;
   retire)
     PL="$AGENTS/$LABEL_REAL.plist"; [ -e "$PL" ] || { echo "nothing armed"; exit 0; }
     SHA="$(arg_of "$(plist_args "$PL")" --sha)"

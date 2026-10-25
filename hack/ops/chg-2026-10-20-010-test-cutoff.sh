@@ -293,6 +293,8 @@ scenario L yes; export C010_NOW=2026-10-25T12:00:00Z
 out=$(cut launchd-selftest "$SHA" 2>&1); rc=$?; export OUT="$out"
 t "L1 launchd-selftest GREEN, test label unloaded + moved to _retired, real label untouched" bash -c "[ $rc = 0 ] && grep -q 'launchd-selftest GREEN' <<< \"\$OUT\" && [ ! -e '$S/agents/net.vdhict.$CHG-cutoff-test.plist' ] && [ ! -e '$S/agents/net.vdhict.$CHG-cutoff.plist' ] && [ ! -e '$S/lc/loaded-net.vdhict.$CHG-cutoff-test' ]"
 t "L2 launchd-selftest ran no rollback and logged no event" bash -c "[ $(nrb) = 0 ] && [ $(nev) = 0 ]"
+export C010_NOW=2026-10-25T22:30:00Z; out=$(cut alert-drill 2>&1); rc=$?
+t "L3 alert-drill (23:30 CET): one labelled drill on the alert path, priority 1 [night], no event, no incident" bash -c "[ $rc = 0 ] && [ \$(wc -l < '$S/notify.log') = 1 ] && grep -q '^prio=1 title=\[night\] \[drill\]' '$S/notify.log' && [ $(nev) = 0 ] && [ ! -e '$S/incidents.log' ]"
 
 echo "RESULT $PASS/$((PASS+FAIL)) PASS (scratch $B)"
 [ $FAIL = 0 ]
