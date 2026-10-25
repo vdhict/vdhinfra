@@ -1,0 +1,17 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./externalsecret.yaml
+  - ./job.yaml
+# The name gets a content hash (no disableNameSuffixHash), and kustomize
+# rewrites the Job's volume reference to it: a script change is a Job spec
+# change, which jellyfin-bootstrap (force: true) turns into a re-run.
+configMapGenerator:
+  - name: jellyfin-bootstrap
+    files:
+      - bootstrap.py=./bootstrap.py
+generatorOptions:
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled

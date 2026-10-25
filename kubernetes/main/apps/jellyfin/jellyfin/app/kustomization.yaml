@@ -1,0 +1,35 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./jellyfin-config-pvc.yaml
+  - ./helmrelease.yaml
+# Backup of jellyfin-config: the shared component, s3://volsync/jellyfin on
+# MinIO (restic, shared repo password). Variables (APP, VOLSYNC_CLAIM,
+# VOLSYNC_PUID/PGID, VOLSYNC_CAPACITY) come from postBuild in
+# ../install.yaml.
+components:
+  - ../../../../components/volsync
+patches:
+  # The component's moverSecurityContext sets only uid/gid/fsGroup. The
+  # jellyfin namespace ENFORCES PSA restricted, which also requires
+  # runAsNonRoot and a seccompProfile, or the mover pod is rejected at
+  # admission and no backup is ever written (vikunja pattern). VolSync
+  # 0.13.1 sets drop ALL, allowPrivilegeEscalation false and a read-only
+  # root on the mover container itself.
+  # :20 staggers it from the :00 component sources and the :40/:50 movers.
+  - target:
+      group: volsync.backube
+      version: v1alpha1
+      kind: ReplicationSource
+    patch: |-
+      - op: replace
+        path: /spec/trigger/schedule
+        value: "20 * * * *"
+      - op: add
+        path: /spec/restic/moverSecurityContext/runAsNonRoot
+        value: true
+      - op: add
+        path: /spec/restic/moverSecurityContext/seccompProfile
+        value: {type: RuntimeDefault}

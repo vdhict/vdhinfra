@@ -1,0 +1,31 @@
+---
+# jellyfin (chg-2026-10-25-006): Jellyfin media server, Intel QSV on the
+# worker iGPU. Live TV comes from Dispatcharr (namespace dispatcharr) over
+# the cluster network: an M3U tuner (one simultaneous stream) and an XMLTV
+# guide. Jellyfin never talks to the IPTV provider and holds no provider
+# credential. LAN and WireGuard only: an HTTPRoute on envoy-internal, no
+# public route, no Cloudflare record.
+#
+# Own namespace, not `media`: media has no Pod Security label.
+#
+# Pod Security Admission `restricted` is ENFORCED:
+#   * jellyfin/jellyfin:12.3 has no image User; the HelmRelease runs it as
+#     1000:1000, read-only root, drop ALL, seccomp RuntimeDefault. The GPU
+#     arrives through the intel device plugin (a device, not a hostPath), so
+#     restricted admits it.
+#   * VolSync mover: runAsNonRoot + seccompProfile are patched onto the
+#     shared component in jellyfin/app/kustomization.yaml (vikunja pattern).
+#   * jellyfin-bootstrap Job: python slim as 65534, read-only root, drop ALL.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jellyfin
+  labels:
+    # Taking this directory out of Git must NOT delete the namespace and with
+    # it the config PVC. A full removal deletes them BY HAND, as a recorded
+    # step.
+    kustomize.toolkit.fluxcd.io/prune: disabled
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
