@@ -66,7 +66,9 @@ d = dict(a.split("=", 1) for a in sys.argv[2:]); d["authority"] = sys.argv[1]; p
 cnp_on_main() { git -C "$REPO" cat-file -e "origin/main:$CNP_PATH" 2>/dev/null; }
 mint() {
   if [ -n "${C010_MINT_CMD:-}" ]; then "$C010_MINT_CMD"; return; fi
-  GITHUB_APP_ID="${GITHUB_APP_ID:-}" GITHUB_APP_INSTALLATION_ID="${GITHUB_APP_INSTALLATION_ID:-}" \
+  # lib.py (imported by git_push.py) creates DATA_DIR (default /data, read-only on macOS): keep it in our state dir
+  mkdir -p "$STATE/mint-data"
+  DATA_DIR="$STATE/mint-data" GITHUB_APP_ID="${GITHUB_APP_ID:-}" GITHUB_APP_INSTALLATION_ID="${GITHUB_APP_INSTALLATION_ID:-}" \
     GITHUB_APP_KEY_PATH="${GITHUB_APP_KEY_PATH:-}" "$PY" "$INST/mint/gh_app_token.py" 2>/dev/null | tail -1
 }
 auth_env() { # push credential for this process tree only (env, never argv, never printed)
