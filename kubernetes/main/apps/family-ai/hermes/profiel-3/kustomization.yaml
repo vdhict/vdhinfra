@@ -14,17 +14,6 @@ resources:
   - ./externalsecret.yaml
   - ./bundle.sops.yaml
   - ./volsync.yaml
-  - ./cloud-spend-pvc.yaml   # chg-2026-10-20-010 land 2 (W6)
-# chg-2026-10-20-010 W6/W2b: the ledger guard; Flux postBuild must not touch it (same as hermes-seed in ../base).
-# The generated name gets the -3 suffix; kustomize rewrites the volume reference.
-configMapGenerator:
-  - name: hermes-cloud-spend-init
-    files:
-      - ./cloud-spend-init.py
-    options:
-      disableNameSuffixHash: true
-      annotations:
-        kustomize.toolkit.fluxcd.io/substitute: disabled
 patches:
   # The Secret named here is written by ESO, not by kustomize, so kustomize
   # cannot rename the reference itself. Pin it to the ExternalSecret target.
@@ -46,50 +35,3 @@ patches:
       - op: add
         path: /spec/template/spec/containers/0/env/-
         value: {name: KENNIS_URL, value: "http://kennisdienst.family-ai.svc.cluster.local:8088"}
-      # chg-2026-10-20-010 land 2 (Argus C3/W5): family-cloud runs the cloud ONLY when HERMES_IMAGE equals its
-      # PINNED_IMAGE; this value must equal containers[0].image of this same pod spec (checked by
-      # hack/family-ai/check-cloud-wiring.py on the render, and read back in the pod at go-live).
-      - op: add
-        path: /spec/template/spec/containers/0/env/-
-        value: {name: HERMES_IMAGE, value: "docker.io/nousresearch/hermes-agent:v0.22.5@sha256:9c5561579f3ffdf333401797094ac3a743738d6c25d40f4331c7bf77b694238d"}
-      # W6: the spend ledger on its own PVC (family-cloud default path, set explicitly)
-      - op: add
-        path: /spec/template/spec/containers/0/env/-
-        value: {name: CLOUD_SPEND_PATH, value: /cloud-spend/month.json}
-      - op: add
-        path: /spec/template/spec/containers/0/volumeMounts/-
-        value: {name: cloud-spend, mountPath: /cloud-spend}
-      - op: add
-        path: /spec/template/spec/volumes/-
-        value:
-          name: cloud-spend
-          persistentVolumeClaim: {claimName: hermes-profiel-cloud-spend-3}
-      - op: add
-        path: /spec/template/spec/volumes/-
-        value:
-          name: cloud-spend-init
-          configMap: {name: hermes-cloud-spend-init, defaultMode: 0555}
-      # W6/W2b ledger guard (cloud-spend-init.py), runs AFTER seed-once: month.json created only on a fresh PVC
-      # or at a month change, never overwritten; missing mid-month or corrupt -> price_confirmed=false in the
-      # freshly seeded family-cloud settings.json (Studio only), content-free log line. Needs /opt/data for that.
-      # No envFrom, no env, no secret: CLOUD_API_KEY never reaches an init container (W4).
-      - op: add
-        path: /spec/template/spec/initContainers/-
-        value:
-          name: cloud-spend-init
-          image: docker.io/nousresearch/hermes-agent:v0.22.5@sha256:9c5561579f3ffdf333401797094ac3a743738d6c25d40f4331c7bf77b694238d
-          command: ["/opt/hermes/.venv/bin/python", "-I", "/cloud-spend-init/cloud-spend-init.py"]
-          securityContext:
-            runAsUser: 10000
-            runAsGroup: 10000
-            runAsNonRoot: true
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities: {drop: ["ALL"]}
-          resources:
-            requests: {cpu: 10m, memory: 16Mi}
-            limits: {memory: 64Mi}
-          volumeMounts:
-            - {name: cloud-spend, mountPath: /cloud-spend}
-            - {name: data, mountPath: /opt/data}
-            - {name: cloud-spend-init, mountPath: /cloud-spend-init, readOnly: true}
