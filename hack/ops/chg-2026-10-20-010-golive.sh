@@ -59,6 +59,7 @@ HACK="$SRC/hack"; NS=family-ai; CHG=chg-2026-10-20-010
 export FAMILY_AI_REPO="${FAMILY_AI_REPO:-$HOME/.cache/$CHG/fai-cutoff-wt-v0225}"
 PIN_IMAGE="docker.io/nousresearch/hermes-agent:v0.22.5@sha256:9c5561579f3ffdf333401797094ac3a743738d6c25d40f4331c7bf77b694238d"   # = main hermes/base (f2c88fa3)
 TS=$(date -u +%Y%m%dT%H%M%SZ); CACHE="$HOME/.cache/$CHG/golive-$TS"; mkdir -p "$CACHE"
+RUN_ID="golive-$TS"; : > "$CACHE/run-start"   # fix 3: identifies files written by THIS run (run id + mtime)
 EV="$REPO/ops/evidence/$CHG/k8s-golive-$TS-${MODE#--}.txt"; [ ! -e "$EV" ] || { echo "evidence $EV exists (write-once): retry in a second" >&2; exit 1; }
 eval "$(cd "$REPO" && mise env -s bash 2>/dev/null)"
 log() { echo "$*" | tee -a "$EV"; }
@@ -69,6 +70,17 @@ rev_is() { # $1 = ks .status.lastAppliedRevision, $2 = full 40-hex sha: exactly 
 }
 # <<< c010-rev
 RED=0; PUSHED=""; C4STATE=""; CANARY_UID=""
+# >>> c010-c4state (fix 3, 25-10; sourced as-is by hack/ops/chg-2026-10-20-010-test-owui-c4.sh)
+# rollback() may only restore a C4 before-state written during THIS run: newer than the run's start marker AND
+# carrying this run's id; never "the newest file in the evidence dir" (an older run's state would roll OWUI back
+# to a stale value).
+c4_state_ok() { # $1 state file  $2 run-start marker  $3 run id
+  [ -f "$1" ] && [ "$1" -nt "$2" ] && python3 -I -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("run_id") == sys.argv[2] else 1)' "$1" "$3" 2>/dev/null; }
+c4_state_of_this_run() { # $1 evidence dir  $2 run-start marker  $3 run id : prints the one matching state file, else nothing
+  local f n=0 hit=""
+  for f in "$1"/k8s-owui-c4-*-before.json; do c4_state_ok "$f" "$2" "$3" && { n=$((n + 1)); hit="$f"; }; done
+  [ "$n" = 1 ] && printf '%s\n' "$hit"; return 0; }
+# <<< c010-c4state
 chk() { if eval "$2" >>"$CACHE/chk.log" 2>&1; then log "  ok   $1"; else log "  RED  $1"; RED=1; fi; }
 # >>> c010-auth (Argus G-b + L1; sourced as-is by hack/ops/chg-2026-10-20-010-test-golive-auth.sh)
 # Every push gets a FRESH App token minted right before it (contents:write on vdhinfra only, 1 h), handed to git
@@ -99,7 +111,7 @@ deploy_push() { # fresh token -> push $SHA:main -> revoke
 }
 rollback() { # called on any red after the push
   log "ROLLBACK: $1"
-  [ -n "$C4STATE" ] && OWUI_ADMIN_KEY="$OWUI_ADMIN_KEY" "$HACK/ops/$CHG-owui-c4.sh" --rollback "$C4STATE" | tee -a "$EV"
+  [ -n "$C4STATE" ] && c4_state_ok "$C4STATE" "$CACHE/run-start" "$RUN_ID" && OWUI_ADMIN_KEY="$OWUI_ADMIN_KEY" "$HACK/ops/$CHG-owui-c4.sh" --rollback "$C4STATE" | tee -a "$EV"
   fresh_token "rollback push" || log "  RED  rollback continues with the caller's credential (if any)"
   "$HACK/ops/$CHG-rollback.sh" --execute "$SHA" "golive red: $1" | tee -a "$EV"
   revoke_token "rollback push"
@@ -399,8 +411,9 @@ P3=$(pod 3)
 
 # ---------------------------------------------------------------- C4 + C5 (OWUI)
 log "== C4 + C5"
-OWUI_ADMIN_KEY="$OWUI_ADMIN_KEY" OWUI_SNAPSHOT="$OWUI_SNAPSHOT" "$HACK/ops/$CHG-owui-c4.sh" --apply | tee -a "$EV"
-C4STATE=$(ls -t "$REPO/ops/evidence/$CHG/"k8s-owui-c4-*-before.json 2>/dev/null | head -1)
+OWUI_ADMIN_KEY="$OWUI_ADMIN_KEY" OWUI_SNAPSHOT="$OWUI_SNAPSHOT" C010_RUN_ID="$RUN_ID" "$HACK/ops/$CHG-owui-c4.sh" --apply | tee -a "$EV"
+C4STATE=$(c4_state_of_this_run "$REPO/ops/evidence/$CHG" "$CACHE/run-start" "$RUN_ID")
+log "  info C4 state of this run: ${C4STATE:+${C4STATE#$REPO/}}${C4STATE:-none}"
 chk "C4 green" "tail -1 '$EV' | grep -q 'RESULT C4 GREEN'"
 OW=$(kubectl -n $NS get pod -l app.kubernetes.io/name=open-webui -o jsonpath='{.items[0].metadata.name}')
 chk "C5 task model external = household-chat, never profiel-N; tags/follow-up/autocomplete/query off" "kubectl -n $NS exec -i $OW -c app -- python3 - <<'PY'
@@ -418,9 +431,13 @@ log "== C6/W7/C7 synthetic canary"
 PORT=$((20000 + RANDOM % 20000)); kubectl -n $NS port-forward "pod/$OW" "$PORT:8080" >/dev/null 2>&1 & PF=$!
 for _ in $(seq 1 30); do nc -z 127.0.0.1 $PORT 2>/dev/null && break; sleep 1; done
 U="http://127.0.0.1:$PORT"
+# >>> c010-canary-api (sourced as-is by hack/ops/chg-2026-10-20-010-test-owui-c4.sh)
+# Same bug class as the attempt-3 C4 exit: a trailing `[ -n "$b" ] && printf` made the config group exit 1 on every
+# body-less call, so under pipefail `api ... | jq -e ...` read RED even when the answer was right (C6 would have failed).
 api() { t="$1"; m="$2"; u="$3"; b="${4:-}"; shift 3; [ $# -gt 0 ] && shift
   { printf 'header = "Authorization: Bearer %s"\n' "$t"; printf 'header = "Content-Type: application/json"\n'
-    [ -n "$b" ] && printf 'data = "%s"\n' "$(printf '%s' "$b" | sed 's/\\/\\\\/g; s/"/\\"/g')"; } | curl -s -K - -X "$m" "$@" "$U$u"; }
+    if [ -n "$b" ]; then printf 'data = "%s"\n' "$(printf '%s' "$b" | sed 's/\\/\\\\/g; s/"/\\"/g')"; fi; } | curl -s -K - -X "$m" "$@" "$U$u"; }
+# <<< c010-canary-api
 PW="c010-$(od -An -tx1 -N12 /dev/urandom | tr -d ' \n')"
 cleanup() { [ -n "$CANARY_UID" ] && api "$OWUI_ADMIN_KEY" DELETE "/api/v1/users/$CANARY_UID" "" -o /dev/null; kill $PF 2>/dev/null || true; }
 trap cleanup EXIT
