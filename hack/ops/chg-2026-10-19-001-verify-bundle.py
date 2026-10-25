@@ -45,8 +45,12 @@ if changed != ['config.yaml']:
     fails.append(f'unexpected changed set {changed}')
 cfg = members['config.yaml'].decode().split('\n')
 cfg_live_equiv = [l for l in cfg if l != '    - "lesstof"']
-cfg_live_equiv = '\n'.join(cfg_live_equiv).rstrip('\n') + '\n_config_version: 46\n'
-cfg_diff_ok = hashlib.sha256(cfg_live_equiv.encode()).hexdigest() == live['config.yaml'] \
+cfg_live_equiv = '\n'.join(cfg_live_equiv).rstrip('\n') + '\n'
+# The pod copy carries exactly one runtime line '_config_version: <digits>' that Hermes appends (46 on v2026.9.24,
+# 51 on v0.22.5; chg-2026-10-25-002 C4). The live side is a sha256 only, so dropping that one pod-side line is
+# checked as: pod == bundle-equivalent + one such line, every other byte equal (digits 0..9999, no leading zeros).
+cfg_diff_ok = any(hashlib.sha256((cfg_live_equiv + f'_config_version: {v}\n').encode()).hexdigest() == live['config.yaml']
+                  for v in range(10000)) \
     or hashlib.sha256('\n'.join(l for l in cfg if l != '    - "lesstof"').encode()).hexdigest() == live['config.yaml']
 if not cfg_diff_ok:
     fails.append('config.yaml differs from live by more than the lesstof line (+ runtime _config_version)')
