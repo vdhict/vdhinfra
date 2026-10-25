@@ -63,12 +63,42 @@ eval "$(cd "$REPO" && mise env -s bash 2>/dev/null)"
 log() { echo "$*" | tee -a "$EV"; }
 RED=0; PUSHED=""; C4STATE=""; CANARY_UID=""
 chk() { if eval "$2" >>"$CACHE/chk.log" 2>&1; then log "  ok   $1"; else log "  RED  $1"; RED=1; fi; }
+# >>> c010-auth (Argus G-b + L1; sourced as-is by hack/ops/chg-2026-10-20-010-test-golive-auth.sh)
+# Every push gets a FRESH App token minted right before it (contents:write on vdhinfra only, 1 h), handed to git
+# via GIT_CONFIG_* env (never argv, never printed) and revoked right after. A run longer than the token lifetime
+# can therefore never lose its own rollback push. Test-only: C010_MINT_CMD / C010_REVOKE_CMD replace the minter.
+_C010_TOK=""
+fresh_token() { # $1 purpose
+  local t
+  if [ -n "${C010_MINT_CMD:-}" ]; then t="$("$C010_MINT_CMD" 2>>"$CACHE/mint.log")"
+  else t="$(/usr/bin/python3 -I "$HACK/ops/$CHG-mint.py" mint 2>>"$CACHE/mint.log")"; fi
+  [ "${#t}" -ge 20 ] || { log "  RED  fresh App token for $1: mint failed (see $CACHE/mint.log)"; return 1; }
+  _C010_TOK="$t"
+  export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.https://github.com/.extraheader
+  GIT_CONFIG_VALUE_0="Authorization: Basic $(printf 'x-access-token:%s' "$t" | base64 | tr -d '\n')"; export GIT_CONFIG_VALUE_0
+  t=""; log "  ok   fresh App token for $1 (contents:write, vdhinfra, env only)"
+}
+revoke_token() { # $1 purpose
+  [ -n "$_C010_TOK" ] || return 0
+  if [ -n "${C010_REVOKE_CMD:-}" ]; then printf '%s' "$_C010_TOK" | "$C010_REVOKE_CMD" 2>>"$CACHE/mint.log"
+  else printf '%s' "$_C010_TOK" | /usr/bin/python3 -I "$HACK/ops/$CHG-mint.py" revoke 2>>"$CACHE/mint.log"; fi \
+    && log "  ok   App token revoked after $1" || log "  info App token revoke failed after $1 (it expires within 1 h)"
+  _C010_TOK=""; unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
+}
+deploy_push() { # fresh token -> push $SHA:main -> revoke
+  fresh_token "deploy push" || return 1
+  git -C "$SRC" push -q origin "$SHA:main"; local rc=$?
+  revoke_token "deploy push"; return $rc
+}
 rollback() { # called on any red after the push
   log "ROLLBACK: $1"
   [ -n "$C4STATE" ] && OWUI_ADMIN_KEY="$OWUI_ADMIN_KEY" "$HACK/ops/$CHG-owui-c4.sh" --rollback "$C4STATE" | tee -a "$EV"
+  fresh_token "rollback push" || log "  RED  rollback continues with the caller's credential (if any)"
   "$HACK/ops/$CHG-rollback.sh" --execute "$SHA" "golive red: $1" | tee -a "$EV"
+  revoke_token "rollback push"
   log "RESULT go RED -> rolled back"; exit 1
 }
+# <<< c010-auth
 gate() { [ "$RED" = 0 ] || { if [ -n "$PUSHED" ]; then rollback "$1"; else log "RESULT ${MODE#--} RED at $1 (nothing pushed)"; exit 1; fi; }; }
 pod() { kubectl -n $NS get pod -l "app.kubernetes.io/instance=hermes-profiel-$1" --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}'; }
 xp() { kubectl -n $NS exec "$1" -c app -- "${@:2}"; }   # exec in a hermes app container
@@ -197,7 +227,8 @@ chk "deploy commit is the one that adds the cloud CNP (what rollback/cut-off rev
   "git -C '$SRC' diff-tree --no-commit-id --name-status -r '$SHA' | grep -qxF \"A\$(printf '\t')kubernetes/main/apps/family-ai/network-policies/app/hermes-profiel-3-cloud.yaml\""
 chk "rollback prerequisite: FAMILY_AI_REPO is a clean land2-cloud-on-live checkout" \
   "[ \"\$(git -C '$FAMILY_AI_REPO' rev-parse --abbrev-ref HEAD)\" = land2-cloud-on-live ] && [ -z \"\$(git -C '$FAMILY_AI_REPO' status --porcelain -- content/cloudmodel.json)\" ]"
-chk "push auth to origin (git push --dry-run, no ref changes)" "GIT_TERMINAL_PROMPT=0 git -C '$REPO' push --dry-run -q origin origin/main:refs/heads/main"
+chk "push auth: a fresh scoped App token can push (git push --dry-run, no ref changes), then revoked" \
+  "fresh_token preflight && GIT_TERMINAL_PROMPT=0 git -C '$REPO' push --dry-run -q origin origin/main:refs/heads/main; r=\$?; revoke_token preflight; [ \$r = 0 ]"
 if [ "$MODE" = --go ]; then
   W2EXP=$(printf '%s\n' "$W2OUT" | sed -n 's/.*promo_credit_expires_utc=\([0-9TZ:-]*\).*/\1/p')
   chk "cut-off armed for $SHA at the accepted grant expiry ${W2EXP:-(no grant in this w2a)} and read back (launchd, Argus item 3)" \
@@ -285,7 +316,7 @@ gate "snapshots"
 
 # ---------------------------------------------------------------- push + reconcile
 log "== push + reconcile"
-git -C "$SRC" push -q origin "$SHA:main" || { log "RED push refused (main moved?): rebase + re-run preflight"; exit 1; }
+deploy_push || { log "RED push refused or no token (main moved?): rebase + re-run preflight; nothing pushed"; exit 1; }
 PUSHED="$SHA"; log "  pushed $SHA to main"
 flux reconcile source git flux-system -n flux-system >>"$CACHE/chk.log" 2>&1
 for ks in family-ai-network-policies family-ai-hermes; do

@@ -27,8 +27,11 @@
 # cloud stays off (fail closed). One change-log line per (re-)arm. `retire` only after the cut-off has fired. No rm (AGR-121): replaced plists are
 # moved to ~/Library/LaunchAgents/_retired/; installs are write-once dirs.
 # Test-only overrides (offline tests, never in the real plist): C010_NOW C010_STATE_DIR C010_INST_BASE
-# C010_AGENTS_DIR C010_LAUNCHCTL C010_OPS C010_MINT_CMD C010_FAI_WT C010_SKIP_ROLLBACK_DRYRUN C010_SELFTEST_WAIT
-# C010_PATH_PREPEND.
+# C010_AGENTS_DIR C010_LAUNCHCTL C010_OPS C010_MINT_CMD C010_REVOKE_CMD C010_FAI_WT C010_SKIP_ROLLBACK_DRYRUN
+# C010_SELFTEST_WAIT C010_PATH_PREPEND C010_NOTIFY_LOG C010_ALERT_CONF.
+# Alerts (Argus A3): FAILED, a real-label self-test RED and "not done 2 h after the trigger" each send ONE ntfy push to
+# the team channel (pka-alert's self-hosted TEAM topic; priority 1 + "[night]" 23:00-07:00 Europe/Amsterdam, else 3;
+# fallback: pka-alert) plus one `ops incident new` (the digest line). ops errors go to the fire log.
 set -uo pipefail
 CHG=chg-2026-10-20-010
 LABEL_REAL="net.vdhict.$CHG-cutoff"
@@ -36,8 +39,9 @@ LABEL_TEST="net.vdhict.$CHG-cutoff-test"
 TEST_CUTOFF=2099-01-01T00:00:00Z
 FAI_BRANCH=land2-cloud-on-live
 CNP_PATH=kubernetes/main/apps/family-ai/network-policies/app/hermes-profiel-3-cloud.yaml
-MINTER_DIR=kubernetes/main/apps/observability/cluster-health/app/scripts
-MAX_ATTEMPTS=3
+MAX_ATTEMPTS=3          # fast attempts (5 min apart); then FAILED alert + one retry per RETRY_S until done
+RETRY_S=3600
+LATE_S=7200            # not done this long after the trigger -> one alert, whatever the reason
 INTERVAL=300
 REPO="${VDH_REPO:-/Users/sheijden/Code/homelab-migration/vdhinfra}"
 FAI_SRC="${FAMILY_AI_SRC:-/Users/sheijden/Code/pka-wires/family-ai-familie-2026-10-19}"
@@ -59,105 +63,159 @@ epoch() { date -j -u -f %Y-%m-%dT%H:%M:%SZ "$1" +%s 2>/dev/null; }
 now_epoch() { if [ -n "${C010_NOW:-}" ]; then epoch "$C010_NOW"; else date -u +%s; fi; }
 is_sha() { [[ "$1" =~ ^[0-9a-f]{40}$ ]]; }
 is_ts() { [[ "$1" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] && [ -n "$(epoch "$1")" ]; }
-# one change-log line; payload from key=value pairs (strings), built by python so quoting is never an issue
-ev() { "$OPS" change event "$CHG" executed --actor k8s-engineer --payload-json "$($PY -I -c '
+LOGF="$STATE/cutoff.log"   # fire() switches to a per-label log
+line() { echo "$(utc) ${LABEL:-cutoff} $*" >> "$LOGF"; }
+payload() { $PY -I -c '
 import json, sys
-d = dict(a.split("=", 1) for a in sys.argv[2:]); d["authority"] = sys.argv[1]; print(json.dumps(d, sort_keys=True))' "$AUTH" "$@")" >/dev/null 2>&1; }
+d = dict(a.split("=", 1) for a in sys.argv[2:]); d["authority"] = sys.argv[1]; print(json.dumps(d, sort_keys=True))' "$AUTH" "$@"; }
+# one change-log line; payload from key=value pairs (strings), built by python so quoting is never an issue
+ev() { local o rc; o="$("$OPS" change event "$CHG" executed --actor k8s-engineer --payload-json "$(payload "$@")" 2>&1)"; rc=$?
+  [ $rc = 0 ] || line "ops change event FAILED rc=$rc: $(printf '%s' "$o" | tr '\n' ' ' | cut -c1-200)"; return $rc; }
+local_hour() { local h; h="$(TZ=Europe/Amsterdam date -r "$(now_epoch)" +%H)"; echo $((10#$h)); }
+notify() { # $1 title  $2 body : one push to the team channel; never prints the topic or token
+  local h prio title="$1"; h="$(local_hour)"; prio=3
+  if [ "$h" -ge 23 ] || [ "$h" -lt 7 ]; then prio=1; title="[night] $1"; fi
+  if [ -n "${C010_NOTIFY_LOG:-}" ]; then echo "prio=$prio title=$title" >> "$C010_NOTIFY_LOG"; line "notified (test) p$prio: $title"; return 0; fi
+  local conf="${C010_ALERT_CONF:-$HOME/.config/pka-alert/alert.env}" srv top tf tok code
+  kv() { sed -n "s/^$1=//p" "$conf" 2>/dev/null | tail -1 | tr -d "\"'" | sed "s#\$HOME#$HOME#"; }
+  srv="$(kv ALERT_SH_SERVER)"; top="$(kv ALERT_SH_TOPIC_TEAM)"; tf="$(kv ALERT_SH_TOKEN_FILE)"
+  tok="$(sed -n 's/^NTFY_PKA_ALERT_TOKEN=//p' "$tf" 2>/dev/null | tail -1 | tr -d "\"' \r")"
+  code=000
+  case " alerts gezin gezin-test $(kv ALERT_SH_TOPIC_SANDER) " in *" $top "*) top=""; line "team topic is a phone topic: not used";; esac
+  if [ -n "$srv" ] && [ -n "$top" ] && [ -n "$tok" ]; then
+    local body; body="$($PY -I -c 'import json,sys; print(json.dumps({"topic":sys.argv[1],"title":sys.argv[2],"message":sys.argv[3],"priority":int(sys.argv[4]),"tags":["rotating_light"]}))' "$top" "$title" "$2" "$prio")"
+    code="$(printf 'url = "%s/"\nheader = "Authorization: Bearer %s"\nheader = "Content-Type: application/json"\n' "$srv" "$tok" \
+      | /usr/bin/curl -s -o /dev/null -w '%{http_code}' --max-time 15 -K - -X POST --data-binary "$body" 2>/dev/null)"
+  fi
+  tok=""
+  if [ "$code" = 200 ]; then line "notified p$prio (team channel): $title"; return 0; fi
+  line "team push http=$code: falling back to pka-alert"
+  "$HOME/pka-alert/bin/pka-alert" c010-cutoff "$title" "$2" >/dev/null 2>&1 || true
+}
+alert() { # $1 key (once per key per deploy)  $2 title  $3 body : ntfy + digest line (ops incident)
+  local m="$STATE/alert-$1-${SHA:-none}"; [ -e "$m" ] && return 0; : > "$m"
+  notify "$2" "$3"
+  local o rc; o="$("$OPS" incident new high --summary "$CHG cut-off: $2. $3" --actor k8s-engineer 2>&1)"; rc=$?
+  [ $rc = 0 ] && line "digest line: ops incident new ($1)" || line "ops incident new FAILED rc=$rc: $(printf '%s' "$o" | tr '\n' ' ' | cut -c1-200)"
+}
 cnp_on_main() { git -C "$REPO" cat-file -e "origin/main:$CNP_PATH" 2>/dev/null; }
-mint() {
+_TOK=""
+mint() { # scoped token (contents:write on vdhinfra only), stdout only
   if [ -n "${C010_MINT_CMD:-}" ]; then "$C010_MINT_CMD"; return; fi
-  # lib.py (imported by git_push.py) creates DATA_DIR (default /data, read-only on macOS): keep it in our state dir
-  mkdir -p "$STATE/mint-data"
-  DATA_DIR="$STATE/mint-data" GITHUB_APP_ID="${GITHUB_APP_ID:-}" GITHUB_APP_INSTALLATION_ID="${GITHUB_APP_INSTALLATION_ID:-}" \
-    GITHUB_APP_KEY_PATH="${GITHUB_APP_KEY_PATH:-}" "$PY" "$INST/mint/gh_app_token.py" 2>/dev/null | tail -1
+  "$PY" -I "$INST/$CHG-mint.py" mint 2>>"$LOGF"
 }
 auth_env() { # push credential for this process tree only (env, never argv, never printed)
-  local t; t="$(mint)"; [ "${#t}" -ge 20 ] || return 1
+  _TOK="$(mint)"; [ "${#_TOK}" -ge 20 ] || { _TOK=""; return 1; }
   export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.https://github.com/.extraheader
-  GIT_CONFIG_VALUE_0="Authorization: Basic $(printf 'x-access-token:%s' "$t" | base64 | tr -d '\n')"; export GIT_CONFIG_VALUE_0
-  t=""
+  GIT_CONFIG_VALUE_0="Authorization: Basic $(printf 'x-access-token:%s' "$_TOK" | base64 | tr -d '\n')"; export GIT_CONFIG_VALUE_0
+}
+revoke_auth() { # revoke right after use (Argus L1)
+  [ -n "$_TOK" ] || return 0
+  if [ -n "${C010_REVOKE_CMD:-}" ]; then printf '%s' "$_TOK" | "$C010_REVOKE_CMD"
+  else printf '%s' "$_TOK" | "$PY" -I "$INST/$CHG-mint.py" revoke 2>>"$LOGF"; fi || line "token revoke failed (expires within 1 h)"
+  _TOK=""; unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
 }
 plist_args() { /usr/bin/plutil -extract ProgramArguments json -o - "$1" 2>/dev/null; }
 arg_of() { $PY -I -c 'import json,sys; a=json.loads(sys.argv[1]); print(a[a.index(sys.argv[2])+1] if sys.argv[2] in a else "")' "$1" "$2"; }
 
 # =============================================================================================== fire (launchd)
 fire() {
-  local SHA="" CUT="" INST="" FAI="" LABEL=""
-  while [ $# -gt 0 ]; do case "$1" in --sha) SHA="$2";; --cutoff) CUT="$2";; --inst) INST="$2";; --fai) FAI="$2";;
+  local CUT="" INST_ARG="" FAI="" ; SHA=""; LABEL=""
+  while [ $# -gt 0 ]; do case "$1" in --sha) SHA="$2";; --cutoff) CUT="$2";; --inst) INST_ARG="$2";; --fai) FAI="$2";;
     --label) LABEL="$2";; --w2-event) :;; *) echo "fire: unknown arg $1" >&2; exit 2;; esac; shift 2; done
+  INST="$INST_ARG"
   is_sha "$SHA" && is_ts "$CUT" && [ -d "$INST" ] && [ -n "$FAI" ] && [ -n "$LABEL" ] || { echo "fire: bad args" >&2; exit 2; }
-  local LOGF="$STATE/fire-$LABEL.log" ARMID; ARMID="$(basename "$INST")"
-  line() { echo "$(utc) $LABEL $*" >> "$LOGF"; }
+  LOGF="$STATE/fire-$LABEL.log"
+  local ARMID NOW DAY; ARMID="$(basename "$INST")"; NOW="$(now_epoch)"; DAY="$(date -u -r "$NOW" +%Y%m%d)"
+  local REAL=no; [ "$LABEL" = "$LABEL_REAL" ] && REAL=yes
   # 1 integrity of the pinned install
   if ! (cd "$INST" && shasum -a 256 -c --strict --quiet SHA256SUMS) >/dev/null 2>&1; then
     line "RED integrity: $INST does not match its SHA256SUMS"
-    local m="$STATE/tamper-$LABEL-$ARMID-$(date -u +%Y%m%d)"
-    [ -e "$m" ] || { : > "$m"; ev step="cutoff integrity RED (install changed after arm)" label="$LABEL" deploy="$SHA" result=RED needs_human=true; }
+    local m="$STATE/tamper-$LABEL-$ARMID-$DAY"
+    [ -e "$m" ] || { : > "$m"; ev step="cutoff integrity RED (install changed after arm)" label="$LABEL" deploy="$SHA" result=RED needs_human=true
+      [ $REAL = yes ] && alert "integrity-$DAY" "install changed after arm" "re-arm with cutoff.sh arm $SHA --w2-event <accepted event>; see $LOGF"; }
     exit 1
   fi
   eval "$(cd "$REPO" && mise env -s bash 2>/dev/null)"
   [ -z "${C010_PATH_PREPEND:-}" ] || export PATH="$C010_PATH_PREPEND:$PATH"
-  # 2 self-test, once per arm per UTC day (the first run after load is the arm read-back proof)
-  local ST="$STATE/selftest-$LABEL-$ARMID-$(date -u +%Y%m%d).json"
+  # 2 self-test, once per arm per UTC day (the first run after load is the arm read-back proof). Argus A4: once the
+  #   deploy is on main, the reviewed rollback.sh --dry-run <sha> origin/main must be GREEN too (proves the revert).
+  local ST="$STATE/selftest-$LABEL-$ARMID-$DAY.json"
   if [ ! -e "$ST" ]; then
-    local k=fail f=fail g=fail p=fail a=fail
+    local k=fail f=fail g=fail p=fail a=fail r=n/a
     [ "$(kubectl get ns family-ai -o name 2>/dev/null)" = namespace/family-ai ] && k=ok
     flux --version >/dev/null 2>&1 && f=ok
     git -C "$REPO" fetch -q origin 2>/dev/null && g=ok
-    ( auth_env && git -C "$REPO" push --dry-run -q origin origin/main:refs/heads/main >/dev/null 2>&1 ) && p=ok
+    ( auth_env && git -C "$REPO" push --dry-run -q origin origin/main:refs/heads/main >/dev/null 2>&1; rc=$?; revoke_auth; exit $rc ) && p=ok
     [ "$(git -C "$FAI" rev-parse --abbrev-ref HEAD 2>/dev/null)" = "$FAI_BRANCH" ] \
       && [ -z "$(git -C "$FAI" status --porcelain -- content/cloudmodel.json 2>/dev/null)" ] && a=ok
-    $PY -I -c 'import json,sys; k=["kubectl","flux","git_fetch","push_auth","family_ai_worktree"]; v=sys.argv[6:11]
+    if [ $g = ok ] && git -C "$REPO" merge-base --is-ancestor "$SHA" origin/main 2>/dev/null; then
+      FAMILY_AI_REPO="$FAI" VDH_REPO="$REPO" bash "$INST/$CHG-rollback.sh" --dry-run "$SHA" origin/main >> "$LOGF" 2>&1
+      tail -1 "$LOGF" | grep -q 'RESULT dry-run GREEN' && r=ok || r=fail
+    fi
+    $PY -I -c 'import json,sys; k=["kubectl","flux","git_fetch","push_auth","family_ai_worktree","rollback_dry_run"]; v=sys.argv[6:12]
 json.dump({"utc":sys.argv[1],"label":sys.argv[2],"deploy":sys.argv[3],"cutoff_utc":sys.argv[4],"launchd":sys.argv[5]!="",
-           "checks":dict(zip(k,v)),"ok":all(x=="ok" for x in v)}, open(sys.argv[11],"x"), sort_keys=True)' \
-      "$(utc)" "$LABEL" "$SHA" "$CUT" "${XPC_SERVICE_NAME:-}" $k $f $g $p $a "$ST" 2>/dev/null
-    line "selftest kubectl=$k flux=$f git_fetch=$g push_auth=$p family_ai_worktree=$a"
-    if [ "$k$f$g$p$a" != okokokokok ] && [ "$LABEL" = "$LABEL_REAL" ]; then
-      ev step="cutoff self-test RED (cut-off may not work)" label="$LABEL" deploy="$SHA" cutoff_utc="$CUT" \
-         checks="kubectl=$k flux=$f git_fetch=$g push_auth=$p family_ai_worktree=$a" result=RED needs_human=true
+           "checks":dict(zip(k,v)),"ok":all(x in ("ok","n/a") for x in v)}, open(sys.argv[12],"x"), sort_keys=True)' \
+      "$(utc)" "$LABEL" "$SHA" "$CUT" "${XPC_SERVICE_NAME:-}" $k $f $g $p $a $r "$ST" 2>/dev/null
+    local sum="kubectl=$k flux=$f git_fetch=$g push_auth=$p family_ai_worktree=$a rollback_dry_run=$r"
+    line "selftest $sum"
+    if [ $REAL = yes ] && { [ "$k$f$g$p$a" != okokokokok ] || [ $r = fail ]; }; then
+      ev step="cutoff self-test RED (cut-off may not work)" label="$LABEL" deploy="$SHA" cutoff_utc="$CUT" checks="$sum" result=RED needs_human=true
+      alert "selftest-$DAY" "self-test RED, the cut-off at $CUT may not work" "$sum; see $LOGF"
     fi
   fi
   # 3 time guard
-  local NOW; NOW="$(now_epoch)"
   [ "$NOW" -ge "$(epoch "$CUT")" ] || exit 0
-  [ "$LABEL" = "$LABEL_REAL" ] || { line "test label past its cutoff: no action"; exit 0; }
+  [ $REAL = yes ] || { line "test label past its cutoff: no action"; exit 0; }
   [ -e "$STATE/done-$SHA" ] && exit 0
-  local ATT="$STATE/attempts-$SHA" n; n=$( [ -e "$ATT" ] && wc -l < "$ATT" | tr -d ' ' || echo 0)
-  if [ "$n" -ge "$MAX_ATTEMPTS" ]; then
-    [ -e "$STATE/failed-$SHA" ] || { : > "$STATE/failed-$SHA"; line "FAILED after $n attempts: stop"
-      ev step="cutoff FAILED after $n attempts: cloud may still be ON for profiel-3" deploy="$SHA" cutoff_utc="$CUT" \
-         result=RED needs_human=true action="run hack/ops/$CHG-rollback.sh --execute $SHA by hand; see $LOGF"; }
-    exit 1
+  if [ "$NOW" -ge $(( $(epoch "$CUT") + LATE_S )) ]; then
+    alert late "cloud cut-off NOT done $((LATE_S / 3600)) h after $CUT" "profiel-3 cloud may still be on; see $LOGF; by hand: hack/ops/$CHG-rollback.sh --execute $SHA"
   fi
-  git -C "$REPO" fetch -q origin || { echo "$(utc) fetch failed" >> "$ATT"; line "RED git fetch"; exit 1; }
+  local ATT="$STATE/attempts-$SHA" LAST="$STATE/last-$SHA" n RETRY=no
+  n=$( [ -e "$ATT" ] && wc -l < "$ATT" | tr -d ' ' || echo 0)
+  if [ "$n" -ge "$MAX_ATTEMPTS" ]; then
+    if [ ! -e "$STATE/failed-$SHA" ]; then
+      : > "$STATE/failed-$SHA"; line "FAILED after $n attempts: retrying every $((RETRY_S / 60)) min until done"
+      ev step="cutoff FAILED after $n attempts: cloud may still be ON for profiel-3; retrying hourly" deploy="$SHA" cutoff_utc="$CUT" \
+         result=RED needs_human=true action="run hack/ops/$CHG-rollback.sh --execute $SHA by hand; see $LOGF"
+      alert failed "cloud cut-off FAILED after $n attempts" "profiel-3 cloud may still be on; retrying hourly; see $LOGF"
+    fi
+    [ $(( NOW - $(cat "$LAST" 2>/dev/null || echo 0) )) -ge "$RETRY_S" ] || exit 1
+    RETRY=yes
+  fi
+  # fetch and token-mint failures are logged but never count as attempts (Argus A3)
+  git -C "$REPO" fetch -q origin || { line "git fetch failed (not counted as an attempt)"; exit 1; }
   if ! cnp_on_main; then
     : > "$STATE/done-$SHA"; line "cloud already off on origin/main: no rollback needed"
-    ev step="cutoff at promo expiry: cloud already off on main (no-op)" deploy="$SHA" cutoff_utc="$CUT" \
-       previous_attempts="$n" result=GREEN
+    ev step="cutoff at promo expiry: cloud already off on main (no-op)" deploy="$SHA" cutoff_utc="$CUT" previous_attempts="$n" result=GREEN
+    [ -e "$STATE/failed-$SHA" ] && notify "cloud cut-off done after FAILED" "cloud off on main (no-op); see $LOGF"
     exit 0
   fi
   if ! git -C "$REPO" merge-base --is-ancestor "$SHA" origin/main; then
-    echo "$(utc) armed sha not on main" >> "$ATT"; line "RED: cloud CNP on main but armed $SHA is not in main"
-    ev step="cutoff RED: cloud CNP on main but the armed deploy is not in main (re-deployed? re-arm)" deploy="$SHA" \
+    [ $RETRY = yes ] || echo "$(utc) armed sha not on main" >> "$ATT"; echo "$NOW" > "$LAST"
+    line "RED: cloud CNP on main but armed $SHA is not in main"
+    [ $RETRY = yes ] || ev step="cutoff RED: cloud CNP on main but the armed deploy is not in main (re-deployed? re-arm)" deploy="$SHA" \
        cutoff_utc="$CUT" attempt="$((n + 1))" result=RED needs_human=true
     exit 1
   fi
-  echo "$(utc) rollback --execute" >> "$ATT"
-  if ! auth_env; then line "RED: GitHub App token mint failed"; ev step="cutoff RED: push token mint failed" \
-       deploy="$SHA" attempt="$((n + 1))" result=RED; exit 1; fi
-  line "cutoff $CUT reached: rollback.sh --execute $SHA (attempt $((n + 1)))"
+  auth_env || { line "GitHub App token mint failed (not counted as an attempt)"; exit 1; }
+  [ $RETRY = yes ] || echo "$(utc) rollback --execute" >> "$ATT"; echo "$NOW" > "$LAST"
+  line "cutoff $CUT reached: rollback.sh --execute $SHA ($([ $RETRY = yes ] && echo hourly retry || echo "attempt $((n + 1))"))"
   FAMILY_AI_REPO="$FAI" VDH_REPO="$REPO" bash "$INST/$CHG-rollback.sh" --execute "$SHA" \
     "promo credit expiry cut-off $CUT (Argus 25-10 item 3, launchd $LABEL)" >> "$LOGF" 2>&1; local rc=$?
+  revoke_auth
   local rev; rev="$(ls -t "$REPO/ops/evidence/$CHG/"k8s-rollback-*-execute.txt 2>/dev/null | head -1)"
   git -C "$REPO" fetch -q origin
   if ! cnp_on_main; then
     : > "$STATE/done-$SHA"; line "cloud OFF on origin/main (rollback rc=$rc)"
     ev step="cutoff at promo expiry: cloud off for profiel-3 (rollback.sh --execute)" deploy="$SHA" cutoff_utc="$CUT" \
-       attempt="$((n + 1))" rollback_rc="$rc" rollback_evidence="${rev#$REPO/}" result="$([ $rc = 0 ] && echo GREEN || echo 'GREEN on main, rollback readback RED: check evidence')"
+       attempt="$([ $RETRY = yes ] && echo hourly-retry || echo $((n + 1)))" rollback_rc="$rc" rollback_evidence="${rev#$REPO/}" \
+       result="$([ $rc = 0 ] && echo GREEN || echo 'GREEN on main, rollback readback RED: check evidence')"
+    [ -e "$STATE/failed-$SHA" ] && notify "cloud cut-off done after FAILED" "cloud off on main (rollback rc=$rc); see $LOGF"
     exit 0
   fi
-  line "RED: rollback rc=$rc and the cloud CNP is still on origin/main (retry in ${INTERVAL}s)"
-  ev step="cutoff attempt RED: cloud CNP still on main" deploy="$SHA" attempt="$((n + 1))" rollback_rc="$rc" \
+  line "RED: rollback rc=$rc and the cloud CNP is still on origin/main"
+  [ $RETRY = yes ] || ev step="cutoff attempt RED: cloud CNP still on main" deploy="$SHA" attempt="$((n + 1))" rollback_rc="$rc" \
      rollback_evidence="${rev#$REPO/}" result=RED
   exit 1
 }
@@ -167,15 +225,12 @@ install_and_load() { # $1 sha  $2 cutoff  $3 label  $4 w2 event ts ; uses SRC
   local SHA="$1" CUT="$2" LABEL="$3" W2="$4" TS INST PL REND
   TS="$(date -u +%Y%m%dT%H%M%SZ)"; INST="$INST_BASE/$TS-${SHA:0:8}-${LABEL##*-}"
   mkdir -p "$INST_BASE"; mkdir "$INST" || { echo "install dir $INST exists (write-once): retry" >&2; return 1; }
-  mkdir "$INST/mint"
   # the reviewed bytes of the deploy commit, never the working tree
   git -C "$SRC" show "$SHA:hack/ops/$CHG-cutoff.sh" > "$INST/$CHG-cutoff.sh" &&
   git -C "$SRC" show "$SHA:hack/ops/$CHG-rollback.sh" > "$INST/$CHG-rollback.sh" &&
-  git -C "$SRC" show "$SHA:$MINTER_DIR/gh_app_token.py" > "$INST/mint/gh_app_token.py" &&
-  git -C "$SRC" show "$SHA:$MINTER_DIR/git_push.py" > "$INST/mint/git_push.py" &&
-  git -C "$SRC" show "$SHA:$MINTER_DIR/lib.py" > "$INST/mint/lib.py" &&
+  git -C "$SRC" show "$SHA:hack/ops/$CHG-mint.py" > "$INST/$CHG-mint.py" &&
   git -C "$SRC" show "$SHA:hack/ops/net.vdhict.$CHG-cutoff.plist" > "$INST/template.plist" || { echo "deploy commit lacks the cut-off files" >&2; return 1; }
-  (cd "$INST" && shasum -a 256 "$CHG-cutoff.sh" "$CHG-rollback.sh" mint/gh_app_token.py mint/git_push.py mint/lib.py > SHA256SUMS)
+  (cd "$INST" && shasum -a 256 "$CHG-cutoff.sh" "$CHG-rollback.sh" "$CHG-mint.py" > SHA256SUMS)
   local APPID="${GITHUB_APP_ID:-${GH_APP_ID:-}}" INSTID="${GITHUB_APP_INSTALLATION_ID:-${GH_APP_INSTALLATION_ID:-}}" KEYP="${GITHUB_APP_KEY_PATH:-${GH_APP_PRIVATE_KEY_FILE:-}}"
   [ -n "$APPID" ] && [ -n "$INSTID" ] && [ -n "$KEYP" ] || { echo "GitHub App env (GH_APP_ID, GH_APP_INSTALLATION_ID, GH_APP_PRIVATE_KEY_FILE) missing" >&2; return 1; }
   REND="$INST/$LABEL.plist"
@@ -198,7 +253,7 @@ PY
   cp "$REND" "$PL"
   "$LAUNCHCTL" bootstrap "$DOMAIN" "$PL" >&2 || { echo "launchctl bootstrap failed" >&2; return 1; }
   # wait for the launchd self-test of this install (RunAtLoad)
-  local ST="$STATE/selftest-$LABEL-$(basename "$INST")-$(date -u +%Y%m%d).json" i
+  local ST="$STATE/selftest-$LABEL-$(basename "$INST")-$(date -u -r "$(now_epoch)" +%Y%m%d).json" i
   for i in $(seq 1 "${C010_SELFTEST_WAIT:-180}"); do [ -e "$ST" ] && break; sleep 1; done
   [ -e "$ST" ] || { echo "no launchd self-test result after ${C010_SELFTEST_WAIT:-180}s ($ST)" >&2; return 1; }
   echo "$INST"
