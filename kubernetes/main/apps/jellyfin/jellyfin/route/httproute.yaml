@@ -45,7 +45,9 @@ spec:
     # this route, permanently. After data loss (empty jellyfin-config) the
     # wizard is incomplete again and its endpoints need no login
     # (FirstTimeSetupHandler). ASP.NET routing is case-insensitive, hence a
-    # case-insensitive RE2 regex; Envoy matches it against the normalised
+    # case-insensitive RE2 regex. Jellyfin also serves its API under the
+    # legacy /emby and /mediabrowser prefixes (Argus ruling b), so those
+    # are blocked too. Envoy matches it against the normalised
     # path without the query. No backendRefs = direct 500 in Envoy Gateway
     # v1.3.0, and RegularExpression sorts ahead of PathPrefix (sort.go). The
     # web client only calls /Startup while StartupWizardCompleted is false.
@@ -54,7 +56,7 @@ spec:
     - matches:
         - path:
             type: RegularExpression
-            value: "(?i)^/startup(/.*)?$"
+            value: "(?i)^(/(emby|mediabrowser))?/startup(/.*)?$"
     - matches:
         - path:
             type: PathPrefix
