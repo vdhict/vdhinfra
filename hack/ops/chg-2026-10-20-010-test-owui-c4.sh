@@ -106,4 +106,106 @@ if [ -n "$OLDAPI" ] && ! grep -q 'if \[ -n "\$b" \]' <<< "$OLDAPI"; then
 set -o pipefail; ! { api \"\$TOK\" GET /api/v1/retrieval/config | /usr/bin/python3 -I -c 'import json,sys; json.load(sys.stdin)'; }"
 fi
 kill $SP 2>/dev/null; wait $SP 2>/dev/null
+# ---------------------------------------------------------------- attempt-4 fixes: golive c010-c4c5 (C4 RESULT, C5 types)
+# The REAL golive C4+C5 section (from the owui-c4 --apply line up to `gate "C4/C5"`) runs against a stub owui-c4 (prints a
+# fixture as its stdout) and a stub kubectl whose `exec -i` runs the in-pod python locally on a fixture SQLite DB with
+# the live schema (key TEXT, value JSON), so SQLite's NUMERIC affinity stores numeric JSON as INTEGER exactly like
+# the OWUI DB. The same cases then run against the pre-fix golive.sh, which must fail them.
+cat > "$B/mkdb.py" <<'PY'
+import json, sqlite3, sys
+# argv: db path, JSON overrides {key: ["text", s] | ["int", n] | ["null"] | ["blob", s] | ["pybool", b] | ["drop"]}
+base = {k: "false" for k in ("task.autocomplete.enable", "task.follow_up.enable", "task.query.retrieval.enable",
+                             "task.query.search.enable", "task.tags.enable")}
+base.update({"task.title.enable": "true", "task.voice.prompt.enable": "false", "task.model.external": '"household-chat"',
+             "task.model.default": '""', "task.model.params": "{}", "task.autocomplete.input_max_length": "-1"})
+for k in ("autocomplete", "follow_up", "image", "query", "tags", "title", "tools"): base[f"task.{k}.prompt_template"] = '""'
+base["task.voice.prompt_template"] = '""'
+c = sqlite3.connect(sys.argv[1]); c.execute("create table config (key TEXT, value JSON, updated_at BIGINT)")
+rows = {k: ("text", v) for k, v in base.items()}
+for k, o in json.loads(sys.argv[2] if len(sys.argv) > 2 else "{}").items(): rows[k] = tuple(o)
+for k, o in rows.items():
+    if o[0] == "drop": continue
+    v = {"text": lambda: o[1], "int": lambda: int(o[1]), "null": lambda: None, "blob": lambda: o[1].encode(), "pybool": lambda: bool(o[1])}[o[0]]()
+    c.execute("insert into config values (?, ?, 0)", (k, v))
+c.commit()
+PY
+GOOD_C4=$'chg-2026-10-20-010 C4 --apply 20261026T000000Z (k8s-engineer)\nbefore: api {"bypass": true}; db {}; state -> x\nRESULT C4 GREEN (bypass false in API + DB, template unchanged with markers)'
+wire() { # $1 golive file  $2 case dir  $3 owui-c4 stdout fixture  $4 db overrides JSON ; sets WEV (the evidence)
+  local W="$B/wire/$2"; mkdir -p "$W/bin" "$W/hack/ops" "$W/repo/ops/evidence/chg-2026-10-20-010" "$W/cache"
+  /usr/bin/python3 -I "$B/mkdb.py" "$W/webui.db" "$4"; printf '%s\n' "$3" > "$W/c4.out"
+  printf '#!/bin/bash\ncat %q\n' "$W/c4.out" > "$W/hack/ops/chg-2026-10-20-010-owui-c4.sh"; chmod +x "$W/hack/ops/chg-2026-10-20-010-owui-c4.sh"
+  cat > "$W/bin/kubectl" <<EOF
+#!/bin/bash
+case "\$*" in
+  *"get pod"*) echo owui-stub;;
+  *"exec -i"*) sed 's#/app/backend/data/webui.db#$W/webui.db#' | /usr/bin/python3 -I -;;
+  *) exit 0;;
+esac
+EOF
+  chmod +x "$W/bin/kubectl"
+  { sed -n '/^log() {/p; /^chk() {/p' "$1"
+    sed -n '/^# >>> c010-c4state/,/^# <<< c010-c4state/p; /^# >>> c010-c4c5/,/^# <<< c010-c4c5/p' "$1"
+    sed -n '/--apply | tee -a "\$EV"/,/^gate "C4\/C5"/p' "$1" | sed '$d'; echo 'echo "RED=$RED"'; } > "$W/section.sh"
+  (cd "$W" && PATH="$W/bin:/usr/bin:/bin:/usr/sbin:/sbin" REPO="$W/repo" HACK="$W/hack" CHG=chg-2026-10-20-010 NS=family-ai \
+     CACHE="$W/cache" EV="$W/ev.txt" RUN_ID=golive-T OWUI_ADMIN_KEY="$TOK" OWUI_SNAPSHOT=snap1 RED=0 \
+     bash -c 'set -uo pipefail; : > "$CACHE/run-start"; source ./section.sh' > "$W/run.out" 2>&1)
+  WEV=$(cat "$W/ev.txt" 2>/dev/null); export WEV; }
+c4v() { grep -E '^  (ok|RED) +C4 green' <<< "$WEV" | awk '{print $1}'; }   # verdict of the C4 chk line
+c5v() { grep -E '^  (ok|RED) +C5 task model' <<< "$WEV" | awk '{print $1}'; }
+export -f c4v c5v
+# case table: name | C4 fixture | DB overrides | expected C4 verdict | expected C5 verdict | reason that must be in the evidence
+CASES=(
+  "K1 C4 GREEN, golive info lines after it (attempt 4)|$GOOD_C4|{}|ok|ok|C4 GREEN: one owui-c4 RESULT line"
+  "K2 C4 GREEN followed by trailing info lines in owui-c4's own output|$GOOD_C4"$'\n  info a\n  info b'"|{}|ok|ok|C4 GREEN: one owui-c4 RESULT line"
+  "K3 C4 no RESULT line (owui-c4 stopped at a step)|chg-2026-10-20-010 C4 --apply 20261026T000000Z (k8s-engineer)|{}|RED|ok|C4 RED: 0 owui-c4 RESULT lines"
+  "K4 C4 two RESULT lines (both GREEN, the last one GREEN)|$GOOD_C4"$'\n'"RESULT C4 GREEN (again)|{}|RED|ok|C4 RED: 2 owui-c4 RESULT lines"
+  "K5 C4 one RESULT line that is RED|chg-2026-10-20-010 C4 --apply x"$'\n'"RESULT C4 RED (read-back failed)|{}|RED|ok|C4 RED: owui-c4 RESULT is not GREEN"
+  "P1 C5 live shape: input_max_length stored as INTEGER (the attempt-3/4 crash)|$GOOD_C4|{}|ok|ok|C5 GREEN: 19 task.% keys decoded"
+  "P2 C5 int stored in a checked flag (task.tags.enable = 0) is RED, named|$GOOD_C4|{\"task.tags.enable\":[\"int\",0]}|ok|RED|C5 RED: task.tags.enable: expected JSON false, got int"
+  "P3 C5 bool written by a Python driver (False -> SQLite stores INTEGER 0) is RED, named|$GOOD_C4|{\"task.follow_up.enable\":[\"pybool\",false]}|ok|RED|C5 RED: task.follow_up.enable: expected JSON false, got int"
+  "P4 C5 SQL NULL in task.model.default is allowed|$GOOD_C4|{\"task.model.default\":[\"null\"]}|ok|ok|C5 GREEN"
+  "P5 C5 JSON null text in task.model.default is allowed|$GOOD_C4|{\"task.model.default\":[\"text\",\"null\"]}|ok|ok|C5 GREEN"
+  "P6 C5 SQL NULL in a checked flag is RED, named|$GOOD_C4|{\"task.query.search.enable\":[\"null\"]}|ok|RED|C5 RED: task.query.search.enable: expected JSON false, got NoneType"
+  "P7 C5 JSON-string external = a profiel model is RED|$GOOD_C4|{\"task.model.external\":[\"text\",\"\\\"hermes-agent-profiel-3\\\"\"]}|ok|RED|C5 RED: task.model.external: not household-chat"
+  "P8 C5 JSON-string default naming profiel-N is RED|$GOOD_C4|{\"task.model.default\":[\"text\",\"\\\"hermes-agent-profiel-3\\\"\"]}|ok|RED|C5 RED: task.model.default: names a profiel-N model"
+  "P9 C5 garbage text in a checked flag is RED with a reason, no crash|$GOOD_C4|{\"task.tags.enable\":[\"text\",\"GARBAGE-c5{\"]}|ok|RED|C5 RED: task.tags.enable: stored text is not JSON"
+  "P10 C5 garbage text in any other task.% key is RED with a reason|$GOOD_C4|{\"task.title.prompt_template\":[\"text\",\"GARBAGE-c5{\"]}|ok|RED|C5 RED: task.title.prompt_template: stored text is not JSON"
+  "P11 C5 a BLOB value is RED, unsupported type named|$GOOD_C4|{\"task.model.params\":[\"blob\",\"GARBAGE-c5\"]}|ok|RED|C5 RED: task.model.params: unsupported stored type bytes"
+  "P12 C5 a missing flag is RED, named|$GOOD_C4|{\"task.query.retrieval.enable\":[\"drop\"]}|ok|RED|C5 RED: task.query.retrieval.enable: missing"
+  "P13 C5 a flag that is JSON true is RED, named|$GOOD_C4|{\"task.autocomplete.enable\":[\"text\",\"true\"]}|ok|RED|C5 RED: task.autocomplete.enable: expected JSON false, got bool true"
+)
+run_cases() { # $1 golive file  $2 tag ; prints "<name>\t<PASS|FAIL>"
+  local c n fx db e4 e5 why i=0
+  for c in "${CASES[@]}"; do
+    i=$((i + 1)); IFS='|' read -r n fx db e4 e5 why <<< "$(printf '%s' "$c" | tr '\n' '\036')"; fx=$(printf '%s' "$fx" | tr '\036' '\n')
+    wire "$1" "$2-$i" "$fx" "$db"
+    if [ "$(c4v)" = "$e4" ] && [ "$(c5v)" = "$e5" ] && grep -qF "$why" <<< "$WEV" && ! grep -q 'GARBAGE-c5\|Traceback' <<< "$WEV"
+    then printf '%s\tPASS\n' "$n"; else printf '%s\tFAIL\t(C4 %s, C5 %s)\n' "$n" "$(c4v)" "$(c5v)"; fi
+  done; }
+while IFS=$'\t' read -r n r x; do t "$n" [ "$r" = PASS ]; [ "$r" = PASS ] || echo "      $x"; done < <(run_cases "$GL" new)
+t "K6 the C4 state info line names the state once (attempt 4 printed rel + abs path)" bash -c "grep -q '^  info C4 state of this run: none\$' '$B/wire/new-1/ev.txt'"
+t "K7 golive keeps owui-c4's own stdout per run and judges C4 only on it; no tail of the evidence left" bash -c "grep -q -- '--apply | tee -a \"\$EV\" \"\$CACHE/c4-apply.out\"' '$GL' && grep -q \"c4_result_green '\\\$CACHE/c4-apply.out'\" '$GL' && ! grep -q \"tail -1 '\\\$EV'\" '$GL'"
+t "P14 the fixture reproduces the live type table: input_max_length INTEGER, the 18 others TEXT" bash -c "[ \"\$(/usr/bin/python3 -I -c 'import sqlite3,sys; print(sorted(set((t, k == \"task.autocomplete.input_max_length\") for k, t in sqlite3.connect(sys.argv[1]).execute(\"select key, typeof(value) from config\"))))' '$B/wire/new-6/webui.db')\" = \"[('integer', True), ('text', False)]\" ]"
+eval "$(sed -n '/^# >>> c010-c4c5/,/^# <<< c010-c4c5/p' "$GL")"; export C5_PY
+t "P15 C5 decode() of a real Python bool keeps it: False passes the flag check, True is RED, named (no driver can store a bool)" \
+  /usr/bin/python3 -I -c 'import os; exec(os.environ["C5_PY"].split("# --- main")[0])
+rows = [(k, False) for k in ("task.tags.enable","task.follow_up.enable","task.autocomplete.enable","task.query.search.enable","task.query.retrieval.enable")]
+assert decode("x", False) is False and decode("x", True) is True and decode("x", 5) == 5 and decode("x", None) is None and decode("x", "\"s\"") == "s"
+assert check(rows + [("task.model.external", "\"household-chat\"")]) == 6
+try: check(rows[1:] + [("task.tags.enable", True), ("task.model.external", "\"household-chat\"")]); raise SystemExit(1)
+except Bad as e: assert str(e) == "task.tags.enable: expected JSON false, got bool true", e'
+t "P16 C5 an unreadable DB is RED with a named reason, no traceback" bash -c "o=\$(/usr/bin/python3 -I - '$B/no-such.db' <<< \"\$C5_PY\" 2>&1); [ \$? = 1 ] && [ \"\$o\" = 'C5 RED: sqlite read failed (OperationalError)' ]"
+t "P17 C5 has no broad except (no bare except / except Exception)" bash -c "! grep -Eq 'except *:|except +(Base)?Exception' <<< \"\$C5_PY\""
+# R: the pre-fix golive.sh (reference revision) fails the new C4 and C5 cases
+if git -C "$HERE" show "${C010_OLD_C4_REV:-origin/main}:hack/ops/chg-2026-10-20-010-golive.sh" > "$B/old-golive.sh" 2>/dev/null \
+   && ! grep -q '^# >>> c010-c4c5' "$B/old-golive.sh"; then
+  OLDR=$(run_cases "$B/old-golive.sh" old); printf '%s\n' "$OLDR" | sed 's/^/  pre-fix: /'
+  oldfail() { grep -F "$1" <<< "$OLDR" | grep -q $'\tFAIL'; }
+  r1() { local k; for k in K1 K2 K3 K4 K5; do oldfail "$k " || return 1; done; }
+  r2() { local k; for k in P1 P9 P10; do oldfail "$k " || return 1; done
+         grep -q 'TypeError: the JSON object must be str, bytes or bytearray, not int' "$B/wire/old-6/cache/chk.log"; }
+  t "R1 pre-fix C4 fails K1+K2 (GREEN read RED after trailing lines) and K3-K5 (no named reason)" r1
+  t "R2 pre-fix C5 fails P1 (the int TypeError crash, as in attempts 3+4) and P9/P10 (garbage: traceback, no reason)" r2
+  echo "  pre-fix: $(grep -c $'\tFAIL' <<< "$OLDR")/${#CASES[@]} of the new C4/C5 cases FAIL on the pre-fix golive.sh"
+else echo "SKIP  R1/R2 (the reference revision already has the c010-c4c5 fix)"; fi
 echo "RESULT $PASS/$((PASS+FAIL)) PASS (scratch $B)"; [ $FAIL = 0 ]

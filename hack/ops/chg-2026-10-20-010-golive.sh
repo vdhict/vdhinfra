@@ -81,6 +81,57 @@ c4_state_of_this_run() { # $1 evidence dir  $2 run-start marker  $3 run id : pri
   for f in "$1"/k8s-owui-c4-*-before.json; do c4_state_ok "$f" "$2" "$3" && { n=$((n + 1)); hit="$f"; }; done
   [ "$n" = 1 ] && printf '%s\n' "$hit"; return 0; }
 # <<< c010-c4state
+# >>> c010-c4c5 (attempt-4 fixes, 26-10; sourced as-is by hack/ops/chg-2026-10-20-010-test-owui-c4.sh)
+# C4: judged on owui-c4's OWN stdout of this run (captured to a run-scoped file), never on "the last line of the
+# evidence": exactly one line with the fixed prefix "RESULT C4 ", and that line is "RESULT C4 GREEN". Line order
+# and any info lines golive adds around it do not matter. owui-c4 --apply prints no RESULT line at all on failure.
+c4_result_green() { # $1 file holding owui-c4 --apply stdout of this run
+  [ -f "$1" ] || { echo "C4 RED: no owui-c4 output captured"; return 1; }
+  local n; n=$(grep -c '^RESULT C4 ' "$1")
+  [ "$n" = 1 ] || { echo "C4 RED: $n owui-c4 RESULT lines (need exactly 1)"; return 1; }
+  grep -Eq '^RESULT C4 GREEN( |$)' "$1" || { echo "C4 RED: owui-c4 RESULT is not GREEN"; return 1; }
+  echo "C4 GREEN: one owui-c4 RESULT line, GREEN"; }
+# C5: Open WebUI's config table is (key TEXT, value JSON). A JSON-declared column has NUMERIC affinity in SQLite, so
+# numeric JSON text is stored as INTEGER (task.autocomplete.input_max_length) and sqlite3 hands back an int; the
+# attempt-3 and attempt-4 C5 called json.loads on it and died with TypeError before comparing anything. Every stored
+# type is decoded explicitly; anything else, or text that is not JSON, is RED with a named reason (key + type, never
+# a value). Reads the DB read-only. argv[1] = DB path (tests); default = the OWUI pod's DB.
+read -r -d '' C5_PY <<'PY' || true
+import json, sqlite3, sys
+class Bad(Exception): pass
+def decode(key, v):
+    if v is None: return None                                   # SQL NULL
+    if isinstance(v, bool): return v                            # bool before int (bool is an int subclass)
+    if isinstance(v, (int, float)): return v                    # numeric JSON stored with NUMERIC affinity
+    if isinstance(v, str):
+        try: return json.loads(v)                               # JSON text
+        except ValueError: raise Bad(f"{key}: stored text is not JSON") from None
+    raise Bad(f"{key}: unsupported stored type {type(v).__name__}")
+def check(rows):
+    kv = {k: decode(k, v) for k, v in rows}
+    ext = kv.get("task.model.external")
+    if not isinstance(ext, str): raise Bad(f"task.model.external: expected a string, got {type(ext).__name__}")
+    if ext != "household-chat": raise Bad("task.model.external: not household-chat")
+    dflt = kv.get("task.model.default")
+    if dflt is not None and not isinstance(dflt, str): raise Bad(f"task.model.default: expected a string, got {type(dflt).__name__}")
+    if dflt and "profiel" in dflt: raise Bad("task.model.default: names a profiel-N model")
+    for k in ("task.tags.enable", "task.follow_up.enable", "task.autocomplete.enable",
+              "task.query.search.enable", "task.query.retrieval.enable"):
+        if k not in kv: raise Bad(f"{k}: missing")
+        if kv[k] is not False: raise Bad(f"{k}: expected JSON false, got {type(kv[k]).__name__} {'true' if kv[k] is True else 'value'}")
+    return len(kv)
+# --- main
+db = sys.argv[1] if len(sys.argv) > 1 else "/app/backend/data/webui.db"
+try:
+    c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    n = check(c.execute("select key, value from config where key like 'task.%'").fetchall())
+except Bad as e:
+    print(f"C5 RED: {e}"); sys.exit(1)
+except sqlite3.Error as e:
+    print(f"C5 RED: sqlite read failed ({type(e).__name__})"); sys.exit(1)
+print(f"C5 GREEN: {n} task.% keys decoded; external = household-chat; tags/follow-up/autocomplete/query off"); sys.exit(0)
+PY
+# <<< c010-c4c5
 chk() { if eval "$2" >>"$CACHE/chk.log" 2>&1; then log "  ok   $1"; else log "  RED  $1"; RED=1; fi; }
 # >>> c010-auth (Argus G-b + L1; sourced as-is by hack/ops/chg-2026-10-20-010-test-golive-auth.sh)
 # Every push gets a FRESH App token minted right before it (contents:write on vdhinfra only, 1 h), handed to git
@@ -411,19 +462,16 @@ P3=$(pod 3)
 
 # ---------------------------------------------------------------- C4 + C5 (OWUI)
 log "== C4 + C5"
-OWUI_ADMIN_KEY="$OWUI_ADMIN_KEY" OWUI_SNAPSHOT="$OWUI_SNAPSHOT" C010_RUN_ID="$RUN_ID" "$HACK/ops/$CHG-owui-c4.sh" --apply | tee -a "$EV"
+OWUI_ADMIN_KEY="$OWUI_ADMIN_KEY" OWUI_SNAPSHOT="$OWUI_SNAPSHOT" C010_RUN_ID="$RUN_ID" "$HACK/ops/$CHG-owui-c4.sh" --apply | tee -a "$EV" "$CACHE/c4-apply.out"
 C4STATE=$(c4_state_of_this_run "$REPO/ops/evidence/$CHG" "$CACHE/run-start" "$RUN_ID")
-log "  info C4 state of this run: ${C4STATE:+${C4STATE#$REPO/}}${C4STATE:-none}"
-chk "C4 green" "tail -1 '$EV' | grep -q 'RESULT C4 GREEN'"
+C4REL=${C4STATE#"$REPO"/}; log "  info C4 state of this run: ${C4REL:-none}"   # was printed twice (rel + abs) in attempt 4
+log "  info $(c4_result_green "$CACHE/c4-apply.out")"
+chk "C4 green (exactly one owui-c4 RESULT line of this run, GREEN)" "c4_result_green '$CACHE/c4-apply.out'"
 OW=$(kubectl -n $NS get pod -l app.kubernetes.io/name=open-webui -o jsonpath='{.items[0].metadata.name}')
-chk "C5 task model external = household-chat, never profiel-N; tags/follow-up/autocomplete/query off" "kubectl -n $NS exec -i $OW -c app -- python3 - <<'PY'
-import sqlite3, json, sys
-c = sqlite3.connect('file:/app/backend/data/webui.db?mode=ro', uri=True)
-kv = {k: json.loads(v) for k, v in c.execute(\"select key, value from config where key like 'task.%'\")}
-ext = kv.get('task.model.external', ''); dflt = kv.get('task.model.default', '')
-off = all(kv.get(k) is False for k in ('task.tags.enable', 'task.follow_up.enable', 'task.autocomplete.enable', 'task.query.search.enable', 'task.query.retrieval.enable'))
-sys.exit(0 if ext == 'household-chat' and 'profiel' not in str(dflt) and 'profiel' not in str(ext) and off else 1)
-PY"
+C5OUT=$(kubectl -n $NS exec -i "$OW" -c app -- python3 - <<< "$C5_PY" 2>>"$CACHE/chk.log"); C5RC=$?
+log "  info ${C5OUT:-C5 RED: no output from the in-pod check (exit $C5RC)}"
+chk "C5 task model external = household-chat, never profiel-N; tags/follow-up/autocomplete/query off" \
+  "[ $C5RC = 0 ] && [ \"\$(grep -c '^C5 ' <<< \"\$C5OUT\")\" = 1 ] && grep -q '^C5 GREEN: ' <<< \"\$C5OUT\""
 gate "C4/C5"
 
 # ---------------------------------------------------------------- C6 + W7 + C7 synthetic canary
