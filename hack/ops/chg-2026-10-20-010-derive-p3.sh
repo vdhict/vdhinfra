@@ -22,7 +22,7 @@ LIVE_OUTER=fe64b2a128258e45d23c70b1cb642ceae1750ce901891f59b667cc3e860274f2
 PINS='0437f3f6b58ecbc993bb00b1d7d7ab7c980ffb2da4fab715d884dd92c4e1b29f config.yaml
 5c03695624140c0e0afe23e50d18ebb2b37ddbace7fb0c47cc8fde56c777fa33 plugins/model-providers/family-cloud/__init__.py
 ba0794c5647d780f2edfddc806ba58f7519e80cc9975c86be7f0c7e950af4046 plugins/model-providers/family-cloud/plugin.yaml
-d3ea565e3280419b44567f57b87050d644cb25e26b015091eadb71ea99b7c542 plugins/model-providers/family-cloud/settings.json
+d7f0c4aa4832de7d4acd3b53a677b740bb69952f114081d7cedbd73969d30dbc plugins/model-providers/family-cloud/settings.json
 b67506a71c1f29cbbacee91e487ad74c5a8736a32047cf6575ac61c70b356fd0 plugins/model-providers/family-cloud/cloud-SOUL.md'
 pin_of() { echo "$PINS" | awk -v f="$1" '$2==f{print $1}'; }
 sha() { shasum -a 256 "$1" | cut -d' ' -f1; }
