@@ -1,0 +1,21 @@
+---
+# chg-2026-10-20-010 land 2 (Argus W6): the family-cloud spend ledger for profiel-3 ONLY (nameSuffix -3 ->
+# hermes-profiel-cloud-spend-3). A PVC, not an emptyDir: the month total must survive a pod restart, or the
+# USD budget cap resets to 0 on every restart. Holds numbers only (month.json: month, usd, token counters,
+# person_usd) plus the sticky-profiel-3.json HMAC file; no conversation text.
+# month.json is created by the cloud-spend-init guard only on a fresh PVC or at a month change, never overwritten;
+# .ledger-marker (month + init counter) makes a mid-month loss detectable (Argus W2b): then the cloud stays off.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hermes-profiel-cloud-spend
+  labels:
+    # A git revert of the deploy commit must NOT delete the month total (it is the overspend guard if the
+    # cloud is switched on again in the same month). Deleting it is a recorded, manual step.
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: rook-ceph-block
+  resources:
+    requests:
+      storage: 1Gi
