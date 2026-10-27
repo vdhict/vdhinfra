@@ -132,7 +132,12 @@ except sqlite3.Error as e:
 print(f"C5 GREEN: {n} task.% keys decoded; external = household-chat; tags/follow-up/autocomplete/query off"); sys.exit(0)
 PY
 # <<< c010-c4c5
-chk() { if eval "$2" >>"$CACHE/chk.log" 2>&1; then log "  ok   $1"; else log "  RED  $1"; RED=1; fi; }
+# >>> c010-chk (attempt-5 fix, 27-10; sourced as-is by hack/ops/chg-2026-10-20-010-test-golive-exit.sh)
+# The check body runs in a SUBSHELL: attempt 5 died because the C6/(c) body `for d in $D6; do ... || exit 1; done`
+# was eval'd in golive's own shell, so its `exit 1` ended golive (rc 1) before `gate "C6/W7"` could roll back.
+# Bodies only test; none of them sets a variable the run needs later.
+chk() { if ( eval "$2" ) >>"$CACHE/chk.log" 2>&1; then log "  ok   $1"; else log "  RED  $1"; RED=1; fi; }
+# <<< c010-chk
 # >>> c010-auth (Argus G-b + L1; sourced as-is by hack/ops/chg-2026-10-20-010-test-golive-auth.sh)
 # Every push gets a FRESH App token minted right before it (contents:write on vdhinfra only, 1 h), handed to git
 # via GIT_CONFIG_* env (never argv, never printed) and revoked right after. A run longer than the token lifetime
@@ -161,14 +166,37 @@ deploy_push() { # fresh token -> push $SHA:main -> revoke
   revoke_token "deploy push"; return $rc
 }
 rollback() { # called on any red after the push
-  log "ROLLBACK: $1"
+  rollback_core "$1"
+  log "RESULT go RED -> rolled back"; exit 1
+}
+rollback_core() { # the rollback itself; also run by the exit guard (c010-exitguard) on any other exit after the push
+  ROLLED_BACK=1; log "ROLLBACK: $1"
   [ -n "$C4STATE" ] && c4_state_ok "$C4STATE" "$CACHE/run-start" "$RUN_ID" && OWUI_ADMIN_KEY="$OWUI_ADMIN_KEY" "$HACK/ops/$CHG-owui-c4.sh" --rollback "$C4STATE" | tee -a "$EV"
   fresh_token "rollback push" || log "  RED  rollback continues with the caller's credential (if any)"
   "$HACK/ops/$CHG-rollback.sh" --execute "$SHA" "golive red: $1" | tee -a "$EV"
   revoke_token "rollback push"
-  log "RESULT go RED -> rolled back"; exit 1
 }
 # <<< c010-auth
+# >>> c010-exitguard (attempt-5 fix, 27-10; sourced as-is by hack/ops/chg-2026-10-20-010-test-golive-exit.sh)
+# Once the deploy is pushed, golive may end in exactly two ways: GREEN (GO_FINISHED=1 after gate "C7") or after
+# rollback(). ANY other end (a check body or helper that exits, set -u on an unbound variable, a crash, INT/TERM/HUP)
+# runs rollback_core from this EXIT trap, then the registered cleanup (canary account), and keeps a non-zero rc.
+# The trap is installed once, before the push; nothing later may replace it (C6 registers CLEANUP_HOOK instead).
+GO_FINISHED=""; ROLLED_BACK=""; CLEANUP_HOOK=""
+on_exit() {
+  local rc=$?; trap - EXIT; set +u
+  if [ -n "$PUSHED" ] && [ -z "$GO_FINISHED" ] && [ -z "$ROLLED_BACK" ]; then
+    log "  RED  golive ended (rc=$rc) after the push without GREEN and without a rollback -> exit guard rolls back"
+    rollback_core "exit guard: golive ended rc=$rc after the push"
+    log "RESULT go RED -> rolled back (exit guard)"
+    [ "$rc" = 0 ] && rc=1
+  fi
+  [ -n "$CLEANUP_HOOK" ] && "$CLEANUP_HOOK"
+  exit "$rc"
+}
+trap on_exit EXIT
+trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM
+# <<< c010-exitguard
 gate() { [ "$RED" = 0 ] || { if [ -n "$PUSHED" ]; then rollback "$1"; else log "RESULT ${MODE#--} RED at $1 (nothing pushed)"; exit 1; fi; }; }
 pod() { kubectl -n $NS get pod -l "app.kubernetes.io/instance=hermes-profiel-$1" --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}'; }
 xp() { kubectl -n $NS exec "$1" -c app -- "${@:2}"; }   # exec in a hermes app container
@@ -488,7 +516,7 @@ api() { t="$1"; m="$2"; u="$3"; b="${4:-}"; shift 3; [ $# -gt 0 ] && shift
 # <<< c010-canary-api
 PW="c010-$(od -An -tx1 -N12 /dev/urandom | tr -d ' \n')"
 cleanup() { [ -n "$CANARY_UID" ] && api "$OWUI_ADMIN_KEY" DELETE "/api/v1/users/$CANARY_UID" "" -o /dev/null; kill $PF 2>/dev/null || true; }
-trap cleanup EXIT
+CLEANUP_HOOK=cleanup   # run by on_exit (c010-exitguard); never `trap ... EXIT` here, that would drop the exit guard
 CANARY_UID=$(api "$OWUI_ADMIN_KEY" POST /api/v1/auths/add '{"name":"c010-canary","email":"c010-canary@acceptatie.invalid","password":"'"$PW"'","role":"user"}' | jq -r '.id // empty')
 GID=$(api "$OWUI_ADMIN_KEY" GET /api/v1/groups/ | jq -r '.[] | select(.name=="owui-profiel-3") | .id')
 api "$OWUI_ADMIN_KEY" POST "/api/v1/groups/id/$GID/users/add" "{\"user_ids\":[\"$CANARY_UID\"]}" -o /dev/null
@@ -567,6 +595,7 @@ log "  C7 hubble flows during private turns: $N7 (corroboration only); p3 comple
 chk "W7 no family-cloud failure line during C7" "[ \$(( \$(fails) - $F7 )) = 0 ]"
 chk "C7 each turn was one p3 completion" "[ $((A1-A0)) = 10 ]"
 gate "C7"
+GO_FINISHED=1   # the only point after the push where golive may end without a rollback (RED is 0 here)
 
 RES=$([ $RED = 0 ] && echo GREEN || echo RED)
 log "RESULT go $RES (cloud ON for hermes-profiel-3 at $SHA)"

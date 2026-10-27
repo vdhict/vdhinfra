@@ -226,6 +226,19 @@ except Exception: print("blocked")' 2>/dev/null)
 else
   log "golive was not GREEN (rc=$GRC): its own rollback/stop applies; no extra canary"
   RED=1
+  # >>> c010-gs-fallback (attempt-5 fix, 27-10; sourced as-is by hack/ops/chg-2026-10-20-010-test-golive-exit.sh)
+  # Never trust that golive rolled back (attempt 5: it exited after C6 without its rollback and cloud stayed on).
+  # Source of truth = origin/main: if the deploy is on main and the cloud CNP file is still there, roll back here.
+  git -C "$SRC" fetch -q origin main 2>/dev/null || log "  info git fetch failed; using the local origin/main ref"
+  if git -C "$SRC" merge-base --is-ancestor "$SHA" origin/main 2>/dev/null \
+     && git -C "$SRC" cat-file -e "origin/main:kubernetes/main/apps/family-ai/network-policies/app/hermes-profiel-3-cloud.yaml" 2>/dev/null; then
+    log "  RED  golive red but the deploy $SHA is on main with the cloud CNP file: go session rolls back"
+    rollback_all "golive rc=$GRC left the deploy on main"
+  else
+    okl "after golive red: the cloud wiring is not on origin/main (not pushed, or reverted)"
+    ! kubectl -n $NS get cnp hermes-profiel-3-cloud >/dev/null 2>&1 && okl "cloud off: CNP hermes-profiel-3-cloud absent" || red "CNP hermes-profiel-3-cloud still present although not on main"
+  fi
+  # <<< c010-gs-fallback
 fi
 
 # ---------------------------------------------------------------- canary account gone, then end the session
