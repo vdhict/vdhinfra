@@ -34,6 +34,7 @@ EOF
 cat > "$B/hack/ops/$CHG-owui-c4.sh" <<EOF
 #!/bin/bash
 echo "owui-c4 \$1" >> "\$C010_RB_LOG"
+if [ -n "\${C010_SLOW_C4:-}" ]; then : > "\$C010_SLOW_C4"; sleep 3; echo "owui-c4 done" >> "\$C010_RB_LOG"; fi
 EOF
 chmod +x "$B/bin/"* "$B/hack/ops/"*
 
@@ -65,7 +66,7 @@ t "S1 chk() runs the check body in a subshell" bash -c "grep -q '^chk() { if ( e
 t "S2 the exit guard block exists and is installed before the deploy push" bash -c "
   g=\$(grep -n '^trap on_exit EXIT' '$GOLIVE' | cut -d: -f1); p=\$(grep -n '^deploy_push ||' '$GOLIVE' | cut -d: -f1)
   [ -n \"\$g\" ] && [ -n \"\$p\" ] && [ \"\$g\" -lt \"\$p\" ]"
-t "S3 exactly one EXIT trap in golive.sh (nothing replaces the guard, e.g. no 'trap cleanup EXIT')" bash -c "[ \"\$(grep -cE '^[[:space:]]*trap .*EXIT' '$GOLIVE')\" = 1 ]"
+t "S3 exactly one EXIT trap in golive.sh (nothing replaces the guard, e.g. no 'trap cleanup EXIT')" bash -c "[ \"\$(grep -E '^[[:space:]]*trap .*EXIT' '$GOLIVE' | grep -cv 'trap - EXIT')\" = 1 ]"
 t "S4 GO_FINISHED=1 set exactly once, on the line after gate \"C7\"" bash -c "
   [ \"\$(grep -c '^GO_FINISHED=1' '$GOLIVE')\" = 1 ] && grep -A1 '^gate \"C7\"' '$GOLIVE' | tail -1 | grep -q '^GO_FINISHED=1'"
 t "S5 go-session.sh has the c010-gs-fallback block (rolls back when the deploy is still on main)" bash -c "
@@ -142,6 +143,24 @@ G revert --no-edit HEAD >/dev/null; G push -q origin HEAD:refs/heads/main; mv "$
 t "F2 deploy reverted on main and CNP absent: no rollback_all, cloud-off ok line" bash -c "! grep -q '^rollback_all' '$B/gs/out' && grep -q 'ok   cloud off' '$B/gs/out'"
 mv "$B/gs/cnp-live.was" "$B/gs/cnp-live"; gsrun
 t "F3 reverted on main but CNP still live: no second rollback, RED line" bash -c "! grep -q '^rollback_all' '$B/gs/out' && grep -q 'RED  CNP hermes-profiel-3-cloud still present' '$B/gs/out'"
+
+# ---- R2 (Argus 27-10): a second signal while rollback_core runs must not cut the rollback short
+t "R2 on_exit ignores HUP/INT/TERM on its first line (after capturing \$?)" bash -c "
+  grep -A1 '^on_exit() {' '$GOLIVE' | tail -1 | grep -q \"^  local rc=\\\$?; trap '' HUP INT TERM\""
+N=$((N+1)); EVF="$B/ev-$N.txt"; RB="$B/rb-$N.log"; : > "$RB"; : > "$EVF"; MARK="$B/c4-started-$N"
+( cd "$B" && env -i PATH="/usr/bin:/bin" HOME="$B" C010_RB_LOG="$RB" C010_SLOW_C4="$MARK" C010_MINT_CMD="$B/bin/mint" C010_REVOKE_CMD="$B/bin/revoke" \
+    bash -c "CACHE='$B/cache'; EV='$EVF'; HACK='$B/hack'; CHG=$CHG; SHA=$SHAX; SRC='$B'; MODE=--go
+. '$B/prelude.sh'
+cleanup() { echo cleanup >> \"\$C010_RB_LOG\"; }; CLEANUP_HOOK=cleanup
+c4_state_ok() { return 0; }; C4STATE='$B/state-of-this-run.json'
+echo \$\$ > '$B/pid-$N'; PUSHED=$SHAX; kill -TERM \$\$; sleep 30; echo not-reached >> \"\$C010_RB_LOG\"" ) >/dev/null 2>&1 &
+BGP=$!
+for _ in $(seq 1 50); do [ -e "$MARK" ] && break; sleep 0.2; done
+GP=$(cat "$B/pid-$N" 2>/dev/null)
+[ -e "$MARK" ] && [ -n "$GP" ] && { kill -TERM "$GP" 2>/dev/null; sleep 0.3; kill -INT "$GP" 2>/dev/null; kill -HUP "$GP" 2>/dev/null; }
+wait $BGP; RC=$?
+t "R2 2nd TERM + INT + HUP during the C4 restore: C4 restore finished, rollback.sh still ran once, cleanup ran, rc 143" \
+  bash -c "[ -e '$MARK' ] && grep -q '^owui-c4 done' '$RB' && [ \$(grep -c '^rollback.sh --execute' '$RB') = 1 ] && grep -q '^cleanup' '$RB' && [ $RC = 143 ] && ! grep -q not-reached '$RB'"
 
 t "T1 no token value in any evidence file" bash -c "! grep -rq 'fake-test-token' '$B'/ev-*.txt"
 echo "RESULT $PASS/$((PASS+FAIL)) PASS (scratch $B)"; [ $FAIL = 0 ]

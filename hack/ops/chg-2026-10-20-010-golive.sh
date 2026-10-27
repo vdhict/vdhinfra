@@ -184,7 +184,8 @@ rollback_core() { # the rollback itself; also run by the exit guard (c010-exitgu
 # The trap is installed once, before the push; nothing later may replace it (C6 registers CLEANUP_HOOK instead).
 GO_FINISHED=""; ROLLED_BACK=""; CLEANUP_HOOK=""
 on_exit() {
-  local rc=$?; trap - EXIT; set +u
+  local rc=$?; trap '' HUP INT TERM   # R2 (Argus 27-10): a 2nd signal can no longer cut the rollback short ($? first)
+  trap - EXIT; set +u
   if [ -n "$PUSHED" ] && [ -z "$GO_FINISHED" ] && [ -z "$ROLLED_BACK" ]; then
     log "  RED  golive ended (rc=$rc) after the push without GREEN and without a rollback -> exit guard rolls back"
     rollback_core "exit guard: golive ended rc=$rc after the push"
@@ -504,9 +505,86 @@ gate "C4/C5"
 
 # ---------------------------------------------------------------- C6 + W7 + C7 synthetic canary
 log "== C6/W7/C7 synthetic canary"
-PORT=$((20000 + RANDOM % 20000)); kubectl -n $NS port-forward "pod/$OW" "$PORT:8080" >/dev/null 2>&1 & PF=$!
-for _ in $(seq 1 30); do nc -z 127.0.0.1 $PORT 2>/dev/null && break; sleep 1; done
-U="http://127.0.0.1:$PORT"
+# >>> c010-c6turn (attempt-6 item b, 27-10; sourced as-is by hack/ops/chg-2026-10-20-010-test-golive-c6.sh)
+# Attempt 5: golive's port-forward to OWUI died after C6 turn 1; turns 2/3 and the cleanup DELETE never reached OWUI,
+# and golive recorded neither curl codes nor sizes. Now: liveness before/after every canary call, re-open + log on loss
+# (as go-session pf_up); per-turn metadata with the answer unread; and C6 judged on the ROUTE p3 itself took.
+# NB the id OWUI returns is minted by Hermes' API server (api_server_openai_routes.py: chatcmpl-<uuid>) on EVERY turn,
+# so the client id class is logged as metadata only. The provider id class is read from p3's own "API call #N ...
+# id=<provider id>" line (family-cloud passes the provider id through: msg_* = Anthropic, chatcmpl-* = Studio), next
+# to the plugin's route line "family-cloud: route=<cloud|studio> rule=<name>" (family-ai 5a9a361).
+PF="${PF:-}"; PORT="${PORT:-}"; PF_REOPEN=0
+pf_alive() { [ -n "$PF" ] && kill -0 "$PF" 2>/dev/null && nc -z 127.0.0.1 "$PORT" 2>/dev/null; }
+pf_up() { # (re)open the port-forward to the OWUI pod; sets PORT, PF, U
+  [ -n "$PF" ] && kill "$PF" 2>/dev/null; PORT=$((20000 + RANDOM % 20000))
+  kubectl -n $NS port-forward "pod/$OW" "$PORT:8080" >/dev/null 2>&1 & PF=$!
+  echo "$PF" >> "$CACHE/pf.pids"   # a re-open inside a chk subshell (c7) outlives it: cleanup kills every pid listed
+  for _ in $(seq 1 30); do nc -z 127.0.0.1 "$PORT" 2>/dev/null && break; sleep 1; done
+  U="http://127.0.0.1:$PORT"; nc -z 127.0.0.1 "$PORT" 2>/dev/null; }
+pf_kill_all() { local x; [ -f "$CACHE/pf.pids" ] && while read -r x; do kill "$x" 2>/dev/null; done < "$CACHE/pf.pids"; return 0; }
+pf_ensure() { # $1 = where; returns non-zero only if a lost port-forward cannot be re-opened
+  pf_alive && return 0
+  PF_REOPEN=$((PF_REOPEN + 1)); log "  info port-forward to OWUI lost ($1): re-opening (#$PF_REOPEN)"
+  if pf_up; then log "  info port-forward re-opened ($1)"; else log "  RED  port-forward could not be re-opened ($1)"; return 1; fi; }
+# stdin: one response body. Prints metadata only: bytes, json, top-level key NAMES, error key, content present,
+# client id class. Never a value or any text of the answer.
+RESP_META_PY='import sys, json
+raw = sys.stdin.buffer.read(); out = {"bytes": len(raw), "json": "no", "keys": "-", "error_key": "no", "content": "no", "client_id_class": "none"}
+try:
+    d = json.loads(raw)
+except Exception:
+    d = None
+if isinstance(d, dict):
+    out["json"] = "yes"; out["keys"] = ",".join(sorted(k for k in d if isinstance(k, str) and k.isidentifier())[:12]) or "-"
+    out["error_key"] = "yes" if ("error" in d or "detail" in d) else "no"
+    try: c = d["choices"][0]["message"]["content"]
+    except Exception: c = None
+    out["content"] = "yes" if isinstance(c, str) and c.strip() else "no"
+    i = d.get("id")
+    out["client_id_class"] = "none" if not isinstance(i, str) else ("chatcmpl-" if i.startswith("chatcmpl-") else ("msg_" if i.startswith("msg_") else "other"))
+elif d is not None:
+    out["json"] = "yes"
+print(" ".join("%s=%s" % kv for kv in out.items()))'
+resp_meta() { /usr/bin/python3 -I -c "$RESP_META_PY"; }
+# In p3 (argv: start end [files]): route lines and provider id classes of API calls logged in [start, end] (pod
+# epoch seconds, log timestamps are pod-local). Extracts two fixed fields per line by regex; prints JSON only.
+C6LOG_PY='import sys, re, json, time
+start, end = float(sys.argv[1]), float(sys.argv[2])
+files = sys.argv[3:] or ["/opt/data/logs/agent.log.1", "/opt/data/logs/agent.log"]
+TS = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d),\d+ ")
+ROUTE = re.compile(r" family-cloud: route=(cloud|studio) rule=([A-Za-z_]{1,48})$")
+CALL = re.compile(r" API call #\d+: .*\bid=(\S+)")
+out = {"route": [], "api_id_class": []}
+for f in files:
+    try: fh = open(f, errors="replace")
+    except OSError: continue
+    with fh:
+        for line in fh:
+            m = TS.match(line)
+            if not m: continue
+            t = time.mktime(time.strptime(m.group(1), "%Y-%m-%d %H:%M:%S"))
+            if not (start - 1 <= t <= end + 1): continue
+            line = line.rstrip("\n")
+            r = ROUTE.search(line)
+            if r: out["route"].append([r.group(1), r.group(2)]); continue
+            c = CALL.search(line)
+            if c:
+                i = c.group(1)
+                out["api_id_class"].append("msg_" if i.startswith("msg_") else ("chatcmpl-" if i.startswith("chatcmpl-") else "other"))
+print(json.dumps(out))'
+p3_turnlog() { xp "$(pod 3)" /opt/hermes/.venv/bin/python -I -c "$C6LOG_PY" "$1" "$2"; }
+# stdin: p3_turnlog JSON. exit 0 iff the turn went to the cloud: >= 1 route line, all route=cloud rule=cloud_ok, and
+# >= 1 API call, all with a provider id of class msg_. Prints a one-line summary (route/rule names, classes, counts).
+C6VERDICT_PY='import sys, json
+try: d = json.load(sys.stdin)
+except Exception: print("p3 turn log unreadable"); sys.exit(1)
+rt = [tuple(x) for x in d.get("route", [])]; ids = d.get("api_id_class", [])
+ok = bool(rt) and all(x == ("cloud", "cloud_ok") for x in rt) and bool(ids) and all(i == "msg_" for i in ids)
+print("p3 route=%s api_id_class=%s -> %s" % (",".join("%s/%s" % x for x in rt) or "none", ",".join(ids) or "none", "cloud" if ok else "NOT cloud"))
+sys.exit(0 if ok else 1)'
+c6_turn_verdict() { /usr/bin/python3 -I -c "$C6VERDICT_PY"; }
+# <<< c010-c6turn
+pf_up || { log "  RED  no port-forward to OWUI for the canary"; RED=1; }
 # >>> c010-canary-api (sourced as-is by hack/ops/chg-2026-10-20-010-test-owui-c4.sh)
 # Same bug class as the attempt-3 C4 exit: a trailing `[ -n "$b" ] && printf` made the config group exit 1 on every
 # body-less call, so under pipefail `api ... | jq -e ...` read RED even when the answer was right (C6 would have failed).
@@ -515,7 +593,9 @@ api() { t="$1"; m="$2"; u="$3"; b="${4:-}"; shift 3; [ $# -gt 0 ] && shift
     if [ -n "$b" ]; then printf 'data = "%s"\n' "$(printf '%s' "$b" | sed 's/\\/\\\\/g; s/"/\\"/g')"; fi; } | curl -s -K - -X "$m" "$@" "$U$u"; }
 # <<< c010-canary-api
 PW="c010-$(od -An -tx1 -N12 /dev/urandom | tr -d ' \n')"
-cleanup() { [ -n "$CANARY_UID" ] && api "$OWUI_ADMIN_KEY" DELETE "/api/v1/users/$CANARY_UID" "" -o /dev/null; kill $PF 2>/dev/null || true; }
+cleanup() { # canary account delete; re-opens a lost port-forward first (attempt 5: the DELETE never reached OWUI)
+  if [ -n "$CANARY_UID" ]; then pf_ensure cleanup; c=$(api "$OWUI_ADMIN_KEY" DELETE "/api/v1/users/$CANARY_UID" "" -o /dev/null -w '%{http_code}'); log "  info cleanup: canary account DELETE http=$c"; fi
+  pf_kill_all; }
 CLEANUP_HOOK=cleanup   # run by on_exit (c010-exitguard); never `trap ... EXIT` here, that would drop the exit guard
 CANARY_UID=$(api "$OWUI_ADMIN_KEY" POST /api/v1/auths/add '{"name":"c010-canary","email":"c010-canary@acceptatie.invalid","password":"'"$PW"'","role":"user"}' | jq -r '.id // empty')
 GID=$(api "$OWUI_ADMIN_KEY" GET /api/v1/groups/ | jq -r '.[] | select(.name=="owui-profiel-3") | .id')
@@ -536,22 +616,30 @@ newchat() { api "$TOK" POST /api/v1/chats/new '{"chat":{"title":"c010-canary","m
 # C6: 3-turn public synthetic chat, 20 s apart (> httpx keep-alive), title generation on. Follow-ups carry the
 # cloud's OWN synthetic answers (kept in memory, never logged): the router's stickiness sends any history with an
 # assistant message the cloud did not produce to the Studio, so a hard-coded answer would test the wrong path.
-ask() { api "$TOK" POST /api/chat/completions "{\"model\":\"hermes-agent-profiel-3\",\"chat_id\":\"$1\",\"stream\":false,\"messages\":$2,\"background_tasks\":{\"title_generation\":true,\"tags_generation\":false,\"follow_up_generation\":false}}" -m 240; }
+ask() { local c="$1" ms="$2"; shift 2   # extra curl args (e.g. -w) pass through
+  api "$TOK" POST /api/chat/completions "{\"model\":\"hermes-agent-profiel-3\",\"chat_id\":\"$c\",\"stream\":false,\"messages\":$ms,\"background_tasks\":{\"title_generation\":true,\"tags_generation\":false,\"follow_up_generation\":false}}" -m 240 "$@"; }
 A0=$(access); F0=$(fails); T0=$(tokens); S0=$(date -u +%Y-%m-%dT%H:%M:%SZ); CID=$(newchat); H=""
 q1="Hoeveel poten heeft een spin? Antwoord kort."; q2="En een insect?"; q3="Noem een insect met vleugels."
 m=$(jq -nc --arg q "$q1" '[{role:"user",content:$q}]')
-C6E=$(date +%s); D6=""
+C6E=$(date +%s); D6=""; C6NOTCLOUD=""; n6=0
 for q in "$q2" "$q3" ""; do
-  t0=$(tokens)
-  r=$(ask "$CID" "$m"); a=$(printf '%s' "$r" | jq -c '.choices[0].message.content // empty' 2>/dev/null)
+  n6=$((n6 + 1)); pf_ensure "before C6 turn $n6"
+  t0=$(tokens); e0=$(xp "$(pod 3)" date +%s)
+  r=$(ask "$CID" "$m" -w '\n%{http_code}'); crc=$?; code="${r##*$'\n'}"; r="${r%$'\n'*}"
+  meta=$(printf '%s' "$r" | resp_meta); a=$(printf '%s' "$r" | jq -c '.choices[0].message.content // empty' 2>/dev/null); unset r
+  sleep 3; e1=$(xp "$(pod 3)" date +%s); tl=$(p3_turnlog "$e0" "$e1")
   D6="$D6 $(( $(tokens) - t0 ))"
-  [ -n "$a" ] && H="$H 200" || H="$H err"; unset r
+  v=$(printf '%s' "$tl" | c6_turn_verdict) || C6NOTCLOUD="$C6NOTCLOUD $n6"
+  pf_alive && pfa=up || pfa=LOST
+  log "  C6 turn $n6: curl_rc=$crc http=$code $meta pf_after=$pfa; $v"
+  [ "$crc" = 0 ] && [ "$code" = 200 ] && [ -n "$a" ] && H="$H 200" || H="$H err"
   [ -n "$q" ] && m=$(printf '%s' "$m" | jq -c --argjson a "${a:-\"\"}" --arg q "$q" '. + [{role:"assistant",content:$a},{role:"user",content:$q}]')
   sleep 20
 done; unset a m
 sleep 15; A1=$(access); F1=$(fails); T1=$(tokens); N=$(syns "$S0")
-log "  C6 http:$H; p3 completions +$((A1-A0)); input_tokens per turn:$D6; failure lines +$((F1-F0)); hubble flows $N (corroboration only)"
+log "  C6 http:$H; p3 completions +$((A1-A0)); input_tokens per turn:$D6; failure lines +$((F1-F0)); hubble flows $N (corroboration only); port-forward re-opens $PF_REOPEN"
 chk "C6 3 turns HTTP 200" "[ \"$H\" = ' 200 200 200' ]"
+chk "C6 every turn answered by the cloud (p3 route line cloud/cloud_ok + provider id msg_*; a Studio answer is RED)" "[ -z '$C6NOTCLOUD' ]"
 chk "C6 hermes-profiel-3 got exactly one completion per user turn (title gen went elsewhere)" "[ $((A1-A0)) = 3 ]"
 chk "C6/(c) month.json rose on each of the 3 cloud turns" "for d in $D6; do [ \$d -gt 0 ] || exit 1; done; [ \$(echo $D6 | wc -w) = 3 ]"
 chk "W7 provider count > 0 (spend grew)" "[ $((T1-T0)) -gt 0 ]"
@@ -566,8 +654,9 @@ sys.exit(0 if ok(json.load(sys.stdin)) else 1)'"
 chk "(b) replay post: the canary session's own Hermes prompt -> cloud-SOUL + date only; wis -> Studio x2" "replay post $C6E"
 gate "C6/W7"
 # C7: private-context turns must stay on the Studio: provider connections must not grow
+pf_ensure "before C7" || { RED=1; gate "C7 port-forward"; }
 S1=$(date -u +%Y-%m-%dT%H:%M:%SZ); A0=$(access)
-c7() { local cid s0 s1 s2; cid=$(newchat); s0=$(spend); H="$(turn "$cid" "$1")"; s1=$(spend); H="$H $(turn "$cid" "$2")"; s2=$(spend)
+c7() { local cid s0 s1 s2; pf_ensure "C7 $3" || return 1; cid=$(newchat); s0=$(spend); H="$(turn "$cid" "$1")"; s1=$(spend); H="$H $(turn "$cid" "$2")"; s2=$(spend)
   log "  C7 $3 http: $H; ledger unchanged turn/next: $([ "$s0" = "$s1" ] && echo yes || echo NO)/$([ "$s1" = "$s2" ] && echo yes || echo NO)"
   [ "$H" = "200 200" ] && [ "$s0" = "$s1" ] && [ "$s1" = "$s2" ]; }
 f1='[{"role":"user","content":"Wat is mijn huiswerk voor morgen?"}]'; f2='[{"role":"user","content":"Wat is mijn huiswerk voor morgen?"},{"role":"assistant","content":"(antwoord)"},{"role":"user","content":"En hoeveel is twee plus twee?"}]'
