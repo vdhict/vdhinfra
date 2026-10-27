@@ -16,6 +16,8 @@
 #       E2 POST /v1/runs, session-shaped wake path      -> Studio (month.json unchanged)
 #       E3 header-less public first turn               -> cloud (input tokens up, 0 < usd delta <= 0.2048)
 #          + replay post: that session's Hermes system text == cloud SOUL + date only
+#     F2 (attempt 10): no rule cloud_ok route record from golive's push to the end outside golive's C6 windows and E3.
+#     Cloud budget of a GREEN go (attempt 10): golive C6 2 + E3 1 = 3 real cloud turns (was C6 3 + C7 lesstof 1 + E3 1 = 5).
 #     plus go-time readbacks: runtime_pinned() True, HERMES_INSTALL_ROOT / HERMES_PLUGIN_HOST_PROCESS unset, every
 #     PINNED_SOURCES hash, OWUI connection to hermes-profiel-3 = chat completions (type only), profiel-1/2 W3/W4.
 #     ANY red -> automatic rollback: owui-c4 --rollback (state from the go) + rollback.sh --execute with a fresh
@@ -109,6 +111,21 @@ log "  info snapshots of this go: $(echo $SNAP)"
 C4STATE=$(find "$REPO/ops/evidence/$CHG" -maxdepth 1 -name 'k8s-owui-c4-*-before.json' -newer "$CACHE/session-start" 2>/dev/null | sort | tail -1)
 log "  info C4 state of this go: ${C4STATE:+${C4STATE#$REPO/}}${C4STATE:-none (C4 not applied)}"
 
+# >>> c010-gs-f2 (attempt 10; sourced as-is by hack/ops/chg-2026-10-20-010-test-golive-f6.sh)
+# golive's route reader + F2 helpers, taken verbatim from the golive.sh of this checkout (reviewed together)
+eval "$(sed -n "/^C6LOG_PY='/,/^print(json.dumps(out))'/p" "$HACK/ops/$CHG-golive.sh")"
+eval "$(sed -n '/^# >>> c010-f6/,/^# <<< c010-f6/p' "$HACK/ops/$CHG-golive.sh")"
+pod() { kubectl -n $NS get pod -l "app.kubernetes.io/instance=hermes-profiel-$1" --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}'; }
+xp() { kubectl -n $NS exec "$1" -c app -- "${@:2}"; }
+f2_go_session() { # $1 golive evidence $2 E3 start-1 $3 E3 end+2 (pod epoch) ; rc 0 iff F2 holds
+  local l from c6 o rc
+  l=$(grep -o 'F2 windows from=[0-9]\{10\} c6=[0-9:,]*' "$1" 2>/dev/null | tail -1)
+  [ -n "$l" ] || { log "  RED  F2: golive evidence has no 'F2 windows' line"; return 1; }
+  [[ "$2" =~ ^[0-9]{10}$ ]] && [[ "$3" =~ ^[0-9]{10}$ ]] || { log "  RED  F2: no E3 window"; return 1; }
+  from=${l#*from=}; from=${from%% *}; c6=${l#*c6=}
+  o=$(f2_check "$from" "${c6:+$c6,}$2:$3"); rc=$?
+  log "  $o (windows C6 ${c6:-none} + E3 $2:$3)"; return $rc; }
+# <<< c010-gs-f2
 rollback_all() { # $1 reason
   log "ROLLBACK (go session): $1"
   [ -n "$C4STATE" ] && OWUI_ADMIN_KEY="$ADMIN" "$HACK/ops/$CHG-owui-c4.sh" --rollback "$C4STATE" >> "$CACHE/rollback.out" 2>&1 \
@@ -168,9 +185,9 @@ def get(path):
 model = os.environ.get("API_SERVER_MODEL_NAME", "hermes-agent")
 out = []
 def turn(name, fn):
-    u0, t0 = ledger(); f0 = fails(); st = time.time(); code = fn(); time.sleep(5); u1, t1 = ledger()
+    u0, t0 = ledger(); f0 = fails(); st = time.time(); code = fn(); en = time.time(); time.sleep(5); u1, t1 = ledger()
     out.append({"turn": name, "http": code, "usd_delta": round(u1 - u0, 6), "input_tokens_delta": t1 - t0,
-                "fail_lines_delta": fails() - f0, "start": st})
+                "fail_lines_delta": fails() - f0, "start": st, "end": en})
 sid = "c010-canary-" + secrets.token_hex(6)
 turn("E1 X-Hermes-Session-Id (synthetic id)", lambda: post("/v1/chat/completions",
      {"model": model, "stream": False, "messages": [{"role": "user", "content": "Hoeveel dagen heeft een week? Kort."}]},
@@ -193,6 +210,7 @@ PY
   printf '%s' "$E" | /usr/bin/python3 -I -c 'import json,sys
 for t in json.load(sys.stdin): print("  canary %-42s http=%s usd_delta=%s input_tokens_delta=%s fail_lines_delta=%s" % (t["turn"], t["http"], t["usd_delta"], t["input_tokens_delta"], t["fail_lines_delta"]))' | tee -a "$EV"
   E3START=$(printf '%s' "$E" | /usr/bin/python3 -I -c 'import json,sys; print(int(json.load(sys.stdin)[2]["start"]) - 1)' 2>/dev/null)
+  E3END=$(printf '%s' "$E" | /usr/bin/python3 -I -c 'import json,sys; print(int(json.load(sys.stdin)[2]["end"]) + 2)' 2>/dev/null)
   printf '%s' "$E" | /usr/bin/python3 -I -c 'import json,sys
 t = json.load(sys.stdin); e1, e2, e3 = t
 studio = lambda x: x["http"] == 200 and x["usd_delta"] == 0 and x["input_tokens_delta"] == 0 and x["fail_lines_delta"] == 0
@@ -210,6 +228,10 @@ PY
   kubectl -n $NS exec -i "$P3" -c app -- env PYTHONDONTWRITEBYTECODE=1 /opt/hermes/.venv/bin/python -c "$(cat "$HACK/ops/$CHG-replay.py")" < "$CACHE/replay-in.json" > "$CACHE/replay-e3.json"; RRC=$?
   log "  step6 E3 replay post (system text): rc=$RRC $(jq -c '{mode, result, system_sha, want_sha}' "$CACHE/replay-e3.json" 2>/dev/null)"
   [ $RRC = 0 ] && okl "step6 E3 Hermes system text == cloud SOUL + date only" || red "step6 E3 system text"
+  # ---------------------------------------------------------- F2 over the whole go (attempt 10, owner 27-10)
+  # No rule cloud_ok route record from golive's push to now outside golive's C6 windows and this E3 window.
+  # golive logs "F2 windows from=<pod epoch> c6=<a:b,...>"; the reader is golive's own c010-f6 block (C6LOG_PY).
+  f2_go_session "$GEV" "${E3START:-}" "${E3END:-}" || red "F2 cloud_ok outside the C6/E3 windows (or unreadable)"
   # ---------------------------------------------------------- step 8: profiel-1/2 unchanged (W3/W4)
   for n in 1 2; do
     Pn=$(kubectl -n $NS get pod -l app.kubernetes.io/instance=hermes-profiel-$n --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}')

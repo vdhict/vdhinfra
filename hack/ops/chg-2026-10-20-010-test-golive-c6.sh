@@ -8,6 +8,7 @@
 # Sources the marked `# >>> c010-c6turn` block of the real golive.sh and runs the real C6 turn loop (extracted
 # verbatim between `C6E=$(date +%s)` and `done; unset a m`) against stubs: synthetic OWUI answers carrying a
 # SENTINEL, a synthetic p3 agent.log, a fake port-forward process. No network, no cluster. Deletes nothing (AGR-121).
+# Attempt 10: the loop is 2 turns with a server-side settle per turn (c010-f6, tested in test-golive-f6.sh).
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; CHG=chg-2026-10-20-010
 GOLIVE="${C010_GOLIVE:-$HERE/$CHG-golive.sh}"
@@ -100,9 +101,9 @@ PFH "PF=$LIVE2; PORT=1; pf_ensure cleanup; echo rc=\$? >> '$B/pf-calls'"
 t "P3 process alive but port closed + re-open fails: RED line, rc 1" bash -c "grep -qx 'rc=1' '$B/pf-calls' && grep -q 'RED  port-forward could not be re-opened (cleanup)' '$B/ev-pf.txt'"
 kill $LIVE2 2>/dev/null
 
-# ---- the real C6 loop, verbatim, with stubs: turn 1 cloud, turn 2 Studio (attempt-5 shape), turn 3 inconclusive (2 records)
+# ---- the real C6 loop, verbatim, with stubs (attempt 10: 2 turns, each followed by c6_settle; never resent)
 sed -n '/^C6E=\$(date +%s)/,/^done; unset a m/p' "$GOLIVE" > "$B/loop.sh"
-t "W0 the C6 loop was found in golive.sh" bash -c "[ \$(wc -l < '$B/loop.sh') -gt 5 ]"
+t "W0 the C6 loop was found in golive.sh and iterates exactly 2 turns (q2 + final)" bash -c "[ \$(wc -l < '$B/loop.sh') -gt 5 ] && grep -qx 'for q in \"\$q2\" \"\"; do' '$B/loop.sh'"
 cat > "$B/stubs.sh" <<EOF
 N=0
 pf_ensure() { echo "pf_ensure \$1" >> '$B/loop-calls'; }
@@ -110,24 +111,39 @@ pf_alive() { return 0; }
 tokens() { echo 0; }
 xp() { date +%s; }
 sleep() { :; }
-ask() { n=\$(( \$(cat '$B/turn-n' 2>/dev/null || echo 0) + 1 )); echo "\$n" > '$B/turn-n'; printf '{"id":"chatcmpl-hermes","choices":[{"message":{"role":"assistant","content":"$SENT"}}]}\n200'; }
-p3_turnlog() { n=\$(cat '$B/turn-n'); if [ "\$n" = 2 ]; then echo '{"count": 1, "malformed": 0, "route": "studio", "rule": "private_context", "id_class": "chatcmpl-"}'; elif [ "\$n" = 3 ]; then echo '{"count": 2, "malformed": 0}'; else echo '{"count": 1, "malformed": 0, "route": "cloud", "rule": "cloud_ok", "id_class": "msg_"}'; fi; }
+sdb() { echo '{"now":0,"sessions":{}}'; }
+c6_settle() { echo "c6_settle \$4 http=\$3" >> '$B/loop-calls'; [ "\$4" != "\$(cat '$B/settle-red' 2>/dev/null)" ]; }
+ask() { n=\$(( \$(cat '$B/turn-n' 2>/dev/null || echo 0) + 1 )); echo "\$n" > '$B/turn-n'; echo ask >> '$B/loop-calls'; printf '{"id":"chatcmpl-hermes","choices":[{"message":{"role":"assistant","content":"$SENT"}}]}\n200'; }
+p3_turnlog() { n=\$(cat '$B/turn-n'); s=\$(cat '$B/scenario'); case "\$s:\$n" in
+  studio2:2) echo '{"count": 1, "malformed": 0, "route": "studio", "rule": "private_context", "id_class": "chatcmpl-"}';;
+  multi2:2) echo '{"count": 2, "malformed": 0}';;
+  *) echo '{"count": 1, "malformed": 0, "route": "cloud", "rule": "cloud_ok", "id_class": "msg_"}';; esac; }
 EOF
-: > "$B/loop-calls"; : > "$B/ev-loop.txt"
-bash -c "set -uo pipefail; EV='$B/ev-loop.txt'; CACHE='$B/cache'; log() { echo \"\$*\" >> \"\$EV\"; }
+runloop() { # $1 scenario [$2 settle-red tag]
+  : > "$B/loop-calls"; : > "$B/ev-loop.txt"; : > "$B/turn-n"; echo "$1" > "$B/scenario"; printf '%s' "${2:-}" > "$B/settle-red"
+  bash -c "set -uo pipefail; EV='$B/ev-loop.txt'; CACHE='$B/cache'; log() { echo \"\$*\" >> \"\$EV\"; }
 . '$BLOCK'; . '$B/stubs.sh'
-CID=c; H=''; q1=a; q2=b; q3=c; m='[{\"role\":\"user\",\"content\":\"q\"}]'
+CID=c; H=''; q1=a; q2=b; m='[{\"role\":\"user\",\"content\":\"q\"}]'
 . '$B/loop.sh'
-echo \"C6NOTCLOUD=[\$C6NOTCLOUD] H=[\$H]\" >> '$B/loop-calls'" >/dev/null 2>&1
-t "W1 pf_ensure runs before each of the 3 turns" bash -c "[ \$(grep -c '^pf_ensure before C6 turn [123]\$' '$B/loop-calls') = 3 ]"
+echo \"C6NOTCLOUD=[\$C6NOTCLOUD] H=[\$H] F2WIN=[\$F2WIN]\" >> '$B/loop-calls'" >/dev/null 2>&1; }
+runloop cloud
+t "W1 2 turns: pf_ensure + ask + c6_settle once per turn, each turn sent exactly once" bash -c "
+  [ \$(grep -c '^pf_ensure before C6 turn [12]\$' '$B/loop-calls') = 2 ] && [ \$(grep -c '^ask\$' '$B/loop-calls') = 2 ] && [ \$(grep -c '^c6_settle c6turn[12] http=200\$' '$B/loop-calls') = 2 ]"
+t "W1b all-cloud: C6NOTCLOUD empty, HTTP 200 200, two F2 windows a:b,c:d" bash -c "grep -Eq '^C6NOTCLOUD=\[\] H=\[ 200 200\] F2WIN=\[[0-9]+:[0-9]+,[0-9]+:[0-9]+\]\$' '$B/loop-calls'"
 t "W2 per-turn metadata line: curl_rc, http, bytes, content, client id class, pf_after and the p3 verdict" bash -c "
-  [ \$(grep -cE 'C6 turn [123]: curl_rc=0 http=200 bytes=[0-9]+ json=yes .*content=yes client_id_class=chatcmpl- pf_after=up; p3 route' '$B/ev-loop.txt') = 3 ]"
-t "W3 Studio turn 2 NOT cloud, turn 3 (2 records) inconclusive with counts only: C6NOTCLOUD = 2 3; HTTP alone still reads 200" bash -c "
-  grep -qx 'C6NOTCLOUD=\[ 2 3\] H=\[ 200 200 200\]' '$B/loop-calls' && grep -q 'C6 turn 2: .*p3 route=studio rule=private_context id_class=chatcmpl- -> NOT cloud' '$B/ev-loop.txt' \
-  && grep -q 'C6 turn 3: .*; p3 route records in window=2 malformed=0 -> inconclusive\$' '$B/ev-loop.txt' && grep -q 'C6 turn 1: .*-> cloud\$' '$B/ev-loop.txt'"
+  [ \$(grep -cE 'C6 turn [12]: curl_rc=0 http=200 bytes=[0-9]+ json=yes .*content=yes client_id_class=chatcmpl- pf_after=up; p3 route' '$B/ev-loop.txt') = 2 ]"
+runloop studio2
+t "W3 Studio-answered turn 2 -> C6NOTCLOUD = 2 (HTTP alone still reads 200)" bash -c "
+  grep -q '^C6NOTCLOUD=\[ 2\] H=\[ 200 200\]' '$B/loop-calls' && grep -q 'C6 turn 2: .*p3 route=studio rule=private_context id_class=chatcmpl- -> NOT cloud' '$B/ev-loop.txt' && grep -q 'C6 turn 1: .*-> cloud\$' '$B/ev-loop.txt'"
+runloop multi2
+t "W3b two records in turn 2's window -> inconclusive with counts only, C6NOTCLOUD = 2" bash -c "
+  grep -q '^C6NOTCLOUD=\[ 2\]' '$B/loop-calls' && grep -q 'C6 turn 2: .*; p3 route records in window=2 malformed=0 -> inconclusive\$' '$B/ev-loop.txt'"
+runloop cloud c6turn1
+t "W3c a turn whose server side did not settle is RED (settle1), and is NOT resent" bash -c "
+  grep -q '^C6NOTCLOUD=\[ settle1\]' '$B/loop-calls' && [ \$(grep -c '^ask\$' '$B/loop-calls') = 2 ]"
 t "W4 no answer text in the evidence" bash -c "! grep -q '$SENT' '$B/ev-loop.txt'"
-t "W5 golive judges C6 on C6NOTCLOUD in a chk (a Studio answer is RED)" bash -c "grep -q '^chk \"C6 every turn answered by the cloud.*\" \"\[ -z .\$C6NOTCLOUD. \]\"' '$GOLIVE'"
-t "W6 cleanup and C7 re-check the port-forward first; pf_up records every pid; cleanup kills them all" bash -c "
-  grep -A1 '^cleanup() {' '$GOLIVE' | grep -q 'pf_ensure cleanup' && grep -q '^c7() { local cid s0 s1 s2; pf_ensure' '$GOLIVE' \
-  && grep -q '^pf_ensure \"before C7\"' '$GOLIVE' && grep -q 'echo \"\$PF\" >> \"\$CACHE/pf.pids\"' '$BLOCK' && grep -q 'pf_kill_all; }' '$GOLIVE'"
+t "W5 golive judges C6 on C6NOTCLOUD in a chk (a Studio answer is RED), and on 2 turns" bash -c "grep -q '^chk \"C6 every turn answered by the cloud.*\" \"\[ -z .\$C6NOTCLOUD. \]\"' '$GOLIVE' && grep -q '^chk \"C6 2 turns HTTP 200\"' '$GOLIVE' && grep -q 'completion per user turn.*= 2 \]\"\$' '$GOLIVE'"
+t "W6 cleanup and C7 re-check the port-forward first; C7 opens a fresh one per chat; pf_up records every pid + stderr; cleanup kills them all" bash -c "
+  grep -A1 '^cleanup() {' '$GOLIVE' | grep -q 'pf_ensure cleanup' && grep -q '^c7() { # ' '$GOLIVE' && grep -q 'local cid; pf_fresh \"C7 \$3 new chat\" && cid=\$(newchat)' '$GOLIVE' \
+  && grep -q '^pf_ensure \"before C7\"' '$GOLIVE' && grep -q 'echo \"\$PF\" >> \"\$CACHE/pf.pids\"' '$BLOCK' && grep -q '2>>\"\$CACHE/pf.err\"' '$BLOCK' && grep -q 'pf_kill_all; }' '$GOLIVE'"
 echo "RESULT $PASS/$((PASS+FAIL)) PASS (scratch $B)"; [ $FAIL = 0 ]

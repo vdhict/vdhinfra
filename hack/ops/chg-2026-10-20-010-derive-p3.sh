@@ -18,12 +18,16 @@ RENDER="${1:?render root}"; OUT="${2:?out root}"
 [ ! -e "$OUT" ] || { echo "$OUT exists" >&2; exit 1; }
 ROOT="$(git rev-parse --show-toplevel)"
 LIVE_OUTER=fe64b2a128258e45d23c70b1cb642ceae1750ce901891f59b667cc3e860274f2
+fc_init_pin() { # the family-cloud __init__.py pin from hack/ops/chg-2026-10-20-010-pin-fc-init.txt (64 hex or nothing)
+  awk '!/^#/ && NF {if ($2 == "plugins/model-providers/family-cloud/__init__.py" && $1 ~ /^[0-9a-f]+$/ && length($1) == 64) print $1; exit}' "$1"; }
+FC_INIT_PIN=$(fc_init_pin "$ROOT/hack/ops/chg-2026-10-20-010-pin-fc-init.txt")
+[ ${#FC_INIT_PIN} = 64 ] || { echo "no valid family-cloud __init__.py pin in hack/ops/chg-2026-10-20-010-pin-fc-init.txt" >&2; exit 1; }
 # bash 3.2 (macOS): no associative arrays; one "sha256 path" per line
-PINS='0437f3f6b58ecbc993bb00b1d7d7ab7c980ffb2da4fab715d884dd92c4e1b29f config.yaml
-5c03695624140c0e0afe23e50d18ebb2b37ddbace7fb0c47cc8fde56c777fa33 plugins/model-providers/family-cloud/__init__.py
+PINS="0437f3f6b58ecbc993bb00b1d7d7ab7c980ffb2da4fab715d884dd92c4e1b29f config.yaml
+$FC_INIT_PIN plugins/model-providers/family-cloud/__init__.py
 ba0794c5647d780f2edfddc806ba58f7519e80cc9975c86be7f0c7e950af4046 plugins/model-providers/family-cloud/plugin.yaml
 d7f0c4aa4832de7d4acd3b53a677b740bb69952f114081d7cedbd73969d30dbc plugins/model-providers/family-cloud/settings.json
-b67506a71c1f29cbbacee91e487ad74c5a8736a32047cf6575ac61c70b356fd0 plugins/model-providers/family-cloud/cloud-SOUL.md'
+b67506a71c1f29cbbacee91e487ad74c5a8736a32047cf6575ac61c70b356fd0 plugins/model-providers/family-cloud/cloud-SOUL.md"
 pin_of() { echo "$PINS" | awk -v f="$1" '$2==f{print $1}'; }
 sha() { shasum -a 256 "$1" | cut -d' ' -f1; }
 R="$RENDER/profiel-3"; [ -d "$R" ] || { echo "no profiel-3 in render" >&2; exit 1; }

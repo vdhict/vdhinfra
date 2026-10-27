@@ -25,7 +25,8 @@
 #              deploy at exactly that time and read back before --go. W2b is read back in the pod after deploy (input ceiling 65536, the ledger guard never
 #              overwrote an existing month.json). Then: preflight again, VolumeSnapshots of
 #              hermes-profiel-data-3 + open-webui-data, push to main, Flux reconcile, checks C2 C3 W3 W4 W5 W6,
-#              restart + W5/W6 again, C4 (owui-c4.sh --apply), C5, C6+W7 synthetic canary, C7 Studio turns.
+#              restart + W5/W6 again, C4 (owui-c4.sh --apply), C5, C6+W7 synthetic canary (2 cloud turns), C7 private
+#              turns gated on F6/F1/F2 only (attempt 10, owner 27-10; see # >>> c010-f6), lesstof dropped (AGR-073).
 #              ANY red after the push -> automatic rollback: owui-c4.sh --rollback (if applied) and
 #              chg-2026-10-20-010-rollback.sh --execute (git revert + Flux + price_confirmed=false), exit 1.
 #
@@ -372,6 +373,10 @@ if [ "$MODE" = --go ]; then
 else
   log "  info cut-off: $("$SRC/hack/ops/$CHG-cutoff.sh" readback "$SHA" 2>&1 | head -1) (--go refuses unless armed for $SHA)"
 fi
+fc_init_pin() { # the family-cloud __init__.py pin from hack/ops/chg-2026-10-20-010-pin-fc-init.txt (64 hex or nothing)
+  awk '!/^#/ && NF {if ($2 == "plugins/model-providers/family-cloud/__init__.py" && $1 ~ /^[0-9a-f]+$/ && length($1) == 64) print $1; exit}' "$1"; }
+FC_INIT_PIN=$(fc_init_pin "$HACK/ops/$CHG-pin-fc-init.txt")
+chk "family-cloud __init__.py pin readable (hack/ops/$CHG-pin-fc-init.txt): ${FC_INIT_PIN:0:12}" "[ \${#FC_INIT_PIN} = 64 ]"
 # plugin from the deployed bundle -> PINNED_IMAGE source for the wiring check
 B="$SRC/kubernetes/main/apps/family-ai/hermes/profiel-3/bundle.sops.yaml"; mkdir -p "$CACHE/new" "$CACHE/main"
 sops -d --extract '["data"]["bundle.tar.gz"]' "$B" | base64 -d > "$CACHE/new.tgz"
@@ -385,7 +390,7 @@ chk "C2 offline: vs main only config.yaml changed + 4 family-cloud added" \
   "[ \"\$(diff -rq '$CACHE/main' '$CACHE/new' | sed 's#$CACHE/##g' | LC_ALL=C sort)\" = \"\$(printf '%s\n' 'Files main/SHA256SUMS and new/SHA256SUMS differ' 'Files main/config.yaml and new/config.yaml differ' 'Only in new/plugins/model-providers: family-cloud' | LC_ALL=C sort)\" ] && [ \"\$(ls '$CACHE/new/plugins/model-providers/family-cloud' | tr '\n' ' ')\" = '__init__.py cloud-SOUL.md plugin.yaml settings.json ' ]"
 chk "C2 offline: pins" "cd '$CACHE/new' && printf '%s\n' \
   '0437f3f6b58ecbc993bb00b1d7d7ab7c980ffb2da4fab715d884dd92c4e1b29f  config.yaml' \
-  '5c03695624140c0e0afe23e50d18ebb2b37ddbace7fb0c47cc8fde56c777fa33  plugins/model-providers/family-cloud/__init__.py' \
+  '$FC_INIT_PIN  plugins/model-providers/family-cloud/__init__.py' \
   'ba0794c5647d780f2edfddc806ba58f7519e80cc9975c86be7f0c7e950af4046  plugins/model-providers/family-cloud/plugin.yaml' \
   'd7f0c4aa4832de7d4acd3b53a677b740bb69952f114081d7cedbd73969d30dbc  plugins/model-providers/family-cloud/settings.json' \
   'b67506a71c1f29cbbacee91e487ad74c5a8736a32047cf6575ac61c70b356fd0  plugins/model-providers/family-cloud/cloud-SOUL.md' | shasum -a 256 -c --strict --quiet"
@@ -465,6 +470,8 @@ gate "snapshots"
 
 # ---------------------------------------------------------------- push + reconcile
 log "== push + reconcile"
+# F2 starts here (pod clock, 5 s margin): older attempts' cloud_ok records in the route file stay out of the window
+PUSH_E=$(xp "$(pod 3)" date +%s 2>/dev/null); [[ "$PUSH_E" =~ ^[0-9]{10}$ ]] || PUSH_E=$(date +%s); PUSH_E=$((PUSH_E - 5))
 deploy_push || { log "RED push refused or no token (main moved?): rebase + re-run preflight; nothing pushed"; exit 1; }
 PUSHED="$SHA"; log "  pushed $SHA to main"
 flux reconcile source git flux-system -n flux-system >>"$CACHE/chk.log" 2>&1
@@ -566,7 +573,7 @@ PF="${PF:-}"; PORT="${PORT:-}"; PF_REOPEN=0
 pf_alive() { [ -n "$PF" ] && kill -0 "$PF" 2>/dev/null && nc -z 127.0.0.1 "$PORT" 2>/dev/null; }
 pf_up() { # (re)open the port-forward to the OWUI pod; sets PORT, PF, U
   [ -n "$PF" ] && kill "$PF" 2>/dev/null; PORT=$((20000 + RANDOM % 20000))
-  kubectl -n $NS port-forward "pod/$OW" "$PORT:8080" >/dev/null 2>&1 & PF=$!
+  kubectl -n $NS port-forward "pod/$OW" "$PORT:8080" >/dev/null 2>>"$CACHE/pf.err" & PF=$!   # stderr kept: why it dropped
   echo "$PF" >> "$CACHE/pf.pids"   # a re-open inside a chk subshell (c7) outlives it: cleanup kills every pid listed
   for _ in $(seq 1 30); do nc -z 127.0.0.1 "$PORT" 2>/dev/null && break; sleep 1; done
   U="http://127.0.0.1:$PORT"; nc -z 127.0.0.1 "$PORT" 2>/dev/null; }
@@ -595,13 +602,15 @@ elif d is not None:
     out["json"] = "yes"
 print(" ".join("%s=%s" % kv for kv in out.items()))'
 resp_meta() { /usr/bin/python3 -I -c "$RESP_META_PY"; }
-# In p3 (argv: start end [files]): the route records with ts in [start, end] (epoch seconds, pod clock). Reads ONLY
-# the plugin's route record file (+ its .1); never agent.log. A record must be one JSON object with exactly ts/route/
-# rule/id_class and allowed values; a line that is not is counted as malformed (last 500 lines per file). Prints
-# JSON: count + malformed, and the record fields only when count == 1.
+# In p3 (argv: [--all] start end [files]): the route records with ts in [start, end] (epoch seconds, pod clock).
+# Reads ONLY the plugin's route record file (+ its .1); never agent.log. A record must be one JSON object with exactly
+# ts/route/rule/id_class and allowed values; a line that is not is counted as malformed (last 500 lines per file).
+# Prints JSON: count + malformed, and the record fields only when count == 1. --all (attempt 10, F6/F2) adds
+# "records": [[ts, route, rule, id_class], ...] for every in-window record (the same four validated fields only).
 C6LOG_PY='import sys, re, json
-start, end = float(sys.argv[1]), float(sys.argv[2])
-files = sys.argv[3:] or ["/opt/data/family-cloud-route.jsonl.1", "/opt/data/family-cloud-route.jsonl"]
+args = sys.argv[1:]; full = bool(args) and args[0] == "--all"; args = args[1:] if full else args
+start, end = float(args[0]), float(args[1])
+files = args[2:] or ["/opt/data/family-cloud-route.jsonl.1", "/opt/data/family-cloud-route.jsonl"]
 RULE = re.compile(r"[A-Za-z_]{1,48}")
 hits, bad = [], 0
 for f in files:
@@ -621,6 +630,7 @@ for f in files:
 out = {"count": len(hits), "malformed": bad}
 if len(hits) == 1 and bad == 0:
     out.update(route=hits[0]["route"], rule=hits[0]["rule"], id_class=hits[0]["id_class"])
+if full: out["records"] = sorted([d["ts"], d["route"], d["rule"], d["id_class"]] for d in hits)
 print(json.dumps(out))'
 p3_turnlog() { xp "$(pod 3)" /opt/hermes/.venv/bin/python -I -c "$C6LOG_PY" "$1" "$2"; }
 # stdin: p3_turnlog JSON. exit 0 iff exactly one well-formed record in the window and it is route=cloud rule=cloud_ok
@@ -636,6 +646,156 @@ print("p3 route=%s rule=%s id_class=%s -> %s" % (d.get("route"), d.get("rule"), 
 sys.exit(0 if ok else 1)'
 c6_turn_verdict() { /usr/bin/python3 -I -c "$C6VERDICT_PY"; }
 # <<< c010-c6turn
+# >>> c010-f6 (attempt 10, 27-10; owner: gate C7 on F1, F2, F6 only; Argus 22:27:11Z amended; sourced as-is by
+# hack/ops/chg-2026-10-20-010-test-golive-f6.sh and by go-session.sh for F2)
+# Attempt 9: the OWUI port-forward dropped mid-turn (curl 000) while Hermes still answered, and the abandoned huiswerk
+# turn answered 3 s into the next turn's clock window. Now every canary turn runs STRICTLY after the previous one has
+# settled server-side, and is judged on server-side records, never on the HTTP code:
+#   F6  per turn: exactly one Hermes session changed; it has a new user message from this turn (state.db timestamp >=
+#       send - 2 s) and ended on an assistant message; route records in [send - 1 s, that assistant message + 2 s] ==
+#       the session's api_call_count increase (>= 1); route=cloud / rule cloud_* records == 0. Independent of the ledger.
+#   F1  the next turn in the SAME chat after a private turn: F6 holds and every rule is a non-cloud Studio rule (any
+#       name: the new latch rule is logged as found).
+#   F2  no rule cloud_ok record from the push to the end outside the C6 (golive) and E3 (go session) windows.
+# state.db is read in the pod read-only, METADATA ONLY: sessions.id (hashed, 12 hex), source class, api_call_count,
+# messages.session_id, role, timestamp, finish_reason (enum-checked). Never content, tool_calls or prompts.
+# Validated read-only on attempt 9's real rows (27-10 ~23Z): per session, route records == api_call_count increase
+# (C6 3/3, huiswerk 1/1, vergeet 2/2 incl. a tool call, image 2/2); a new OWUI chat with the same first message is
+# appended to the EXISTING Hermes session (C6's held 14 calls), hence deltas; a first turn ends with a session_meta row.
+# The route file only via C6LOG_PY (four validated fields). agent.log is never opened here.
+# 000 handling (Atlas 22:27:11Z): after a non-200 the turn is NOT resent while state.db or the route file shows
+# anything of it; we wait for the abandoned Hermes turn to finish (assistant message + stable api_call_count) or
+# C010_F6_WAIT s, then judge it. A resend happens at most once, only after C010_F6_SETTLE s (> curl -m 240 + Studio
+# time) with no session change and no route record, i.e. the request provably never reached Hermes. Cloud turns
+# (C6) are never resent. A turn that does not settle in time is RED-inconclusive and the remaining C7 turns are
+# skipped (no overlap, ever).
+F6_WAIT="${C010_F6_WAIT:-360}"; F6_SETTLE="${C010_F6_SETTLE:-300}"; F6_POLL="${C010_F6_POLL:-5}"; F6_ABORT=""
+SDB_PY='import sqlite3, json, sys, time, hashlib, re
+since = float(sys.argv[1]); db = sys.argv[2] if len(sys.argv) > 2 else "/opt/data/state.db"
+c = sqlite3.connect("file:%s?mode=ro" % db, uri=True)
+h = lambda s: hashlib.sha256(str(s).encode()).hexdigest()[:12]
+enum = lambda v, ok: v if isinstance(v, str) and re.fullmatch(ok, v) else ("none" if v is None else "other")
+out = {}
+for sid, src, acc in c.execute("select id, source, coalesce(api_call_count, 0) from sessions"):
+    out[h(sid)] = {"src": "api_server" if src == "api_server" else "other", "acc": acc,
+                   "last_role": None, "last_ts": None, "last_finish": "none", "users_since": 0, "first_user_ts": None}
+for sid, role, ts, fin in c.execute("select m.session_id, m.role, m.timestamp, m.finish_reason from messages m join "
+                                    "(select session_id, max(id) mid from messages where role != ? group by session_id) x on m.id = x.mid",
+                                    ("session_meta",)):   # Hermes adds a session_meta row after a first turn
+    if h(sid) in out:
+        out[h(sid)].update(last_role=enum(role, r"user|assistant|tool|system"), last_ts=ts, last_finish=enum(fin, r"[a-z_]{1,24}"))
+for sid, n, t0 in c.execute("select session_id, count(*), min(timestamp) from messages where role = ? and timestamp >= ? "
+                            "group by session_id", ("user", since)):
+    if h(sid) in out:
+        out[h(sid)].update(users_since=n, first_user_ts=t0)
+print(json.dumps({"now": time.time(), "sessions": out}))'
+# local judge. argv: e0 s0.json s1.json routes.json. Prints one JSON object; never anything but hashes, counts, rules.
+F6JUDGE_PY='import json, sys
+e0 = float(sys.argv[1]); s0, s1, rt = (json.load(open(p)) for p in sys.argv[2:5])
+a, b = s0["sessions"], s1["sessions"]
+sig = lambda x: (x.get("acc"), x.get("last_ts"), x.get("users_since"))
+changed = [k for k, v in b.items() if k not in a or sig(v) != sig(a[k]) or v.get("users_since", 0) > 0]
+recs = rt.get("records") or []
+out = {"state": "", "sid": None, "changed": len(changed), "records_total": len(recs), "malformed": rt.get("malformed", -1)}
+if not changed:
+    out["state"] = "none" if not recs else "orphan"
+elif len(changed) > 1:
+    out["state"] = "multi"
+else:
+    k = changed[0]; v = b[k]; d = v["acc"] - (a[k]["acc"] if k in a else 0)
+    final = v["last_role"] == "assistant" and v["last_finish"] not in ("tool_calls", "other") and v["last_ts"] is not None
+    paired = v["users_since"] > 0 and v["first_user_ts"] is not None and (not final or v["first_user_ts"] <= v["last_ts"])
+    hi = (v["last_ts"] + 2) if final else float("inf")
+    win = [r for r in recs if e0 - 1 <= r[0] <= hi]
+    rules = {}
+    for r in win: rules[r[2]] = rules.get(r[2], 0) + 1
+    out.update(sid=k, api_calls=d, final=final, paired=paired, n=len(win), after=len(recs) - len(win),
+               cloud=sum(1 for r in win if r[1] == "cloud" or r[2].startswith("cloud")), rules=rules,
+               cloud_ok=sum(1 for r in win if r[2] == "cloud_ok"),
+               studio_only=bool(win) and all(r[1] == "studio" and not r[2].startswith("cloud") for r in win),
+               sig="%s:%s:%s" % (k, v["acc"], v["last_ts"]))
+    out["state"] = "done" if final and paired and d >= 1 else "pending"
+print(json.dumps(out, sort_keys=True))'
+# F2: argv: routes.json "a:b,c:d,..." (windows, pod epoch). Counts rule cloud_ok records inside/outside.
+F2_PY='import json, sys
+rt = json.load(open(sys.argv[1])); wins = [tuple(map(float, w.split(":"))) for w in sys.argv[2].split(",") if w]
+ok = [r for r in (rt.get("records") or []) if r[2] == "cloud_ok"]
+inside = sum(1 for r in ok if any(lo <= r[0] <= hi for lo, hi in wins))
+print(json.dumps({"cloud_ok": len(ok), "inside": inside, "outside": len(ok) - inside, "malformed": rt.get("malformed", -1), "windows": len(wins)}))
+sys.exit(0 if len(ok) == inside and rt.get("malformed", 0) == 0 else 1)'
+pod_now() { xp "$(pod 3)" date +%s; }
+sdb() { xp "$(pod 3)" /opt/hermes/.venv/bin/python -I -c "$SDB_PY" "$1"; }                      # $1 since (pod epoch)
+routes_all() { xp "$(pod 3)" /opt/hermes/.venv/bin/python -I -c "$C6LOG_PY" --all "$1" "$2"; }   # $1 $2 window
+f6_judge() { /usr/bin/python3 -I -c "$F6JUDGE_PY" "$@"; }
+jf() { # JSON field of stdin: dict/list/bool as JSON (true/false), None as empty, else the plain value
+  /usr/bin/python3 -I -c 'import json,sys; d=json.load(sys.stdin); v=d.get(sys.argv[1]); print(json.dumps(v) if isinstance(v,(dict,list,bool)) else ("" if v is None else v))' "$1"; }
+f2_check() { # $1 from (pod epoch) $2 windows "a:b,..." : one "F2 ..." line; rc 0 iff no cloud_ok outside the windows
+  local f="$CACHE/f2-routes-$RANDOM.json" o rc
+  routes_all "$1" "$(( $(pod_now) + 5 ))" > "$f" || { echo "F2 RED: route file unreadable"; return 1; }
+  o=$(/usr/bin/python3 -I -c "$F2_PY" "$f" "$2"); rc=$?
+  echo "F2 cloud_ok records since push $o -> $([ $rc = 0 ] && echo ok || echo RED)"; return $rc; }
+pf_fresh() { # $1 where: a NEW port-forward before every canary turn + HTTP readiness (GET /health = 200)
+  local i c
+  for i in 1 2 3; do
+    pf_up && { c=$(curl -s -o /dev/null -w '%{http_code}' -m 10 "$U/health"); [ "$c" = 200 ] && return 0; }
+    log "  info port-forward not ready ($1, try $i, health=${c:-none})"; sleep 2
+  done
+  log "  RED  no ready port-forward to OWUI ($1)"; return 1; }
+send_turn() { # $1 chat id $2 messages json [$3 files json] : HTTP code only, response discarded unread
+  local body; body=$(jq -nc --arg c "$1" --argjson m "$2" --argjson f "${3:-null}" \
+    '{model:"hermes-agent-profiel-3", chat_id:$c, stream:false, messages:$m,
+      background_tasks:{title_generation:true, tags_generation:false, follow_up_generation:false}} + (if $f then {files:$f} else {} end)')
+  api "$TOK" POST /api/chat/completions "$body" -o /dev/null -w '%{http_code}' -m 240; }
+f6_settle() { # $1 e0 $2 s0 file $3 "http code" $4 tag -> writes $CACHE/f6-$4.json (last judge), prints the final state
+  local e0="$1" s0="$2" code="$3" tag="$4" t=0 prev="" st j lim="$F6_WAIT" s1="$CACHE/f6-$4-s1.json" rf="$CACHE/f6-$4-rt.json"
+  [ "$code" = 200 ] || lim=$(( F6_WAIT > F6_SETTLE ? F6_WAIT : F6_SETTLE ))
+  while :; do
+    sdb "$((e0 - 2))" > "$s1" 2>/dev/null; routes_all "$((e0 - 1))" "$(( $(pod_now) + 5 ))" > "$rf" 2>/dev/null
+    j=$(f6_judge "$e0" "$s0" "$s1" "$rf" 2>/dev/null) || j='{"state":"unreadable"}'
+    printf '%s\n' "$j" > "$CACHE/f6-$tag.json"; st=$(printf '%s' "$j" | jf state)
+    case "$st" in
+      done) [ "$prev" = "$(printf '%s' "$j" | jf sig)" ] && { echo done; return 0; }; prev=$(printf '%s' "$j" | jf sig);;
+      none) [ "$code" != 200 ] && [ "$t" -ge "$F6_SETTLE" ] && { echo none; return 0; };;
+      multi|orphan|unreadable) [ "$t" -ge 30 ] && { echo "$st"; return 0; };;
+    esac
+    [ "$t" -ge "$lim" ] && { echo "timeout-$st"; return 0; }
+    sleep "$F6_POLL"; t=$((t + F6_POLL))
+  done; }
+pturn() { # $1 label $2 kind (private|next) $3 chat id $4 messages json [$5 files json] -> f6.tsv row; rc 0 iff F6 (+F1)
+  local label="$1" kind="$2" cid="$3" ms="$4" files="${5:-}" try=1 e0="" code="" st="" j="{}" ok why l0="" l1=""
+  [ -n "$F6_ABORT" ] && { log "  RED  F6 $label: skipped (an earlier turn did not settle: no overlapping turns)"; printf '%s\t%s\tred\tskipped\t-\n' "$label" "$kind" >> "$CACHE/f6.tsv"; return 1; }
+  while :; do
+    code=""; st=""; j='{}'
+    if ! pf_fresh "F6 $label"; then   # nothing was sent: no settle needed, and a resend cannot duplicate anything
+      code=pf; st=none
+    else
+      e0=$(pod_now); sdb "$((e0 - 2))" > "$CACHE/f6-$label-$try-s0.json" 2>/dev/null; l0=$(spend)
+      code=$(send_turn "$cid" "$ms" "$files")
+      st=$(f6_settle "$e0" "$CACHE/f6-$label-$try-s0.json" "$code" "$label-$try"); j=$(cat "$CACHE/f6-$label-$try.json"); l1=$(spend)
+    fi
+    if [ "$st" = none ] && [ "$try" = 1 ] && [ "$code" != 200 ]; then
+      if [ "$code" = pf ]; then log "  info F6 $label: no ready port-forward, nothing was sent -> one more try"
+      else log "  info F6 $label: http=$code and after ${F6_SETTLE}s no session change and no route record: never reached Hermes -> resent once"; fi
+      try=2; continue
+    fi
+    break
+  done
+  ok=1; why=""
+  [ "$st" = done ] || { ok=0; why="inconclusive: $st"; case "$st" in timeout-*) F6_ABORT=1;; esac; }
+  if [ "$ok" = 1 ]; then
+    [ "$(printf '%s' "$j" | jf n)" = "$(printf '%s' "$j" | jf api_calls)" ] || { ok=0; why="route records != api_call_count increase"; }
+    [ "$(printf '%s' "$j" | jf cloud)" = 0 ] || { ok=0; why="${why:+$why; }cloud record(s) on a private turn"; }
+    [ "$(printf '%s' "$j" | jf malformed)" = 0 ] || { ok=0; why="${why:+$why; }malformed route lines"; }
+    [ "$(printf '%s' "$j" | jf after)" = 0 ] || { ok=0; why="${why:+$why; }route records after the turn's assistant message"; }
+    [ "$kind" = next ] && [ "$(printf '%s' "$j" | jf studio_only)" != true ] && { ok=0; why="${why:+$why; }F1: next turn not Studio-only"; }
+  fi
+  log "  F6 $label ($kind): http=$code tries=$try session=$(printf '%s' "$j" | jf sid) api_calls=+$(printf '%s' "$j" | jf api_calls) route_records=$(printf '%s' "$j" | jf n) cloud=$(printf '%s' "$j" | jf cloud) rules=$(printf '%s' "$j" | jf rules | tr -d ' ') sessions_changed=$(printf '%s' "$j" | jf changed); ledger unchanged (corroboration): $([ "$l0" = "$l1" ] && echo yes || echo NO) -> $([ $ok = 1 ] && echo ok || echo "RED ($why)")"
+  printf '%s\t%s\t%s\t%s\t%s\n' "$label" "$kind" "$([ $ok = 1 ] && echo ok || echo red)" "$(printf '%s' "$j" | jf rules | tr -d ' \t')" "$(printf '%s' "$j" | jf sid)" >> "$CACHE/f6.tsv"
+  [ $ok = 1 ]; }
+c6_settle() { # $1 e0 $2 s0 file $3 http $4 tag : C6 turns are never resent; only wait until the server turn settled
+  local st; st=$(f6_settle "$1" "$2" "$3" "$4"); log "  info C6 $4 server turn: $st (session $(jf sid < "$CACHE/f6-$4.json"), api_calls +$(jf api_calls < "$CACHE/f6-$4.json"))"
+  [ "$st" = done ]; }
+# <<< c010-f6
 pf_up || { log "  RED  no port-forward to OWUI for the canary"; RED=1; }
 # >>> c010-canary-api (sourced as-is by hack/ops/chg-2026-10-20-010-test-owui-c4.sh)
 # Same bug class as the attempt-3 C4 exit: a trailing `[ -n "$b" ] && printf` made the config group exit 1 on every
@@ -664,24 +824,26 @@ spend() { xp "$(pod 3)" sha256sum /cloud-spend/month.json | cut -c1-64; }   # (c
 memhash() { xp "$(pod 3)" sh -c 'cd /opt/data/memories && find . -type f | LC_ALL=C sort | while read -r f; do printf "%s " "$f"; sha256sum < "$f"; done | sha256sum' | cut -c1-64; }
 NODECIL=$(kubectl -n kube-system get pod -l k8s-app=cilium --field-selector spec.nodeName=$(kubectl -n $NS get pod "$(pod 3)" -o jsonpath='{.spec.nodeName}') -o jsonpath='{.items[0].metadata.name}')
 syns() { kubectl -n kube-system exec "$NODECIL" -c cilium-agent -- hubble observe --since "$1" --from-pod "$NS/$(pod 3)" --to-fqdn api.anthropic.com --tcp-flags SYN -o jsonpb 2>/dev/null | grep -c '"flow"'; }
-# turn <chat_id> <messages-json> : one user turn, response discarded unread; returns HTTP code
-turn() { api "$TOK" POST /api/chat/completions "{\"model\":\"hermes-agent-profiel-3\",\"chat_id\":\"$1\",\"stream\":false,\"messages\":$2,\"background_tasks\":{\"title_generation\":true,\"tags_generation\":false,\"follow_up_generation\":false}}" -o /dev/null -w '%{http_code}' -m 240; }
 newchat() { api "$TOK" POST /api/v1/chats/new '{"chat":{"title":"c010-canary","models":["hermes-agent-profiel-3"],"messages":[]}}' | jq -r '.id'; }
-# C6: 3-turn public synthetic chat, 20 s apart (> httpx keep-alive), title generation on. Follow-ups carry the
+# C6: 2-turn public synthetic chat, 20 s apart (> httpx keep-alive), title generation on. Follow-ups carry the
 # cloud's OWN synthetic answers (kept in memory, never logged): the router's stickiness sends any history with an
 # assistant message the cloud did not produce to the Studio, so a hard-coded answer would test the wrong path.
+# Attempt 10 cloud budget (owner: ~3 real cloud turns per go): C6 3 -> 2 turns (turn 2 still covers the follow-up +
+# the idle keep-alive), the C7 lesstof turn dropped, E3 (go session) stays 1: 5 -> 3. Turns are never resent; each
+# waits for its server-side turn to settle (c6_settle) so nothing overlaps; its window feeds F2.
 ask() { local c="$1" ms="$2"; shift 2   # extra curl args (e.g. -w) pass through
   api "$TOK" POST /api/chat/completions "{\"model\":\"hermes-agent-profiel-3\",\"chat_id\":\"$c\",\"stream\":false,\"messages\":$ms,\"background_tasks\":{\"title_generation\":true,\"tags_generation\":false,\"follow_up_generation\":false}}" -m 240 "$@"; }
 A0=$(access); F0=$(fails); T0=$(tokens); S0=$(date -u +%Y-%m-%dT%H:%M:%SZ); CID=$(newchat); H=""
-q1="Hoeveel poten heeft een spin? Antwoord kort."; q2="En een insect?"; q3="Noem een insect met vleugels."
+q1="Hoeveel poten heeft een spin? Antwoord kort."; q2="En een insect?"
 m=$(jq -nc --arg q "$q1" '[{role:"user",content:$q}]')
-C6E=$(date +%s); D6=""; C6NOTCLOUD=""; n6=0
-for q in "$q2" "$q3" ""; do
+C6E=$(date +%s); D6=""; C6NOTCLOUD=""; n6=0; F2WIN=""
+for q in "$q2" ""; do
   n6=$((n6 + 1)); pf_ensure "before C6 turn $n6"
-  t0=$(tokens); e0=$(xp "$(pod 3)" date +%s)
+  t0=$(tokens); e0=$(xp "$(pod 3)" date +%s); sdb "$((e0 - 2))" > "$CACHE/c6-$n6-s0.json" 2>/dev/null
   r=$(ask "$CID" "$m" -w '\n%{http_code}'); crc=$?; code="${r##*$'\n'}"; r="${r%$'\n'*}"
   meta=$(printf '%s' "$r" | resp_meta); a=$(printf '%s' "$r" | jq -c '.choices[0].message.content // empty' 2>/dev/null); unset r
-  sleep 3; e1=$(xp "$(pod 3)" date +%s); tl=$(p3_turnlog "$e0" "$e1")
+  sleep 3; c6_settle "$e0" "$CACHE/c6-$n6-s0.json" "$code" "c6turn$n6" || C6NOTCLOUD="$C6NOTCLOUD settle$n6"
+  e1=$(xp "$(pod 3)" date +%s); tl=$(p3_turnlog "$e0" "$e1"); F2WIN="$F2WIN${F2WIN:+,}$((e0 - 1)):$((e1 + 1))"
   D6="$D6 $(( $(tokens) - t0 ))"
   v=$(printf '%s' "$tl" | c6_turn_verdict) || C6NOTCLOUD="$C6NOTCLOUD $n6"
   pf_alive && pfa=up || pfa=LOST
@@ -692,10 +854,10 @@ for q in "$q2" "$q3" ""; do
 done; unset a m
 sleep 15; A1=$(access); F1=$(fails); T1=$(tokens); N=$(syns "$S0")
 log "  C6 http:$H; p3 completions +$((A1-A0)); input_tokens per turn:$D6; failure lines +$((F1-F0)); hubble flows $N (corroboration only); port-forward re-opens $PF_REOPEN"
-chk "C6 3 turns HTTP 200" "[ \"$H\" = ' 200 200 200' ]"
+chk "C6 2 turns HTTP 200" "[ \"$H\" = ' 200 200' ]"
 chk "C6 every turn answered by the cloud (exactly one p3 route record per turn: cloud/cloud_ok/msg_; Studio or inconclusive is RED)" "[ -z '$C6NOTCLOUD' ]"
-chk "C6 hermes-profiel-3 got exactly one completion per user turn (title gen went elsewhere)" "[ $((A1-A0)) = 3 ]"
-chk "C6/(c) month.json rose on each of the 3 cloud turns" "for d in $D6; do [ \$d -gt 0 ] || exit 1; done; [ \$(echo $D6 | wc -w) = 3 ]"
+chk "C6 hermes-profiel-3 got exactly one completion per user turn (title gen went elsewhere)" "[ $((A1-A0)) = 2 ]"
+chk "C6/(c) month.json rose on each of the 2 cloud turns" "for d in $D6; do [ \$d -gt 0 ] || exit 1; done; [ \$(echo $D6 | wc -w) = 2 ]"
 chk "W7 provider count > 0 (spend grew)" "[ $((T1-T0)) -gt 0 ]"
 chk "W7 family-cloud failure lines = 0" "[ $((F1-F0)) = 0 ]"
 chk "C6 sticky file holds HMACs/counts only" "xp \$(pod 3) cat /cloud-spend/sticky-profiel-3.json | python3 -I -c '
@@ -707,42 +869,53 @@ def ok(o):
 sys.exit(0 if ok(json.load(sys.stdin)) else 1)'"
 chk "(b) replay post: the canary session's own Hermes prompt -> cloud-SOUL + date only; wis -> Studio x2" "replay post $C6E"
 gate "C6/W7"
-# C7: private-context turns must stay on the Studio: provider connections must not grow
+# C7 (attempt 10, owner 27-10): private-context turns, gated ONLY on F6 (each private turn and its next turn), F1 (that
+# next turn, same chat, neutral question, Studio-only, rule name logged) and F2 (no cloud_ok outside the C6 windows).
+# The vergeet memory hash (a) stays a gate: it guards against deleting real memory, not a routing criterion.
+# Lesstof dropped (AGR-073: school books may go to the cloud): no F-check needs it and it saves a cloud turn.
+# Ledger hash, completion count, Hubble flows and family-cloud failure lines: info only (corroboration).
+# Turns run strictly one after another (pturn waits for the server-side turn); the chat id is made on a fresh
+# port-forward. Each pturn writes one row to $CACHE/f6.tsv; the chks read that file (pturn runs outside chk).
+: > "$CACHE/f6.tsv"
 pf_ensure "before C7" || { RED=1; gate "C7 port-forward"; }
-S1=$(date -u +%Y-%m-%dT%H:%M:%SZ); A0=$(access)
-c7() { local cid s0 s1 s2; pf_ensure "C7 $3" || return 1; cid=$(newchat); s0=$(spend); H="$(turn "$cid" "$1")"; s1=$(spend); H="$H $(turn "$cid" "$2")"; s2=$(spend)
-  log "  C7 $3 http: $H; ledger unchanged turn/next: $([ "$s0" = "$s1" ] && echo yes || echo NO)/$([ "$s1" = "$s2" ] && echo yes || echo NO)"
-  [ "$H" = "200 200" ] && [ "$s0" = "$s1" ] && [ "$s1" = "$s2" ]; }
+S1=$(date -u +%Y-%m-%dT%H:%M:%SZ); A0=$(access); F7=$(fails); SL7=$(spend)
+c7() { # $1 turn msgs $2 next msgs $3 label [$4 files json for the first turn]
+  local cid; pf_fresh "C7 $3 new chat" && cid=$(newchat)
+  [ -n "${cid:-}" ] && [ "$cid" != null ] || { log "  RED  C7 $3: no chat id"; printf '%s\tprivate\tred\tno_chat\t-\n%s next\tnext\tred\tno_chat\t-\n' "$3" "$3" >> "$CACHE/f6.tsv"; return 1; }
+  pturn "$3" private "$cid" "$1" "${4:-}"; pturn "$3 next" next "$cid" "$2"; }
 f1='[{"role":"user","content":"Wat is mijn huiswerk voor morgen?"}]'; f2='[{"role":"user","content":"Wat is mijn huiswerk voor morgen?"},{"role":"assistant","content":"(antwoord)"},{"role":"user","content":"En hoeveel is twee plus twee?"}]'
-F7=$(fails)
-chk "C7 huiswerk fetch + next turn answered" "c7 '$f1' '$f2' huiswerk"
-l1='[{"role":"user","content":"Wat betekent fotosynthese bij biologie?"}]'; l2='[{"role":"user","content":"Wat betekent fotosynthese bij biologie?"},{"role":"assistant","content":"(antwoord)"},{"role":"user","content":"Dank je."}]'
-chk "C7 lesstof fetch + next turn answered" "c7 '$l1' '$l2' lesstof"
+c7 "$f1" "$f2" huiswerk
 MK="c010-kanarie-$(od -An -tx1 -N6 /dev/urandom | tr -d ' \n')"   # unique synthetic marker, never in memory
 MH0=$(memhash); MC0=$(xp "$(pod 3)" sh -c "grep -rlF '$MK' /opt/data/memories 2>/dev/null | wc -l")
 v1='[{"role":"user","content":"Vergeet '$MK'."}]'; v2='[{"role":"user","content":"Vergeet '$MK'."},{"role":"assistant","content":"(antwoord)"},{"role":"user","content":"Hoe laat is het?"}]'
-chk "C7 gezin vergeet live (unique synthetic marker) + next turn on the Studio" "c7 '$v1' '$v2' vergeet"
+c7 "$v1" "$v2" vergeet
 sleep 30   # background memory writes, if any, land before the after-hash
 chk "(a) vergeet: memory file set hash before == after, marker absent before and after (hash + presence only)" "[ \"\$(memhash)\" = '$MH0' ] && [ '$MC0' = 0 ] && [ \"\$(xp \$(pod 3) sh -c \"grep -rlF '$MK' /opt/data/memories 2>/dev/null | wc -l\")\" = 0 ]"
 PNG='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 i1='[{"role":"user","content":[{"type":"text","text":"Wat zie je?"},{"type":"image_url","image_url":{"url":"data:image/png;base64,'$PNG'"}}]}]'
 i2='[{"role":"user","content":[{"type":"text","text":"Wat zie je?"},{"type":"image_url","image_url":{"url":"data:image/png;base64,'$PNG'"}}]},{"role":"assistant","content":"(antwoord)"},{"role":"user","content":"Welke kleur?"}]'
-chk "C7 image + next turn answered" "c7 '$i1' '$i2' image"
-FID=$(printf 'c010 synthetisch document: de kanarie is blauw.\n' | { printf 'header = "Authorization: Bearer %s"\n' "$TOK"; } | curl -s -K - -F "file=@-;filename=c010-canary.txt;type=text/plain" "$U/api/v1/files/" | jq -r '.id // empty')
+c7 "$i1" "$i2" image
+FID=""; pf_fresh "C7 document upload" && FID=$(printf 'c010 synthetisch document: de kanarie is blauw.\n' | { printf 'header = "Authorization: Bearer %s"\n' "$TOK"; } | curl -s -K - -F "file=@-;filename=c010-canary.txt;type=text/plain" "$U/api/v1/files/" | jq -r '.id // empty')
 d1='[{"role":"user","content":"Welke kleur heeft de kanarie in het document?"}]'
-SD=$(spend)
-chk "C7 document upload + next turn answered (RAG, C4 on)" "[ -n '$FID' ] && cid=\$(newchat) && [ \"\$(api '$TOK' POST /api/chat/completions '{\"model\":\"hermes-agent-profiel-3\",\"chat_id\":\"'\$cid'\",\"stream\":false,\"files\":[{\"type\":\"file\",\"id\":\"$FID\"}],\"messages\":$d1}' -o /dev/null -w '%{http_code}' -m 240)\" = 200 ] && [ \"\$(turn \$cid '[{\"role\":\"user\",\"content\":\"Welke kleur heeft de kanarie in het document?\"},{\"role\":\"assistant\",\"content\":\"(antwoord)\"},{\"role\":\"user\",\"content\":\"Dank je.\"}]')\" = 200 ]"
-chk "C7 document turns left the ledger unchanged" "[ \"\$(spend)\" = '$SD' ]"
+d2='[{"role":"user","content":"Welke kleur heeft de kanarie in het document?"},{"role":"assistant","content":"(antwoord)"},{"role":"user","content":"Dank je."}]'
+if [ -n "$FID" ]; then c7 "$d1" "$d2" document "[{\"type\":\"file\",\"id\":\"$FID\"}]"
+else log "  RED  C7 document: upload gave no file id"; printf 'document\tprivate\tred\tno_upload\t-\ndocument next\tnext\tred\tno_upload\t-\n' >> "$CACHE/f6.tsv"; fi
 sleep 15; N7=$(syns "$S1"); A1=$(access)
-log "  C7 hubble flows during private turns: $N7 (corroboration only); p3 completions +$((A1-A0)) (expect 10)"
-chk "W7 no family-cloud failure line during C7" "[ \$(( \$(fails) - $F7 )) = 0 ]"
-chk "C7 each turn was one p3 completion" "[ $((A1-A0)) = 10 ]"
+log "  C7 info (corroboration only): hubble flows $N7; p3 completions +$((A1-A0)); family-cloud failure lines +$(( $(fails) - F7 )); ledger unchanged over C7: $([ "$(spend)" = "$SL7" ] && echo yes || echo NO)"
+chk "F6 every private C7 turn + its next turn: route records == api_call_count increase, 0 cloud records (8 rows, all ok)" \
+  "[ \$(awk -F'\t' '\$3==\"ok\"' '$CACHE/f6.tsv' | wc -l) = 8 ] && [ \$(wc -l < '$CACHE/f6.tsv') = 8 ]"
+chk "F1 each next turn in the same chat after a private turn: Studio-only (rules: $(awk -F'\t' '$2=="next"{printf "%s=%s ", $1, $4}' "$CACHE/f6.tsv"))" \
+  "[ \$(awk -F'\t' '\$2==\"next\" && \$3==\"ok\"' '$CACHE/f6.tsv' | wc -l) = 4 ]"
+log "  info F1 same Hermes session as the private turn: $(awk -F'\t' '{s[$1]=$5} END {for (k in s) if (k ~ / next$/) {p=substr(k,1,length(k)-5); printf "%s=%s ", p, (s[k]==s[p] ? "yes" : "no")}}' "$CACHE/f6.tsv")"
+F2OUT=$(f2_check "$PUSH_E" "$F2WIN"); F2RC=$?; log "  $F2OUT (windows C6 $F2WIN)"
+log "F2 windows from=$PUSH_E c6=$F2WIN"   # read by go-session.sh for its own F2 over E3
+chk "F2 no cloud_ok route record outside the C6 windows since the push" "[ $F2RC = 0 ]"
 gate "C7"
 GO_FINISHED=1   # the only point after the push where golive may end without a rollback (RED is 0 here)
 
 RES=$([ $RED = 0 ] && echo GREEN || echo RED)
 log "RESULT go $RES (cloud ON for hermes-profiel-3 at $SHA)"
 "$REPO/ops/ops" change event $CHG executed --actor k8s-engineer --payload-json "$(jq -nc --arg s "$SHA" --arg ev "${EV#$REPO/}" --arg r "$RES" \
-  '{step:"land 2 go-live profiel-3 (C2-C7, W3-W7)", deploy:$s, result:$r, evidence:$ev, c7_wis:"in-pod replay (Argus 16:58:12Z a)",
+  '{step:"land 2 go-live profiel-3 (C2-C7, W3-W7; attempt 10: C6 2 cloud turns, C7 gated on F6/F1/F2, lesstof dropped)", deploy:$s, result:$r, evidence:$ev, c7_wis:"in-pod replay (Argus 16:58:12Z a)",
     authority:"uitgevoerd onder programmagoedkeuring family-ai; AGR-109: tests are the gate"}')" >/dev/null
 exit $RED

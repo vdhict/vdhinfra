@@ -48,7 +48,7 @@ chmod +x "$B/bin/"* "$B/hack/ops/"*
   grep '^gate() ' "$GOLIVE"
   sed -n '/^# >>> c010-exitguard/,/^# <<< c010-exitguard/p' "$GOLIVE"
 } > "$B/prelude.sh"
-C6C=$(grep -F 'chk "C6/(c) month.json rose on each of the 3 cloud turns"' "$GOLIVE")
+C6C=$(grep -F 'chk "C6/(c) month.json rose on each of the 2 cloud turns"' "$GOLIVE")   # attempt 10: C6 = 2 turns
 
 N=0
 run() { # $1 = scenario snippet; sets RC, RBN (rollback.sh calls), EVF (evidence file)
@@ -73,7 +73,7 @@ t "S5 go-session.sh has the c010-gs-fallback block (rolls back when the deploy i
   sed -n '/# >>> c010-gs-fallback/,/# <<< c010-gs-fallback/p' '$GS' | grep -q 'rollback_all'"
 
 # ---- the attempt-5 failure, verbatim
-run "PUSHED=$SHAX; D6=' 0 0 0'
+run "PUSHED=$SHAX; D6=' 0 0'
 $C6C
 echo alive >> \"\$C010_RB_LOG\"
 gate \"C6/W7\""

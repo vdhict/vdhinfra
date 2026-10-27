@@ -7,7 +7,7 @@
 # Mechanical, so the review is of this script, not of a hand step:
 #  1. the family-ai worktree is clean and at <fai-commit> (the reviewed render input, e.g. 32aae0c);
 #  2. render-bundle (same procedure as before; the zeevaart refusal after profiel-3 is tolerated only if profiel-3
-#     was written); config.yaml 0437f3f6, __init__.py 5c036956, plugin.yaml ba0794c5, cloud-SOUL.md b67506a7 by full
+#     was written); config.yaml 0437f3f6, __init__.py = hack/ops/chg-2026-10-20-010-pin-fc-init.txt, plugin.yaml ba0794c5, cloud-SOUL.md b67506a7 by full
 #     sha256; settings.json: workspace_id is wrkspc_<alnum> and settings.json minus workspace_id re-serialises to
 #     exactly the reviewed settings bytes d3ea565e (so the id is the ONLY change);
 #  3. derive-p3.sh and golive.sh: the settings.json pin d3ea565e -> sha256 of the new settings.json (one line each),
@@ -20,9 +20,13 @@ FAI="${1:?family-ai render worktree}"; FAI_COMMIT="${2:?family-ai commit}"; REVE
 SRC="$(git rev-parse --show-toplevel)"; HACK="$SRC/hack"; CHG=chg-2026-10-20-010
 TS=$(date -u +%Y%m%dT%H%M%SZ); OUT="$HOME/.cache/$CHG/finalize-ws-$TS"; mkdir -p "$OUT"; chmod 700 "$OUT"
 OLD_SET=d3ea565e3280419b44567f57b87050d644cb25e26b015091eadb71ea99b7c542
+fc_init_pin() { # the family-cloud __init__.py pin from hack/ops/chg-2026-10-20-010-pin-fc-init.txt (64 hex or nothing)
+  awk '!/^#/ && NF {if ($2 == "plugins/model-providers/family-cloud/__init__.py" && $1 ~ /^[0-9a-f]+$/ && length($1) == 64) print $1; exit}' "$1"; }
+FC_INIT_PIN=$(fc_init_pin "$HACK/ops/$CHG-pin-fc-init.txt")
 sha() { shasum -a 256 "$1" | cut -d' ' -f1; }
 die() { echo "REFUSED: $*" >&2; exit 1; }
 [ -z "$(git -C "$SRC" status --porcelain)" ] || die "vdhinfra worktree not clean"
+[ ${#FC_INIT_PIN} = 64 ] || die "no valid family-cloud __init__.py pin in hack/ops/$CHG-pin-fc-init.txt"
 [ "$(git -C "$FAI" rev-parse HEAD)" = "$(git -C "$FAI" rev-parse "$FAI_COMMIT")" ] || die "family-ai worktree not at $FAI_COMMIT"
 [ -z "$(git -C "$FAI" status --porcelain)" ] || die "family-ai worktree not clean"
 git -C "$SRC" merge-base --is-ancestor "$REVERT" HEAD || die "$REVERT is not in this tree"
@@ -31,7 +35,7 @@ git -C "$SRC" merge-base --is-ancestor "$REVERT" HEAD || die "$REVERT is not in 
 R="$OUT/render/profiel-3"; [ -d "$R" ] || die "render wrote no profiel-3 (see $OUT/render.log)"
 C="$R/plugins/model-providers/family-cloud"
 for pin in "0437f3f6b58ecbc993bb00b1d7d7ab7c980ffb2da4fab715d884dd92c4e1b29f config.yaml" \
-           "5c03695624140c0e0afe23e50d18ebb2b37ddbace7fb0c47cc8fde56c777fa33 plugins/model-providers/family-cloud/__init__.py" \
+           "$FC_INIT_PIN plugins/model-providers/family-cloud/__init__.py" \
            "ba0794c5647d780f2edfddc806ba58f7519e80cc9975c86be7f0c7e950af4046 plugins/model-providers/family-cloud/plugin.yaml" \
            "b67506a71c1f29cbbacee91e487ad74c5a8736a32047cf6575ac61c70b356fd0 plugins/model-providers/family-cloud/cloud-SOUL.md"; do
   set -- $pin; [ "$(sha "$R/$2")" = "$1" ] || die "render pin mismatch: $2"
@@ -49,12 +53,18 @@ PY
 NEW_SET=$(sha "$C/settings.json")
 echo "finalize: render pins OK; settings.json = reviewed bytes + a valid workspace_id (not printed); new settings sha256 $NEW_SET"
 # 3 pins
+# attempt 10: idempotent. A file that already holds exactly the NEW pin (an earlier finalize, same settings bytes) is
+# left alone; no pin commit when nothing changed. Anything else than "one OLD pin" or "one NEW pin" refuses.
 for f in "$HACK/ops/$CHG-derive-p3.sh" "$HACK/ops/$CHG-golive.sh"; do
-  [ "$(grep -c "$OLD_SET" "$f")" = 1 ] || die "expected exactly one settings pin in ${f#$SRC/}"
-  sed -i '' "s/$OLD_SET/$NEW_SET/" "$f"
-  [ "$(grep -c "$NEW_SET" "$f")" = 1 ] || die "pin update failed in ${f#$SRC/}"
+  if [ "$(grep -c "$OLD_SET" "$f")" = 1 ]; then
+    sed -i '' "s/$OLD_SET/$NEW_SET/" "$f"
+    [ "$(grep -c "$NEW_SET" "$f")" = 1 ] || die "pin update failed in ${f#$SRC/}"
+  elif [ "$(grep -c "$NEW_SET" "$f")" = 1 ]; then
+    echo "finalize: ${f#$SRC/} already pins settings.json ${NEW_SET:0:12}"
+  else die "expected exactly one settings pin (${OLD_SET:0:8} or ${NEW_SET:0:8}) in ${f#$SRC/}"; fi
 done
 git -C "$SRC" add "$HACK/ops/$CHG-derive-p3.sh" "$HACK/ops/$CHG-golive.sh"
+if git -C "$SRC" diff --cached --quiet; then echo "finalize: settings pins unchanged, no pin commit"; else
 git -C "$SRC" -c user.name="${GIT_AUTHOR_NAME:-Sander van der Heijden}" -c user.email="${GIT_AUTHOR_EMAIL:-sheijden@vdhmini01.vdh.lan}" commit -q -F - <<EOF
 chore(ops): $CHG pin settings.json with the owner's workspace id (family-ai $(git -C "$FAI" rev-parse --short HEAD))
 
@@ -65,6 +75,7 @@ Uitgevoerd onder programmagoedkeuring family-ai (geldig tot 2026-10-31). AGR-109
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 EOF
+fi
 PIN_COMMIT=$(git -C "$SRC" rev-parse HEAD)
 # 4 derive + bundle + wiring
 ( cd "$SRC" && bash "$HACK/ops/$CHG-derive-p3.sh" "$OUT/render" "$OUT/derive" > "$OUT/derive.log" 2>&1 ) || die "derive-p3 refused (see $OUT/derive.log)"

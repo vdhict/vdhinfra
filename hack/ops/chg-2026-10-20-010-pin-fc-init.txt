@@ -1,0 +1,4 @@
+# chg-2026-10-20-010: THE one pin of family-cloud __init__.py (full sha256 of the rendered plugin file, two spaces, path).
+# Read by golive.sh (C2 offline pins), derive-p3.sh (render pin) and finalize-ws.sh (render pin); a family-ai rewrite of
+# __init__.py changes exactly the hash below (one line, one commit). The first non-comment line counts.
+5c03695624140c0e0afe23e50d18ebb2b37ddbace7fb0c47cc8fde56c777fa33  plugins/model-providers/family-cloud/__init__.py
