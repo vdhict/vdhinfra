@@ -7,7 +7,9 @@ pre:  gezin from the pod (deployed), family-cloud from stdin; post: both from /o
 Every loaded file must hash-equal its bundle pin.
 
 (b) The replay input is the system prompt this pod's own Hermes built and stored for its newest profiel-3 session
-    (state.db, mode=ro; post: a session started at/after <since>, i.e. the canary's). It stays in memory, is never
+    (state.db, mode=ro; post: a session ACTIVE at/after <since>, i.e. the one the canary's turns went into: Hermes
+    appends header-less API turns to an existing api_server session, so started_at can predate the canary; attempt 8
+    RED 27-10 21:55Z). It stays in memory, is never
     printed or stored. family-cloud's cloud_request() must turn it into exactly one system message whose sha256
     equals sha256(cloud-SOUL.strip() + "\\n\\n" + date_line()), and no other system/developer text.
 (a) wis: the real gezin hook on "wis mijn geheugen" with ONLY wis_alles stubbed (records the call, wipes nothing);
@@ -61,8 +63,9 @@ gz = load("gezin/__init__.py", "c010_gezin")
 # ---- (b) system text from the pod's own Hermes prompt
 db = sqlite3.connect("file:/opt/data/state.db?mode=ro", uri=True)
 row = db.execute("select coalesce(s.system_prompt, p.prompt), s.started_at from sessions s left join system_prompts p "
-                 "on p.hash = s.system_prompt_hash where s.source = 'api_server' and s.started_at >= ? "
-                 "order by s.started_at desc limit 1", (float(inp.get("since") or 0),)).fetchone()
+                 "on p.hash = s.system_prompt_hash where s.source = 'api_server' "
+                 "and coalesce(s.last_activity_at, s.started_at) >= ? "
+                 "order by coalesce(s.last_activity_at, s.started_at) desc limit 1", (float(inp.get("since") or 0),)).fetchone()
 ok["hermes prompt found"] = bool(row and row[0])
 agent = types.SimpleNamespace(_memory_store=object(), _memory_manager=None, session_id="c010-replay")
 if row and row[0]:
