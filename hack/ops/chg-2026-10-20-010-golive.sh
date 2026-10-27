@@ -897,7 +897,10 @@ PNG='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKm
 i1='[{"role":"user","content":[{"type":"text","text":"Wat zie je?"},{"type":"image_url","image_url":{"url":"data:image/png;base64,'$PNG'"}}]}]'
 i2='[{"role":"user","content":[{"type":"text","text":"Wat zie je?"},{"type":"image_url","image_url":{"url":"data:image/png;base64,'$PNG'"}}]},{"role":"assistant","content":"(antwoord)"},{"role":"user","content":"Welke kleur?"}]'
 c7 "$i1" "$i2" image
-FID=""; pf_fresh "C7 document upload" && FID=$(printf 'c010 synthetisch document: de kanarie is blauw.\n' | { printf 'header = "Authorization: Bearer %s"\n' "$TOK"; } | curl -s -K - -F "file=@-;filename=c010-canary.txt;type=text/plain" "$U/api/v1/files/" | jq -r '.id // empty')
+# the synthetic document goes from a file in the run's 0700 cache dir; stdin carries only the curl config (token).
+# (Attempts 9 and 10 sent an empty upload: the text was piped into a block that ignored it and file=@- shared stdin with -K -.)
+printf 'c010 synthetisch document: de kanarie is blauw.\n' > "$CACHE/c010-canary.txt"
+FID=""; pf_fresh "C7 document upload" && FID=$(printf 'header = "Authorization: Bearer %s"\n' "$TOK" | curl -s -K - -F "file=@$CACHE/c010-canary.txt;filename=c010-canary.txt;type=text/plain" "$U/api/v1/files/" | jq -r '.id // empty')
 d1='[{"role":"user","content":"Welke kleur heeft de kanarie in het document?"}]'
 d2='[{"role":"user","content":"Welke kleur heeft de kanarie in het document?"},{"role":"assistant","content":"(antwoord)"},{"role":"user","content":"Dank je."}]'
 if [ -n "$FID" ]; then c7 "$d1" "$d2" document "[{\"type\":\"file\",\"id\":\"$FID\"}]"

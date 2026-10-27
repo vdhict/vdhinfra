@@ -221,6 +221,9 @@ L5=$(printf '%s\n' "$C7S" | grep '^chk "C7 ledger (month.json) unchanged' | sed 
 L5C=$(SL7=L; eval "printf '%s' $L5")
 t "C5 the C7 ledger gate goes RED when month.json changed over C7 (refusal/guard_* after a billed call) and passes when unchanged" bash -c "
   spend() { echo L2; }; ! eval \"\$1\" && spend() { echo L; } && eval \"\$1\"" _ "$L5C"
+UPL=$(printf '%s\n' "$C7S" | grep -F 'api/v1/files/')
+t "C6 C7 document upload sends the synthetic text from a cache file; stdin carries only the curl config (no file=@-)" bash -c "
+  ! printf '%s' \"\$1\" | grep -qF 'file=@-' && printf '%s' \"\$1\" | grep -qF 'file=@\$CACHE/c010-canary.txt;' && printf '%s\\n' \"\$2\" | grep -qF '> \"\$CACHE/c010-canary.txt\"'" _ "$UPL" "$C7S"
 t "C4 pturn runs outside chk (its F6_ABORT and port-forward state survive between turns)" bash -c "! printf '%s' \"\$1\" | grep -q '^chk .*c7 '" _ "$C7S"
 C6TURNS=$(sed -n '/^C6E=\$(date +%s)/,/^done; unset a m/p' "$GOLIVE" | grep -c '^for q in "\$q2" ""; do$')
 E3N=$(grep -c 'turn("E3 header-less public first turn"' "$GS")
