@@ -67,10 +67,12 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 EOF
 PIN_COMMIT=$(git -C "$SRC" rev-parse HEAD)
 # 4 derive + bundle + wiring
-( cd "$SRC" && bash "$HACK/ops/$CHG-derive-p3.sh" "$OUT/render" "$OUT/derive" | head -1 )
+( cd "$SRC" && bash "$HACK/ops/$CHG-derive-p3.sh" "$OUT/render" "$OUT/derive" > "$OUT/derive.log" 2>&1 ) || die "derive-p3 refused (see $OUT/derive.log)"
+head -1 "$OUT/derive.log"
 DL="$OUT/derive/8d8d27a-web7m6-huiswerk1-lesstof4-f4-cloud-$(git -C "$FAI" rev-parse --short HEAD)-ws"
 mv "$OUT/derive/delivery" "$DL"
-( cd "$SRC" && git revert --no-commit "$REVERT" && bash "$HACK/family-ai/build-bundle.sh" 3 "$DL" | tail -1 | sed "s#$SRC/##" )
+( cd "$SRC" && git revert --no-commit "$REVERT" && bash "$HACK/family-ai/build-bundle.sh" 3 "$DL" > "$OUT/build.log" 2>&1 ) || die "revert or build-bundle failed (see $OUT/build.log)"
+tail -1 "$OUT/build.log" | sed "s#$SRC/##"
 git -C "$SRC" add kubernetes/main/apps/family-ai/hermes/profiel-3/bundle.sops.yaml
 OUTER=$(grep -o 'bundle.tar.gz sha256 [0-9a-f]\{64\}' "$SRC/kubernetes/main/apps/family-ai/hermes/profiel-3/bundle.sops.yaml" | awk '{print $3}')
 git -C "$SRC" -c user.name="${GIT_AUTHOR_NAME:-Sander van der Heijden}" -c user.email="${GIT_AUTHOR_EMAIL:-sheijden@vdhmini01.vdh.lan}" commit -q -F - <<EOF
