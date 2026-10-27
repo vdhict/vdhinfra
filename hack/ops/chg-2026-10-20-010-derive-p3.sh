@@ -2,8 +2,8 @@
 # chg-2026-10-20-010 land 2 (cloud on profiel-3 only): derived delivery = what is LIVE on profiel-3 (bundle from
 # origin/main, outer sha256 fe64b2a1, delivery 8d8d27a-web7m6-huiswerk1-lesstof4-f4 = chg-2026-10-25-002 F4, Argus D1-D6)
 # with config.yaml replaced and the
-# 4 family-cloud files added, all 5 taken from the family-ai render of land2-cloud-v0225-routelog 5a9a361 (= 2634ce0
-# + the per-turn route INFO line, attempt-6 item c; __init__.py 650bd56f -> 6e37b842, the other 4 pins unchanged) (family-cloud ported
+# 4 family-cloud files added, all 5 taken from the family-ai render of land2-cloud-v0225-routelog d50234d (= 2634ce0
+# + route INFO line 5a9a361 + route record file d50234d; __init__.py 650bd56f -> 293db02e, the other 4 pins unchanged) (family-cloud ported
 # to Hermes v0.22.5, on Mack's lesstof-v5-f4 480456c; plugin.yaml/settings.json/cloud-SOUL.md unchanged since 1e8f887)
 # and checked against full sha256 pins.
 # Nothing else may differ: the other live files must be byte-equal in live and in the render (no exceptions: F4 is
@@ -20,7 +20,7 @@ ROOT="$(git rev-parse --show-toplevel)"
 LIVE_OUTER=fe64b2a128258e45d23c70b1cb642ceae1750ce901891f59b667cc3e860274f2
 # bash 3.2 (macOS): no associative arrays; one "sha256 path" per line
 PINS='0437f3f6b58ecbc993bb00b1d7d7ab7c980ffb2da4fab715d884dd92c4e1b29f config.yaml
-6e37b842f78389de8173d44e728cc2f2bc88025a86cc487425bebc3d94daf260 plugins/model-providers/family-cloud/__init__.py
+293db02e147ffc65024790a180c9ab18fde9a92465e1be843b719d9953ce8c26 plugins/model-providers/family-cloud/__init__.py
 ba0794c5647d780f2edfddc806ba58f7519e80cc9975c86be7f0c7e950af4046 plugins/model-providers/family-cloud/plugin.yaml
 d3ea565e3280419b44567f57b87050d644cb25e26b015091eadb71ea99b7c542 plugins/model-providers/family-cloud/settings.json
 b67506a71c1f29cbbacee91e487ad74c5a8736a32047cf6575ac61c70b356fd0 plugins/model-providers/family-cloud/cloud-SOUL.md'
