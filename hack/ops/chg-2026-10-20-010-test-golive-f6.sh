@@ -215,8 +215,12 @@ C7S=$(sed -n '/^# C7 (attempt 10/,/^gate "C7"$/p' "$GOLIVE")
 t "C1 C7 has no lesstof turn (AGR-073; saves a cloud turn): no non-comment line names it" bash -c "! printf '%s\n' \"\$1\" | grep -v '^#' | grep -qi 'lesstof\|fotosynthese'" _ "$C7S"
 t "C2 C7 runs exactly 4 private chats via c7 (huiswerk, vergeet, image, document) and gates F6 on 8 rows, F1 on 4" bash -c "
   [ \$(printf '%s\n' \"\$1\" | grep -cE '^(if .*then )?c7 ') = 4 ] && printf '%s' \"\$1\" | grep -q 'wc -l) = 8 \]' && printf '%s' \"\$1\" | grep -q 'wc -l) = 4 \]'" _ "$C7S"
-t "C3 C7 keeps the vergeet memory-hash gate (a); ledger/completions/hubble/failure lines are info only" bash -c "
-  printf '%s' \"\$1\" | grep -q '^chk \"(a) vergeet' && ! printf '%s' \"\$1\" | grep -q '^chk \"C7 each turn was one p3 completion\|^chk \"W7 no family-cloud failure line during C7'" _ "$C7S"
+t "C3 C7 keeps the vergeet memory-hash gate (a) and the ledger gate (Argus 23:03:54Z); completions/hubble/failure lines are info only" bash -c "
+  printf '%s' \"\$1\" | grep -q '^chk \"(a) vergeet' && printf '%s' \"\$1\" | grep -q '^chk \"C7 ledger (month.json) unchanged' && ! printf '%s' \"\$1\" | grep -q '^chk \"C7 each turn was one p3 completion\|^chk \"W7 no family-cloud failure line during C7'" _ "$C7S"
+L5=$(printf '%s\n' "$C7S" | grep '^chk "C7 ledger (month.json) unchanged' | sed -E 's/^chk "[^"]*" //')
+L5C=$(SL7=L; eval "printf '%s' $L5")
+t "C5 the C7 ledger gate goes RED when month.json changed over C7 (refusal/guard_* after a billed call) and passes when unchanged" bash -c "
+  spend() { echo L2; }; ! eval \"\$1\" && spend() { echo L; } && eval \"\$1\"" _ "$L5C"
 t "C4 pturn runs outside chk (its F6_ABORT and port-forward state survive between turns)" bash -c "! printf '%s' \"\$1\" | grep -q '^chk .*c7 '" _ "$C7S"
 C6TURNS=$(sed -n '/^C6E=\$(date +%s)/,/^done; unset a m/p' "$GOLIVE" | grep -c '^for q in "\$q2" ""; do$')
 E3N=$(grep -c 'turn("E3 header-less public first turn"' "$GS")

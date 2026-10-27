@@ -873,7 +873,9 @@ gate "C6/W7"
 # next turn, same chat, neutral question, Studio-only, rule name logged) and F2 (no cloud_ok outside the C6 windows).
 # The vergeet memory hash (a) stays a gate: it guards against deleting real memory, not a routing criterion.
 # Lesstof dropped (AGR-073: school books may go to the cloud): no F-check needs it and it saves a cloud turn.
-# Ledger hash, completion count, Hubble flows and family-cloud failure lines: info only (corroboration).
+# Ledger (month.json hash) unchanged over C7: a GATE (Argus 23:03:54Z condition 1: a billed cloud call that the plugin
+# logs as studio/refusal or studio/guard_* has no cloud record, so F6 alone misses it). Completion count, Hubble flows
+# and family-cloud failure lines: info only (corroboration).
 # Turns run strictly one after another (pturn waits for the server-side turn); the chat id is made on a fresh
 # port-forward. Each pturn writes one row to $CACHE/f6.tsv; the chks read that file (pturn runs outside chk).
 : > "$CACHE/f6.tsv"
@@ -901,7 +903,8 @@ d2='[{"role":"user","content":"Welke kleur heeft de kanarie in het document?"},{
 if [ -n "$FID" ]; then c7 "$d1" "$d2" document "[{\"type\":\"file\",\"id\":\"$FID\"}]"
 else log "  RED  C7 document: upload gave no file id"; printf 'document\tprivate\tred\tno_upload\t-\ndocument next\tnext\tred\tno_upload\t-\n' >> "$CACHE/f6.tsv"; fi
 sleep 15; N7=$(syns "$S1"); A1=$(access)
-log "  C7 info (corroboration only): hubble flows $N7; p3 completions +$((A1-A0)); family-cloud failure lines +$(( $(fails) - F7 )); ledger unchanged over C7: $([ "$(spend)" = "$SL7" ] && echo yes || echo NO)"
+log "  C7 info (corroboration only): hubble flows $N7; p3 completions +$((A1-A0)); family-cloud failure lines +$(( $(fails) - F7 ))"
+chk "C7 ledger (month.json) unchanged over all C7 turns (a billed cloud call logged as refusal/guard_* has no cloud record)" "[ \"\$(spend)\" = '$SL7' ]"
 chk "F6 every private C7 turn + its next turn: route records == api_call_count increase, 0 cloud records (8 rows, all ok)" \
   "[ \$(awk -F'\t' '\$3==\"ok\"' '$CACHE/f6.tsv' | wc -l) = 8 ] && [ \$(wc -l < '$CACHE/f6.tsv') = 8 ]"
 chk "F1 each next turn in the same chat after a private turn: Studio-only (rules: $(awk -F'\t' '$2=="next"{printf "%s=%s ", $1, $4}' "$CACHE/f6.tsv"))" \
