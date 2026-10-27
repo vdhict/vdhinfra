@@ -177,6 +177,43 @@ rollback_core() { # the rollback itself; also run by the exit guard (c010-exitgu
   revoke_token "rollback push"
 }
 # <<< c010-auth
+# >>> c010-a8 (attempt-7 fix, 27-10; sourced as-is by hack/ops/chg-2026-10-20-010-test-golive-a8.sh)
+# Attempt 7 failed at the cloud with HTTP 400: the org-scoped key needs anthropic-workspace-id (Atlas 16:22:30Z). Two
+# free checks (POST /v1/messages/count_tokens, synthetic text, nothing billed), status number only:
+#  A8a before the push, from the Mini's egress: the bundle's settings (workspace_id, model) + the 1Password key
+#      (op read; no session -> RED, nothing pushed). The key goes to curl on stdin only, never argv/output/files.
+#  A8b after the push, before C4: in the p3 pod, the deployed plugin's own count_tokens_status() = the production
+#      client (pinned TLS), headers and settings, through the deployed CNP (unchanged).
+C010_CLOUD_KEY_REF="${C010_CLOUD_KEY_REF:-op://home-infra/hermes-antrophic-api-key/credential}"
+a8_mini() { # $1 = the bundle's settings.json ; prints one "A8a ..." line ; rc 0 iff HTTP 200
+  local s="$1" ws model key code body url
+  ws=$(python3 -I -c 'import json,re,sys; d=json.load(open(sys.argv[1])); w=d.get("workspace_id"); print(w if isinstance(w,str) and re.fullmatch(r"wrkspc_[A-Za-z0-9]+", w) else "")' "$s" 2>/dev/null)
+  [ -n "$ws" ] || { echo "A8a no valid workspace_id in the bundle settings (placeholder?): no call"; return 1; }
+  model=$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["model"])' "$s" 2>/dev/null)
+  [[ "$model" =~ ^[A-Za-z0-9._-]{1,80}$ ]] || { echo "A8a bundle model unreadable: no call"; return 1; }
+  url="https://api.anthropic.com/v1/messages/count_tokens"
+  if [ -n "${C010_A8_URL:-}" ]; then   # test only: a loopback fake, never another host
+    [[ "$C010_A8_URL" =~ ^http://127\.0\.0\.1:[0-9]{2,5}/ ]] || { echo "A8a refused test URL override"; return 1; }; url="$C010_A8_URL"; fi
+  if [ -n "${C010_CLOUD_KEY_CMD:-}" ]; then key="$("$C010_CLOUD_KEY_CMD" 2>/dev/null)"; else key="$(op read "$C010_CLOUD_KEY_REF" 2>/dev/null)"; fi
+  [[ "$key" =~ ^sk-ant-[A-Za-z0-9_-]{40,}$ ]] || { key=""; echo "A8a cloud key not readable (1Password session?): no call"; return 1; }
+  body=$(python3 -I -c 'import json,sys; print(json.dumps({"model": sys.argv[1], "messages": [{"role": "user", "content": "synthetic token count"}]}))' "$model")
+  code=$({ printf 'header = "x-api-key: %s"\n' "$key"; printf 'header = "anthropic-version: 2023-06-01"\n'
+           printf 'header = "anthropic-workspace-id: %s"\n' "$ws"; printf 'header = "content-type: application/json"\n'; } \
+         | curl -s -K - -o /dev/null -w '%{http_code}' --max-time 30 -X POST --data-binary "$body" "$url")
+  key=""
+  echo "A8a count_tokens status ${code:-none} (Mini egress; free, synthetic)"; [ "$code" = 200 ]; }
+A8B_PY='import importlib.util, json, os, sys
+root, plugin = "/opt/hermes", "/opt/data/plugins/model-providers/family-cloud/__init__.py"
+os.chdir(root); sys.path.insert(0, root)
+try:
+    spec = importlib.util.spec_from_file_location("c010_a8_plugin", plugin)
+    mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+    settings = json.load(open(os.path.join(os.path.dirname(plugin), "settings.json")))
+    print("A8b count_tokens status %s (in-pod, production client + headers; free, synthetic)" % mod.count_tokens_status(settings))
+except Exception as e:
+    print("A8b error %s" % type(e).__name__)'
+a8_pod() { xp "$1" env PYTHONDONTWRITEBYTECODE=1 /opt/hermes/.venv/bin/python -c "$A8B_PY" 2>/dev/null | grep '^A8b ' | tail -1; }
+# <<< c010-a8
 # >>> c010-exitguard (attempt-5 fix, 27-10; sourced as-is by hack/ops/chg-2026-10-20-010-test-golive-exit.sh)
 # Once the deploy is pushed, golive may end in exactly two ways: GREEN (GO_FINISHED=1 after gate "C7") or after
 # rollback(). ANY other end (a check body or helper that exits, set -u on an unbound variable, a crash, INT/TERM/HUP)
@@ -348,12 +385,14 @@ chk "C2 offline: vs main only config.yaml changed + 4 family-cloud added" \
   "[ \"\$(diff -rq '$CACHE/main' '$CACHE/new' | sed 's#$CACHE/##g' | LC_ALL=C sort)\" = \"\$(printf '%s\n' 'Files main/SHA256SUMS and new/SHA256SUMS differ' 'Files main/config.yaml and new/config.yaml differ' 'Only in new/plugins/model-providers: family-cloud' | LC_ALL=C sort)\" ] && [ \"\$(ls '$CACHE/new/plugins/model-providers/family-cloud' | tr '\n' ' ')\" = '__init__.py cloud-SOUL.md plugin.yaml settings.json ' ]"
 chk "C2 offline: pins" "cd '$CACHE/new' && printf '%s\n' \
   '0437f3f6b58ecbc993bb00b1d7d7ab7c980ffb2da4fab715d884dd92c4e1b29f  config.yaml' \
-  'bd0ffb6c43b0eb5979148b2e3490c086d4338dbc1f43e71406d859772edaec22  plugins/model-providers/family-cloud/__init__.py' \
+  '5c03695624140c0e0afe23e50d18ebb2b37ddbace7fb0c47cc8fde56c777fa33  plugins/model-providers/family-cloud/__init__.py' \
   'ba0794c5647d780f2edfddc806ba58f7519e80cc9975c86be7f0c7e950af4046  plugins/model-providers/family-cloud/plugin.yaml' \
   'd3ea565e3280419b44567f57b87050d644cb25e26b015091eadb71ea99b7c542  plugins/model-providers/family-cloud/settings.json' \
   'b67506a71c1f29cbbacee91e487ad74c5a8736a32047cf6575ac61c70b356fd0  plugins/model-providers/family-cloud/cloud-SOUL.md' | shasum -a 256 -c --strict --quiet"
 # Attempt 7 (c): the admission must hold against the REAL v0.22.5 gateway, not only synthetic frames. Run the required
 # family-ai test on the record checkout ($FAMILY_AI_REPO), after proving its plugin bytes are exactly the bundle's.
+chk "A8a free count_tokens from the Mini with the bundle's workspace_id + model and the 1Password key = 200" \
+  "a8_mini '$CACHE/new/plugins/model-providers/family-cloud/settings.json' | tee -a '$EV' | grep -q '^A8a count_tokens status 200 '"
 chk "A7 admission vs the real v0.22.5 gateway: record checkout plugin == bundle plugin, test_cloudmodel_realgateway 7/7 (required)" \
   "[ \"\$(shasum -a 256 '$FAMILY_AI_REPO/plugin/model-providers/family-cloud/__init__.py' | cut -d' ' -f1)\" = \"\$(shasum -a 256 '$CACHE/new/plugins/model-providers/family-cloud/__init__.py' | cut -d' ' -f1)\" ] && (cd '$FAMILY_AI_REPO' && FAMILY_AI_REQUIRE_REAL_GATEWAY=1 python3 -m unittest tests.test_cloudmodel_realgateway 2>&1 | tail -1 | grep -qx OK)"
 chk "W3/W4/W5/W6 render check + mutation self-test" \
@@ -491,6 +530,10 @@ chk "p3 restart rollout" "kubectl -n $NS rollout status deploy/hermes-profiel-3 
 post_checks after-restart
 chk "W6/W2b restart: month.json byte-equal, guard kept it and never re-created it" "[ \"\$(xp \$(pod 3) sha256sum /cloud-spend/month.json | cut -c1-64)\" = '$MJ1' ] && kubectl -n $NS logs \$(pod 3) -c cloud-spend-init | grep -q 'present, kept' && ! kubectl -n $NS logs \$(pod 3) -c cloud-spend-init | grep -q 'created\|REFUSED'"
 gate "restart checks"
+A8B=$(a8_pod "$(pod 3)"); log "  info ${A8B:-A8b no output}"
+chk "A8b in-pod count_tokens on the deployed plugin + settings + CNP = 200 (free, synthetic)" \
+  "[ \"$A8B\" = 'A8b count_tokens status 200 (in-pod, production client + headers; free, synthetic)' ]"
+gate "A8 count_tokens"
 P3=$(pod 3)
 
 # ---------------------------------------------------------------- C4 + C5 (OWUI)
