@@ -54,7 +54,7 @@ W2TS=""; while [ $# -gt 0 ]; do case "$1" in --w2-event) W2TS="$2"; shift 2;; *)
 REPO="${VDH_REPO:-/Users/sheijden/Code/homelab-migration/vdhinfra}"
 SRC="$(git rev-parse --show-toplevel)"            # the worktree holding the deploy commit
 HACK="$SRC/hack"; NS=family-ai; CHG=chg-2026-10-20-010
-# the automatic rollback needs a land2-cloud-v0225 checkout (the branch the deployed render comes from, 2634ce0); the
+# the automatic rollback needs a land2-cloud-v0225 checkout (the branch of record; the deployed render is 5a9a361 = 2634ce0 + route line); the
 # main family-ai checkout may be on another branch
 export FAMILY_AI_REPO="${FAMILY_AI_REPO:-$HOME/.cache/$CHG/fai-cutoff-wt-v0225}"
 PIN_IMAGE="docker.io/nousresearch/hermes-agent:v0.22.5@sha256:9c5561579f3ffdf333401797094ac3a743738d6c25d40f4331c7bf77b694238d"   # = main hermes/base (f2c88fa3)
@@ -348,7 +348,7 @@ chk "C2 offline: vs main only config.yaml changed + 4 family-cloud added" \
   "[ \"\$(diff -rq '$CACHE/main' '$CACHE/new' | sed 's#$CACHE/##g' | LC_ALL=C sort)\" = \"\$(printf '%s\n' 'Files main/SHA256SUMS and new/SHA256SUMS differ' 'Files main/config.yaml and new/config.yaml differ' 'Only in new/plugins/model-providers: family-cloud' | LC_ALL=C sort)\" ] && [ \"\$(ls '$CACHE/new/plugins/model-providers/family-cloud' | tr '\n' ' ')\" = '__init__.py cloud-SOUL.md plugin.yaml settings.json ' ]"
 chk "C2 offline: pins" "cd '$CACHE/new' && printf '%s\n' \
   '0437f3f6b58ecbc993bb00b1d7d7ab7c980ffb2da4fab715d884dd92c4e1b29f  config.yaml' \
-  '650bd56f7d234e94c5d749e2a86d55f73d9f6a4148c313edef8c23c6fd8d9f83  plugins/model-providers/family-cloud/__init__.py' \
+  '6e37b842f78389de8173d44e728cc2f2bc88025a86cc487425bebc3d94daf260  plugins/model-providers/family-cloud/__init__.py' \
   'ba0794c5647d780f2edfddc806ba58f7519e80cc9975c86be7f0c7e950af4046  plugins/model-providers/family-cloud/plugin.yaml' \
   'd3ea565e3280419b44567f57b87050d644cb25e26b015091eadb71ea99b7c542  plugins/model-providers/family-cloud/settings.json' \
   'b67506a71c1f29cbbacee91e487ad74c5a8736a32047cf6575ac61c70b356fd0  plugins/model-providers/family-cloud/cloud-SOUL.md' | shasum -a 256 -c --strict --quiet"
