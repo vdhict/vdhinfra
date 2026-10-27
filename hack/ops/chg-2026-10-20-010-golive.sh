@@ -510,9 +510,11 @@ log "== C6/W7/C7 synthetic canary"
 # and golive recorded neither curl codes nor sizes. Now: liveness before/after every canary call, re-open + log on loss
 # (as go-session pf_up); per-turn metadata with the answer unread; and C6 judged on the ROUTE p3 itself took.
 # NB the id OWUI returns is minted by Hermes' API server (api_server_openai_routes.py: chatcmpl-<uuid>) on EVERY turn,
-# so the client id class is logged as metadata only. The provider id class is read from p3's own "API call #N ...
-# id=<provider id>" line (family-cloud passes the provider id through: msg_* = Anthropic, chatcmpl-* = Studio), next
-# to the plugin's route line "family-cloud: route=<cloud|studio> rule=<name>" (family-ai 5a9a361).
+# so the client id class is logged as metadata only. The route and the PROVIDER id class come from the family-cloud
+# plugin's own route record file /opt/data/family-cloud-route.jsonl (family-ai d50234d: one JSON line per routed
+# turn, exactly ts/route/rule/id_class; msg_ = Anthropic, chatcmpl- = Studio). Argus 27-10 15:21:18Z: C6 never opens
+# agent.log (its lines carry user text that can forge a route line); exactly ONE record per turn window, any other
+# count is RED "inconclusive" and only the count is logged.
 PF="${PF:-}"; PORT="${PORT:-}"; PF_REOPEN=0
 pf_alive() { [ -n "$PF" ] && kill -0 "$PF" 2>/dev/null && nc -z 127.0.0.1 "$PORT" 2>/dev/null; }
 pf_up() { # (re)open the port-forward to the OWUI pod; sets PORT, PF, U
@@ -546,41 +548,44 @@ elif d is not None:
     out["json"] = "yes"
 print(" ".join("%s=%s" % kv for kv in out.items()))'
 resp_meta() { /usr/bin/python3 -I -c "$RESP_META_PY"; }
-# In p3 (argv: start end [files]): route lines and provider id classes of API calls logged in [start, end] (pod
-# epoch seconds, log timestamps are pod-local). Extracts two fixed fields per line by regex; prints JSON only.
-C6LOG_PY='import sys, re, json, time
+# In p3 (argv: start end [files]): the route records with ts in [start, end] (epoch seconds, pod clock). Reads ONLY
+# the plugin's route record file (+ its .1); never agent.log. A record must be one JSON object with exactly ts/route/
+# rule/id_class and allowed values; a line that is not is counted as malformed (last 500 lines per file). Prints
+# JSON: count + malformed, and the record fields only when count == 1.
+C6LOG_PY='import sys, re, json
 start, end = float(sys.argv[1]), float(sys.argv[2])
-files = sys.argv[3:] or ["/opt/data/logs/agent.log.1", "/opt/data/logs/agent.log"]
-TS = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d),\d+ ")
-ROUTE = re.compile(r" family-cloud: route=(cloud|studio) rule=([A-Za-z_]{1,48})$")
-CALL = re.compile(r" API call #\d+: .*\bid=(\S+)")
-out = {"route": [], "api_id_class": []}
+files = sys.argv[3:] or ["/opt/data/family-cloud-route.jsonl.1", "/opt/data/family-cloud-route.jsonl"]
+RULE = re.compile(r"[A-Za-z_]{1,48}")
+hits, bad = [], 0
 for f in files:
-    try: fh = open(f, errors="replace")
+    try: fh = open(f, "rb")
     except OSError: continue
-    with fh:
-        for line in fh:
-            m = TS.match(line)
-            if not m: continue
-            t = time.mktime(time.strptime(m.group(1), "%Y-%m-%d %H:%M:%S"))
-            if not (start - 1 <= t <= end + 1): continue
-            line = line.rstrip("\n")
-            r = ROUTE.search(line)
-            if r: out["route"].append([r.group(1), r.group(2)]); continue
-            c = CALL.search(line)
-            if c:
-                i = c.group(1)
-                out["api_id_class"].append("msg_" if i.startswith("msg_") else ("chatcmpl-" if i.startswith("chatcmpl-") else "other"))
+    with fh: lines = fh.read().splitlines()[-500:]
+    for raw in lines:
+        try:
+            d = json.loads(raw)
+            ok = (isinstance(d, dict) and set(d) == {"ts", "route", "rule", "id_class"} and type(d["ts"]) in (int, float)
+                  and d["route"] in ("cloud", "studio") and isinstance(d["rule"], str) and RULE.fullmatch(d["rule"])
+                  and d["id_class"] in ("msg_", "chatcmpl-", "none"))
+        except Exception:
+            ok = False
+        if not ok: bad += 1; continue
+        if start - 1 <= d["ts"] <= end + 1: hits.append(d)
+out = {"count": len(hits), "malformed": bad}
+if len(hits) == 1 and bad == 0:
+    out.update(route=hits[0]["route"], rule=hits[0]["rule"], id_class=hits[0]["id_class"])
 print(json.dumps(out))'
 p3_turnlog() { xp "$(pod 3)" /opt/hermes/.venv/bin/python -I -c "$C6LOG_PY" "$1" "$2"; }
-# stdin: p3_turnlog JSON. exit 0 iff the turn went to the cloud: >= 1 route line, all route=cloud rule=cloud_ok, and
-# >= 1 API call, all with a provider id of class msg_. Prints a one-line summary (route/rule names, classes, counts).
+# stdin: p3_turnlog JSON. exit 0 iff exactly one well-formed record in the window and it is route=cloud rule=cloud_ok
+# id_class=msg_. count != 1 (or malformed > 0): RED "inconclusive", only the counts are printed.
 C6VERDICT_PY='import sys, json
 try: d = json.load(sys.stdin)
-except Exception: print("p3 turn log unreadable"); sys.exit(1)
-rt = [tuple(x) for x in d.get("route", [])]; ids = d.get("api_id_class", [])
-ok = bool(rt) and all(x == ("cloud", "cloud_ok") for x in rt) and bool(ids) and all(i == "msg_" for i in ids)
-print("p3 route=%s api_id_class=%s -> %s" % (",".join("%s/%s" % x for x in rt) or "none", ",".join(ids) or "none", "cloud" if ok else "NOT cloud"))
+except Exception: print("p3 route record unreadable -> inconclusive"); sys.exit(1)
+n, bad = d.get("count"), d.get("malformed")
+if n != 1 or bad != 0:
+    print("p3 route records in window=%s malformed=%s -> inconclusive" % (n, bad)); sys.exit(1)
+ok = (d.get("route"), d.get("rule"), d.get("id_class")) == ("cloud", "cloud_ok", "msg_")
+print("p3 route=%s rule=%s id_class=%s -> %s" % (d.get("route"), d.get("rule"), d.get("id_class"), "cloud" if ok else "NOT cloud"))
 sys.exit(0 if ok else 1)'
 c6_turn_verdict() { /usr/bin/python3 -I -c "$C6VERDICT_PY"; }
 # <<< c010-c6turn
@@ -604,7 +609,9 @@ TOK=$(api - POST /api/v1/auths/signin '{"email":"c010-canary@acceptatie.invalid"
 chk "canary account in owui-profiel-3 sees hermes-agent-profiel-3" "[ -n '$CANARY_UID' ] && api '$TOK' GET /api/models | jq -e '[.data[].id] | index(\"hermes-agent-profiel-3\")' >/dev/null"
 gate "canary account"
 access() { xp "$(pod 3)" sh -c 'cat /opt/data/logs/agent.log | grep "aiohttp.access" | grep -c "POST /v1/chat/completions"'; }
-fails() { { kubectl -n $NS logs "$(pod 3)" -c app --since=1h; xp "$(pod 3)" cat /opt/data/logs/agent.log; } 2>/dev/null | grep -c 'family-cloud: cloud call failed'; }
+# counted INSIDE the pod (Argus 15:21:18Z): only the number leaves the pod; never copy agent.log or pod logs to the Mini.
+# agent.log* (current + rotated) so a rotation during the run cannot lower the count.
+fails() { xp "$(pod 3)" sh -c 'cat /opt/data/logs/agent.log* 2>/dev/null | grep -c "family-cloud: cloud call failed" || true'; }
 tokens() { xp "$(pod 3)" cat /cloud-spend/month.json | jq '.input_tokens'; }
 spend() { xp "$(pod 3)" sha256sum /cloud-spend/month.json | cut -c1-64; }   # (c) per-turn state of the ledger
 memhash() { xp "$(pod 3)" sh -c 'cd /opt/data/memories && find . -type f | LC_ALL=C sort | while read -r f; do printf "%s " "$f"; sha256sum < "$f"; done | sha256sum' | cut -c1-64; }
@@ -639,7 +646,7 @@ done; unset a m
 sleep 15; A1=$(access); F1=$(fails); T1=$(tokens); N=$(syns "$S0")
 log "  C6 http:$H; p3 completions +$((A1-A0)); input_tokens per turn:$D6; failure lines +$((F1-F0)); hubble flows $N (corroboration only); port-forward re-opens $PF_REOPEN"
 chk "C6 3 turns HTTP 200" "[ \"$H\" = ' 200 200 200' ]"
-chk "C6 every turn answered by the cloud (p3 route line cloud/cloud_ok + provider id msg_*; a Studio answer is RED)" "[ -z '$C6NOTCLOUD' ]"
+chk "C6 every turn answered by the cloud (exactly one p3 route record per turn: cloud/cloud_ok/msg_; Studio or inconclusive is RED)" "[ -z '$C6NOTCLOUD' ]"
 chk "C6 hermes-profiel-3 got exactly one completion per user turn (title gen went elsewhere)" "[ $((A1-A0)) = 3 ]"
 chk "C6/(c) month.json rose on each of the 3 cloud turns" "for d in $D6; do [ \$d -gt 0 ] || exit 1; done; [ \$(echo $D6 | wc -w) = 3 ]"
 chk "W7 provider count > 0 (spend grew)" "[ $((T1-T0)) -gt 0 ]"

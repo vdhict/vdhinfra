@@ -33,39 +33,52 @@ R4=$(printf '{"id":"msg_01x","choices":[{"message":{"content":"  "}}],"%s key":1
 t "M4 msg_ class; blank content = no; a key that is not an identifier is not printed" bash -c "
   echo '$R4' | grep -q 'client_id_class=msg_' && echo '$R4' | grep -q 'content=no' && ! echo '$R4' | grep -q '$SENT'"
 
-# ---- C6LOG_PY on a synthetic p3 agent.log (pod-local timestamps)
-L="$B/agent.log"; L1="$B/agent.log.1"
-ts() { /usr/bin/python3 -I -c 'import time,sys; print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(float(sys.argv[1]))))' "$1"; }
+# ---- C6LOG_PY on a synthetic route record file (Argus 15:21:18Z: never agent.log)
+PYSRC=$(sed -n "/^C6LOG_PY='/,/^print(json.dumps(out))'/p" "$BLOCK" | sed "1s/^C6LOG_PY='//; \$s/'\$//")
+t "L0 the C6 reader never names agent.log or the logs dir; default files are the route record file + .1" bash -c "
+  ! printf '%s' \"\$1\" | grep -q 'agent.log\|/opt/data/logs' && printf '%s' \"\$1\" | grep -q '/opt/data/family-cloud-route.jsonl.1\", \"/opt/data/family-cloud-route.jsonl\"'" _ "$PYSRC"
 NOW=$(date +%s); T0=$((NOW - 100)); TIN=$((NOW - 50)); TOUT=$((NOW - 500))
-{ echo "$(ts $TOUT),001 INFO family-cloud: family-cloud: route=cloud rule=cloud_ok"
-  echo "$(ts $TIN),100 INFO [api-1a2b] agent.turn_context: conversation turn: session=api-1a2b provider=family-cloud history=0 msg=$SENT"
-  echo "$(ts $TIN),200 INFO family-cloud: family-cloud: route=cloud rule=cloud_ok"
-  echo "$(ts $TIN),300 INFO [api-1a2b] agent.conversation_loop: API call #1: model=m provider=family-cloud in=10 out=2 total=12 latency=1.0s id=msg_01abc"
-} > "$L1"
-{ echo "$(ts $TIN),400 WARNING gateway.run: something $SENT"; } > "$L"
-J1=$(/usr/bin/python3 -I -c "$(sed -n "/^C6LOG_PY='/,/^print(json.dumps(out))'/p" "$BLOCK" | sed "1s/^C6LOG_PY='//; \$s/'\$//")" "$T0" "$NOW" "$L1" "$L")
-t "L1 in-window route line + provider id class read across agent.log.1 and agent.log; out-of-window line ignored" bash -c "[ '$J1' = '{\"route\": [[\"cloud\", \"cloud_ok\"]], \"api_id_class\": [\"msg_\"]}' ]"
-t "L1 no message text from any log line reaches the output" bash -c "! echo '$J1' | grep -q '$SENT'"
-{ echo "$(ts $TIN),200 INFO family-cloud: family-cloud: route=studio rule=private_context"
-  echo "$(ts $TIN),300 INFO [api-9f] agent.conversation_loop: API call #1: model=m provider=family-cloud in=5775 out=9 total=5784 latency=16.2s id=chatcmpl-deadbeef"
-} > "$B/studio.log"
-J2=$(/usr/bin/python3 -I -c "$(sed -n "/^C6LOG_PY='/,/^print(json.dumps(out))'/p" "$BLOCK" | sed "1s/^C6LOG_PY='//; \$s/'\$//")" "$T0" "$NOW" "$B/studio.log")
+rec() { printf '{"ts":%s,"route":"%s","rule":"%s","id_class":"%s"}\n' "$1" "$2" "$3" "$4"; }
+RF="$B/route.jsonl"; RF1="$B/route.jsonl.1"
+{ rec "$TOUT.5" cloud cloud_ok msg_; } > "$RF1"; { rec "$TIN.25" cloud cloud_ok msg_; } > "$RF"
+J1=$(/usr/bin/python3 -I -c "$PYSRC" "$T0" "$NOW" "$RF1" "$RF")
+t "L1 one in-window record (across .1 + current; out-of-window ignored) -> count 1 with its fields" bash -c "[ '$J1' = '{\"count\": 1, \"malformed\": 0, \"route\": \"cloud\", \"rule\": \"cloud_ok\", \"id_class\": \"msg_\"}' ]"
+{ rec "$TIN" studio private_context chatcmpl-; } > "$B/r2.jsonl"
+J2=$(/usr/bin/python3 -I -c "$PYSRC" "$T0" "$NOW" "$B/r2.jsonl")
+{ rec "$TIN" cloud cloud_ok msg_; rec "$((TIN+1))" studio private_context chatcmpl-; } > "$B/r3.jsonl"
+J3=$(/usr/bin/python3 -I -c "$PYSRC" "$T0" "$NOW" "$B/r3.jsonl")
+t "L2 two records in the window (e.g. a concurrent family turn) -> count 2 and NO record fields" bash -c "[ '$J3' = '{\"count\": 2, \"malformed\": 0}' ]"
+J4=$(/usr/bin/python3 -I -c "$PYSRC" "$T0" "$NOW" "$B/none.jsonl")
+t "L3 no route file / no record -> count 0" bash -c "[ '$J4' = '{\"count\": 0, \"malformed\": 0}' ]"
+{ rec "$TIN" cloud cloud_ok msg_; printf '{"ts":%s,"route":"cloud","rule":"cloud_ok","id_class":"msg_","text":"%s"}\n' "$TIN" "$SENT"; printf '%s\n' "$SENT"; } > "$B/r5.jsonl"
+J5=$(/usr/bin/python3 -I -c "$PYSRC" "$T0" "$NOW" "$B/r5.jsonl")
+t "L4 extra key / non-JSON lines are malformed (counted, never echoed); fields withheld" bash -c "[ '$J5' = '{\"count\": 1, \"malformed\": 2}' ] && ! echo '$J5' | grep -q '$SENT'"
+{ printf '{"ts":%s,"route":"cloud","rule":"cloud ok; x","id_class":"msg_"}\n' "$TIN"; printf '{"ts":%s,"route":"cloud","rule":"cloud_ok","id_class":"msg_abc"}\n' "$TIN"; } > "$B/r6.jsonl"
+J6=$(/usr/bin/python3 -I -c "$PYSRC" "$T0" "$NOW" "$B/r6.jsonl")
+t "L5 out-of-set rule text or id_class value -> malformed" bash -c "[ '$J6' = '{\"count\": 0, \"malformed\": 2}' ]"
 
 # ---- verdict
 v() { printf '%s' "$1" | H 'c6_turn_verdict'; }
 out=$(v "$J1"); rc=$?
-t "V1 cloud route + msg_ id -> exit 0, 'cloud'" bash -c "[ $rc = 0 ] && echo '$out' | grep -q -- '-> cloud\$'"
+t "V1 exactly one record cloud/cloud_ok/msg_ -> exit 0, 'cloud'" bash -c "[ $rc = 0 ] && echo '$out' | grep -q -- '-> cloud\$'"
 out=$(v "$J2"); rc=$?
-t "V2 attempt-5 shape (studio/private_context + chatcmpl- id) -> RED, names the rule and the class" bash -c "[ $rc = 1 ] && echo '$out' | grep -q 'route=studio/private_context api_id_class=chatcmpl- -> NOT cloud'"
-out=$(v '{"route": [], "api_id_class": []}'); rc=$?
-t "V3 no route line and no API call -> RED" bash -c "[ $rc = 1 ]"
-out=$(v '{"route": [["cloud","cloud_ok"]], "api_id_class": ["chatcmpl-"]}'); rc=$?
-t "V4 cloud route line but a Studio-class provider id -> RED" bash -c "[ $rc = 1 ]"
-out=$(v '{"route": [["cloud","cloud_ok"],["studio","cloud_failed"]], "api_id_class": ["msg_"]}'); rc=$?
-t "V5 a turn with a studio fallback line -> RED" bash -c "[ $rc = 1 ]"
+t "V2 attempt-5 shape (studio/private_context/chatcmpl-) -> RED, names route, rule, class" bash -c "[ $rc = 1 ] && echo '$out' | grep -q 'route=studio rule=private_context id_class=chatcmpl- -> NOT cloud'"
+out=$(v "$J3"); rc=$?
+t "V3 two records -> RED inconclusive, only the counts" bash -c "[ $rc = 1 ] && [ '$out' = 'p3 route records in window=2 malformed=0 -> inconclusive' ]"
+out=$(v "$J4"); rc=$?
+t "V4 zero records -> RED inconclusive" bash -c "[ $rc = 1 ] && echo '$out' | grep -q 'window=0 malformed=0 -> inconclusive'"
+out=$(v "$J5"); rc=$?
+t "V5 malformed lines present -> RED inconclusive even with one good record" bash -c "[ $rc = 1 ] && echo '$out' | grep -q 'window=1 malformed=2 -> inconclusive'"
+out=$(v '{"count": 1, "malformed": 0, "route": "cloud", "rule": "cloud_ok", "id_class": "chatcmpl-"}'); rc=$?
+t "V6 cloud route but Studio id class -> RED" bash -c "[ $rc = 1 ]"
 out=$(v 'not json'); rc=$?
-t "V6 unreadable p3 log output -> RED" bash -c "[ $rc = 1 ] && echo '$out' | grep -q unreadable"
+t "V7 unreadable -> RED inconclusive" bash -c "[ $rc = 1 ] && echo '$out' | grep -q inconclusive"
 
+# ---- fails(): counted inside the pod, only the number leaves (Argus 15:21:18Z)
+t "F1 fails() runs in the pod (xp ... sh -c '... | grep -c ...') and nothing in golive copies agent.log or app pod logs to the Mini" bash -c "
+  grep -q \"^fails() { xp \\\"\\\$(pod 3)\\\" sh -c 'cat /opt/data/logs/agent.log\\* 2>/dev/null | grep -c \\\"family-cloud: cloud call failed\\\" || true'; }\$\" '$GOLIVE' \
+  && ! grep -nE 'kubectl -n [^ ]+ logs [^|]*-c app' '$GOLIVE' \
+  && [ \"\$(grep -n 'agent\.log' '$GOLIVE' | grep -v '^[0-9]*:#' | grep -vc \"sh -c 'cat /opt/data/logs/agent.log[*]\\? \\(2>/dev/null \\)\\?| grep\")\" = 0 ]"
 # ---- pf_ensure: liveness, re-open, failure
 cat > "$B/bin/nc" <<EOF
 #!/bin/bash
@@ -87,7 +100,7 @@ PFH "PF=$LIVE2; PORT=1; pf_ensure cleanup; echo rc=\$? >> '$B/pf-calls'"
 t "P3 process alive but port closed + re-open fails: RED line, rc 1" bash -c "grep -qx 'rc=1' '$B/pf-calls' && grep -q 'RED  port-forward could not be re-opened (cleanup)' '$B/ev-pf.txt'"
 kill $LIVE2 2>/dev/null
 
-# ---- the real C6 loop, verbatim, with stubs: turn 1 cloud, turn 2 Studio (attempt-5 shape), turn 3 cloud
+# ---- the real C6 loop, verbatim, with stubs: turn 1 cloud, turn 2 Studio (attempt-5 shape), turn 3 inconclusive (2 records)
 sed -n '/^C6E=\$(date +%s)/,/^done; unset a m/p' "$GOLIVE" > "$B/loop.sh"
 t "W0 the C6 loop was found in golive.sh" bash -c "[ \$(wc -l < '$B/loop.sh') -gt 5 ]"
 cat > "$B/stubs.sh" <<EOF
@@ -98,7 +111,7 @@ tokens() { echo 0; }
 xp() { date +%s; }
 sleep() { :; }
 ask() { n=\$(( \$(cat '$B/turn-n' 2>/dev/null || echo 0) + 1 )); echo "\$n" > '$B/turn-n'; printf '{"id":"chatcmpl-hermes","choices":[{"message":{"role":"assistant","content":"$SENT"}}]}\n200'; }
-p3_turnlog() { n=\$(cat '$B/turn-n'); if [ "\$n" = 2 ]; then echo '{"route": [["studio","private_context"]], "api_id_class": ["chatcmpl-"]}'; else echo '{"route": [["cloud","cloud_ok"]], "api_id_class": ["msg_"]}'; fi; }
+p3_turnlog() { n=\$(cat '$B/turn-n'); if [ "\$n" = 2 ]; then echo '{"count": 1, "malformed": 0, "route": "studio", "rule": "private_context", "id_class": "chatcmpl-"}'; elif [ "\$n" = 3 ]; then echo '{"count": 2, "malformed": 0}'; else echo '{"count": 1, "malformed": 0, "route": "cloud", "rule": "cloud_ok", "id_class": "msg_"}'; fi; }
 EOF
 : > "$B/loop-calls"; : > "$B/ev-loop.txt"
 bash -c "set -uo pipefail; EV='$B/ev-loop.txt'; CACHE='$B/cache'; log() { echo \"\$*\" >> \"\$EV\"; }
@@ -108,9 +121,10 @@ CID=c; H=''; q1=a; q2=b; q3=c; m='[{\"role\":\"user\",\"content\":\"q\"}]'
 echo \"C6NOTCLOUD=[\$C6NOTCLOUD] H=[\$H]\" >> '$B/loop-calls'" >/dev/null 2>&1
 t "W1 pf_ensure runs before each of the 3 turns" bash -c "[ \$(grep -c '^pf_ensure before C6 turn [123]\$' '$B/loop-calls') = 3 ]"
 t "W2 per-turn metadata line: curl_rc, http, bytes, content, client id class, pf_after and the p3 verdict" bash -c "
-  [ \$(grep -cE 'C6 turn [123]: curl_rc=0 http=200 bytes=[0-9]+ json=yes .*content=yes client_id_class=chatcmpl- pf_after=up; p3 route=' '$B/ev-loop.txt') = 3 ]"
-t "W3 the Studio-answered turn 2 is marked NOT cloud (C6NOTCLOUD = 2); HTTP alone still reads 200" bash -c "
-  grep -qx 'C6NOTCLOUD=\[ 2\] H=\[ 200 200 200\]' '$B/loop-calls' && grep -q 'C6 turn 2: .*route=studio/private_context api_id_class=chatcmpl- -> NOT cloud' '$B/ev-loop.txt'"
+  [ \$(grep -cE 'C6 turn [123]: curl_rc=0 http=200 bytes=[0-9]+ json=yes .*content=yes client_id_class=chatcmpl- pf_after=up; p3 route' '$B/ev-loop.txt') = 3 ]"
+t "W3 Studio turn 2 NOT cloud, turn 3 (2 records) inconclusive with counts only: C6NOTCLOUD = 2 3; HTTP alone still reads 200" bash -c "
+  grep -qx 'C6NOTCLOUD=\[ 2 3\] H=\[ 200 200 200\]' '$B/loop-calls' && grep -q 'C6 turn 2: .*p3 route=studio rule=private_context id_class=chatcmpl- -> NOT cloud' '$B/ev-loop.txt' \
+  && grep -q 'C6 turn 3: .*; p3 route records in window=2 malformed=0 -> inconclusive\$' '$B/ev-loop.txt' && grep -q 'C6 turn 1: .*-> cloud\$' '$B/ev-loop.txt'"
 t "W4 no answer text in the evidence" bash -c "! grep -q '$SENT' '$B/ev-loop.txt'"
 t "W5 golive judges C6 on C6NOTCLOUD in a chk (a Studio answer is RED)" bash -c "grep -q '^chk \"C6 every turn answered by the cloud.*\" \"\[ -z .\$C6NOTCLOUD. \]\"' '$GOLIVE'"
 t "W6 cleanup and C7 re-check the port-forward first; pf_up records every pid; cleanup kills them all" bash -c "
