@@ -20,16 +20,17 @@ spec:
   # The tenant source now advances ONLY when a reviewed vdhinfra commit bumps
   # this SHA: Argus reviews the cluster-wires range <old>..<new>, then the
   # bump goes through the normal change log. The commit must be on the
-  # branch named below. Wave 1 (chg-2026-10-07-007): branch
-  # cutover/wave1-ortho-tennis, school + ortho + tennis live on image v8,
-  # pull secret cluster-wires-pull-v8 (Argus range fea3ea6..c148314).
-  # The commit pin is the truth; a push to that branch moves nothing.
-  # Back to branch main once Mack fast-forwards cluster-wires main.
-  # Rollback: branch cutover/wave1-school commit fea3ea6 (school live on v7,
-  # ortho + tennis suspended and shadow).
+  # branch named below; the commit pin is the truth, a push to the branch
+  # moves nothing. The next pin must descend from the current one.
+  # v10 (chg-2026-10-07-007, Argus range c148314..13e207a, 2026-10-28):
+  # image v10-a7415ab, pull secret cluster-wires-pull-v8, suspend/mode per
+  # wire unchanged. Mack moved forge main 9efd90d -> 13e207a with
+  # --force-with-lease; old main is parked as branch main-pre-v10-2026-10-28
+  # (012e632) and comes back only as its own reviewed ranges.
+  # Rollback: branch cutover/wave1-ortho-tennis commit c148314 (v8).
   ref:
-    branch: cutover/wave1-ortho-tennis
-    commit: c14831461084d4969744b4171dacf684d470a98e
+    branch: main
+    commit: 13e207ab8fc051980166ac1cec75d3df5e3d73f4
   # Fetch only what the tenant Kustomization applies (as Mack proposed).
   ignore: |
     /*
