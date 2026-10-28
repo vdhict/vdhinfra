@@ -1,0 +1,23 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+#
+# CiliumNetworkPolicy, not networking.k8s.io/NetworkPolicy: cloudflared
+# needs FQDN egress (toFQDNs) to the Cloudflare edge, and a per-workload DNS
+# allow-list (Cilium DNS proxy) so no pod can use DNS as a side channel.
+#
+# No egress to envoy-internal / envoy-external (inc-2026-09-26-001 pattern:
+# that path reaches every internal hostname by SNI/Host), none to family,
+# none to any other namespace.
+#
+# Interaction with the clusterwide mypka-tenant-egress-boundary: that CCNP
+# selects only pods in `mypka`. Its rule 3 denies mypka egress to every
+# namespace outside [kube-system, devtools, network, mypka], so it ALSO
+# blocks mypka -> cursus-gast. It never selects a cursus-gast pod, so it
+# adds nothing to and removes nothing from the rules below.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./default-deny.yaml
+  - ./private-deny.yaml
+  - ./courseware-gast.yaml
+  - ./cloudflared.yaml

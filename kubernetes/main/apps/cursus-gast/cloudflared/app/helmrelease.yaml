@@ -1,0 +1,135 @@
+---
+# cloudflared (chg-2026-10-28-002): connector of tunnel `cursus-gast`,
+# 2 replicas (one per node, best effort), outbound only.
+#
+# Image: the vendor image cloudflare/cloudflared, pinned by index digest
+# (registry-1.docker.io, 2026-10-28): 2026.10.5 = release of 2026-10-27,
+# index sha256:1b1d34d0..., linux/amd64 child sha256:85b1ec2f...,
+# config User 65532:65532, Entrypoint [cloudflared, --no-autoupdate].
+#
+# Run: TUNNEL_TOKEN env (secret cloudflared-tunnel) + the local --config
+# (ConfigMap cloudflared-config). See configmap.yaml for why the tunnel must
+# stay config_src=local.
+#
+# Metrics/readiness on 2000 (metrics: in config.yaml). /ready is 200 only
+# while the connector holds at least one edge connection. No Service and no
+# ServiceMonitor: ingress to cloudflared is none (Argus design 3.5); kubelet
+# probes come from the host identity.
+#
+# Startup warnings that are expected and harmless here: ICMP proxy off
+# (ping_group_range), UDP buffer size (no NET_ADMIN).
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cloudflared
+spec:
+  interval: 30m
+  maxHistory: 2
+  chartRef:
+    kind: OCIRepository
+    name: cloudflared
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  uninstall:
+    keepHistory: false
+  values:
+    defaultPodOptions:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: {type: RuntimeDefault}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudflared
+              app.kubernetes.io/controller: cloudflared
+
+    controllers:
+      cloudflared:
+        type: deployment
+        replicas: 2
+        strategy: RollingUpdate
+        annotations:
+          # Token rotation or config change -> rolling restart.
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: docker.io/cloudflare/cloudflared
+              tag: 2026.10.5@sha256:1b1d34d0a9c0bfca9de72db8460d328db3f19edd2b96169114e3e893a97bbe53
+            args:
+              - tunnel
+              - --no-autoupdate
+              - --config
+              - /etc/cloudflared/config.yaml
+              - run
+            env:
+              TUNNEL_TOKEN:
+                valueFrom:
+                  secretKeyRef:
+                    name: cloudflared-tunnel
+                    key: TUNNEL_TOKEN
+            securityContext:
+              runAsNonRoot: true
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: {drop: ["ALL"]}
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet: {path: /ready, port: &port 2000}
+                  initialDelaySeconds: 15
+                  periodSeconds: 20
+                  timeoutSeconds: 3
+                  failureThreshold: 6
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet: {path: /ready, port: *port}
+                  periodSeconds: 10
+                  timeoutSeconds: 3
+                  failureThreshold: 3
+            resources:
+              requests: {cpu: 10m, memory: 32Mi}
+              limits: {memory: 128Mi}
+
+    service:
+      app:
+        # No Service: nothing connects TO cloudflared.
+        enabled: false
+        controller: cloudflared
+
+    persistence:
+      config:
+        type: configMap
+        name: cloudflared-config
+        globalMounts:
+          - path: /etc/cloudflared/config.yaml
+            subPath: config.yaml
+            readOnly: true
+      tmp:
+        type: emptyDir
+        sizeLimit: 16Mi
+        globalMounts:
+          - path: /tmp

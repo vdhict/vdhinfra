@@ -1,0 +1,12 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+# cursus-gast store (chg-2026-10-28-002, Argus C2). Applied by its own Flux
+# Kustomization external-secrets-stores-cursus-gast, so a not-yet-created
+# 1P token item keeps only this one not-Ready. The read token lives in
+# namespace security, pulled from home-infra through onepassword-connect;
+# cursus-gast itself can never use onepassword-connect (NotIn).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./externalsecret.yaml
+  - ./onepassword-cursus-gast.yaml

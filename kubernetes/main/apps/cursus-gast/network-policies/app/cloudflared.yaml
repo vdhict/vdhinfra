@@ -1,0 +1,75 @@
+---
+# cloudflared: ingress none (kubelet probes come from the host identity,
+# which Cilium always allows). Egress EXACT names only (Argus C4):
+#   1. courseware-gast pods, 8080 (the origin; the Service VIP is translated
+#      to the backend pod before policy, so this is a pod-identity rule).
+#   2. kube-dns 53, through the Cilium DNS proxy, for exactly:
+#        courseware-gast.cursus-gast.svc.cluster.local  the origin
+#        _v2-origintunneld._tcp.argotunnel.com          SRV, edge discovery
+#        region1.v2.argotunnel.com, region2.v2.argotunnel.com  edge A
+#        cfd-features.argotunnel.com                    TXT, feature flags
+#        replace-team.cloudflareaccess.com              Access JWKS
+#      Any other name is REFUSED by the proxy.
+#   3. region1/region2.v2.argotunnel.com, tcp+udp 7844 (QUIC, HTTP/2
+#      fallback). Nothing else on the edge.
+#   4. replace-team.cloudflareaccess.com, tcp 443 (JWT signing keys,
+#      /cdn-cgi/access/certs).
+#
+# Names taken from cloudflared 2026.10.5 source (edgediscovery/allregions,
+# features, ingress/middleware/jwtvalidator.go). *.cftunnel.com is only a TLS
+# SNI (quic./h2.cftunnel.com), never resolved, so it needs no rule.
+# api.cloudflare.com is only probed by the startup prechecks for auto-update
+# (off): blocked, a warning in the log at most. DoT fallback 1.1.1.1:853:
+# blocked. No wildcards: Cilium's "*." matches ONE label only.
+#
+# PLACEHOLDER replace-team: Argus sets the Access team name here AND in
+# cloudflared/app/configmap.yaml (same string, two files).
+#
+# No world entity, no 0.0.0.0/0, no CIDR allow anywhere; private-deny.yaml
+# denies RFC1918, CGNAT, link-local, nodes and the API server explicitly.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cloudflared
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflared
+      app.kubernetes.io/controller: cloudflared
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cursus-gast
+            app.kubernetes.io/name: courseware-gast
+            app.kubernetes.io/controller: courseware-gast
+      toPorts:
+        - ports: [{port: "8080", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              - matchName: courseware-gast.cursus-gast.svc.cluster.local
+              - matchName: _v2-origintunneld._tcp.argotunnel.com
+              - matchName: region1.v2.argotunnel.com
+              - matchName: region2.v2.argotunnel.com
+              - matchName: cfd-features.argotunnel.com
+              - matchName: replace-team.cloudflareaccess.com
+    - toFQDNs:
+        - matchName: region1.v2.argotunnel.com
+        - matchName: region2.v2.argotunnel.com
+      toPorts:
+        - ports:
+            - {port: "7844", protocol: TCP}
+            - {port: "7844", protocol: UDP}
+    - toFQDNs:
+        - matchName: replace-team.cloudflareaccess.com
+      toPorts:
+        - ports:
+            - {port: "443", protocol: TCP}

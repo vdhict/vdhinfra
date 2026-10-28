@@ -1,0 +1,23 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+#
+# Namespace-level resource list for `cursus-gast` (chg-2026-10-28-002,
+# design docs/design/cursus-gast-exposure.md). Picked up by cluster-apps
+# through the directory scan of ./kubernetes/main/apps, like every other
+# namespace.
+#
+# cursus-gast is the PUBLIC, invite-only guest edition of the AI course.
+# It is NOT `family`: different image, different exposure (Cloudflare
+# Tunnel + Access), and no path into any other namespace.
+#
+# Order, enforced by dependsOn in the install files:
+#   cursus-gast-network-policies -> courseware-gast -> cloudflared
+# so no pod in this namespace ever runs without default-deny, and the
+# tunnel never comes up before the origin it serves.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./namespace.yaml
+  - ./network-policies/install.yaml
+  - ./courseware-gast/install.yaml
+  - ./cloudflared/install.yaml

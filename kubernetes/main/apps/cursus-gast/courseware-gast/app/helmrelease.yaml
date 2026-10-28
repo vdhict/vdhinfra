@@ -1,0 +1,109 @@
+---
+# courseware-gast (chg-2026-10-28-002): the guest edition of the AI course.
+# One container, Mack's prebuilt static image, serving HTTP on 8080. No init
+# containers, no git fetch, no secrets: the content is baked into the image
+# and passed the content gate (design 3.7, test T6) before it is pinned here.
+#
+# Reached ONLY by cloudflared in this namespace (CNP courseware-gast). No
+# route block, no HTTPRoute, no external-dns annotation: nothing for
+# external-dns-unifi or external-dns-cloudflare to publish.
+#
+# ASSUMPTIONS about the guest image, to confirm with Mack's digest:
+#   * listens on 8080 as a non-root NUMERIC uid (65534 set below; change
+#     runAsUser/runAsGroup if the image uses another uid, e.g. 101 for
+#     nginx-unprivileged);
+#   * serves /healthz (200) and / (the index page);
+#   * writes only to /tmp (an emptyDir); add an emptyDir per extra path if
+#     its server needs one (nginx: /var/cache/nginx, /var/run).
+#   * pull: public, or a pull secret is added here (none today).
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: courseware-gast
+spec:
+  interval: 30m
+  maxHistory: 2
+  chartRef:
+    kind: OCIRepository
+    name: courseware-gast
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  uninstall:
+    keepHistory: false
+  values:
+    defaultPodOptions:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: {type: RuntimeDefault}
+
+    controllers:
+      courseware-gast:
+        type: deployment
+        replicas: 1
+        strategy: RollingUpdate
+        # maxUnavailable stays at the Deployment default (25%, rounds DOWN
+        # to 0 of 1 replica): the chart drops an explicit 0 as falsy.
+        rollingUpdate:
+          surge: 1
+        containers:
+          app:
+            image:
+              # PLACEHOLDER until Mack's digest arrives. The Kustomization is
+              # suspended, so this is never pulled. Replace BOTH lines.
+              repository: registry.invalid/courseware-gast
+              tag: pending@sha256:0000000000000000000000000000000000000000000000000000000000000000
+            securityContext:
+              runAsNonRoot: true
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: {drop: ["ALL"]}
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet: {path: /healthz, port: &port 8080}
+                  periodSeconds: 30
+                  timeoutSeconds: 3
+                  failureThreshold: 3
+              readiness:
+                # The index page: Ready means the site is served.
+                enabled: true
+                custom: true
+                spec:
+                  httpGet: {path: /, port: *port}
+                  periodSeconds: 10
+                  timeoutSeconds: 3
+                  failureThreshold: 3
+            resources:
+              requests: {cpu: 10m, memory: 16Mi}
+              limits: {memory: 64Mi}
+
+    service:
+      app:
+        controller: courseware-gast
+        # ClusterIP ONLY (Argus C5): never a LoadBalancer or NodePort.
+        type: ClusterIP
+        ports:
+          http:
+            port: *port
+
+    persistence:
+      tmp:
+        type: emptyDir
+        sizeLimit: 16Mi
+        globalMounts:
+          - path: /tmp

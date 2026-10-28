@@ -1,0 +1,33 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# cloudflared (chg-2026-10-28-002): the outbound-only connector of tunnel
+# `cursus-gast` (config_src=local, Argus C3). Gated three ways:
+#   * the CNPs first (cursus-gast-network-policies);
+#   * the origin first (courseware-gast, SUSPENDED until Mack's digest), so
+#     the tunnel never serves a 502 or a placeholder;
+#   * its own store (external-secrets-stores-cursus-gast), Ready only once
+#     the owner has created the vault token item.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app cloudflared-cursus-gast
+  namespace: flux-system
+spec:
+  targetNamespace: cursus-gast
+  commonMetadata:
+    labels:
+      app.kubernetes.io/part-of: cursus-gast
+  dependsOn:
+    - name: cursus-gast-network-policies
+    - name: courseware-gast
+    - name: external-secrets-stores-cursus-gast
+  path: ./kubernetes/main/apps/cursus-gast/cloudflared/app
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: true
+  interval: 30m
+  retryInterval: 1m
+  timeout: 5m

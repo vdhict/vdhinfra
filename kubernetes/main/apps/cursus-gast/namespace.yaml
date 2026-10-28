@@ -1,0 +1,24 @@
+---
+# cursus-gast (chg-2026-10-28-002): the public, invite-only guest edition of
+# the AI course. Two workloads and nothing else:
+#   courseware-gast  static site (Mack's guest image), port 8080
+#   cloudflared      outbound-only Cloudflare Tunnel connector
+#
+# Pod Security Admission `restricted` is ENFORCED. Every container runs
+# non-root, read-only root FS, drop ALL, seccomp RuntimeDefault, no
+# ServiceAccount token.
+#
+# Stateless: no PVCs. prune stays disabled (estate pattern) so a directory
+# removal never races the Kustomizations inside it; rollback is SUSPEND
+# (hack/ops/chg-2026-10-28-002-rollback.sh), namespace removal is a
+# separate recorded step.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cursus-gast
+  labels:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

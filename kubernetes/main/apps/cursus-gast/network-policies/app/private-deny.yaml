@@ -1,0 +1,34 @@
+---
+# Belt and braces on top of default-deny: an explicit egressDeny, which wins
+# over ANY allow from any (future) policy in this namespace. Even if a
+# Cloudflare name ever resolved to a private address (DNS rebinding, a UDM
+# DNS answer), cloudflared cannot be turned into a path into the house.
+#
+# Same semantics as mypka-tenant-egress-boundary (Cilium 1.19,
+# policy-cidr-match-mode ""): CIDR rules never match pods or nodes, so
+# nodes and the API server are denied as ENTITIES, and pod-to-pod DNS
+# (kube-dns pod identity) is not touched by the CIDR set.
+#
+# No toPorts here on purpose: port ranges ending at 65535 trip the
+# cilium-envoy NPDS overflow (inc-2026-10-05-002); a port-less deny does not
+# go through NPDS port splitting.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: private-deny
+spec:
+  endpointSelector: {}
+  egressDeny:
+    - toEntities:
+        - kube-apiserver
+        - host
+        - remote-node
+        - health
+        - ingress
+    - toCIDRSet:
+        - cidr: 10.0.0.0/8
+        - cidr: 172.16.0.0/12
+        - cidr: 192.168.0.0/16
+        - cidr: 100.64.0.0/10
+        - cidr: 169.254.0.0/16

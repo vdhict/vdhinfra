@@ -1,0 +1,44 @@
+---
+# cloudflared local config (Argus C3/C5). The tunnel is created with
+# config_src=local, so the edge never pushes a remote config.
+#
+# Why that matters (cloudflared 2026.10.5 source,
+# orchestration/orchestrator.go): with `tunnel run` + TUNNEL_TOKEN the local
+# --config ingress IS loaded at start, at config version -1. Any remote
+# config the edge pushes (remotely-managed tunnel, version >= 0) REPLACES
+# the whole ingress, including originRequest.access, and logs
+# "Updated to new configuration". So the JWT check below only holds while
+# the tunnel stays config_src=local and nobody PUTs
+# /cfd_tunnel/<id>/configurations. Post-check: that log line never appears.
+#
+# originRequest.access sits at the TOP level (default for every rule), so a
+# rule added later inherits the JWT check (ingress/config.go
+# setAccess). required: true makes cloudflared answer 403 to any request
+# without a Cf-Access-Jwt-Assertion whose aud matches (jwtvalidator.go);
+# keys from https://<teamName>.cloudflareaccess.com/cdn-cgi/access/certs.
+#
+# PLACEHOLDERS, filled by Argus after the Access app exists:
+#   replace-team  team name (also in network-policies/app/cloudflared.yaml)
+#   replace-aud   the Access application AUD tag
+# With the placeholders in place every request fails closed (403/502).
+#
+# The origin as an absolute name: ndots 1 (HelmRelease dnsConfig) and the
+# CNP DNS allow-list name it exactly.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflared-config
+data:
+  config.yaml: |
+    no-autoupdate: true
+    metrics: 0.0.0.0:2000
+    originRequest:
+      access:
+        required: true
+        teamName: replace-team
+        audTag:
+          - replace-aud
+    ingress:
+      - hostname: cursus-gast.${SECRET_DOMAIN}
+        service: http://courseware-gast.cursus-gast.svc.cluster.local:8080
+      - service: http_status:404

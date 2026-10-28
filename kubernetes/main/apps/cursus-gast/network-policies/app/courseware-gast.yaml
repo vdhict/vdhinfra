@@ -1,0 +1,22 @@
+---
+# courseware-gast: in ONLY from the cloudflared pods of this namespace, on
+# 8080. Egress: none (default-deny stays in force; no egress rule here).
+# Static site, no DNS needed either.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: courseware-gast
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: courseware-gast
+      app.kubernetes.io/controller: courseware-gast
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cursus-gast
+            app.kubernetes.io/name: cloudflared
+            app.kubernetes.io/controller: cloudflared
+      toPorts:
+        - ports: [{port: "8080", protocol: TCP}]
