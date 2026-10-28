@@ -1,0 +1,27 @@
+== chg-2026-10-28-002 forge bot cursus-publisher, run 20261028T162727Z, actor k8s-engineer (Heph), decision Atlas
+AGR-109: tests are the gate
+forgejo pod: forgejo-fd4b64ccd-sh2gz Running
+pre-state: cursus-publisher absent; users listed 5
+create: success line 1, password occurrences in CLI output 0
+GET /api/v1/user as bot -> HTTP 200
+{"login":"cursus-publisher","id":8,"is_admin":false,"restricted":true,"visibility":"public"}
+GET /user/login -> 200
+POST /user/login -> 303
+GET /user/settings -> 200
+POST /user/settings -> 303
+GET /api/v1/user as bot -> HTTP 200
+{"login":"cursus-publisher","id":8,"is_admin":false,"restricted":true,"visibility":"private"}
+GET /api/v1/user/orgs as bot -> HTTP 200 count 0
+GET /api/v1/packages/cursus-publisher as bot -> HTTP 200 count 0
+anonymous GET /v2/ -> 401
+assert login/is_admin false/restricted true/visibility private: PASS
+assert no orgs: PASS
+assert anonymous /v2/ 401: PASS
+GET /api/v1/users/cursus-publisher/tokens as bot -> HTTP 200 count 0 (push step mints write:package later)
+assert no tokens: PASS
+dormant change-password (in-pod random, never left the pod): success line 1
+previous password GET /api/v1/user -> HTTP 401
+assert previous password dead: PASS
+cli list: id 8 user cursus-publisher active true admin false 2fa false
+local secret files emptied: 0 0 0 0 0 0 bytes
+result rc=0 finished 2026-10-28T16:27:30Z
