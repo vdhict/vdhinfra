@@ -1,0 +1,7 @@
+== chg-2026-10-28-002 forge bot token, mode pull-item, run 20261028T163004Z, actor k8s-engineer (Heph)
+AGR-109: tests are the gate
+STOP: Secret security/onepassword-cursus-gast-token does not exist yet. The owner must first create the Connect token item
+      op-connect-token-cursus-gast in home-infra (field credential; a Connect token with read+write on vault
+      cursus-gast only). ESO then syncs it. Nothing minted, nothing written.
+local secret files emptied: 0 0 0 0 0 0 0 bytes
+result mode=pull-item rc=3 failures=0 finished 2026-10-28T16:30:04Z

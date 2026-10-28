@@ -1,0 +1,5 @@
+== chg-2026-10-28-002 forge bot token, mode push-auth, run 20261028T163004Z, actor k8s-engineer (Heph)
+AGR-109: tests are the gate
+REFUSED: /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/authtest/nonempty.json exists and is not empty
+local secret files emptied: 0 0 0 0 0 0 0 bytes
+result mode=push-auth rc=4 failures=0 finished 2026-10-28T16:30:04Z

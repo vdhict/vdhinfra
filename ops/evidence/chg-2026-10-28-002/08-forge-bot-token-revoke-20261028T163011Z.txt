@@ -1,0 +1,7 @@
+== chg-2026-10-28-002 forge bot token, mode revoke, run 20261028T163011Z, actor k8s-engineer (Heph)
+AGR-109: tests are the gate
+wake: temporary password set over stdin; GET /api/v1/user as bot -> HTTP 200
+tokens matching ^cursus-push- left: 0 (all tokens now: [])
+dormant: in-pod random password; previous temporary password -> HTTP 401
+local secret files emptied: 0 0 0 0 0 0 0 bytes
+result mode=revoke rc=0 failures=0 finished 2026-10-28T16:30:13Z
