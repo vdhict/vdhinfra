@@ -8,14 +8,22 @@
 # route block, no HTTPRoute, no external-dns annotation: nothing for
 # external-dns-unifi or external-dns-cloudflare to publish.
 #
-# ASSUMPTIONS about the guest image, to confirm with Mack's digest:
-#   * listens on 8080 as a non-root NUMERIC uid (65534 set below; change
-#     runAsUser/runAsGroup if the image uses another uid, e.g. 101 for
-#     nginx-unprivileged);
-#   * serves /healthz (200) and / (the index page);
-#   * writes only to /tmp (an emptyDir); add an emptyDir per extra path if
-#     its server needs one (nginx: /var/cache/nginx, /var/run).
-#   * pull: public, or a pull secret is added here (none today).
+# MEASURED on the image (hack/ops/chg-2026-10-28-002-build-sign.sh, evidence
+# ops/evidence/chg-2026-10-28-002/0[1-4]-build-*; Dockerfile of the course
+# repo, final stage nginxinc/nginx-unprivileged:1.30-alpine). Re-check the
+# build evidence of the pinned commit before go-live:
+#   * Config.User "101" (numeric), gid 101, EXPOSE 8080/tcp;
+#   * web root /usr/share/nginx/html (index.html), nginx `location = /healthz`
+#     returns 200; GET / returns 200;
+#   * read-only rootfs works with emptyDirs /tmp (nginx.conf: pid
+#     /tmp/nginx.pid) and /var/cache/nginx (compiled-in client_body/proxy/...
+#     temp paths); /var/run is not used. Pod-shaped local run (uid 101,
+#     cap-drop ALL, no-new-privileges, only these two tmpfs) serves / and
+#     /healthz. The entrypoint's ipv6 helper logs "can not modify" once on a
+#     read-only rootfs: harmless;
+#   * pull: forge has REQUIRE_SIGNIN_VIEW=true (anonymous /v2/ 401), so the
+#     kubelet needs the pull secret courseware-gast-pull (./pull-secret.yaml,
+#     vault cursus-gast via the cursus-gast store).
 # yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -43,11 +51,13 @@ spec:
       enableServiceLinks: false
       securityContext:
         runAsNonRoot: true
-        runAsUser: 65534
-        runAsGroup: 65534
-        fsGroup: 65534
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
         fsGroupChangePolicy: OnRootMismatch
         seccompProfile: {type: RuntimeDefault}
+      imagePullSecrets:
+        - name: courseware-gast-pull
 
     controllers:
       courseware-gast:
@@ -61,8 +71,10 @@ spec:
         containers:
           app:
             image:
-              # PLACEHOLDER until Mack's digest arrives. The Kustomization is
-              # suspended, so this is never pulled. Replace BOTH lines.
+              # PLACEHOLDER until the build-sign script prints the digest
+              # (forge.bluejungle.net/<owner>/cursus-gast, tag gast-<short>).
+              # The Kustomization is suspended, so this is never pulled.
+              # Replace BOTH lines.
               repository: registry.invalid/courseware-gast
               tag: pending@sha256:0000000000000000000000000000000000000000000000000000000000000000
             securityContext:
@@ -80,7 +92,8 @@ spec:
                   timeoutSeconds: 3
                   failureThreshold: 3
               readiness:
-                # The index page: Ready means the site is served.
+                # The index page: Ready means the site is served. Liveness
+                # uses nginx's own /healthz (measured: 200).
                 enabled: true
                 custom: true
                 spec:
@@ -102,8 +115,15 @@ spec:
             port: *port
 
     persistence:
+      # Exactly the writable paths of the measured pod-shaped run (POD_TMPFS
+      # in the build-sign script); keep the two in step.
       tmp:
         type: emptyDir
         sizeLimit: 16Mi
         globalMounts:
           - path: /tmp
+      nginx-cache:
+        type: emptyDir
+        sizeLimit: 16Mi
+        globalMounts:
+          - path: /var/cache/nginx
