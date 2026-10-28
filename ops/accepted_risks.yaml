@@ -29,3 +29,19 @@ risks:
     accepted_at: 2026-05-13
     review_by: 2027-05-13
     rationale: Flux v2 requires cluster-admin on its core controllers; multi-tenant Flux + custom ClusterRole alternatives rejected as too costly for this scale.
+  # chg-2026-10-28-002 (Argus G5). id ar-017, not ar-002: ar-002..ar-016 are
+  # already taken in unpushed work (main worktree), so the merge stays unique.
+  - id: ar-017
+    adr: "ops change chg-2026-10-28-002 (Argus G5; design docs/design/cursus-gast-exposure.md); ADR to follow with the contained store"
+    finding_title: "^.*(op-connect-token-cursus-gast|onepassword-cursus-gast|Connect token .*home-infra|home-infra .*Connect token).*$"
+    target: "^(app\\.cursus-gast|security/onepassword-cursus-gast-token|1password/home-infra/op-connect-token-cursus-gast)$"
+    accepted_by: atlas
+    accepted_at: 2026-10-28
+    review_by: 2027-01-28
+    rationale: >-
+      The Connect token for vault cursus-gast sits in home-infra (devtenant pattern). Bounded: the token
+      is read-only on vault cursus-gast, which holds only the tunnel RUN token (no API token); the Connect
+      server is ClusterIP only; mypka pods are blocked from namespace security by the boundary CCNP.
+      Residual: anyone who can read home-infra (incl. the mypka-agents SA, inc-2026-10-25-002) can read
+      that token, but needs in-cluster access to Connect to use it. Revisit as soon as a contained store
+      exists, at the latest on review_by.
