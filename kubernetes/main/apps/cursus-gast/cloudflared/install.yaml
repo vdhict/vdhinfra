@@ -13,6 +13,9 @@ metadata:
   name: &app cloudflared-cursus-gast
   namespace: flux-system
 spec:
+  # SUSPENDED until go-live (Argus R2): dependsOn alone is no kill switch once
+  # courseware-gast has been Ready. Go-live DELETES this line (never false).
+  suspend: true
   targetNamespace: cursus-gast
   commonMetadata:
     labels:
