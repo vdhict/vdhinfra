@@ -10,13 +10,14 @@
 #   * Name carries the desk digest prefix: a new image = a new Job (immutable spec). No ttlSecondsAfterFinished: a
 #     finished Job stays, so Flux does not re-create it on every reconcile (rerun would be a no-op anyway).
 #   * 9dc3dbc (chg-2026-10-21-012): desk 7e090d0, no new migration (V012 stays; run is a no-op).
+#   * a7629ea (chg-2026-10-22-006): desk v9 c3614a7, no new migration (V012 stays; run is a no-op).
 #   * -r2 (inc-2026-10-20-002): run 1 failed to connect (DB not up yet, nothing applied); the new name makes Flux
 #     create a fresh Job and prune the failed one.
 # yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/batch/job_v1.json
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: passkey-point-migrate-9dc3dbc
+  name: passkey-point-migrate-a7629ea
 spec:
   backoffLimit: 0
   activeDeadlineSeconds: 600
