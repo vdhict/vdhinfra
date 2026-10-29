@@ -48,3 +48,19 @@ risks:
       the daily T9 posture check alerts when the connector count or origin differs from the cluster's.
       Closes with tsk-2026-10-26-002 (narrow the mypka-agents SA, 30-10) plus an own uid for myPKA on the
       Mini, at the latest on review_by.
+  - id: ar-019
+    adr: "ops change chg-2026-10-12-004 (Themis qa_passed on desk v9 c3614a7, condition 70197); owner decision relayed by Larry 2026-10-29 (handoff e8fbefa4); ADR to follow with the Passkey release ADR"
+    finding_title: "^(CVE-2026-70197|DOTNET-RUNTIME-BEHIND)$"
+    target: "^registry\\.access\\.redhat\\.com/hi/aspnet-runtime(:10\\.0)?(@sha256:f99c1b0754713eb4060e2be75c43fbad0339099c2d2c6ffe61b4e4db612380b9)?$"
+    accepted_by: user
+    accepted_at: 2026-10-29
+    review_by: 2026-11-28
+    rationale: >-
+      CVE-2026-70197 (RCE in Kestrel sockets, fixed by Microsoft in .NET 10.0.14 on 2026-10-25) ships
+      unfixed in the Passkey Point runtime base f99c1b07 (.NET 10.0.13), because Red Hat has not yet
+      published 10.0.14. The owner accepted it in writing, per release, for the push of the release to the
+      client's source host and for deployment to the client's dev environment only. NOT for production:
+      a production rollout needs a base image carrying the fix (Mack re-pins the digest only). Covers this
+      CVE on this base digest only; -102870 and -111497 are not covered by this entry. The release
+      still needs the full pre-client review (AGR-087/AGR-100). Closes when the re-pin to a 10.0.14 base
+      lands (cron 390fc807 watches for it), at the latest on review_by.
