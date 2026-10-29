@@ -48,8 +48,9 @@ guest browser --TLS--> Cloudflare edge: Access app cursus-gast.${SECRET_DOMAIN}
    - the official `cloudflare/cloudflared` image pinned by digest, running with `--no-autoupdate`;
    - a new tunnel `cursus-gast` created with **`config_src=local`**. Its run token is in `TUNNEL_TOKEN`, and the local
      `--config` holds the ingress rules: the single hostname, plus a catch-all `http_status:404`;
-   - `originRequest.access {required: true, teamName, audTag}` sits at the **top level** of the config, so the
-     connector rejects any request without a valid Access JWT;
+   - `originRequest.access {required: true, teamName, audTag}` sits **on each ingress rule**, so the connector
+     rejects any request without a valid Access JWT. A top-level block is NOT applied to the rules: T3 on 29-10
+     served 200 with it, and 403 after moving it onto the rule;
    - a remote configuration would replace all local ingress rules, including that check (cloudflared source,
      `orchestration/orchestrator.go`). So the tunnel stays local-only, and T9 checks that daily.
 4. **Access app** (C6):
