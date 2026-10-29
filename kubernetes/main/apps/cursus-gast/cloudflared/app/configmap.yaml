@@ -39,6 +39,25 @@ data:
         audTag:
           - 8838e7c48bcd2b79d45a4bce5f4fdcf9d999a3675bb94900e7baaf76078e133a
     ingress:
+      # The Access check MUST sit on each rule: T3 (29-10) proved the top-level
+      # originRequest.access is NOT applied to the rules (temporary name without an
+      # Access app served 200). Top-level copy kept only as a default.
       - hostname: cursus-gast.${SECRET_DOMAIN}
         service: http://courseware-gast.cursus-gast.svc.cluster.local:8080
+        originRequest:
+          access:
+            required: true
+            teamName: bluejungle
+            audTag:
+              - 8838e7c48bcd2b79d45a4bce5f4fdcf9d999a3675bb94900e7baaf76078e133a
+      # T3 (chg-2026-10-28-002), TEMPORARY: same per-rule access block, NO Access app.
+      # Expect 403 from cloudflared. Removed right after the test.
+      - hostname: cursus-gast-t3.${SECRET_DOMAIN}
+        service: http://courseware-gast.cursus-gast.svc.cluster.local:8080
+        originRequest:
+          access:
+            required: true
+            teamName: bluejungle
+            audTag:
+              - 8838e7c48bcd2b79d45a4bce5f4fdcf9d999a3675bb94900e7baaf76078e133a
       - service: http_status:404
