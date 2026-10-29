@@ -1,0 +1,3 @@
+{"kind": "List", "items": [
+ {"metadata": {"name": "cloudflared-a"}, "status": {"startTime": "2026-10-29T06:45:34Z"}},
+ {"metadata": {"name": "cloudflared-b"}, "status": {"startTime": "2026-10-29T06:40:00Z"}}]}

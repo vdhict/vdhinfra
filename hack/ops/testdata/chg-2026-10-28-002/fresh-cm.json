@@ -1,0 +1,4 @@
+{"apiVersion": "v1", "kind": "ConfigMap",
+ "metadata": {"name": "cloudflared-config", "namespace": "cursus-gast", "creationTimestamp": "2026-10-29T06:00:00Z",
+              "managedFields": [{"manager": "kustomize-controller", "operation": "Apply", "time": "2026-10-29T06:45:32Z"}]},
+ "data": {"config.yaml": "originRequest:\n  access:\n    required: true\n    teamName: bluejungle\n    audTag:\n      - dummy-aud-not-real-1111aaaa\ningress:\n  - hostname: cursus-gast.example.invalid\n    service: http://origin.example.svc.cluster.local:8080\n    originRequest:\n      access:\n        required: true\n        teamName: bluejungle\n        audTag:\n          - dummy-aud-not-real-1111aaaa\n  - service: http_status:404\n"}}

@@ -363,6 +363,51 @@ def check_ha_tokens(repo: Path) -> list[dict]:
     return findings
 
 
+def check_cursus_gast_access(repo: Path) -> list[dict]:
+    """chg-2026-10-28-002 Argus F-T3 posture: the LIVE cursus-gast cloudflared
+    config must carry originRequest.access on EVERY hostname rule (T3 proved
+    the top-level block is not applied), with the AUD list of the git copy on
+    main, and every cloudflared pod must have started after the ConfigMap's
+    last change. Runs the repo's own golive-check --live (read-only: get on
+    the ConfigMap, list pods in cursus-gast; the cluster-health ClusterRole
+    already grants both). Its output holds OK/FAIL lines with the first
+    hostname label only, never the AUD or the domain."""
+    script = repo / "hack" / "ops" / "chg-2026-10-28-002-golive-check.sh"
+    if not script.exists():
+        return [{
+            "title": "cursus-gast Access posture check missing from the repo",
+            "severity": "low",
+            "target": "cursus-gast/cloudflared-config",
+            "evidence": "hack/ops/chg-2026-10-28-002-golive-check.sh not on main",
+            "remediation": "restore the check (chg-2026-10-28-002 F-T3)",
+            "owner_agent": "k8s-engineer",
+        }]
+    env = os.environ.copy()
+    env["PYTHON"] = sys.executable
+    res = run(["bash", str(script), "--live", "--ref", "HEAD"], cwd=str(repo), env=env, timeout=60)
+    lines = [l for l in (res.stdout or "").splitlines() if l.strip()]
+    log(f"argus: cursus-gast access rc={res.returncode} ({len(lines)} lines)")
+    if res.returncode == 0:
+        return [{
+            "title": "cursus-gast: Access block on every rule, pods fresh",
+            "severity": "info",
+            "target": "cursus-gast/cloudflared-config",
+            "evidence": next((l for l in lines if "RESULT" in l and "LIVE" in l), "LIVE OK")[:240],
+            "remediation": "none",
+            "owner_agent": "k8s-engineer",
+        }]
+    bad = [l.replace("golive-check: ", "") for l in lines if " FAIL" in l or l.startswith("golive-check: FAIL")]
+    return [{
+        "title": "cursus-gast: cloudflared Access check per rule FAILED (guest site may be open)",
+        "severity": "high",
+        "target": "cursus-gast/cloudflared-config",
+        "evidence": ("; ".join(bad) or f"rc={res.returncode}")[:400],
+        "remediation": "golive-check.sh --live; put originRequest.access on every hostname rule; "
+                       "restart cloudflared after a config change (chg-2026-10-28-002 F-T3)",
+        "owner_agent": "k8s-engineer",
+    }]
+
+
 # ── main ────────────────────────────────────────────────────────────────
 
 def post_summary_to_ha(chg: str, findings_by_sev: dict, repo_url_base: str) -> None:
@@ -415,6 +460,7 @@ def main() -> int:
             ("exposed_services", check_exposed_services),
             ("certs", check_certs),
             ("ha_tokens", lambda: check_ha_tokens(workdir)),
+            ("cursus_gast_access", lambda: check_cursus_gast_access(workdir)),
         ]:
             log(f"argus: check {name}")
             try:

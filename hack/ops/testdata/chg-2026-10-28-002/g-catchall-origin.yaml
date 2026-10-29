@@ -1,0 +1,26 @@
+# Test fixture (chg-2026-10-28-002 F-T3). Dummy AUD, not the real one. Expect: FAIL (catch-all rule sends to the origin without a block)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflared-config
+data:
+  config.yaml: |
+    no-autoupdate: true
+    metrics: 0.0.0.0:2000
+    originRequest:
+      access:
+        required: true
+        teamName: bluejungle
+        audTag:
+          - dummy-aud-not-real-1111aaaa
+    ingress:
+      # comment inside the block scalar
+      - hostname: cursus-gast.${SECRET_DOMAIN}
+        service: http://origin.example.svc.cluster.local:8080
+        originRequest:
+          access:
+            required: true
+            teamName: bluejungle
+            audTag:
+              - dummy-aud-not-real-1111aaaa
+      - service: http://origin.example.svc.cluster.local:8080
