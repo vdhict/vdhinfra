@@ -1,0 +1,56 @@
+chg-2026-10-28-002 T4 probe 20261029T063642Z
+image docker.io/library/busybox:1.37.0@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+origin service present: yes
+courseware-gast pods running: 1
+cloudflared pods running: 2
+--- phase a: pod cursus-gast/t4-probe-a-20261029t063642z
+a dns-origin expect=ok got=ok PASS
+a dns-edge-srv expect=ok got=ok PASS
+a dns-region1 expect=ok got=ok PASS
+a dns-arbitrary expect=refused got=refused PASS
+a edge-region1-7844 expect=ok got=ok PASS
+a edge-region2-7844 expect=ok got=ok PASS
+a edge-region1-443 expect=blocked got=blocked PASS
+a origin-8080 expect=ok got=ok PASS
+a family-courseware expect=blocked got=blocked PASS
+a ha-8123 expect=blocked got=blocked PASS
+a envoy-internal-443 expect=blocked got=blocked PASS
+a postgres-5432 expect=blocked got=blocked PASS
+a minio-9000 expect=blocked got=blocked PASS
+a mosquitto-1883 expect=blocked got=blocked PASS
+a node81-apid expect=blocked got=blocked PASS
+a node81-kubelet expect=blocked got=blocked PASS
+a node82-apid expect=blocked got=blocked PASS
+a node82-kubelet expect=blocked got=blocked PASS
+a node83-apid expect=blocked got=blocked PASS
+a node83-kubelet expect=blocked got=blocked PASS
+a cp84-apid expect=blocked got=blocked PASS
+a cp84-kubelet expect=blocked got=blocked PASS
+a cp85-apid expect=blocked got=blocked PASS
+a cp85-kubelet expect=blocked got=blocked PASS
+a cp86-apid expect=blocked got=blocked PASS
+a cp86-kubelet expect=blocked got=blocked PASS
+a vip-6443 expect=blocked got=blocked PASS
+a udm-443 expect=blocked got=blocked PASS
+a nas-443 expect=blocked got=blocked PASS
+a kube-apiserver expect=blocked got=blocked PASS
+a kube-dns-metrics expect=blocked got=blocked PASS
+a internet-443 expect=blocked got=blocked PASS
+a dot-853 expect=blocked got=blocked PASS
+phase a: PASS
+--- phase b: pod cursus-gast/t4-probe-b-20261029t063642z
+b unlabelled-dns-region1 expect=blocked got=blocked PASS
+b unlabelled-origin-8080 expect=blocked got=blocked PASS
+b unlabelled-edge-7844 expect=blocked got=blocked PASS
+b unlabelled-ha-8123 expect=blocked got=blocked PASS
+phase b: PASS
+--- phase c: pod default/t4-probe-c-20261029t063642z
+c control-dns expect=ok got=ok PASS
+c control-apiserver expect=ok got=ok PASS
+c rev-origin-svc-ip expect=blocked got=blocked PASS
+c rev-origin-svc-name expect=blocked got=blocked PASS
+c rev-origin-pod1-8080 expect=blocked got=blocked PASS
+c rev-cloudflared-pod1-2000 expect=blocked got=blocked PASS
+c rev-cloudflared-pod2-2000 expect=blocked got=blocked PASS
+phase c: PASS
+T4 RESULT PASS

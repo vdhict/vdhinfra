@@ -4,9 +4,8 @@
 # `cursus-gast` (config_src=local, Argus C3). Gated three ways:
 #   * the CNPs first (cursus-gast-network-policies);
 #   * the origin first (courseware-gast), so the tunnel never serves a 502;
-#   * the cursus-gast store (external-secrets-stores-cursus-gast). Since
-#     go-live the tunnel secret is created out-of-band (app/kustomization.yaml);
-#     this dependsOn is kept until the store is reviewed.
+#   (the tunnel secret is created out-of-band, see app/kustomization.yaml; the
+#   cursus-gast 1Password store was removed after go-live, Argus D1).
 # Never write `suspend: false` (would undo an emergency `flux suspend`).
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -21,7 +20,6 @@ spec:
   dependsOn:
     - name: cursus-gast-network-policies
     - name: courseware-gast
-    - name: external-secrets-stores-cursus-gast
   path: ./kubernetes/main/apps/cursus-gast/cloudflared/app
   sourceRef:
     kind: GitRepository

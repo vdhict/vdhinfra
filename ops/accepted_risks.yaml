@@ -29,25 +29,9 @@ risks:
     accepted_at: 2026-05-13
     review_by: 2027-05-13
     rationale: Flux v2 requires cluster-admin on its core controllers; multi-tenant Flux + custom ClusterRole alternatives rejected as too costly for this scale.
-  # chg-2026-10-28-002 (Argus G5). id ar-017, not ar-002: ar-002..ar-016 are
-  # already taken in unpushed work (main worktree), so the merge stays unique.
-  - id: ar-017
-    adr: "ops change chg-2026-10-28-002 (Argus G5; design docs/design/cursus-gast-exposure.md); ADR to follow with the contained store"
-    finding_title: "^.*(op-connect-token-cursus-gast|onepassword-cursus-gast|Connect token .*home-infra|home-infra .*Connect token).*$"
-    target: "^(app\\.cursus-gast|security/onepassword-cursus-gast-token|1password/home-infra/op-connect-token-cursus-gast)$"
-    accepted_by: atlas
-    accepted_at: 2026-10-28
-    review_by: 2026-11-06
-    rationale: >-
-      The Connect token for vault cursus-gast sits in home-infra (devtenant pattern); it is read-only on
-      vault cursus-gast. Since go-live (29-10) the vault holds NO cluster secret (tunnel run token and
-      forge pull token are out-of-band Secrets, D1) but it holds the owner's Cloudflare SETUP token
-      (Tunnel/Access/DNS edit) until the owner revokes it. Residual: anyone who can read home-infra (incl.
-      the mypka-agents SA, inc-2026-10-25-002) can read the Connect token and, with in-cluster access to
-      the ClusterIP Connect server (e.g. the Mini kubeconfig, uid 501 shared with myPKA), the setup token.
-      Bounded by: setup token revoked after T3/T7, by 2026-10-31 at the latest (Argus D6); then the store,
-      security/onepassword-cursus-gast-token, cloudflared's dependsOn on the store and the 1Password item
-      are removed and this entry closes (Argus D1, by review_by).
+  # ar-017 (Connect token for vault cursus-gast) CLOSED 2026-10-29: store, ExternalSecret and
+  # vault link removed after go-live (Argus D1). Keep the id reserved; ar-002..ar-016 are
+  # taken in unpushed work (main worktree).
   # chg-2026-10-28-002 (Argus go-live D2/B1).
   - id: ar-018
     adr: "ops change chg-2026-10-28-002 (Argus go-live review 72427592, D2); closes with tsk-2026-10-26-002"
