@@ -530,16 +530,19 @@ spec:
                   - key: github-app-key.pem
                     path: github-app-key.pem
 ---
-# Argus — weekly security posture scan. Sundays 04:00 local (off-peak,
-# after the daily collect at 02:00). Read-only checks; high-severity
-# findings auto-open incidents.
+# Argus — daily security posture scan, 04:00 local (off-peak, after the
+# daily collect at 02:00). Daily since chg-2026-10-28-002 (Argus C-daily: the
+# cursus-gast per-rule Access check runs against the live ConfigMap every
+# day; AGR-109 names it the daily posture scan). Read-only checks;
+# high-severity findings auto-open incidents. The HA summary is a silent
+# persistent_notification (no sound, AGR-074).
 apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: argus-posture-scan
   namespace: observability
 spec:
-  schedule: "0 4 * * 0"
+  schedule: "0 4 * * *"
   timeZone: Europe/Amsterdam
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 4

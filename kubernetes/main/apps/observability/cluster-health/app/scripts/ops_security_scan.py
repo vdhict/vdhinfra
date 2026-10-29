@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Argus — weekly security posture scan.
+"""Argus — daily security posture scan (weekly until chg-2026-10-28-002).
 
 Read-only checks across the cluster + repo. Findings are recorded as
 events on a single posture-scan change record. High-severity findings
@@ -443,7 +443,7 @@ def main() -> int:
     try:
         if not clone(workdir):
             return 0
-        chg = ops_change_new("sec.posture_scan", "low", workdir, "weekly posture scan")
+        chg = ops_change_new("sec.posture_scan", "low", workdir, "daily posture scan")
         if not chg:
             return 0
         log(f"argus: opened {chg}")
