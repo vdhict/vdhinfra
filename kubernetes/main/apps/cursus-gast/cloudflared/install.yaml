@@ -3,19 +3,17 @@
 # cloudflared (chg-2026-10-28-002): the outbound-only connector of tunnel
 # `cursus-gast` (config_src=local, Argus C3). Gated three ways:
 #   * the CNPs first (cursus-gast-network-policies);
-#   * the origin first (courseware-gast, SUSPENDED until Mack's digest), so
-#     the tunnel never serves a 502 or a placeholder;
-#   * its own store (external-secrets-stores-cursus-gast), Ready only once
-#     the owner has created the vault token item.
+#   * the origin first (courseware-gast), so the tunnel never serves a 502;
+#   * the cursus-gast store (external-secrets-stores-cursus-gast). Since
+#     go-live the tunnel secret is created out-of-band (app/kustomization.yaml);
+#     this dependsOn is kept until the store is reviewed.
+# Never write `suspend: false` (would undo an emergency `flux suspend`).
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
   name: &app cloudflared-cursus-gast
   namespace: flux-system
 spec:
-  # SUSPENDED until go-live (Argus R2): dependsOn alone is no kill switch once
-  # courseware-gast has been Ready. Go-live DELETES this line (never false).
-  suspend: true
   targetNamespace: cursus-gast
   commonMetadata:
     labels:

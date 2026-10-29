@@ -15,6 +15,16 @@
 #       mint read:package token cursus-pull, scope-test it, write it into vault cursus-gast item forge-pull
 #       (fields username, credential) via 1Password Connect, read back by hash. On any failure after the mint the
 #       new token is deleted again. Bot ends dormant.
+#   hack/ops/chg-2026-10-28-002-forge-bot-token.sh pull-secret
+#       same safety as pull-item, but the target is the cluster, not 1Password (the cursus-gast Connect token is
+#       read-only). Preflight (namespace cursus-gast present, Secret courseware-gast-pull absent), refuse if a
+#       cursus-pull token already exists, mint read:package token cursus-pull, scope-test it with real registry
+#       calls (pull of the pinned cursus-gast manifest 200; blob-upload POST refused; another owner's repo refused),
+#       then write Secret cursus-gast/courseware-gast-pull (kubernetes.io/dockerconfigjson, auths
+#       forge.bluejungle.net, label app.kubernetes.io/part-of=cursus-gast) with `kubectl apply --server-side -f -`
+#       (JSON on stdin, never argv; server-side so no last-applied annotation copies the data). Read back key names,
+#       type, label and the sha256 of the data only. On any failure after the mint the token is deleted again (and a
+#       Secret this run created is deleted). Bot ends dormant.
 #
 # Never prints a password, token or Connect token: values live in 0600 files or shell variables and go to the pod
 # over stdin; curl reads credentials from 0600 config/header files; CLI output is never shown. Evidence (write-once):
@@ -25,8 +35,8 @@ umask 077
 MODE=${1:-}; ARG=${2:-}
 case "$MODE" in
   push-auth) [ -n "$ARG" ] || { echo "usage: $0 push-auth <authfile>" >&2; exit 2; };;
-  revoke|pull-item) ;;
-  *) echo "usage: $0 push-auth <authfile> | revoke [<authfile>] | pull-item" >&2; exit 2;;
+  revoke|pull-item|pull-secret) ;;
+  *) echo "usage: $0 push-auth <authfile> | revoke [<authfile>] | pull-item | pull-secret" >&2; exit 2;;
 esac
 BOT=cursus-publisher
 B=https://forge.bluejungle.net
@@ -39,19 +49,26 @@ SCRATCH=${SCRATCH:-/private/tmp/claude-501/-Users-sheijden-Code-homelab-migratio
 RUN=$(date -u +%Y%m%dT%H%M%SZ)
 A=$(mktemp -d "$SCRATCH/forge-bot-token-$MODE-$RUN.XXXXXX")
 PW=$A/bot.pass; CC=$A/bot.curlcfg; TK=$A/token; TH=$A/tok.hdr; O=$A/cli.out; CH=$A/connect.hdr; BODY=$A/item.json
-SECRETS=("$PW" "$CC" "$TK" "$TH" "$O" "$CH" "$BODY")
+BJ=$A/bearer.json; BH=$A/bearer.hdr; DCJ=$A/dockerconfig.json; SM=$A/secret.json
+SECRETS=("$PW" "$CC" "$TK" "$TH" "$O" "$CH" "$BODY" "$BJ" "$BH" "$DCJ" "$SM")
 for f in "${SECRETS[@]}"; do : > "$f"; done
 EV=$A/evidence.txt; : > "$EV"
 ev() { printf '%s\n' "$*" | tee -a "$EV"; }
 eval "$(mise env -s bash 2>/dev/null)" 2>/dev/null || true
 K="kubectl -n devtools exec -i deploy/forgejo -c forgejo --"
 EVDIR=$REPO_ROOT/ops/evidence/chg-2026-10-28-002
-WOKEN=0; PF=""; MINTED_NAME=""; FAIL=0
+WOKEN=0; PF=""; MINTED_NAME=""; FAIL=0; SECRET_CREATED=0
+PS_NS=cursus-gast; PS_NAME=courseware-gast-pull
+PIN=sha256:461ca45caee9ea5e12f813e9f132d9021b45bc99bcdf60c821e5f4be5340495f  # keep in step with courseware-gast helmrelease
+OTHER_REPO=wires-publisher/cluster-wires                                     # a real package of another owner
 
 finish() {
   rc=$?
   set +e
-  if [ -n "$MINTED_NAME" ]; then  # pull-item failed after the mint: delete the new token again
+  if [ "$SECRET_CREATED" = 1 ] && [ -n "$MINTED_NAME" ]; then  # pull-secret failed after the apply
+    ev "cleanup: deleting Secret $PS_NS/$PS_NAME created by this run -> $(kubectl -n "$PS_NS" delete secret "$PS_NAME" --ignore-not-found 2>&1 | head -1)"
+  fi
+  if [ -n "$MINTED_NAME" ]; then  # pull-item/pull-secret failed after the mint: delete the new token again
     ev "cleanup: deleting freshly minted $MINTED_NAME after failure"
     [ "$WOKEN" = 1 ] || wake
     del_named "^$MINTED_NAME\$"
@@ -138,6 +155,19 @@ scope_tests() { # scope_tests <push|pull>
   c=$(regtoken "$1"); ev "registry /v2/token scope $REPO:$1 -> $c"; [ "$c" = 200 ] || { ev "assert registry $1 200: FAIL"; FAIL=1; }
 }
 
+regcall() { # regcall <repo> <scope> <METHOD> <path> -> HTTP code of a real registry call with a bearer for <repo>:<scope>
+  local c
+  printf 'user = "%s:%s"\n' "$BOT" "$(head -1 "$TK" | tr -d '\n')" > "$TH"
+  c=$(curl -sS -o "$BJ" -K "$TH" -w '%{http_code}' "$B/v2/token?service=container_registry&scope=repository:$1:$2" || echo 000)
+  : > "$TH"
+  if [ "$c" != 200 ]; then : > "$BJ"; echo "token-$c"; return 0; fi
+  printf 'header = "Authorization: Bearer %s"\n' "$(jq -r '.token // empty' "$BJ")" > "$BH"; : > "$BJ"
+  curl -sS -o /dev/null -K "$BH" -X "$3" -w '%{http_code}' \
+    -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json' \
+    "$B$4" || echo 000
+  : > "$BH"
+}
+
 ev "== chg-2026-10-28-002 forge bot token, mode $MODE, run $RUN, actor k8s-engineer (Heph)"
 ev "AGR-109: tests are the gate"
 
@@ -173,6 +203,63 @@ if [ "$MODE" = revoke ]; then
     [ "$c" = 401 ] && [ "$r" = 401 ] && ev "assert authfile token dead: PASS" || { ev "assert authfile token dead: FAIL"; FAIL=1; }
     : > "$TK"; : > "$ARG"; ev "authfile emptied ($(stat -f %z "$ARG") bytes)"
   fi
+  dormant
+  [ "$FAIL" = 0 ] || exit 1
+  exit 0
+fi
+
+# ---- pull-secret -----------------------------------------------------------------------------------------------------
+if [ "$MODE" = pull-secret ]; then
+  kubectl get namespace "$PS_NS" >/dev/null 2>&1 || { ev "STOP: namespace $PS_NS does not exist"; exit 2; }
+  if kubectl -n "$PS_NS" get secret "$PS_NAME" >/dev/null 2>&1; then
+    ev "REFUSED: Secret $PS_NS/$PS_NAME already exists (rotation = delete token cursus-pull + the Secret in a reviewed step first)"; exit 4
+  fi
+  ev "preflight: namespace $PS_NS present, Secret $PS_NS/$PS_NAME absent"
+  wake
+  L=$(tokens)
+  [ "$(printf '%s' "$L" | jq '[.[] | select(.name == "cursus-pull")] | length')" = 0 ] \
+    || { ev "REFUSED: a cursus-pull token already exists (rotation = delete it in a reviewed step first)"; exit 4; }
+  MINTED_NAME=cursus-pull
+  mint cursus-pull read:package
+  scope_tests pull
+  c=$(regcall "$REPO" pull GET "/v2/$REPO/manifests/$PIN"); ev "registry GET $REPO manifest $PIN (pull) -> $c"
+  [ "$c" = 200 ] || { ev "assert pull of the pinned manifest 200: FAIL"; FAIL=1; }
+  c=$(regcall "$REPO" push,pull POST "/v2/$REPO/blobs/uploads/"); ev "registry POST $REPO blobs/uploads (push) -> $c"
+  case "$c" in 4*|token-4*) ev "assert push refused: PASS";; *) ev "assert push refused: FAIL"; FAIL=1;; esac
+  c=$(regcall "$OTHER_REPO" pull GET "/v2/$OTHER_REPO/tags/list"); ev "registry GET $OTHER_REPO tags/list (other owner) -> $c"
+  case "$c" in 4*|token-4*) ev "assert other repo refused: PASS";; *) ev "assert other repo refused: FAIL"; FAIL=1;; esac
+  [ "$FAIL" = 0 ] || { ev "STOP: scope tests failed"; exit 1; }
+
+  jq -cn --rawfile t "$TK" --arg u "$BOT" --arg h "$HOST" \
+    '($t | rtrimstr("\n")) as $p | {auths: {($h): {username: $u, password: $p, auth: ("\($u):\($p)" | @base64)}}}' \
+    | tr -d '\n' > "$DCJ"
+  jq -n --rawfile d "$DCJ" --arg ns "$PS_NS" --arg n "$PS_NAME" '{
+    apiVersion: "v1", kind: "Secret", type: "kubernetes.io/dockerconfigjson",
+    metadata: {name: $n, namespace: $ns,
+               labels: {"app.kubernetes.io/part-of": "cursus-gast"},
+               annotations: {"vdhinfra/change": "chg-2026-10-28-002"}},
+    data: {".dockerconfigjson": ($d | @base64)}}' > "$SM"
+  SECRET_CREATED=1
+  if kubectl apply --server-side --field-manager=chg-2026-10-28-002 -f - < "$SM" > "$O" 2>&1; then
+    ev "kubectl apply --server-side (stdin) -> $(grep -c 'serverside-applied' "$O" || true) serverside-applied line(s)"
+  else ev "STOP: kubectl apply failed ($(grep -c . "$O" || true) output lines, not shown)"; : > "$O"; : > "$SM"; exit 1; fi
+  : > "$O"; : > "$SM"
+  WANT=$(shasum -a 256 < "$DCJ" | cut -c1-64); : > "$DCJ"
+  kubectl -n "$PS_NS" get secret "$PS_NAME" -o json > "$BODY"
+  KEYS=$(jq -c '.data | keys' "$BODY"); TYPE=$(jq -r '.type' "$BODY")
+  LBL=$(jq -r '.metadata.labels["app.kubernetes.io/part-of"] // ""' "$BODY")
+  NLA=$(jq '[.metadata.annotations // {} | keys[] | select(test("last-applied"))] | length' "$BODY")
+  GOT=$(jq -r '.data[".dockerconfigjson"] // ""' "$BODY" | base64 -d | shasum -a 256 | cut -c1-64)
+  HOSTS=$(jq -r '.data[".dockerconfigjson"] // ""' "$BODY" | base64 -d | jq -c '.auths | keys')
+  : > "$BODY"
+  ev "read-back $PS_NS/$PS_NAME: type $TYPE, keys $KEYS, auths hosts $HOSTS, label part-of=$LBL, last-applied annotations $NLA, data sha256 $GOT"
+  if [ "$TYPE" = kubernetes.io/dockerconfigjson ] && [ "$KEYS" = '[".dockerconfigjson"]' ] && [ "$LBL" = cursus-gast ] \
+     && [ "$HOSTS" = "[\"$HOST\"]" ] && [ "$NLA" = 0 ] && [ "$GOT" = "$WANT" ]; then
+    ev "assert read-back (type, keys, host, label, no last-applied, sha256 = written): PASS"
+  else ev "assert read-back: FAIL"; exit 1; fi
+  MINTED_NAME=""; SECRET_CREATED=0   # stored: keep the token and the Secret
+  : > "$TK"
+  ev "pull token cursus-pull kept (read:package), stored only in Secret $PS_NS/$PS_NAME; rotate-by 90 days (add to the token register)"
   dormant
   [ "$FAIL" = 0 ] || exit 1
   exit 0

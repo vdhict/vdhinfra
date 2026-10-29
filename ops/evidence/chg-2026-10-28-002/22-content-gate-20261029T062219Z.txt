@@ -1,0 +1,17 @@
+chg-2026-10-28-002 content gate 20261029T062219Z
+image forge.bluejungle.net/cursus-publisher/cursus-gast@sha256:461ca45caee9ea5e12f813e9f132d9021b45bc99bcdf60c821e5f4be5340495f
+digest sha256:461ca45caee9ea5e12f813e9f132d9021b45bc99bcdf60c821e5f4be5340495f
+cosign key
+content_root /usr/share/nginx/html
+cosign_verify ok (1 signature(s))
+classified: text=43 pdf=0 zip=0 members=0 gz=0 br=0 font=8 image=22 unscanned=0
+family_names       0
+client_names       0
+secrets_gitleaks   0
+internal_ips       0
+internal_names     0
+file_metadata      0
+git_dirs           0
+source_maps        0
+unscanned          0
+RESULT PASS (0 hits)

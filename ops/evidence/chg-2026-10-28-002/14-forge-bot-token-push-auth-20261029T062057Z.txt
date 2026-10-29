@@ -1,0 +1,15 @@
+== chg-2026-10-28-002 forge bot token, mode push-auth, run 20261029T062057Z, actor k8s-engineer (Heph)
+AGR-109: tests are the gate
+password reset via admin CLI (in-pod random): success line 1
+minted cursus-push-20261029T062057Z scope write:package via admin CLI (--raw to a 0600 file; value not shown)
+token GET /api/v1/packages/cursus-publisher -> 200
+token GET /api/v1/user -> 403
+token GET /api/v1/user/repos -> 403
+token GET /api/v1/admin/users -> 403
+token GET /api/v1/packages/wires-publisher -> 403
+token GET /api/v1/packages/palamedes -> 403
+registry /v2/token scope cursus-publisher/cursus-gast:push -> 200
+authfile written: mode 600, hosts ["forge.bluejungle.net"]
+next: CURSUS_PUSH_AUTHFILE=<authfile> hack/ops/chg-2026-10-28-002-build-sign.sh <commit> --push; then: hack/ops/chg-2026-10-28-002-forge-bot-token.sh revoke <authfile>
+local secret files emptied: 0 0 0 0 0 0 0 bytes
+result mode=push-auth rc=0 failures=0 finished 2026-10-29T06:20:58Z

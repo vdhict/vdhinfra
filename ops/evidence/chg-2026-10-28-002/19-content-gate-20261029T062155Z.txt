@@ -1,0 +1,7 @@
+chg-2026-10-28-002 content gate 20261029T062155Z
+image forge.bluejungle.net/cursus-publisher/cursus-gast@sha256:461ca45caee9ea5e12f813e9f132d9021b45bc99bcdf60c821e5f4be5340495f
+digest sha256:461ca45caee9ea5e12f813e9f132d9021b45bc99bcdf60c821e5f4be5340495f
+cosign key
+content_root /usr/share/nginx/html
+cosign_verify FAILED (details in /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/afcadc58-4205-42d9-9959-d09214284b31/scratchpad/cursus-gast-gate-20261029T062155Z-FLWmqB/cosign-verify.err)
+RESULT FAIL (signature not verified) - no deploy

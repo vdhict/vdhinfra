@@ -3,24 +3,18 @@
 # courseware-gast (chg-2026-10-28-002): the guest edition of the AI course,
 # Mack's static guest image. Served ONLY through cloudflared in this
 # namespace; no HTTPRoute, no LAN record, no Envoy.
+# cloudflared dependsOn this Kustomization, so the tunnel cannot come up
+# before the origin.
 #
-# SUSPENDED until Mack's image digest arrives (and the content gate T6 is
-# green). The image in app/helmrelease.yaml is a placeholder; while this is
-# suspended nothing of app/ reaches the cluster, so the placeholder is never
-# pulled. cloudflared dependsOn this Kustomization, so the tunnel cannot come
-# up before the origin either.
-#
-# GO-LIVE: set the real image in app/helmrelease.yaml and DELETE the
-# `suspend: true` line below. Do not write `suspend: false`: an explicit
-# false in Git is re-applied by cluster-apps on every reconcile and would
-# undo an emergency `flux suspend` (rollback script).
+# Live since go-live (chg-2026-10-28-002). Never write `suspend: false`: an
+# explicit false in Git is re-applied by cluster-apps on every reconcile and
+# would undo an emergency `flux suspend` (rollback script).
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
   name: &app courseware-gast
   namespace: flux-system
 spec:
-  suspend: true
   targetNamespace: cursus-gast
   commonMetadata:
     labels:

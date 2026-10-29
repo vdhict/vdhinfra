@@ -4,5 +4,9 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ./ocirepository.yaml
-  - ./pull-secret.yaml
+  # Secret courseware-gast-pull (dockerconfigjson, auths forge.bluejungle.net)
+  # is created OUT-OF-BAND by hack/ops/chg-2026-10-28-002-forge-bot-token.sh
+  # pull-secret (read:package token cursus-pull of bot cursus-publisher), not
+  # synced by ExternalSecrets: the cursus-gast Connect token is read-only.
+  # Rotate: delete token cursus-pull + the Secret in a recorded step, re-run.
   - ./helmrelease.yaml

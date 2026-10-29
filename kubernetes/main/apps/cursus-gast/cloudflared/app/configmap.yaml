@@ -17,10 +17,10 @@
 # without a Cf-Access-Jwt-Assertion whose aud matches (jwtvalidator.go);
 # keys from https://<teamName>.cloudflareaccess.com/cdn-cgi/access/certs.
 #
-# PLACEHOLDERS, filled by Argus after the Access app exists:
-#   replace-team  team name (also in network-policies/app/cloudflared.yaml)
-#   replace-aud   the Access application AUD tag
-# With the placeholders in place every request fails closed (403/502).
+# Filled at go-live (chg-2026-10-28-002): teamName = the Access team name
+# (also in network-policies/app/cloudflared.yaml), audTag = the AUD tag of
+# the Access application (an identifier, not a secret). A wrong value
+# fails closed (403).
 #
 # The origin as an absolute name: ndots 1 (HelmRelease dnsConfig) and the
 # CNP DNS allow-list name it exactly.
@@ -35,9 +35,9 @@ data:
     originRequest:
       access:
         required: true
-        teamName: replace-team
+        teamName: bluejungle
         audTag:
-          - replace-aud
+          - 8838e7c48bcd2b79d45a4bce5f4fdcf9d999a3675bb94900e7baaf76078e133a
     ingress:
       - hostname: cursus-gast.${SECRET_DOMAIN}
         service: http://courseware-gast.cursus-gast.svc.cluster.local:8080

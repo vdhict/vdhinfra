@@ -4,6 +4,10 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ./ocirepository.yaml
-  - ./externalsecret.yaml
+  # Secret cloudflared-tunnel (key TUNNEL_TOKEN) is created OUT-OF-BAND from
+  # the Cloudflare API (chg-2026-10-28-002), not synced by ExternalSecrets:
+  # the cursus-gast Connect token is read-only, so vault cursus-gast cannot
+  # hold it. Rotate via the Cloudflare API (new run token -> replace the
+  # Secret; reloader restarts the pods).
   - ./configmap.yaml
   - ./helmrelease.yaml

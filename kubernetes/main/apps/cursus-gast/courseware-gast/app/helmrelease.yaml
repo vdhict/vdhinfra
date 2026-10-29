@@ -22,8 +22,8 @@
 #     /healthz. The entrypoint's ipv6 helper logs "can not modify" once on a
 #     read-only rootfs: harmless;
 #   * pull: forge has REQUIRE_SIGNIN_VIEW=true (anonymous /v2/ 401), so the
-#     kubelet needs the pull secret courseware-gast-pull (./pull-secret.yaml,
-#     vault cursus-gast via the cursus-gast store).
+#     kubelet needs the pull secret courseware-gast-pull (created
+#     out-of-band, see app/kustomization.yaml).
 # yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -71,12 +71,12 @@ spec:
         containers:
           app:
             image:
-              # PLACEHOLDER until the build-sign script prints the digest
-              # (forge.bluejungle.net/<owner>/cursus-gast, tag gast-<short>).
-              # The Kustomization is suspended, so this is never pulled.
-              # Replace BOTH lines.
-              repository: registry.invalid/courseware-gast
-              tag: pending@sha256:0000000000000000000000000000000000000000000000000000000000000000
+              # Course commit 05ed505f41fe5ce5bbcb84f9ccc5110bdbc5a44e, built
+              # and signed by the build-sign script (key ../cosign.pub, no
+              # tlog: verify with --insecure-ignore-tlog), content gate green
+              # (evidence ops/evidence/chg-2026-10-28-002/1[0-9]-*).
+              repository: forge.bluejungle.net/cursus-publisher/cursus-gast
+              tag: gast-05ed505@sha256:461ca45caee9ea5e12f813e9f132d9021b45bc99bcdf60c821e5f4be5340495f
             securityContext:
               runAsNonRoot: true
               allowPrivilegeEscalation: false

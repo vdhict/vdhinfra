@@ -8,11 +8,11 @@
 #        _v2-origintunneld._tcp.argotunnel.com          SRV, edge discovery
 #        region1.v2.argotunnel.com, region2.v2.argotunnel.com  edge A
 #        cfd-features.argotunnel.com                    TXT, feature flags
-#        replace-team.cloudflareaccess.com              Access JWKS
+#        bluejungle.cloudflareaccess.com              Access JWKS
 #      Any other name is REFUSED by the proxy.
 #   3. region1/region2.v2.argotunnel.com, tcp+udp 7844 (QUIC, HTTP/2
 #      fallback). Nothing else on the edge.
-#   4. replace-team.cloudflareaccess.com, tcp 443 (JWT signing keys,
+#   4. bluejungle.cloudflareaccess.com, tcp 443 (JWT signing keys,
 #      /cdn-cgi/access/certs).
 #
 # Names taken from cloudflared 2026.10.5 source (edgediscovery/allregions,
@@ -22,8 +22,8 @@
 # (off): blocked, a warning in the log at most. DoT fallback 1.1.1.1:853:
 # blocked. No wildcards: Cilium's "*." matches ONE label only.
 #
-# PLACEHOLDER replace-team: Argus sets the Access team name here AND in
-# cloudflared/app/configmap.yaml (same string, two files).
+# Access team name `bluejungle`: here AND in cloudflared/app/configmap.yaml
+# (same string, two files).
 #
 # No world entity, no 0.0.0.0/0, no CIDR allow anywhere; private-deny.yaml
 # denies RFC1918, CGNAT, link-local, nodes and the API server explicitly.
@@ -60,7 +60,7 @@ spec:
               - matchName: region1.v2.argotunnel.com
               - matchName: region2.v2.argotunnel.com
               - matchName: cfd-features.argotunnel.com
-              - matchName: replace-team.cloudflareaccess.com
+              - matchName: bluejungle.cloudflareaccess.com
     - toFQDNs:
         - matchName: region1.v2.argotunnel.com
         - matchName: region2.v2.argotunnel.com
@@ -69,7 +69,7 @@ spec:
             - {port: "7844", protocol: TCP}
             - {port: "7844", protocol: UDP}
     - toFQDNs:
-        - matchName: replace-team.cloudflareaccess.com
+        - matchName: bluejungle.cloudflareaccess.com
       toPorts:
         - ports:
             - {port: "443", protocol: TCP}
