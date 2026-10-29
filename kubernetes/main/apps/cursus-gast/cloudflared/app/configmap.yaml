@@ -41,4 +41,8 @@ data:
     ingress:
       - hostname: cursus-gast.${SECRET_DOMAIN}
         service: http://courseware-gast.cursus-gast.svc.cluster.local:8080
+      # T3 (chg-2026-10-28-002), TEMPORARY: same top-level access block, NO Access app on this name.
+      # Expect 403 from cloudflared. Reverted right after the test.
+      - hostname: cursus-gast-t3.${SECRET_DOMAIN}
+        service: http://courseware-gast.cursus-gast.svc.cluster.local:8080
       - service: http_status:404
