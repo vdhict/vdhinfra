@@ -37,11 +37,30 @@ risks:
     target: "^(app\\.cursus-gast|security/onepassword-cursus-gast-token|1password/home-infra/op-connect-token-cursus-gast)$"
     accepted_by: atlas
     accepted_at: 2026-10-28
-    review_by: 2027-01-28
+    review_by: 2026-11-06
     rationale: >-
-      The Connect token for vault cursus-gast sits in home-infra (devtenant pattern). Bounded: the token
-      is read-only on vault cursus-gast, which holds only the tunnel RUN token (no API token); the Connect
-      server is ClusterIP only; mypka pods are blocked from namespace security by the boundary CCNP.
-      Residual: anyone who can read home-infra (incl. the mypka-agents SA, inc-2026-10-25-002) can read
-      that token, but needs in-cluster access to Connect to use it. Revisit as soon as a contained store
-      exists, at the latest on review_by.
+      The Connect token for vault cursus-gast sits in home-infra (devtenant pattern); it is read-only on
+      vault cursus-gast. Since go-live (29-10) the vault holds NO cluster secret (tunnel run token and
+      forge pull token are out-of-band Secrets, D1) but it holds the owner's Cloudflare SETUP token
+      (Tunnel/Access/DNS edit) until the owner revokes it. Residual: anyone who can read home-infra (incl.
+      the mypka-agents SA, inc-2026-10-25-002) can read the Connect token and, with in-cluster access to
+      the ClusterIP Connect server (e.g. the Mini kubeconfig, uid 501 shared with myPKA), the setup token.
+      Bounded by: setup token revoked after T3/T7, by 2026-10-31 at the latest (Argus D6); then the store,
+      security/onepassword-cursus-gast-token, cloudflared's dependsOn on the store and the 1Password item
+      are removed and this entry closes (Argus D1, by review_by).
+  # chg-2026-10-28-002 (Argus go-live D2/B1).
+  - id: ar-018
+    adr: "ops change chg-2026-10-28-002 (Argus go-live review 72427592, D2); closes with tsk-2026-10-26-002"
+    finding_title: "^.*(cloudflared-tunnel|rogue connector|cursus-gast tunnel token|uid 501).*$"
+    target: "^(app\\.cursus-gast|cursus-gast/cloudflared-tunnel|host\\.mini/uid-501)$"
+    accepted_by: atlas
+    accepted_at: 2026-10-29
+    review_by: 2026-11-06
+    rationale: >-
+      myPKA runs as the same macOS user (uid 501) as Atlas on the Mini and can read the Mini kubeconfig,
+      so it could read Secret cursus-gast/cloudflared-tunnel and run a rogue connector for tunnel
+      cursus-gast. Bounded: every request still passes the Access app (email-only policy + MFA) at the
+      edge, so a rogue connector can serve other content to invited users but cannot widen who gets in;
+      the daily T9 posture check alerts when the connector count or origin differs from the cluster's.
+      Closes with tsk-2026-10-26-002 (narrow the mypka-agents SA, 30-10) plus an own uid for myPKA on the
+      Mini, at the latest on review_by.
