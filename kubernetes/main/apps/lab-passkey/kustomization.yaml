@@ -9,7 +9,7 @@
 #   network-policies/  default-deny + per-workload CNPs (entra: toFQDNs Entra), land FIRST
 #   passkey-point/     web, api, roster sync, portal (ENTRA dev tenant),
 #                      secrets, certs, PVC, route
-# TEMPORARY: decommission and delete by 2026-10-31 (owner). Teardown =
+# TEMPORARY: decommission and delete by 2026-11-30 (owner, extended 2026-10-29). Teardown =
 # remove this directory in one commit (namespace is NOT prune-protected:
 # lab data only, no backup).
 apiVersion: kustomize.config.k8s.io/v1beta1

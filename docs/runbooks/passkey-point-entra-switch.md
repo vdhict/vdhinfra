@@ -191,7 +191,7 @@ Break-glass if Flux itself is impaired:
 3. `kubectl delete ns lab-passkey`. cluster-apps recreates an EMPTY namespace until the revert lands. That
    is expected.
 
-## 7. After the demo, and teardown (by 2026-10-31)
+## 7. After the demo, and teardown (by 2026-11-30; owner extended it from 2026-10-31 on 2026-10-29)
 
 - Record `validated` on chg-009. Rewrite the CMDB entries `k8s.ns.lab-passkey` and
   `app.passkey-point-lab` (Themis C7).
