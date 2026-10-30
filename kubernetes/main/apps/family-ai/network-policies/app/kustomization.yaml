@@ -30,6 +30,7 @@ resources:
   - ./default-deny.yaml
   - ./open-webui.yaml
   - ./hermes.yaml
+  - ./hermes-profiel-3-cloud.yaml   # chg-2026-10-20-010: profiel-3 only, api.anthropic.com:443
   - ./gezinsdienst.yaml
   - ./volsync-mover.yaml
   - ./chat-retention.yaml
