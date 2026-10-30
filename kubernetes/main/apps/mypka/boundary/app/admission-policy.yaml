@@ -37,18 +37,6 @@ spec:
     - expression: "!has(object.spec.externalIPs) || size(object.spec.externalIPs) == 0"
       message: "mypka: spec.externalIPs is not allowed."
       reason: Forbidden
-    # Teamregie (chg-2026-10-30-002, Argus T2): a Service must select pods
-    # and its selector's app.kubernetes.io/name must equal the Service's own
-    # name. So no second Service can select the teamregie pods under another
-    # name and be routed to without the SecurityPolicy (which targets the
-    # route `teamregie` only; see section 2). An empty selector is refused
-    # too (manual endpoints; the tenant has no endpoints RBAC anyway).
-    - expression: >-
-        has(object.spec.selector) && size(object.spec.selector) > 0 &&
-        'app.kubernetes.io/name' in object.spec.selector &&
-        object.spec.selector['app.kubernetes.io/name'] == object.metadata.name
-      message: "mypka: a Service needs a selector whose app.kubernetes.io/name equals the Service name."
-      reason: Forbidden
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/admissionregistration.k8s.io/validatingadmissionpolicybinding_v1.json
 apiVersion: admissionregistration.k8s.io/v1
@@ -107,32 +95,6 @@ spec:
           h.endsWith(variables.suffix) &&
           h.substring(0, size(h) - size(variables.suffix)).matches('^mypka-[a-z0-9]([-a-z0-9]*[a-z0-9])?$'))
       message: "mypka: HTTPRoute hostnames must be set and each must be mypka-<name> directly under the cluster domain."
-      reason: Forbidden
-    # ── Teamregie guard (chg-2026-10-30-002, Argus C1 + T2) ──
-    # Authelia sits in front of the page through the SecurityPolicy
-    # mypka/teamregie-authelia, which targets the HTTPRoute named
-    # `teamregie` only. So: no tenant route may carry filters (a
-    # RequestHeaderModifier could set Remote-User; URLRewrite/ExtensionRef
-    # could reshape what Authelia sees); backends are Services in mypka
-    # only; and the teamregie host and Service appear on that one route only.
-    - expression: >-
-        !has(object.spec.rules) || object.spec.rules.all(r,
-          (!has(r.filters) || size(r.filters) == 0) &&
-          (!has(r.backendRefs) || r.backendRefs.all(b, !has(b.filters) || size(b.filters) == 0)))
-      message: "mypka: HTTPRoute filters are not allowed (rules[].filters and backendRefs[].filters)."
-      reason: Forbidden
-    - expression: >-
-        !has(object.spec.rules) || object.spec.rules.all(r, !has(r.backendRefs) || r.backendRefs.all(b,
-          (!has(b.group) || b.group == '') && (!has(b.kind) || b.kind == 'Service') &&
-          (!has(b.namespace) || b.namespace == 'mypka')))
-      message: "mypka: HTTPRoute backends must be Services in namespace mypka."
-      reason: Forbidden
-    - expression: >-
-        object.metadata.name == 'teamregie' ||
-        ((!has(object.spec.hostnames) || !object.spec.hostnames.exists(h, h == 'mypka-teamregie' + variables.suffix)) &&
-         (!has(object.spec.rules) || object.spec.rules.all(r, !has(r.backendRefs) ||
-           r.backendRefs.all(b, b.name != 'teamregie'))))
-      message: "mypka: the teamregie host and Service are allowed only on the HTTPRoute named teamregie."
       reason: Forbidden
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/admissionregistration.k8s.io/validatingadmissionpolicybinding_v1.json

@@ -72,22 +72,6 @@ access_control:
     - domain:
         - auth.${SECRET_DOMAIN}
       policy: bypass
-    # Teamregie (chg-2026-10-30-002, Argus T1): ONE person only. The page
-    # mypka-teamregie (tenant mypka, envoy-internal) reaches Authelia through
-    # the Envoy SecurityPolicy mypka/teamregie-authelia (extAuth). Subject is
-    # the LLDAP group `teamregie`, whose sole member is the owner (made by
-    # hand, like `vikunja`; no username in this public repo). Then DENY for
-    # everyone else, so until the group exists nobody gets in (fails closed).
-    # Rules are first-match: these two MUST stay BEFORE the *.domain rule
-    # below. The daily argus-posture-scan checks exactly this order
-    # (teamregie_authelia_rules) and probes the page with forged headers.
-    - domain:
-        - mypka-teamregie.${SECRET_DOMAIN}
-      policy: two_factor
-      subject: [group:teamregie]
-    - domain:
-        - mypka-teamregie.${SECRET_DOMAIN}
-      policy: deny
     # One factor auth for LAN
     - domain:
         - "*.${SECRET_DOMAIN}"
