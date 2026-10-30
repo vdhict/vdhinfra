@@ -14,10 +14,17 @@ resources:
   - ./externalsecret.yaml
   - ./bundle.sops.yaml
   - ./volsync.yaml
-  # chg-2026-10-20-010 land 2 (W6): profiel-3's OWN ledger PVC (-> hermes-profiel-cloud-spend-3). Since W2c it is only
-  # read, once, by the shared guard to move its total onto ../cloud-spend (hermes-cloud-spend-shared); kept, never
-  # pruned, as the pre-move record and the rollback's ledger.
-  - ./cloud-spend-pvc.yaml
+  - ./cloud-spend-pvc.yaml   # chg-2026-10-20-010 land 2 (W6)
+# chg-2026-10-20-010 W6/W2b: the ledger guard; Flux postBuild must not touch it (same as hermes-seed in ../base).
+# The generated name gets the -3 suffix; kustomize rewrites the volume reference.
+configMapGenerator:
+  - name: hermes-cloud-spend-init
+    files:
+      - ./cloud-spend-init.py
+    options:
+      disableNameSuffixHash: true
+      annotations:
+        kustomize.toolkit.fluxcd.io/substitute: disabled
 patches:
   # The Secret named here is written by ESO, not by kustomize, so kustomize
   # cannot rename the reference itself. Pin it to the ExternalSecret target.
@@ -45,7 +52,7 @@ patches:
       - op: add
         path: /spec/template/spec/containers/0/env/-
         value: {name: HERMES_IMAGE, value: "docker.io/nousresearch/hermes-agent:v0.22.5@sha256:9c5561579f3ffdf333401797094ac3a743738d6c25d40f4331c7bf77b694238d"}
-      # W2c: the ONE shared spend ledger (../cloud-spend, hermes-cloud-spend-shared), same path as before
+      # W6: the spend ledger on its own PVC (family-cloud default path, set explicitly)
       - op: add
         path: /spec/template/spec/containers/0/env/-
         value: {name: CLOUD_SPEND_PATH, value: /cloud-spend/month.json}
@@ -56,22 +63,16 @@ patches:
         path: /spec/template/spec/volumes/-
         value:
           name: cloud-spend
-          persistentVolumeClaim: {claimName: hermes-cloud-spend-shared}
-      # W2c: profiel-3's own pre-W2c ledger, mounted read-only and ONLY in the init container (the one-time move)
-      - op: add
-        path: /spec/template/spec/volumes/-
-        value:
-          name: cloud-spend-old
-          persistentVolumeClaim: {claimName: hermes-profiel-cloud-spend-3, readOnly: true}
+          persistentVolumeClaim: {claimName: hermes-profiel-cloud-spend-3}
       - op: add
         path: /spec/template/spec/volumes/-
         value:
           name: cloud-spend-init
-          configMap: {name: hermes-cloud-spend-init-shared, defaultMode: 0555}
-      # W2c shared ledger guard (../cloud-spend/cloud-spend-init.py), runs AFTER seed-once, under the same flock as
-      # family-cloud: keeps the shared month.json byte-for-byte, never creates one without the seed, moves profiel-3's
-      # own ledger once (only this pod mounts /cloud-spend-old); any refusal -> price_confirmed=false in the freshly
-      # seeded settings.json (Studio only). No envFrom, no env, no secret: CLOUD_API_KEY never reaches it (W4).
+          configMap: {name: hermes-cloud-spend-init, defaultMode: 0555}
+      # W6/W2b ledger guard (cloud-spend-init.py), runs AFTER seed-once: month.json created only on a fresh PVC
+      # or at a month change, never overwritten; missing mid-month or corrupt -> price_confirmed=false in the
+      # freshly seeded family-cloud settings.json (Studio only), content-free log line. Needs /opt/data for that.
+      # No envFrom, no env, no secret: CLOUD_API_KEY never reaches an init container (W4).
       - op: add
         path: /spec/template/spec/initContainers/-
         value:
@@ -90,6 +91,5 @@ patches:
             limits: {memory: 64Mi}
           volumeMounts:
             - {name: cloud-spend, mountPath: /cloud-spend}
-            - {name: cloud-spend-old, mountPath: /cloud-spend-old, readOnly: true}
             - {name: data, mountPath: /opt/data}
             - {name: cloud-spend-init, mountPath: /cloud-spend-init, readOnly: true}
