@@ -116,7 +116,7 @@ SET=/opt/data/plugins/model-providers/family-cloud/settings.json
 if [ "$STAGE" = A ] || [ "$STAGE" = B1 ] || [ "$STAGE" = C1 ]; then
   chk "C3/W5 HERMES_IMAGE == pod image" "[ \"\$(xp $PP printenv HERMES_IMAGE)\" = \"\$(kubectl -n $NS get pod $PP -o jsonpath='{.spec.containers[?(@.name==\"app\")].image}')\" ]"
   chk "W4 Secret has CLOUD_API_KEY, length >= 47 (value not read out)" "[ \"\$(kubectl -n $NS get secret family-ai-hermes-profiel-$PROF -o json | jq -r '.data.CLOUD_API_KEY // \"\"' | base64 -d | wc -c | tr -d ' ')\" -ge 47 ]"
-  chk "W4 init containers: no envFrom / secret env" "[ \"\$(kubectl -n $NS get pod $PP -o json | jq '[.spec.initContainers[] | select(.envFrom or ([.env[]?.valueFrom.secretKeyRef] | length > 0))] | length')\" = 0 ]"
+  chk "W4 init containers: no envFrom / secret env" "[ \"\$(kubectl -n $NS get pod $PP -o json | jq '[.spec.initContainers[] | select(.envFrom or ([.env[]?.valueFrom.secretKeyRef] | map(select(.)) | length > 0))] | length')\" = 0 ]"
   chk "pod settings: budget_usd 99, price_confirmed true, person profiel-$PROF (numbers only)" "[ \"\$(xp $PP cat $SET | jq -c '[.budget_usd, .price_confirmed, .person]')\" = '[99,true,\"profiel-$PROF\"]' ]"
   chk "W2c shared ledger mounted, numbers-only schema" "ledger | python3 -I -c 'import json,sys; d=json.load(sys.stdin); assert set(d)=={\"month\",\"usd\",\"input_tokens\",\"output_tokens\",\"cache_read_tokens\",\"cache_write_tokens\",\"person_usd\"} and set(d[\"person_usd\"])=={\"profiel-1\",\"profiel-2\",\"profiel-3\"}'"
   chk "W2c seed present (source migrated)" "xp $PP cat /cloud-spend/.ledger-seeded | jq -e '.source == \"migrated\"' >/dev/null"
