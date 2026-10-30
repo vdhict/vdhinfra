@@ -1,0 +1,1 @@
+f663a0025f9fdf1409e4f17f0475d6b40fb60e3ed5bf4ef9366a609d4daaab54  w2a-capture-20261027T1420Z.json   # chg-2026-10-20-010 W2c (Argus 30-10 08:29:01Z M1): the 27-10 console capture is the W2 baseline; a reported billing change voids it

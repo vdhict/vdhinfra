@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """chg-2026-10-20-010 land 2 + W2c: render checks for the family-cloud wiring (Argus C3, W3, W4, W5, W6, W2c).
 
-    hack/family-ai/check-cloud-wiring.py [--cloud 3|2,3|1,2,3] [--plugin <family-cloud/__init__.py>] [--self-test]
+    hack/family-ai/check-cloud-wiring.py [--cloud 3|2,3|1,2,3] [--egress-off N] [--plugin <family-cloud/__init__.py>] [--self-test]
 
 --cloud names the profiles that are ON the cloud in this render (default 3; W2c stages: A = 3, B = 2,3, C = 1,2,3).
+--egress-off N: profile N is fully wired but its cloud CNP must be ABSENT (stages B1/C1: the live fallback test).
 Renders kubernetes/main/apps/family-ai/{hermes,network-policies/app,open-webui/app,gezinsdienst/app,
 kennisdienst/app} with kustomize (+ yq for JSON) and checks, for every profile N:
   W5  cloud N: env HERMES_IMAGE == containers[app].image of the same pod spec (== PINNED_IMAGE of the plugin when
@@ -70,7 +71,7 @@ def claims(p):
     return {v["name"]: (v.get("persistentVolumeClaim") or {}) for v in p.get("volumes") or []}
 
 
-def check(docs, cloud, pinned_image=None):
+def check(docs, cloud, pinned_image=None, egress_off=frozenset()):
     fails = []
 
     def need(cond, msg):
@@ -177,6 +178,9 @@ def check(docs, cloud, pinned_image=None):
                  f"W2c profiel-{n} never mounts profiel-3's old ledger")
         # W3
         cnp = find(docs, "CiliumNetworkPolicy", f"hermes-profiel-{n}-cloud")
+        if n in egress_off:
+            need(not cnp, f"W3 profiel-{n} egress off: no cloud CNP yet (fallback stage)")
+            continue
         need(len(cnp) == 1, f"W3 CNP hermes-profiel-{n}-cloud rendered")
         if not cnp:
             continue
@@ -203,7 +207,7 @@ def check(docs, cloud, pinned_image=None):
                                                                 {"port": "53", "protocol": "TCP"}]), f"W3 profiel-{n} DNS ports 53")
         need(not re.search(r'"(toCIDR|toCIDRSet|toEntities|toServices|matchPattern|toGroups)"', json.dumps(s)),
              f"W3 profiel-{n} no CIDR/entities/wildcard in the cloud CNP")
-    allowed = {f"hermes-profiel-{n}-cloud" for n in cloud}
+    allowed = {f"hermes-profiel-{n}-cloud" for n in cloud if n not in egress_off}
     others = [d["metadata"]["name"] for d in docs if d.get("kind") == "CiliumNetworkPolicy"
               and d["metadata"]["name"] not in allowed and "anthropic" in json.dumps(d)]
     need(not others, "W3 no other CNP mentions anthropic (found: %s)" % others)
@@ -230,7 +234,7 @@ def _cnp(d, n):
     return find(d, "CiliumNetworkPolicy", f"hermes-profiel-{n}-cloud")[0]["spec"]
 
 
-def mutations(cloud):
+def mutations(cloud, egress_off=frozenset()):
     off = [n for n in (1, 2, 3) if n not in cloud]
     m = {
         "W2c shared PVC RWO": lambda d: find(d, "PersistentVolumeClaim", SHARED)[0]["spec"].__setitem__("accessModes", ["ReadWriteOnce"]),
@@ -239,7 +243,12 @@ def mutations(cloud):
             "cloud-spend-init.py", find(d, "ConfigMap", GUARD_CM)[0]["data"]["cloud-spend-init.py"].replace("LOCK_EX", "LOCK_SH")),
         "W6 old PVC gone": lambda d: d.remove(find(d, "PersistentVolumeClaim", OLD3)[0]),
     }
+    for n in egress_off:
+        m[f"W3 p{n} CNP present in the fallback stage"] = lambda d, n=n: d.append(copy.deepcopy(dict(find(d, "CiliumNetworkPolicy", "hermes-profiel-3-cloud")[0],
+            metadata={"name": f"hermes-profiel-{n}-cloud"})))
     for n in cloud:
+        if n in egress_off:
+            continue
         m.update({
             f"W5 p{n} image drift": lambda d, n=n: _app(d, n).__setitem__("image", re.sub(r":([^:@]+)@", r":\1-drift@", _app(d, n)["image"])),
             f"W5 p{n} env drift": lambda d, n=n: env_of(_app(d, n))["HERMES_IMAGE"].__setitem__("value", "docker.io/nousresearch/hermes-agent:latest"),
@@ -275,6 +284,13 @@ def main():
             print("FAIL --cloud takes profile numbers, e.g. 3 or 2,3 or 1,2,3")
             return 2
         cloud = {int(x) for x in raw.split(",")}
+    egress_off = set()
+    if "--egress-off" in args:
+        raw = args[args.index("--egress-off") + 1]
+        if not re.fullmatch(r"[123]", raw) or int(raw) not in cloud or int(raw) == 3:
+            print("FAIL --egress-off takes one cloud profile number (1 or 2)")
+            return 2
+        egress_off = {int(raw)}
     pinned = None
     if "--plugin" in args:
         src = Path(args[args.index("--plugin") + 1]).read_text()
@@ -284,18 +300,18 @@ def main():
             return 1
         pinned = mm.group(1) + mm.group(2)
     docs = render()
-    fails = check(docs, cloud, pinned)
+    fails = check(docs, cloud, pinned, egress_off)
     for f in fails:
         print("FAIL", f)
     rc = 1 if fails else 0
-    print(("PASS" if not fails else "FAIL") + f" check-cloud-wiring: cloud={sorted(cloud)}, {len(docs)} objects, pinned={'yes' if pinned else 'n/a'}")
+    print(("PASS" if not fails else "FAIL") + f" check-cloud-wiring: cloud={sorted(cloud)} egress_off={sorted(egress_off)}, {len(docs)} objects, pinned={'yes' if pinned else 'n/a'}")
     if "--self-test" in args and not fails:
         missed = []
-        muts = mutations(cloud)
+        muts = mutations(cloud, egress_off)
         for name, mut in muts.items():
             d = copy.deepcopy(docs)
             mut(d)
-            if not check(d, cloud, pinned):
+            if not check(d, cloud, pinned, egress_off):
                 missed.append(name)
         print(("PASS" if not missed else "FAIL") + f" self-test: {len(muts) - len(missed)}/{len(muts)} mutations caught"
               + (f" (missed: {missed})" if missed else ""))

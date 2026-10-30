@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# chg-2026-10-20-010 automated cloud CUT-OFF for hermes-profiel-3 at the promotional-credit expiry
-# (Argus 25-10 09:42:10Z pre-go item 3). Runs without any session: a launchd LaunchAgent on the Mini.
+# chg-2026-10-20-010 automated cloud CUT-OFF for EVERY family-ai cloud profile at the promotional-credit expiry
+# (Argus 25-10 09:42:10Z pre-go item 3; W2c 30-10: cloud-off.sh instead of the land-2 rollback.sh revert). Runs without any session: a launchd LaunchAgent on the Mini.
 #
-# Why launchd on the Mini and not an in-cluster Job: cloud-off is chg-2026-10-20-010-rollback.sh --execute, i.e.
-# a git revert PUSHED to main + Flux reconcile + price_confirmed=false committed in the local family-ai repo. The
-# plugin reads price_confirmed from the SOPS bundle (settings.json), not from a ConfigMap, so there is nothing a
-# CronJob could patch; and a cluster Job has neither the push credential nor the family-ai repo. The Mini has both
+# Why launchd on the Mini and not an in-cluster Job: cloud-off is chg-2026-10-20-010-cloud-off.sh --execute, i.e.
+# a commit PUSHED to main that drops every hermes-profiel-N-cloud CNP entry + Flux reconcile (W2c: a revert of one
+# deploy commit no longer applies cleanly once three profile stages sit on top of it). A cluster Job has no push
+# credential. The Mini has both
 # (GitHub App token minted per run; kubectl via the local relay), as the 13-10 launchd window job proved.
 #
 #   hack/ops/chg-2026-10-20-010-cutoff.sh arm <deploy-sha> --w2-event <ts>  # go-live step AND every re-arm: W2 gate
@@ -19,9 +19,9 @@
 #
 # fire: integrity check of the pinned install (SHA256SUMS) -> self-test once per arm per UTC day (kubectl via relay,
 # flux, git fetch, App-token push --dry-run, family-ai worktree on land2-cloud-v0225) -> before the cutoff: exit 0
-# -> at/after the cutoff (now >= T): if done: exit 0; if the cloud CNP is already absent on origin/main: done, one
-# event, no rollback; else rollback.sh --execute <sha> (at most 3 attempts, 5 min apart; then one FAILED event and
-# stop). Exactly one change event per outcome (the rollback logs its own action line too). Never prints a token.
+# -> at/after the cutoff (now >= T): if done: exit 0; if no cloud CNP entry is listed on origin/main: done, one
+# event, no action; else cloud-off.sh --execute <sha> (at most 3 attempts, 5 min apart; then one FAILED event and
+# hourly retries). Exactly one change event per outcome (the rollback logs its own action line too). Never prints a token.
 # Trigger time (Argus 25-10 09:56:03Z): never a constant; it is promo_credit_expires_utc of the evidence JSON that the
 # W2 gate accepted for the given infra-ops event. Re-arm = new capture JSON + new infra-ops W2 event + arm (which
 # runs --gate-only): the trigger moves to that grant's expiry (later or earlier); no re-arm -> the cut-off fires and
@@ -39,7 +39,9 @@ LABEL_REAL="net.vdhict.$CHG-cutoff"
 LABEL_TEST="net.vdhict.$CHG-cutoff-test"
 TEST_CUTOFF=2099-01-01T00:00:00Z
 FAI_BRANCH=land2-cloud-v0225
-CNP_PATH=kubernetes/main/apps/family-ai/network-policies/app/hermes-profiel-3-cloud.yaml
+CNP_K=kubernetes/main/apps/family-ai/network-policies/app/kustomization.yaml   # W2c: cloud = any listed *-cloud CNP
+CNP_RE='^  - (\./)?hermes-profiel-[123]-cloud\.yaml( |$)'
+RB="$CHG-cloud-off.sh"   # the action script pinned in the install (same CLI as the land-2 rollback.sh)
 MAX_ATTEMPTS=3          # fast attempts (5 min apart); then FAILED alert + one retry per RETRY_S until done
 RETRY_S=3600
 LATE_S=7200            # not done this long after the trigger -> one alert, whatever the reason
@@ -99,7 +101,8 @@ alert() { # $1 key (once per key per deploy)  $2 title  $3 body : ntfy + digest 
   local o rc; o="$("$OPS" incident new high --summary "$CHG cut-off: $2. $3" --actor k8s-engineer 2>&1)"; rc=$?
   [ $rc = 0 ] && line "digest line: ops incident new ($1)" || line "ops incident new FAILED rc=$rc: $(printf '%s' "$o" | tr '\n' ' ' | cut -c1-200)"
 }
-cnp_on_main() { git -C "$REPO" cat-file -e "origin/main:$CNP_PATH" 2>/dev/null; }
+cnp_listed() { git -C "$REPO" show "$1:$CNP_K" 2>/dev/null | grep -q -E "$CNP_RE"; }   # $1 ref
+cnp_on_main() { cnp_listed origin/main; }
 _TOK=""
 mint() { # scoped token (contents:write on vdhinfra only), stdout only
   if [ -n "${C010_MINT_CMD:-}" ]; then "$C010_MINT_CMD"; return; fi
@@ -140,7 +143,7 @@ fire() {
   eval "$(cd "$REPO" && mise env -s bash 2>/dev/null)"
   [ -z "${C010_PATH_PREPEND:-}" ] || export PATH="$C010_PATH_PREPEND:$PATH"
   # 2 self-test, once per arm per UTC day (the first run after load is the arm read-back proof). Argus A4: once the
-  #   deploy is on main, the reviewed rollback.sh --dry-run <sha> origin/main must be GREEN too (proves the revert).
+  #   deploy is on main, the reviewed cloud-off.sh --dry-run <sha> origin/main must be GREEN too (proves the action).
   local ST="$STATE/selftest-$LABEL-$ARMID-$DAY.json"
   if [ ! -e "$ST" ]; then
     local k=fail f=fail g=fail p=fail a=fail r=n/a
@@ -151,7 +154,7 @@ fire() {
     [ "$(git -C "$FAI" rev-parse --abbrev-ref HEAD 2>/dev/null)" = "$FAI_BRANCH" ] \
       && [ -z "$(git -C "$FAI" status --porcelain -- content/cloudmodel.json 2>/dev/null)" ] && a=ok
     if [ $g = ok ] && git -C "$REPO" merge-base --is-ancestor "$SHA" origin/main 2>/dev/null; then
-      FAMILY_AI_REPO="$FAI" VDH_REPO="$REPO" bash "$INST/$CHG-rollback.sh" --dry-run "$SHA" origin/main >> "$LOGF" 2>&1
+      FAMILY_AI_REPO="$FAI" VDH_REPO="$REPO" bash "$INST/$RB" --dry-run "$SHA" origin/main >> "$LOGF" 2>&1
       tail -1 "$LOGF" | grep -q 'RESULT dry-run GREEN' && r=ok || r=fail
     fi
     $PY -I -c 'import json,sys; k=["kubectl","flux","git_fetch","push_auth","family_ai_worktree","rollback_dry_run"]; v=sys.argv[6:12]
@@ -170,16 +173,16 @@ json.dump({"utc":sys.argv[1],"label":sys.argv[2],"deploy":sys.argv[3],"cutoff_ut
   [ $REAL = yes ] || { line "test label past its cutoff: no action"; exit 0; }
   [ -e "$STATE/done-$SHA" ] && exit 0
   if [ "$NOW" -ge $(( $(epoch "$CUT") + LATE_S )) ]; then
-    alert late "cloud cut-off NOT done $((LATE_S / 3600)) h after $CUT" "profiel-3 cloud may still be on; see $LOGF; by hand: hack/ops/$CHG-rollback.sh --execute $SHA"
+    alert late "cloud cut-off NOT done $((LATE_S / 3600)) h after $CUT" "family-ai cloud may still be on; see $LOGF; by hand: hack/ops/$RB --execute $SHA"
   fi
   local ATT="$STATE/attempts-$SHA" LAST="$STATE/last-$SHA" n RETRY=no
   n=$( [ -e "$ATT" ] && wc -l < "$ATT" | tr -d ' ' || echo 0)
   if [ "$n" -ge "$MAX_ATTEMPTS" ]; then
     if [ ! -e "$STATE/failed-$SHA" ]; then
       : > "$STATE/failed-$SHA"; line "FAILED after $n attempts: retrying every $((RETRY_S / 60)) min until done"
-      ev step="cutoff FAILED after $n attempts: cloud may still be ON for profiel-3; retrying hourly" deploy="$SHA" cutoff_utc="$CUT" \
-         result=RED needs_human=true action="run hack/ops/$CHG-rollback.sh --execute $SHA by hand; see $LOGF"
-      alert failed "cloud cut-off FAILED after $n attempts" "profiel-3 cloud may still be on; retrying hourly; see $LOGF"
+      ev step="cutoff FAILED after $n attempts: cloud may still be ON for the family-ai profiles; retrying hourly" deploy="$SHA" cutoff_utc="$CUT" \
+         result=RED needs_human=true action="run hack/ops/$RB --execute $SHA by hand; see $LOGF"
+      alert failed "cloud cut-off FAILED after $n attempts" "family-ai cloud may still be on; retrying hourly; see $LOGF"
     fi
     [ $(( NOW - $(cat "$LAST" 2>/dev/null || echo 0) )) -ge "$RETRY_S" ] || exit 1
     RETRY=yes
@@ -201,15 +204,15 @@ json.dump({"utc":sys.argv[1],"label":sys.argv[2],"deploy":sys.argv[3],"cutoff_ut
   fi
   auth_env || { line "GitHub App token mint failed (not counted as an attempt)"; exit 1; }
   [ $RETRY = yes ] || echo "$(utc) rollback --execute" >> "$ATT"; echo "$NOW" > "$LAST"
-  line "cutoff $CUT reached: rollback.sh --execute $SHA ($([ $RETRY = yes ] && echo hourly retry || echo "attempt $((n + 1))"))"
-  FAMILY_AI_REPO="$FAI" VDH_REPO="$REPO" bash "$INST/$CHG-rollback.sh" --execute "$SHA" \
+  line "cutoff $CUT reached: $RB --execute $SHA ($([ $RETRY = yes ] && echo hourly retry || echo "attempt $((n + 1))"))"
+  FAMILY_AI_REPO="$FAI" VDH_REPO="$REPO" bash "$INST/$RB" --execute "$SHA" \
     "promo credit expiry cut-off $CUT (Argus 25-10 item 3, launchd $LABEL)" >> "$LOGF" 2>&1; local rc=$?
   revoke_auth
   local rev; rev="$(ls -t "$REPO/ops/evidence/$CHG/"k8s-rollback-*-execute.txt 2>/dev/null | head -1)"
   git -C "$REPO" fetch -q origin
   if ! cnp_on_main; then
     : > "$STATE/done-$SHA"; line "cloud OFF on origin/main (rollback rc=$rc)"
-    ev step="cutoff at promo expiry: cloud off for profiel-3 (rollback.sh --execute)" deploy="$SHA" cutoff_utc="$CUT" \
+    ev step="cutoff at promo expiry: cloud off for every family-ai profile (cloud-off.sh --execute)" deploy="$SHA" cutoff_utc="$CUT" \
        attempt="$([ $RETRY = yes ] && echo hourly-retry || echo $((n + 1)))" rollback_rc="$rc" rollback_evidence="${rev#$REPO/}" \
        result="$([ $rc = 0 ] && echo GREEN || echo 'GREEN on main, rollback readback RED: check evidence')"
     [ -e "$STATE/failed-$SHA" ] && notify "cloud cut-off done after FAILED" "cloud off on main (rollback rc=$rc); see $LOGF"
@@ -228,10 +231,10 @@ install_and_load() { # $1 sha  $2 cutoff  $3 label  $4 w2 event ts ; uses SRC
   mkdir -p "$INST_BASE"; mkdir "$INST" || { echo "install dir $INST exists (write-once): retry" >&2; return 1; }
   # the reviewed bytes of the deploy commit, never the working tree
   git -C "$SRC" show "$SHA:hack/ops/$CHG-cutoff.sh" > "$INST/$CHG-cutoff.sh" &&
-  git -C "$SRC" show "$SHA:hack/ops/$CHG-rollback.sh" > "$INST/$CHG-rollback.sh" &&
+  git -C "$SRC" show "$SHA:hack/ops/$RB" > "$INST/$RB" &&
   git -C "$SRC" show "$SHA:hack/ops/$CHG-mint.py" > "$INST/$CHG-mint.py" &&
   git -C "$SRC" show "$SHA:hack/ops/net.vdhict.$CHG-cutoff.plist" > "$INST/template.plist" || { echo "deploy commit lacks the cut-off files" >&2; return 1; }
-  (cd "$INST" && shasum -a 256 "$CHG-cutoff.sh" "$CHG-rollback.sh" "$CHG-mint.py" > SHA256SUMS)
+  (cd "$INST" && shasum -a 256 "$CHG-cutoff.sh" "$RB" "$CHG-mint.py" > SHA256SUMS)
   local APPID="${GITHUB_APP_ID:-${GH_APP_ID:-}}" INSTID="${GITHUB_APP_INSTALLATION_ID:-${GH_APP_INSTALLATION_ID:-}}" KEYP="${GITHUB_APP_KEY_PATH:-${GH_APP_PRIVATE_KEY_FILE:-}}"
   [ -n "$APPID" ] && [ -n "$INSTID" ] && [ -n "$KEYP" ] || { echo "GitHub App env (GH_APP_ID, GH_APP_INSTALLATION_ID, GH_APP_PRIVATE_KEY_FILE) missing" >&2; return 1; }
   REND="$INST/$LABEL.plist"
@@ -293,12 +296,13 @@ readback() { # [sha] [label] ; prints the armed state, exit 0 iff loaded + args 
   $PY -I -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if d["ok"] and d["launchd"] else 1)' "$ST"
 }
 
-need_src_sha() { # $1 sha: run from the worktree holding the deploy commit, which must add the cloud CNP
+need_src_sha() { # $1 sha: run from the worktree holding the deploy commit, whose tree must list a cloud CNP
   is_sha "$1" || { echo "deploy sha must be 40 hex" >&2; exit 2; }
   SRC="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "run from the deploy worktree" >&2; exit 2; }
   git -C "$SRC" cat-file -e "$1^{commit}" || { echo "unknown commit $1" >&2; exit 2; }
-  git -C "$SRC" diff-tree --no-commit-id --name-status -r "$1" | grep -qxF "A"$'\t'"$CNP_PATH" \
-    || { echo "REFUSED: $1 is not the commit that adds $CNP_PATH (rollback.sh reverts exactly that commit)" >&2; exit 2; }
+  git -C "$SRC" show "$1:$CNP_K" 2>/dev/null | grep -q -E "$CNP_RE" \
+    || { echo "REFUSED: $1 lists no hermes-profiel-N-cloud CNP in $CNP_K (nothing for the cut-off to switch off)" >&2; exit 2; }
+  git -C "$SRC" cat-file -e "$1:hack/ops/$RB" 2>/dev/null || { echo "REFUSED: $1 lacks hack/ops/$RB" >&2; exit 2; }
   [ "$(git -C "$SRC" rev-parse HEAD)" = "$1" ] || { echo "REFUSED: run from the worktree whose HEAD is $1 (the gate reads its bundle)" >&2; exit 2; }
 }
 
@@ -307,8 +311,8 @@ arm_with() { # $1 sha $2 cutoff $3 w2 event ts $4 evidence file $5 armed|re-arme
   [ "$(now_epoch)" -lt "$(epoch "$CUT")" ] || { echo "REFUSED: cutoff $CUT is not in the future" >&2; exit 2; }
   ensure_fai_wt || exit 1
   if [ -z "${C010_SKIP_ROLLBACK_DRYRUN:-}" ]; then
-    FAMILY_AI_REPO="$FAI_WT" VDH_REPO="$REPO" bash "$SRC/hack/ops/$CHG-rollback.sh" --dry-run "$SHA" "$SHA" \
-      | tail -1 | grep -q 'RESULT dry-run GREEN' || { echo "REFUSED: rollback.sh --dry-run $SHA not GREEN" >&2; exit 1; }
+    FAMILY_AI_REPO="$FAI_WT" VDH_REPO="$REPO" bash "$SRC/hack/ops/$RB" --dry-run "$SHA" "$SHA" \
+      | tail -1 | grep -q 'RESULT dry-run GREEN' || { echo "REFUSED: $RB --dry-run $SHA not GREEN" >&2; exit 1; }
   fi
   INST="$(install_and_load "$SHA" "$CUT" "$LABEL_REAL" "$W2")" || exit 1
   readback "$SHA" "$LABEL_REAL"; local rb=$?

@@ -4,16 +4,16 @@
 #   bash hack/ops/chg-2026-10-20-010-test-cutoff.sh [<scratch-dir>]
 #
 # Fully offline and hermetic: per scenario a bare "origin", a repo clone, a family-ai repo with land2-cloud-v0225,
-# a stub launchctl (bootstrap runs the job once, synchronously, like RunAtLoad), a stub rollback.sh that reverts
-# the deploy commit in the scratch origin, a stub ops (events to a file), stub kubectl/flux and a fake token.
+# a stub launchctl (bootstrap runs the job once, synchronously, like RunAtLoad), a stub cloud-off.sh (W2c) that reverts
+# the deploy commit in the scratch origin (= drops the cloud CNP entry), a stub ops (events to a file), stub kubectl/flux and a fake token.
 # The real cut-off script and the real golive.sh W2 gate are what is tested. Never touches the real repo, change
 # log, launchd, cluster or GitHub. Deletes nothing (AGR-121). Exit 0 iff every case passes.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 CUT_SRC="$HERE/chg-2026-10-20-010-cutoff.sh"; GOLIVE_SRC="$HERE/chg-2026-10-20-010-golive.sh"
 PLIST_SRC="$HERE/net.vdhict.chg-2026-10-20-010-cutoff.plist"
-MINT_SRC="$HERE/chg-2026-10-20-010-mint.py"; RB_REAL="$HERE/chg-2026-10-20-010-rollback.sh"
-# real kustomize / yq / jq for the case that runs the REAL rollback.sh (resolved once, from the repo's mise env)
+MINT_SRC="$HERE/chg-2026-10-20-010-mint.py"; RB_REAL="$HERE/chg-2026-10-20-010-cloud-off.sh"
+# real kustomize / yq / jq for the case that runs the REAL cloud-off.sh (W2c) (resolved once, from the repo's mise env)
 eval "$(cd "$HERE/../.." && mise env -s bash 2>/dev/null)"; TOOLS=""; for b in kustomize yq jq; do TOOLS="$TOOLS $(command -v $b)"; done
 B="${1:-$(mktemp -d "${TMPDIR:-/tmp}/c010-cutoff-XXXXXX")}"; mkdir -p "$B"
 CHG=chg-2026-10-20-010; CNP=kubernetes/main/apps/family-ai/network-policies/app/hermes-profiel-3-cloud.yaml
@@ -62,7 +62,7 @@ EOF
 
 rollback_stub() { cat <<'EOF'
 #!/usr/bin/env bash
-# TEST STUB of chg-2026-10-20-010-rollback.sh: records the call; --execute reverts <sha> in the scratch origin
+# TEST STUB of chg-2026-10-20-010-cloud-off.sh: records the call; --execute reverts <sha> in the scratch origin
 echo "$1 $2 | reason=$3 | FAMILY_AI_REPO=$FAMILY_AI_REPO" >> "$C010_TEST_DIR/rb.log"
 [ "$1" = --dry-run ] && { echo "RESULT dry-run GREEN"; exit 0; }
 mkdir -p "$VDH_REPO/ops/evidence/chg-2026-10-20-010"; : > "$VDH_REPO/ops/evidence/chg-2026-10-20-010/k8s-rollback-$(date -u +%Y%m%dT%H%M%S)$RANDOM-execute.txt"
@@ -85,9 +85,12 @@ scenario() { # $1 name, $2 push-deploy (yes|no) [$3 real = pin the REAL rollback
     mkdir -p "$fa/$d"; printf 'apiVersion: v1\nkind: ConfigMap\nmetadata: {name: %s, namespace: family-ai}\ndata: {k: v}\n' "$(echo $d | tr / -)" > "$fa/$d/cm.yaml"
     printf 'apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n  - cm.yaml\n' > "$fa/$d/kustomization.yaml"
   done
+  # W2c: the base hermes CNP stand-in (cloud-off proves it survives)
+  printf 'apiVersion: cilium.io/v2\nkind: CiliumNetworkPolicy\nmetadata: {name: hermes, namespace: family-ai}\nspec: {endpointSelector: {}}\n' > "$fa/network-policies/app/hermes.yaml"
+  printf '  - hermes.yaml\n' >> "$fa/network-policies/app/kustomization.yaml"
   gq -C "$S/repo" add -A; gq -C "$S/repo" commit -m base; gq -C "$S/repo" push origin HEAD:main
   cp "$CUT_SRC" "$GOLIVE_SRC" "$PLIST_SRC" "$MINT_SRC" "$S/repo/hack/ops/"
-  if [ "${3:-}" = real ]; then cp "$RB_REAL" "$S/repo/hack/ops/"; else rollback_stub > "$S/repo/hack/ops/$CHG-rollback.sh"; fi
+  if [ "${3:-}" = real ]; then cp "$RB_REAL" "$S/repo/hack/ops/"; else rollback_stub > "$S/repo/hack/ops/$CHG-cloud-off.sh"; fi
   echo 'print("stub")' > "$S/repo/kubernetes/main/apps/observability/cluster-health/app/scripts/gh_app_token.py"
   echo '# stub' > "$S/repo/kubernetes/main/apps/observability/cluster-health/app/scripts/git_push.py"
   echo '# stub' > "$S/repo/kubernetes/main/apps/observability/cluster-health/app/scripts/lib.py"
@@ -143,7 +146,7 @@ t "A1 self-test token was revoked after its push --dry-run" bash -c "grep -q fak
 sleep 1; out=$(cut arm "$SHA" --w2-event "$A_TS" 2>&1); rc=$?; export OUT="$out"
 t "A2 second arm, same event: rc 0, 'already armed', no new event, no new install" bash -c "[ $rc = 0 ] && grep -q 'already armed' <<< \"\$OUT\" && [ $(nev) = 1 ] && [ \$(ls '$S/inst' | wc -l) = 1 ]"
 out=$(cut arm "$TSHA" --w2-event "$A_TS" 2>&1); rc=$?; export OUT="$out"
-t "A3 arm a tooling commit (does not add the CNP): REFUSED rc 2" bash -c "[ $rc = 2 ] && grep -q 'is not the commit that adds' <<< \"\$OUT\""
+t "A3 arm a tooling commit (lists no cloud CNP): REFUSED rc 2" bash -c "[ $rc = 2 ] && grep -q 'lists no hermes-profiel-N-cloud CNP' <<< \"\$OUT\""
 out=$(cut readback "$TSHA" 2>&1); rc=$?; export OUT="$out"
 t "A4 readback for another sha: rc 1" [ $rc = 1 ]
 # ---------------------------------------------------------------- F: fire
@@ -154,7 +157,7 @@ export C010_NOW=$EXP_A
 fire; rc=$?
 t "F2 exactly at the JSON's expiry: rc 0, rollback --execute once with the armed sha + worktree" bash -c "[ $rc = 0 ] && [ $(nrb) = 1 ] && grep -q -- '--execute $SHA | reason=promo credit expiry cut-off $EXP_A' '$S/rb.log' && grep -- '--execute' '$S/rb.log' | grep -q 'FAMILY_AI_REPO=$S/fai-wt'"
 t "F2 cloud CNP gone on origin/main" bash -c "! { git -C '$S/repo' fetch -q origin; git -C '$S/repo' cat-file -e origin/main:$CNP 2>/dev/null; }"
-t "F2 exactly one new event: cloud off, GREEN, names rollback evidence" bash -c "[ $(nev) = $((e0+1)) ] && tail -1 '$S/events.log' | grep -q 'cloud off for profiel-3' && tail -1 '$S/events.log' | grep -q '\"result\": \"GREEN\"' && tail -1 '$S/events.log' | grep -q k8s-rollback-"
+t "F2 exactly one new event: cloud off, GREEN, names rollback evidence" bash -c "[ $(nev) = $((e0+1)) ] && tail -1 '$S/events.log' | grep -q 'cloud off for every family-ai profile' && tail -1 '$S/events.log' | grep -q '\"result\": \"GREEN\"' && tail -1 '$S/events.log' | grep -q k8s-rollback-"
 e1=$(nev); export C010_NOW=2026-11-13T17:47:09Z
 fire; rc=$?
 t "F3 second run after firing: rc 0, no rollback, no event (idempotent)" bash -c "[ $rc = 0 ] && [ $(nrb) = 1 ] && [ $(nev) = $e1 ]"
@@ -190,7 +193,7 @@ t "D1 pushed but read-back red: done (cloud off on main), event says check evide
 
 # ---------------------------------------------------------------- E: integrity
 scenario E yes; export C010_NOW=2026-10-25T12:00:00Z; armx 2026-11-14T00:00:00Z
-INST=$(ls -d "$S"/inst/*/ | head -1); echo '# tampered' >> "$INST/chg-2026-10-20-010-rollback.sh"
+INST=$(ls -d "$S"/inst/*/ | head -1); echo '# tampered' >> "$INST/chg-2026-10-20-010-cloud-off.sh"
 export C010_NOW=2026-11-14T00:00:00Z; e0=$(nev)
 fire; r1=$?; fire; r2=$?
 t "E1 install changed after arm: rc 1, no rollback, one integrity RED event (once per day)" bash -c "[ $r1$r2 = 11 ] && [ $(nrb) = 0 ] && [ $(nev) = $((e0+1)) ] && tail -1 '$S/events.log' | grep -q 'integrity RED'"
@@ -203,6 +206,7 @@ fire; rc=$?
 t "G1 armed but never pushed (no CNP on main): rc 0, no rollback, no-op GREEN" bash -c "[ $rc = 0 ] && [ $(nrb) = 0 ] && tail -1 '$S/events.log' | grep -q 'already off'"
 scenario G2 no; export C010_NOW=2026-10-25T12:00:00Z; armx 2026-11-14T00:00:00Z
 w="$S/redeploy"; gq clone "$S/origin.git" "$w"; mkdir -p "$(dirname "$w/$CNP")"; echo 'kind: CiliumNetworkPolicy # v2' > "$w/$CNP"
+printf '  - hermes-profiel-3-cloud.yaml\n' >> "$w/kubernetes/main/apps/family-ai/network-policies/app/kustomization.yaml"
 gq -C "$w" add -A; gq -C "$w" commit -m redeploy; gq -C "$w" push origin HEAD:main
 export C010_NOW=2026-11-14T00:00:00Z; e0=$(nev)
 fire; rc=$?
@@ -245,7 +249,7 @@ t "H4 30 min after that retry: nothing" bash -c "[ $(nrb) = 4 ]"
 export C010_NOW=2026-11-14T02:00:00Z; fire
 t "H5 2 h after the trigger, still not done: ONE 'not done' alert (push + digest)" bash -c "grep -q 'NOT done 2 h after 2026-11-14T00:00:00Z' '$S/notify.log' && [ $(ninc) = 2 ] && [ $(nrb) = 5 ]"
 export C010_NOW=2026-11-14T03:00:00Z C010_STUB_RB=ok; fire
-t "H6 the hourly retry succeeds: cloud off, one GREEN event, one 'done after FAILED' push; no second 'not done' alert" bash -c "[ $(nrb) = 6 ] && [ -e '$S/state/done-$SHA' ] && tail -1 '$S/events.log' | grep -q 'cloud off for profiel-3' && grep -q 'done after FAILED' '$S/notify.log' && [ \$(grep -c 'NOT done' '$S/notify.log') = 1 ]"
+t "H6 the hourly retry succeeds: cloud off, one GREEN event, one 'done after FAILED' push; no second 'not done' alert" bash -c "[ $(nrb) = 6 ] && [ -e '$S/state/done-$SHA' ] && tail -1 '$S/events.log' | grep -q 'cloud off for every family-ai profile' && grep -q 'done after FAILED' '$S/notify.log' && [ \$(grep -c 'NOT done' '$S/notify.log') = 1 ]"
 t "H7 every push used a scoped token that was revoked afterwards" bash -c "[ \$(grep -c fake-test-token '$S/revoked.log') -ge 6 ]"
 
 scenario M yes; export C010_NOW=2026-10-25T12:00:00Z; armx 2026-11-14T10:00:00Z
@@ -271,13 +275,13 @@ t "N3 ops itself failing: the error is in the fire log (not discarded), cut-off 
 scenario RR yes real; export HOME_SAVE="$HOME" HOME="$S/home"; mkdir -p "$HOME"
 export C010_NOW=2026-10-25T12:00:00Z C010_SKIP_ROLLBACK_DRYRUN=1; armx 2026-11-14T00:00:00Z; unset C010_SKIP_ROLLBACK_DRYRUN
 FL="$S/state/fire-net.vdhict.$CHG-cutoff.log"
-t "RR1 deploy on main, main not diverged: the REAL rollback.sh --dry-run in the self-test is GREEN" bash -c "grep -q 'rollback_dry_run=ok' '$FL' && grep -q 'RESULT dry-run GREEN' '$FL' && grep -q 'ok   revert restores every deploy path' '$FL' && [ $(nnot) = 0 ]"
+t "RR1 deploy on main: the REAL cloud-off.sh --dry-run in the self-test is GREEN" bash -c "grep -q 'rollback_dry_run=ok' '$FL' && grep -q 'RESULT dry-run GREEN' '$FL' && grep -q 'ok   only the 1 cloud CNP lines removed' '$FL' && [ $(nnot) = 0 ]"
 w="$S/diverge"; gq clone "$S/origin.git" "$w"
-printf '  - hermes-profiel-3-cloud-extra.yaml\n' >> "$w/kubernetes/main/apps/family-ai/network-policies/app/kustomization.yaml"
-printf 'apiVersion: v1\nkind: ConfigMap\nmetadata: {name: later-change, namespace: family-ai}\n' > "$w/kubernetes/main/apps/family-ai/network-policies/app/hermes-profiel-3-cloud-extra.yaml"
-gq -C "$w" add -A; gq -C "$w" commit -m "later main change next to the wiring"; gq -C "$w" push origin HEAD:main
+printf '  - other-egress.yaml\n' >> "$w/kubernetes/main/apps/family-ai/network-policies/app/kustomization.yaml"
+printf 'apiVersion: cilium.io/v2\nkind: CiliumNetworkPolicy\nmetadata: {name: other-egress, namespace: family-ai}\nspec: {egress: [{toFQDNs: [{matchName: api.anthropic.com}]}]}\n' > "$w/kubernetes/main/apps/family-ai/network-policies/app/other-egress.yaml"
+gq -C "$w" add -A; gq -C "$w" commit -m "later main change: another CNP that reaches the cloud"; gq -C "$w" push origin HEAD:main
 export C010_NOW=2026-10-26T09:00:00Z; fire
-t "RR2 main diverged next to the wiring: the REAL rollback.sh --dry-run fails -> self-test rollback_dry_run=fail" bash -c "tail -40 '$FL' | grep -q 'rollback_dry_run=fail'"
+t "RR2 another CNP on main reaches the cloud: the REAL cloud-off.sh --dry-run fails -> self-test rollback_dry_run=fail" bash -c "tail -40 '$FL' | grep -q 'rollback_dry_run=fail'"
 t "RR2 -> RED event + ONE push (priority 3) + one digest line" bash -c "[ \$(grep -c 'self-test RED' '$S/events.log') = 1 ] && grep -q '^prio=3 title=self-test RED' '$S/notify.log' && [ $(ninc) = 1 ]"
 export HOME="$HOME_SAVE"
 scenario G3 no; export C010_NOW=2026-10-25T12:00:00Z; armx 2026-11-14T00:00:00Z

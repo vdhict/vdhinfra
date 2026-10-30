@@ -246,15 +246,20 @@ log "$CHG go-live ${MODE#--} $TS deploy=$SHA (k8s-engineer; uitgevoerd onder pro
 if [ "$MODE" = --go ] || [ "$MODE" = --gate-only ]; then
   [ -n "$W2TS" ] || { log "REFUSED: --w2-event <ts> missing (W2 closes by the console evidence, Argus 03:31:48Z)"; exit 2; }
   # test-only overrides (scratch copies): C010_CHANGES, C010_EVIDENCE_DIR, C010_SETTINGS; never set them for a real go
-  # budget_usd comes from the family-cloud settings.json inside THIS deploy commit's profiel-3 bundle (Argus 09:56:03Z)
-  W2SET="${C010_SETTINGS:-$CACHE/gate-settings.json}"
-  [ -n "${C010_SETTINGS:-}" ] || sops -d --extract '["data"]["bundle.tar.gz"]' \
-      "$SRC/kubernetes/main/apps/family-ai/hermes/profiel-3/bundle.sops.yaml" 2>/dev/null | base64 -d 2>/dev/null |
-      tar -xzO plugins/model-providers/family-cloud/settings.json > "$W2SET" 2>/dev/null
+  # budget_usd comes from the family-cloud settings.json inside THIS deploy commit's bundles (Argus 09:56:03Z); W2c:
+  # every profile bundle that carries family-cloud, all with the same budget_usd (one shared ledger, one cap)
+  if [ -n "${C010_SETTINGS:-}" ]; then W2SET="$C010_SETTINGS"; else W2SET=""
+    for n in 1 2 3; do
+      sops -d --extract '["data"]["bundle.tar.gz"]' "$SRC/kubernetes/main/apps/family-ai/hermes/profiel-$n/bundle.sops.yaml" 2>/dev/null |
+        base64 -d 2>/dev/null | tar -xzO plugins/model-providers/family-cloud/settings.json > "$CACHE/gate-settings-$n.json" 2>/dev/null
+      [ -s "$CACHE/gate-settings-$n.json" ] && W2SET="$W2SET${W2SET:+,}$CACHE/gate-settings-$n.json"
+    done; fi
+  # W2c (Argus 30-10 08:29:01Z M1): the 27-10 capture is the baseline; pinned by name + sha256 in this file
+  W2BASE="${C010_W2_BASELINE:-$HACK/ops/$CHG-w2-baseline.txt}"
   W2OUT=$(python3 -I - "${C010_CHANGES:-$REPO/ops/changes.jsonl}" "$CHG" "$W2TS" \
-      "${C010_EVIDENCE_DIR:-$REPO/ops/evidence/$CHG}" "$REPO" "$W2SET" 2>&1 <<'PY'
-import datetime as dt, json, os, re, sys
-path, chg, ts, evdir, repo, settings_path = sys.argv[1:7]
+      "${C010_EVIDENCE_DIR:-$REPO/ops/evidence/$CHG}" "$REPO" "$W2SET" "$W2BASE" 2>&1 <<'PY'
+import datetime as dt, hashlib, json, os, re, sys
+path, chg, ts, evdir, repo, settings_path, baseline_pin = sys.argv[1:8]
 evs = [e for e in map(json.loads, filter(str.strip, open(path)))
        if e.get("chg") == chg and e.get("ts") == ts and e.get("actor") == "infra-ops"]
 if not evs:
@@ -279,7 +284,24 @@ try:
 except Exception:
     sys.exit("w2_evidence has no UTC timestamp field (captured_utc | ts_utc | ts, ...Z)")
 age = (dt.datetime.now(dt.timezone.utc) - t).total_seconds()
-if age > 24 * 3600 or age < -300:
+basis = ""
+if p.get("w2_baseline") is True:
+    # Argus 30-10 08:29:01Z M1: the named, pinned baseline capture stands in for a fresh one; any reported billing
+    # change after its capture voids it (then: a fresh capture, as before)
+    try:
+        pin_sha, pin_name = open(baseline_pin).read().split("#")[0].split()[:2]
+    except Exception:
+        sys.exit("w2_baseline: pin file unreadable (" + os.path.basename(baseline_pin) + ")")
+    if os.path.basename(f) != pin_name or hashlib.sha256(open(f, "rb").read()).hexdigest() != pin_sha:
+        sys.exit("w2_baseline: w2_evidence is not the pinned baseline capture")
+    allev = [e for e in map(json.loads, filter(str.strip, open(path))) if e.get("chg") == chg]
+    void = [e.get("ts") for e in allev if (e.get("payload") or {}).get("billing_change") is True and str(e.get("ts", "")) >= stamp]
+    if void:
+        sys.exit("w2_baseline voided by a reported billing change at %s: re-measure the console first" % void[-1])
+    if age < -300:
+        sys.exit("w2_evidence is in the future")
+    basis = "baseline, "
+elif age > 24 * 3600 or age < -300:
     sys.exit("w2_evidence is %.1f h old (> 24 h or in the future): re-measure the console first" % (age / 3600))
 if p.get("w2_readback_by") not in ("atlas", "security-engineer"):
     sys.exit("w2_readback_by must be atlas or security-engineer")
@@ -334,9 +356,12 @@ if pp:
         sys.exit("w2_evidence promotional credit expired at %s: cloud stays off" % exp_s)
     # the plugin cap follows the grant (Argus 09:56:03Z): settings budget_usd <= promo_credit_usd
     try:
-        budget = json.load(open(settings_path)).get("budget_usd")
+        budgets = [json.load(open(sp)).get("budget_usd") for sp in settings_path.split(",") if sp]
     except Exception:
-        budget = None
+        budgets = []
+    if len(set(map(repr, budgets))) > 1:
+        sys.exit("plugin budget_usd differs between the profile bundles (%s): one shared ledger needs one cap" % ", ".join(map(str, budgets)))
+    budget = budgets[0] if budgets else None
     if isinstance(budget, bool) or not isinstance(budget, (int, float)) or not math.isfinite(budget):
         sys.exit("plugin settings budget_usd unreadable (bundle settings.json of this deploy)")
     if budget > num("promo_credit_usd"):
@@ -345,7 +370,7 @@ if pp:
     extra = ", budget_usd %g <= promo %g, promo_credit_expires_utc=%s" % (budget, num("promo_credit_usd"), exp.strftime("%Y-%m-%dT%H:%M:%SZ"))
 elif not (w2a == "no_payment_method_no_autoreload" or (m and 0 < float(m.group(1)) <= 200)):
     sys.exit(W2A_HELP)
-print("evidence %s (%.1f h old), readback %s, w2a %s%s" % (os.path.basename(f), age / 3600, p["w2_readback_by"], w2a, extra))
+print("evidence %s (%s%.1f h old), readback %s, w2a %s%s" % (os.path.basename(f), basis, age / 3600, p["w2_readback_by"], w2a, extra))
 PY
 ) || { log "REFUSED W2: $W2OUT"; exit 2; }
   log "W2 gate: event $W2TS by infra-ops: $W2OUT"
@@ -632,7 +657,7 @@ if len(hits) == 1 and bad == 0:
     out.update(route=hits[0]["route"], rule=hits[0]["rule"], id_class=hits[0]["id_class"])
 if full: out["records"] = sorted([d["ts"], d["route"], d["rule"], d["id_class"]] for d in hits)
 print(json.dumps(out))'
-p3_turnlog() { xp "$(pod 3)" /opt/hermes/.venv/bin/python -I -c "$C6LOG_PY" "$1" "$2"; }
+p3_turnlog() { xp "$(pod "${PROF:-3}")" /opt/hermes/.venv/bin/python -I -c "$C6LOG_PY" "$1" "$2"; }   # W2c: PROF (default 3)
 # stdin: p3_turnlog JSON. exit 0 iff exactly one well-formed record in the window and it is route=cloud rule=cloud_ok
 # id_class=msg_. count != 1 (or malformed > 0): RED "inconclusive", only the counts are printed.
 C6VERDICT_PY='import sys, json
@@ -723,9 +748,9 @@ ok = [r for r in (rt.get("records") or []) if r[2] == "cloud_ok"]
 inside = sum(1 for r in ok if any(lo <= r[0] <= hi for lo, hi in wins))
 print(json.dumps({"cloud_ok": len(ok), "inside": inside, "outside": len(ok) - inside, "malformed": rt.get("malformed", -1), "windows": len(wins)}))
 sys.exit(0 if len(ok) == inside and rt.get("malformed", 0) == 0 else 1)'
-pod_now() { xp "$(pod 3)" date +%s; }
-sdb() { xp "$(pod 3)" /opt/hermes/.venv/bin/python -I -c "$SDB_PY" "$1"; }                      # $1 since (pod epoch)
-routes_all() { xp "$(pod 3)" /opt/hermes/.venv/bin/python -I -c "$C6LOG_PY" --all "$1" "$2"; }   # $1 $2 window
+pod_now() { xp "$(pod "${PROF:-3}")" date +%s; }   # W2c: PROF (default 3)
+sdb() { xp "$(pod "${PROF:-3}")" /opt/hermes/.venv/bin/python -I -c "$SDB_PY" "$1"; }                      # $1 since (pod epoch)
+routes_all() { xp "$(pod "${PROF:-3}")" /opt/hermes/.venv/bin/python -I -c "$C6LOG_PY" --all "$1" "$2"; }   # $1 $2 window
 f6_judge() { /usr/bin/python3 -I -c "$F6JUDGE_PY" "$@"; }
 jf() { # JSON field of stdin: dict/list/bool as JSON (true/false), None as empty, else the plain value
   /usr/bin/python3 -I -c 'import json,sys; d=json.load(sys.stdin); v=d.get(sys.argv[1]); print(json.dumps(v) if isinstance(v,(dict,list,bool)) else ("" if v is None else v))' "$1"; }
@@ -742,8 +767,8 @@ pf_fresh() { # $1 where: a NEW port-forward before every canary turn + HTTP read
   done
   log "  RED  no ready port-forward to OWUI ($1)"; return 1; }
 send_turn() { # $1 chat id $2 messages json [$3 files json] : HTTP code only, response discarded unread
-  local body; body=$(jq -nc --arg c "$1" --argjson m "$2" --argjson f "${3:-null}" \
-    '{model:"hermes-agent-profiel-3", chat_id:$c, stream:false, messages:$m,
+  local body; body=$(jq -nc --arg c "$1" --argjson m "$2" --argjson f "${3:-null}" --arg model "hermes-agent-profiel-${PROF:-3}" \
+    '{model:$model, chat_id:$c, stream:false, messages:$m,
       background_tasks:{title_generation:true, tags_generation:false, follow_up_generation:false}} + (if $f then {files:$f} else {} end)')
   api "$TOK" POST /api/chat/completions "$body" -o /dev/null -w '%{http_code}' -m 240; }
 f6_settle() { # $1 e0 $2 s0 file $3 "http code" $4 tag -> writes $CACHE/f6-$4.json (last judge), prints the final state

@@ -33,7 +33,7 @@ PP = "prepaid_autoreload_off_purchased_usd=0_org_limit_usd="
 
 
 def case(name, want_rc, want_msg, doc=None, payload=None, actor="infra-ops", evname="w2a-test.json",
-         raw=None, write_event=True, write_file=True, settings={"budget_usd": 200}):
+         raw=None, write_event=True, write_file=True, settings={"budget_usd": 200}, pin=None, extra_events=(), settings_list=None):
     d = os.path.join(BASE, "case-%02d" % (len(results) + 1))
     evdir = os.path.join(d, "ops", "evidence", CHG)
     os.makedirs(evdir)
@@ -47,12 +47,25 @@ def case(name, want_rc, want_msg, doc=None, payload=None, actor="infra-ops", evn
     with open(os.path.join(d, "changes.jsonl"), "w") as fh:
         if write_event:
             fh.write(json.dumps({"actor": actor, "chg": CHG, "event": "executed", "payload": pl, "ts": EVENT_TS}) + "\n")
+        for e in extra_events:
+            fh.write(json.dumps(dict({"actor": "infra-ops", "chg": CHG, "event": "executed"}, **e)) + "\n")
+    pinf = os.path.join(d, "w2-baseline.txt")   # W2c M1: pin = name + sha256 of the baseline capture
+    if pin == "match" and write_file:
+        import hashlib
+        open(pinf, "w").write("%s  %s   # test pin\n" % (hashlib.sha256(open(os.path.join(evdir, evname), "rb").read()).hexdigest(), evname))
+    elif pin == "other":
+        open(pinf, "w").write("%s  %s\n" % ("0" * 64, evname))
     sp = os.path.join(d, "settings.json")   # stands in for the bundle's family-cloud/settings.json
     if settings is not None:
         with open(sp, "w") as fh:
             fh.write(settings if isinstance(settings, str) else json.dumps(settings))
+    if settings_list:   # W2c: one settings.json per cloud profile bundle, comma-separated (as the real gate builds it)
+        paths = []
+        for i, st in enumerate(settings_list):
+            q = os.path.join(d, "settings-%d.json" % i); open(q, "w").write(json.dumps(st)); paths.append(q)
+        sp = ",".join(paths)
     env = dict(os.environ, VDH_REPO=d, C010_CHANGES=os.path.join(d, "changes.jsonl"), C010_EVIDENCE_DIR=evdir,
-               C010_SETTINGS=sp)
+               C010_SETTINGS=sp, C010_W2_BASELINE=pinf)
     p = subprocess.run(["bash", GOLIVE, "--gate-only", "0" * 40, "--w2-event", EVENT_TS], cwd=HERE, env=env,
                        capture_output=True, text=True)
     out = p.stdout + p.stderr
@@ -112,6 +125,29 @@ case("prepaid: refuse ts_utc instead of captured_utc", 2, "captured_utc missing"
 for k in GOOD_PREPAID:
     want = {"captured_utc": "no UTC timestamp field"}.get(k, k)
     case("prepaid: refuse missing " + k, 2, want, {x: v for x, v in GOOD_PREPAID.items() if x != k}, {"w2a": PP + "200"})
+# --- W2c (Argus 30-10 08:29:01Z M1): the pinned 27-10 baseline instead of a fresh capture; budget per bundle
+OLD3 = dict(GOOD_PREPAID, captured_utc=Z(NOW - dt.timedelta(days=3)))   # 3 days old, like the 27-10 capture
+BL = {"w2a": PP + "200", "w2_baseline": True}
+case("w2c: baseline 3 d old, pinned: accept", 0, "(baseline, ", OLD3, BL, pin="match", settings={"budget_usd": 99})
+case("w2c: same capture without w2_baseline: still refused (24 h rule)", 2, "re-measure the console", OLD3, {"w2a": PP + "200"}, pin="match")
+case("w2c: w2_baseline but the file is not the pinned one", 2, "is not the pinned baseline", OLD3, BL, pin="other")
+case("w2c: w2_baseline, pin file missing", 2, "pin file unreadable", OLD3, BL, pin=None)
+case("w2c: w2_baseline \"true\" (string) is not a baseline", 2, "re-measure the console", OLD3, dict(BL, w2_baseline="true"), pin="match")
+case("w2c: baseline voided by a reported billing change after the capture", 2, "voided by a reported billing change", OLD3, BL, pin="match",
+     extra_events=[{"ts": Z(NOW - dt.timedelta(days=1)), "payload": {"billing_change": True, "summary": "synthetic"}}])
+case("w2c: billing change BEFORE the capture does not void it", 0, "(baseline, ", OLD3, BL, pin="match", settings={"budget_usd": 99},
+     extra_events=[{"ts": Z(NOW - dt.timedelta(days=5)), "payload": {"billing_change": True}}])
+case("w2c: billing_change \"yes\" (not True) does not void", 0, "(baseline, ", OLD3, BL, pin="match", settings={"budget_usd": 99},
+     extra_events=[{"ts": Z(NOW - dt.timedelta(hours=2)), "payload": {"billing_change": "yes"}}])
+case("w2c: baseline still refuses an expired promo", 2, "promotional credit expired",
+     dict(OLD3, promo_credit_expires_utc=Z(NOW - dt.timedelta(minutes=1))), BL, pin="match")
+case("w2c: baseline still refuses auto_reload on", 2, "auto_reload is not 'off'", dict(OLD3, auto_reload="on"), BL, pin="match")
+case("w2c: three bundles, budget 99 each: accept", 0, "budget_usd 99 <= promo 200", GOOD_PREPAID, {"w2a": PP + "200"},
+     settings_list=[{"budget_usd": 99}] * 3)
+case("w2c: bundles with different budgets: refuse", 2, "differs between the profile bundles", GOOD_PREPAID, {"w2a": PP + "200"},
+     settings_list=[{"budget_usd": 99}, {"budget_usd": 200}, {"budget_usd": 99}])
+case("w2c: one bundle above the promo: refuse", 2, "differs between the profile bundles", GOOD_PREPAID, {"w2a": PP + "200"},
+     settings_list=[{"budget_usd": 99}, {"budget_usd": 250}])
 
 bad = 0
 for ok, name, rc, line in results:
