@@ -183,5 +183,57 @@ class Probe(unittest.TestCase):
         self.assertEqual(f["severity"], "low")
 
 
+class StdlibParser(unittest.TestCase):
+    """The cluster-health image has no PyYAML (chg-2026-10-30-002 follow-up): the checks use a stdlib reader."""
+
+    def sections(self, text):
+        full = yaml.safe_load(text)
+        return {k: full.get(k) for k in ("session", "access_control")}
+
+    def test_equals_pyyaml_on_the_repo_config(self):
+        text = CONFIG.read_text().replace("${SECRET_DOMAIN}", DOMAIN).replace("$${", "${")
+        self.assertEqual(scan.parse_authelia_sections(text), self.sections(text))
+
+    def test_equals_pyyaml_on_a_pyyaml_dump(self):
+        text = yaml.safe_dump(real_config(), sort_keys=False)
+        self.assertEqual(scan.parse_authelia_sections(text), self.sections(text))
+
+    def test_checks_run_without_yaml_importable(self):
+        cm = {"data": {"configuration.yaml": CONFIG.read_text().replace("${SECRET_DOMAIN}", DOMAIN)}}
+        done = mock.Mock(returncode=0, stdout=__import__("json").dumps(cm), stderr="")
+        with mock.patch.dict(sys.modules, {"yaml": None}), mock.patch.object(scan, "run", return_value=done):
+            (f,) = scan.check_teamregie_authelia_rules()
+            self.assertEqual(f["severity"], "info", f["evidence"])
+            err = urllib.error.HTTPError(f"https://{HOST}/", 302, "Found", {"Location": f"https://auth.{DOMAIN}/?rd=x"},
+                                         io.BytesIO(b""))
+            opener = mock.Mock(); opener.open.side_effect = err
+            with mock.patch.object(scan.urllib.request, "build_opener", return_value=opener):
+                (g,) = scan.check_teamregie_forged_header()
+            self.assertEqual(g["severity"], "info", g["evidence"])
+
+    def test_unparseable_config_is_red_not_green(self):
+        bad = CONFIG.read_text().replace("${SECRET_DOMAIN}", DOMAIN).replace(
+            "access_control:\n", "access_control:\n  extra: |\n    block scalar\n", 1)
+        done = mock.Mock(returncode=0, stdout=__import__("json").dumps({"data": {"configuration.yaml": bad}}), stderr="")
+        with mock.patch.object(scan, "run", return_value=done):
+            (f,) = scan.check_teamregie_authelia_rules()
+        self.assertEqual(f["severity"], "high")
+        self.assertNotIn(DOMAIN, f["evidence"])
+
+    def test_wrong_order_via_the_stdlib_reader_is_red(self):
+        cfg = real_config()
+        r = rules(cfg)
+        a, b = idx(cfg, "two_factor"), idx(cfg, "deny")
+        r[a], r[b] = r[b], r[a]
+        text = yaml.safe_dump(cfg, sort_keys=False)
+        self.assertFalse(scan.teamregie_rules_verdict(scan.parse_authelia_sections(text))[0])
+
+    def test_bypass_via_the_stdlib_reader_is_red(self):
+        cfg = real_config()
+        rules(cfg).insert(0, {"domain": [HOST], "policy": "bypass"})
+        text = yaml.safe_dump(cfg, sort_keys=False)
+        self.assertFalse(scan.teamregie_rules_verdict(scan.parse_authelia_sections(text))[0])
+
+
 if __name__ == "__main__":
     unittest.main()

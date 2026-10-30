@@ -427,6 +427,150 @@ def _as_list(v) -> list:
     return v if isinstance(v, list) else [v]
 
 
+# Minimal, stdlib-only reader for the two sections of Authelia's configuration.yaml these checks need
+# (session, access_control). The cluster-health image has no PyYAML and no yq. It understands block
+# mappings, block sequences (also "- key: value" items), flow lists [a, b], quoted and plain scalars and
+# comments, which is all those two sections use. Anything else raises ValueError, and the callers turn
+# that into a red finding, never a green one (fail closed).
+class _MiniYamlError(ValueError):
+    pass
+
+
+def _strip_comment(line: str) -> str:
+    out, q = [], None
+    for i, ch in enumerate(line):
+        if q:
+            if ch == q:
+                q = None
+        elif ch in "\"'":
+            q = ch
+        elif ch == "#" and (i == 0 or line[i - 1] in " \t"):
+            break
+        out.append(ch)
+    return "".join(out).rstrip()
+
+
+def _scalar(v: str):
+    v = v.strip()
+    if v and v[0] in "|>&*!":
+        raise _MiniYamlError("unsupported YAML construct")
+    if v.startswith("["):
+        if not v.endswith("]") or "[" in v[1:-1] or "{" in v:
+            raise _MiniYamlError("unsupported flow sequence")
+        inner = v[1:-1].strip()
+        return [] if not inner else [_scalar(x) for x in inner.split(",")]
+    if v.startswith("{"):
+        raise _MiniYamlError("unsupported flow mapping")
+    if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
+        return v[1:-1]
+    if re.fullmatch(r"[-+]?[0-9]+", v):
+        return int(v)
+    low = v.lower()
+    if low in ("true", "false"):
+        return low == "true"
+    if low in ("null", "~"):
+        return None
+    return v
+
+
+def _split_key(text: str):
+    if text[:1] in "\"'":
+        q = text[0]; end = text.find(q, 1)
+        if end < 0 or text[end + 1:end + 2] != ":":
+            return None
+        return text[1:end], text[end + 2:]
+    i = text.find(": ")
+    if text.endswith(":") and (i < 0 or i == len(text) - 2):
+        return text[:-1], ""
+    if i < 0:
+        return None
+    return text[:i], text[i + 2:]
+
+
+def _mini_yaml(text: str):
+    lines = []
+    for raw in text.split("\n"):
+        if "\t" in raw[: len(raw) - len(raw.lstrip())]:
+            raise _MiniYamlError("tab indentation")
+        t = _strip_comment(raw)
+        if t.strip():
+            lines.append([len(t) - len(t.lstrip(" ")), t.strip()])
+
+    def block(i, ind):
+        if lines[i][1].startswith("- ") or lines[i][1] == "-":
+            return seq(i, ind)
+        return mapping(i, ind)
+
+    def seq(i, ind):
+        out = []
+        while i < len(lines) and lines[i][0] == ind and (lines[i][1].startswith("- ") or lines[i][1] == "-"):
+            item = lines[i][1][1:].strip()
+            if not item:
+                if i + 1 < len(lines) and lines[i + 1][0] > ind:
+                    v, i = block(i + 1, lines[i + 1][0])
+                else:
+                    v, i = None, i + 1
+            elif not item.startswith("[") and _split_key(item) is not None:
+                lines[i] = [ind + 2, item]
+                v, i = mapping(i, ind + 2)
+            else:
+                v, i = _scalar(item), i + 1
+            out.append(v)
+        return out, i
+
+    def mapping(i, ind):
+        out = {}
+        while i < len(lines) and lines[i][0] == ind:
+            kv = _split_key(lines[i][1])
+            if kv is None or lines[i][1].startswith("- "):
+                raise _MiniYamlError("expected a mapping key")
+            k, rest = kv
+            if rest.strip():
+                out[k], i = _scalar(rest), i + 1
+            elif i + 1 < len(lines) and (lines[i + 1][0] > ind or (
+                    lines[i + 1][0] == ind and lines[i + 1][1].startswith("- "))):
+                out[k], i = block(i + 1, lines[i + 1][0])
+            else:
+                out[k], i = None, i + 1
+        if i < len(lines) and lines[i][0] > ind:
+            raise _MiniYamlError("bad indentation")
+        return out, i
+
+    if not lines:
+        return {}
+    v, i = block(0, lines[0][0])
+    if i != len(lines):
+        raise _MiniYamlError("trailing content")
+    return v
+
+
+def parse_authelia_sections(text: str, keys=("session", "access_control")) -> dict:
+    """Cut the named top-level sections out of the full file and parse each with _mini_yaml."""
+    out, cur, buf = {}, None, []
+    for raw in text.split("\n") + ["__end__:"]:
+        top = re.match(r"^([A-Za-z_][\w-]*):(.*)$", raw)
+        if top:
+            if cur is not None:
+                out[cur] = (_mini_yaml("\n".join(buf)) if any(l.strip() for l in buf) else None)
+            cur, buf = (top.group(1) if top.group(1) in keys else None), []
+            if cur is not None and _strip_comment(top.group(2)).strip():
+                raise _MiniYamlError("inline value for a section")
+        elif cur is not None:
+            buf.append(raw)
+    return out
+
+
+def _teamregie_live_cfg():
+    """(cfg, error) for the LIVE Authelia ConfigMap; error is a short string without the domain."""
+    res = run(["kubectl", "-n", "security", "get", "configmap", "authelia-configmap", "-o", "json"], timeout=30)
+    if res.returncode != 0:
+        return None, "ConfigMap unreadable: " + (res.stderr or "")[:160]
+    try:
+        return parse_authelia_sections(json.loads(res.stdout)["data"]["configuration.yaml"]), None
+    except (ValueError, KeyError) as e:
+        return None, "Authelia config not parseable by the stdlib reader: " + str(e)[:120]
+
+
 def teamregie_rules_verdict(cfg: dict) -> tuple[bool, str]:
     """Pure: judge a parsed Authelia configuration. Returns (ok, reason); reason has no domain."""
     cookies = ((cfg.get("session") or {}).get("cookies") or [])
@@ -469,14 +613,12 @@ def teamregie_rules_verdict(cfg: dict) -> tuple[bool, str]:
 
 
 def check_teamregie_authelia_rules() -> list[dict]:
-    res = run(["kubectl", "-n", "security", "get", "configmap", "authelia-configmap", "-o", "json"], timeout=30)
     target = "security/authelia-configmap"
-    if res.returncode != 0:
-        return [{"title": "teamregie: Authelia ConfigMap unreadable", "severity": "low", "target": target,
-                 "evidence": (res.stderr or "")[:200], "remediation": "check cluster-health RBAC",
+    cfg, err = _teamregie_live_cfg()
+    if err:
+        return [{"title": "teamregie: Authelia rules could not be checked", "severity": "high", "target": target,
+                 "evidence": err, "remediation": "check cluster-health RBAC / the config layout (chg-2026-10-30-002 T3)",
                  "owner_agent": "k8s-engineer"}]
-    import yaml  # type: ignore  # py3-yaml is in the cluster-health image
-    cfg = yaml.safe_load(json.loads(res.stdout)["data"]["configuration.yaml"]) or {}
     ok, why = teamregie_rules_verdict(cfg)
     log(f"argus: teamregie authelia rules ok={ok}")
     if ok:
@@ -507,11 +649,9 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def check_teamregie_forged_header() -> list[dict]:
-    res = run(["kubectl", "-n", "security", "get", "configmap", "authelia-configmap", "-o", "json"], timeout=30)
+    cfg, _err = _teamregie_live_cfg()
     domain = ""
-    if res.returncode == 0:
-        import yaml  # type: ignore
-        cfg = yaml.safe_load(json.loads(res.stdout)["data"]["configuration.yaml"]) or {}
+    if cfg:
         cookies = ((cfg.get("session") or {}).get("cookies") or [])
         domain = (cookies[0].get("domain") if cookies else "") or ""
     if not domain:
