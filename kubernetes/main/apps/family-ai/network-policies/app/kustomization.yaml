@@ -31,6 +31,7 @@ resources:
   - ./open-webui.yaml
   - ./hermes.yaml
   - ./hermes-profiel-3-cloud.yaml   # chg-2026-10-20-010: profiel-3 only, api.anthropic.com:443
+  - ./hermes-profiel-2-cloud.yaml   # chg-2026-10-20-010 W2c: profiel-2, api.anthropic.com:443
   - ./gezinsdienst.yaml
   - ./volsync-mover.yaml
   - ./chat-retention.yaml
