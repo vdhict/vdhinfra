@@ -28,9 +28,12 @@ spec:
   # --force-with-lease; old main is parked as branch main-pre-v10-2026-10-28
   # (012e632) and comes back only as its own reviewed ranges.
   # Rollback: branch cutover/wave1-ortho-tennis commit c148314 (v8).
+  # v11 (chg-2026-10-07-007, Argus range 13e207a..dd461cb, 2026-10-30):
+  # image v11-5f3ba77, new wire trip-autopilot lands suspended + shadow.
+  # Rollback: branch main commit 13e207a (v10).
   ref:
     branch: main
-    commit: 13e207ab8fc051980166ac1cec75d3df5e3d73f4
+    commit: dd461cb8dfd2fd2d87d6f78c1e655a1610df4130
   # Fetch only what the tenant Kustomization applies (as Mack proposed).
   ignore: |
     /*
