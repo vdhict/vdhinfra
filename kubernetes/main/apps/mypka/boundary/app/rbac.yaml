@@ -85,6 +85,15 @@ rules:
   - apiGroups: ["policy"]
     resources: ["poddisruptionbudgets"]
     verbs: *rw
+  # Read-only, for Flux's health check of the tenant Deployment as this SA (kustomize-controller
+  # impersonates it): kstatus reads a Deployment's ReplicaSets, then their Pods (chg-2026-10-30-002).
+  # No pods/log, pods/exec, pods/portforward and no writes; the VAPs and Pod Security are unchanged.
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/rbac.authorization.k8s.io/rolebinding_v1.json
 apiVersion: rbac.authorization.k8s.io/v1
