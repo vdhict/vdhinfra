@@ -9,6 +9,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  - ./cloud-spend   # chg-2026-10-20-010 W2c: the one shared spend ledger
   - ./profiel-1
   - ./profiel-2
   - ./profiel-3
