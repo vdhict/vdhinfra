@@ -24,21 +24,42 @@
 #   * mypka: print3d is NOT denied here, but the mypka tenant egress boundary
 #     (apps/mypka/boundary, toCIDRSet 172.16.0.0/12) still denies it; that
 #     boundary needs its own carve-out when print3d is deployed.
+#   * The tenant sets its own pod labels, so ANY mypka pod labelled
+#     app.kubernetes.io/name=print3d is exempt from this policy.
 #
 # yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumclusterwidenetworkpolicy_v2.json
 apiVersion: cilium.io/v2
 kind: CiliumClusterwideNetworkPolicy
 metadata:
   name: printer-subnet-egress-deny
-spec:
-  description: "Deny pod egress to PRINTER-VLAN 172.16.7.0/28 except mypka print3d (chg-2026-10-30-004). CANARY: ns tools only."
-  # CANARY stage: one namespace only.
-  endpointSelector:
-    matchLabels:
-      k8s:io.kubernetes.pod.namespace: tools
-  enableDefaultDeny:
-    egress: false
-    ingress: false
-  egressDeny:
-    - toCIDRSet:
-        - cidr: 172.16.7.0/28
+specs:
+  # 1. Every namespace except mypka. NotIn also matches endpoints without a
+  #    namespace label (Cilium health/ingress); denying them the printer is
+  #    harmless and intended.
+  - description: "Deny egress to PRINTER-VLAN 172.16.7.0/28, all namespaces but mypka (chg-2026-10-30-004)"
+    endpointSelector:
+      matchExpressions:
+        - key: k8s:io.kubernetes.pod.namespace
+          operator: NotIn
+          values: ["mypka"]
+    enableDefaultDeny:
+      egress: false
+      ingress: false
+    egressDeny:
+      - toCIDRSet:
+          - cidr: 172.16.7.0/28
+  # 2. mypka: every pod that is NOT print3d. A pod without the label is denied.
+  - description: "Deny egress to PRINTER-VLAN 172.16.7.0/28, mypka pods other than print3d (chg-2026-10-30-004)"
+    endpointSelector:
+      matchLabels:
+        k8s:io.kubernetes.pod.namespace: mypka
+      matchExpressions:
+        - key: k8s:app.kubernetes.io/name
+          operator: NotIn
+          values: ["print3d"]
+    enableDefaultDeny:
+      egress: false
+      ingress: false
+    egressDeny:
+      - toCIDRSet:
+          - cidr: 172.16.7.0/28
