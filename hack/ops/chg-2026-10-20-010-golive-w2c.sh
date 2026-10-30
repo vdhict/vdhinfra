@@ -86,6 +86,19 @@ chk "wiring check for stage $STAGE (cloud=$CLOUDSET${EGOFF:+ egress-off=$EGOFF})
 chk "shared ledger guard tests" "cd '$SRC' && python3 -I hack/family-ai/test_cloud_spend_shared.py >/dev/null 2>&1"
 chk "post-check tests (real fixtures) + mutants" "cd '$SRC' && bash hack/ops/$CHG-test-w2c-checks.sh --mutants 2>&1 | tail -1 | grep -q '^MUTANTS \([0-9]*\)/\1 caught'"
 chk "server-side dry-run of hermes + network-policies (no Secrets)" "cd '$SRC' && for t in hermes network-policies/app; do kustomize build kubernetes/main/apps/family-ai/\$t | yq 'select(.kind != \"Secret\")' | kubectl apply -n $NS --dry-run=server -f - >/dev/null || exit 1; done"
+Q_FALLBACK="Hoeveel dagen heeft een schrikkeljaar? Antwoord kort."; Q_CLOUD="Hoeveel poten heeft een spin? Antwoord kort."
+Q_WEB="Wat is het weer morgen in Rotterdam?"
+if [ "$PROF" = 1 ]; then   # Atlas 30-10 option 2: webeerlijk + kennis pre-search questions stay on the Studio by design
+  Q_FALLBACK="Leg in twee zinnen uit wat een metafoor is."; Q_CLOUD="Geef me een recept voor pannenkoeken."
+  chk "profiel-1 route decisions on the LIVE webeerlijk + kennis files: fallback + cloud question get no pre-search context, the web question does" \
+    "kubectl -n $NS exec -i \"\$(pod 1)\" -c app -- /opt/hermes/.venv/bin/python -I - 'none=$Q_FALLBACK' 'none=$Q_CLOUD' 'web=$Q_WEB' < '$HACK/ops/$CHG-p1-routes.py' | tee -a '$EV' | tail -1 | grep -qx 'ROUTES OK'"
+fi
+if [ "$STAGE" = C2 ]; then   # Argus H1: the document embedding must be healthy, else the document question goes bare to the cloud
+  OWP=$(kubectl -n $NS get pod -l app.kubernetes.io/name=open-webui -o jsonpath='{.items[0].metadata.name}')
+  chk "H1 no 'No embedding model' error since the 27-10 fix" "[ \"\$(kubectl -n $NS logs $OWP -c app --since-time=2026-10-27T23:46:00Z 2>/dev/null | grep -c -i 'No embedding model')\" = 0 ]"
+  chk "H1 embedding config local + cached model, a synthetic file processes, deleted again" \
+    "kubectl -n $NS exec -i $OWP -c app -- sh -c 'cd /app/backend && python3 - 2>/dev/null' < '$HACK/ops/$CHG-h1-embedding.py' | tee -a '$EV' | tail -1 | grep -qx 'H1 GREEN'"
+fi
 chk "profiel-$PROF and OWUI pods Running" "[ -n \"\$(pod $PROF)\" ] && kubectl -n $NS get pod -l app.kubernetes.io/name=open-webui --field-selector=status.phase=Running -o name | grep -q ."
 if [ "$MODE" = --go ]; then
   [ -n "$W2TS" ] || { log "REFUSED: --w2-event missing"; exit 2; }
@@ -217,7 +230,7 @@ one_turn() { # $1 tag $2 question -> sets T_HTTP T_META T_REC T_E0 T_E1 ; ledger
   printf '%s' "$T_REC" > "$CACHE/$1-recs.json"; printf '%s' "$T_L0" > "$CACHE/$1-L0.json"; printf '%s' "$T_L1" > "$CACHE/$1-L1.json"
   log "  $1: http=$T_HTTP $T_META; route records $(printf '%s' "$T_REC" | jq -c '[.records[] | (.[1] + "/" + .[2])]')"; }
 if [ "$STAGE" = B1 ] || [ "$STAGE" = C1 ]; then
-  F0=$(fails); one_turn "fallback" "Hoeveel dagen heeft een schrikkeljaar? Antwoord kort."
+  F0=$(fails); one_turn "fallback" "$Q_FALLBACK"
   FD=$(( $(fails) - F0 ))
   chk "M3 fallback: HTTP 200 with an answer (cloud unreachable)" "w2c_http_answer '$T_HTTP' '$T_META'"
   chk "M3 fallback: exactly one studio/cloud_failed, no cloud record, failure lines +1, ledger +1 reservation on profiel-$PROF, no tokens (no retry, nothing billed)" \
@@ -229,14 +242,20 @@ if [ "$STAGE" = B1 ] || [ "$STAGE" = C1 ]; then
   exit 0
 fi
 # B2 / C2: ONE real cloud turn (M4), then private turns + F1/F2
-if [ "$STAGE" = B2 ]; then Q="Hoeveel poten heeft een spin? Antwoord kort."; else Q="Zoek op internet wat de hoofdstad van Australië is en noem je bron."; fi
-one_turn "cloud" "$Q"; F2WIN="$((T_E0 - 1)):$((T_E1 + 1))"
-KIND=plain; [ "$STAGE" = C2 ] && KIND=web
+one_turn "cloud" "$Q_CLOUD"; F2WIN="$((T_E0 - 1)):$((T_E1 + 1))"
+KIND=plain
 chk "cloud turn: HTTP 200 with an answer" "w2c_http_answer '$T_HTTP' '$T_META'"
 chk "M4 cloud turn ($KIND): route records as expected; ledger usd + profiel-$PROF rose by > 0 and <= one reservation per cloud call; tokens rose; others unchanged" \
   "w2c_cloud_turn '$CACHE/cloud-recs.json' '$CACHE/cloud-L0.json' '$CACHE/cloud-L1.json' '$RESERVE' $PROF $KIND"
 log "  info M4 ledger: usd $(printf '%s' "$T_L0" | num usd) -> $(printf '%s' "$T_L1" | num usd); person profiel-$PROF $(printf '%s' "$T_L1" | num person_usd.profiel-$PROF)"
 gate "cloud turn ($STAGE)"
+if [ "$STAGE" = C2 ]; then   # the web question stays on the Studio by design and costs no cloud turn (webeerlijk pre-search)
+  one_turn "web" "$Q_WEB"
+  chk "web question: HTTP 200 with an answer" "w2c_http_answer '$T_HTTP' '$T_META'"
+  chk "web question on profiel-1 stays on the Studio (private_context first, never cloud), ledger unchanged: 0 cloud turns" \
+    "w2c_web_stays_studio '$CACHE/web-recs.json' '$CACHE/web-L0.json' '$CACHE/web-L1.json'"
+  gate "web question ($STAGE)"
+fi
 : > "$CACHE/f6.tsv"; SL7=$(spend)
 c7() { local cid; pf_fresh "C7 $3 new chat" && cid=$(newchat)
   [ -n "${cid:-}" ] && [ "$cid" != null ] || { printf '%s\tprivate\tred\tno_chat\t-\n%s next\tnext\tred\tno_chat\t-\n' "$3" "$3" >> "$CACHE/f6.tsv"; return 1; }

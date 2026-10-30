@@ -84,7 +84,9 @@ w2c_fallback() { # $1 recs $2 ledger before $3 ledger after $4 reserve usd $5 pr
   $W2C_PY -I -c "$_w2c_recs"'
 r=recs(sys.argv[1]); a,b=(json.load(open(p)) for p in sys.argv[2:4]); res=float(sys.argv[4]); who="profiel-"+sys.argv[5]
 cf=[x for x in r if x[1]=="studio" and x[2]=="cloud_failed"]
-ok=len(cf)==1 and not any(x[1]=="cloud" or x[2]=="cloud_ok" for x in r) and all(x[1]=="studio" for x in r)
+# a non-web question: the FIRST call must be the cloud attempt (a private_context first = a plugin injected context,
+# the turn never reached the cloud: C1 run 1, 30-10)
+ok=bool(r) and sorted(r)[0][2]=="cloud_failed" and len(cf)==1 and not any(x[1]=="cloud" or x[2]=="cloud_ok" for x in r) and all(x[1]=="studio" for x in r)
 ok=ok and abs((b["usd"]-a["usd"])-res)<1e-9 and abs((b["person_usd"][who]-a["person_usd"][who])-res)<1e-9
 ok=ok and b["input_tokens"]==a["input_tokens"] and all(b["person_usd"][k]==a["person_usd"][k] for k in a["person_usd"] if k!=who)
 ok=ok and sys.argv[6]=="1"
@@ -115,3 +117,12 @@ w2c_models_only() { # $1 /api/models json $2 profile n
   [ "$(jq -c '[.data[].id | select(startswith("hermes-agent"))]' "$1")" = "[\"hermes-agent-profiel-$2\"]" ]; }
 w2c_http_answer() { # $1 http code $2 resp_meta line
   [ "$1" = 200 ] && grep -q 'content=yes' <<< "$2"; }
+# C2 web question (profiel-1, Atlas 30-10 option 2): webeerlijk's pre-search injects context, so the turn stays on the
+# Studio by design: records present, all Studio, the first one private_context, never a cloud route or rule cloud_*;
+# the ledger unchanged (usd, every person, tokens): it costs no cloud turn.
+w2c_web_stays_studio() { # $1 recs $2 ledger before $3 ledger after
+  $W2C_PY -I -c "$_w2c_recs"'
+r=recs(sys.argv[1]); a,b=(json.load(open(p)) for p in sys.argv[2:4])
+ok=bool(r) and sorted(r)[0][2]=="private_context" and all(x[1]=="studio" and not x[2].startswith("cloud") for x in r)
+ok=ok and a["usd"]==b["usd"] and a["person_usd"]==b["person_usd"] and a["input_tokens"]==b["input_tokens"]
+sys.exit(0 if ok else 1)' "$1" "$2" "$3" 2>/dev/null; }

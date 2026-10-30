@@ -104,6 +104,10 @@ w("fb-1", [cf]); w("fb-0", []); w("fb-2", [cf, [cf[0] + 1] + cf[1:]]); w("fb-too
 w("ct-1", [ok1]); w("ct-0", []); w("ct-studio", [pc[0]]); w("ct-2", [ok1, [ok1[0] + 1] + ok1[1:]])
 w("web-ok", [ok1, [ok1[0] + 2] + pc[0][1:]]); w("web-only", [ok1]); w("web-hist", [ok1, [ok1[0] + 2, "studio", "history_not_cloud", "chatcmpl-"]])
 w("priv-ok", pc); w("priv-cloud", [pc[0], ok1])
+w("fb-c1run1", [pc[0]])                                   # C1 run 1 (30-10): the turn never reached the cloud
+w("fb-late", [pc[0], [pc[0][0] + 1] + cf[1:]])             # a private record before the cloud attempt
+w("web-studio", [pc[0], [pc[0][0] + 1] + pc[1][1:]]); w("web-cloud", [pc[0], [pc[0][0] + 2] + ok1[1:]])
+w("web-failed", [pc[0], [pc[0][0] + 2] + cf[1:]]); w("web-other-first", [[pc[0][0] - 1, "studio", "not_interactive", "chatcmpl-"], pc[0]]); w("web-first-cloud", [[pc[0][0] - 1] + ok1[1:], pc[0]])
 base = json.load(open(sys.argv[1].replace("p3-route-records-land2", "shared-ledger")))
 def led(name, dusd=0.0, who="profiel-2", dtok=0, other=0.0):
     d = json.loads(json.dumps(base)); d["usd"] += dusd + other; d["person_usd"][who] += dusd; d["input_tokens"] += dtok
@@ -116,6 +120,8 @@ led("L-turn-p3", 0.0159, who="profiel-3", dtok=7500)
 PY
 t "fallback: exactly one studio/cloud_failed (real record), one reservation"       $G w2c_fallback "$T/fb-1.json" "$T/L0.json" "$T/L-res.json" $RES 2 1
 t "fallback: + a Studio tool follow-up (private_context) stays green"              $G w2c_fallback "$T/fb-tool.json" "$T/L0.json" "$T/L-res.json" $RES 2 1
+t "fallback: C1 run 1 (only studio/private_context: never reached the cloud) is red" $R w2c_fallback "$T/fb-c1run1.json" "$T/L0.json" "$T/L-0.json" $RES 1 0
+t "fallback: a private_context before the cloud attempt is red"                 $R w2c_fallback "$T/fb-late.json" "$T/L0.json" "$T/L-res.json" $RES 2 1
 t "fallback: zero cloud_failed is red"                                             $R w2c_fallback "$T/fb-0.json" "$T/L0.json" "$T/L-res.json" $RES 2 1
 t "fallback: two cloud_failed (a retry) is red"                                    $R w2c_fallback "$T/fb-2.json" "$T/L0.json" "$T/L-2res.json" $RES 2 1
 t "fallback: two cloud_failed with one reservation is red"                      $R w2c_fallback "$T/fb-2.json" "$T/L0.json" "$T/L-res.json" $RES 2 1
@@ -138,6 +144,14 @@ t "cloud turn: spend booked on another person is red"                           
 t "web turn: cloud_ok then the tool result on the Studio (private_context)"        $G w2c_cloud_turn "$T/web-ok.json" "$T/L0.json" "$T/L-turn.json" $RES 2 web
 t "web turn: no tool call (cloud_ok only) is red"                                  $R w2c_cloud_turn "$T/web-only.json" "$T/L0.json" "$T/L-turn.json" $RES 2 web
 t "web turn: follow-up with another rule is red"                                   $R w2c_cloud_turn "$T/web-hist.json" "$T/L0.json" "$T/L-turn.json" $RES 2 web
+t "web question (profiel-1): Studio only, private_context first, ledger unchanged" $G w2c_web_stays_studio "$T/web-studio.json" "$T/L0.json" "$T/L0.json"
+t "web question: a single private_context record green"                          $G w2c_web_stays_studio "$T/priv-ok.json" "$T/L0.json" "$T/L0.json"
+t "web question: becomes cloud_ok is red"                                         $R w2c_web_stays_studio "$T/web-cloud.json" "$T/L0.json" "$T/L-turn.json"
+t "web question: cloud_ok first is red"                                           $R w2c_web_stays_studio "$T/web-first-cloud.json" "$T/L0.json" "$T/L0.json"
+t "web question: a cloud attempt (cloud_failed) is red"                           $R w2c_web_stays_studio "$T/web-failed.json" "$T/L0.json" "$T/L0.json"
+t "web question: ledger moved is red"                                             $R w2c_web_stays_studio "$T/web-studio.json" "$T/L0.json" "$T/L-res.json"
+t "web question: another Studio rule first (no pre-search seen) is red"          $R w2c_web_stays_studio "$T/web-other-first.json" "$T/L0.json" "$T/L0.json"
+t "web question: no record at all is red"                                         $R w2c_web_stays_studio "$T/fb-0.json" "$T/L0.json" "$T/L0.json"
 printf 'vergeet\tprivate\tok\tx\ta\nvergeet next\tnext\tok\tx\ta\nimage\tprivate\tok\tx\tb\nimage next\tnext\tok\tx\tb\n' > "$T/f6-ok.tsv"
 t "private turns: 4 rows ok"                                                       $G w2c_private_rows "$T/f6-ok.tsv" 4
 head -3 "$T/f6-ok.tsv" > "$T/f6-3.tsv"; t "private turns: 3 rows (a skipped turn) is red" $R w2c_private_rows "$T/f6-3.tsv" 4
@@ -170,7 +184,7 @@ image: env not compared to the image|[ "$env" = "$img" ]|true
 mounts: old ledger readOnly not required|{"claimName": "hermes-profiel-cloud-spend-3", "readOnly": True}|{"claimName": "hermes-profiel-cloud-spend-3"}
 settings: budget not checked|[99,true,|[200,true,
 cnp: extra CNPs ignored|[ "$got" = "$want" ]|[ -z "$want" ] || [[ ",$got," == *",$want,"* ]]
-fallback: two cloud_failed allowed|ok=len(cf)==1 and|ok=len(cf)>=1 and
+fallback: two cloud_failed allowed|and len(cf)==1 and|and len(cf)>=1 and
 fallback: reservation not checked|ok=ok and abs((b["usd"]-a["usd"])-res)<1e-9|ok=ok or abs((b["usd"]-a["usd"])-res)<1e-9
 fallback: failure-line delta not checked|ok=ok and sys.argv[6]=="1"|ok=ok
 cloud turn: delta 0 allowed|0<d<=n*res|0<=d<=n*res
@@ -180,6 +194,10 @@ cloud turn: web follow-up rule not checked|all(x=="studio/private_context" for x
 private window: cloud allowed|all(x[1]=="studio" and not x[2].startswith("cloud") for x in r)|all(True for x in r)
 private rows: count not checked|[ "$(wc -l < "$1" | tr -d ' ')" = "$2" ] && |
 models: other agents ignored|select(startswith("hermes-agent"))|select(. == "hermes-agent-profiel-2")
+fallback: first record not required to be the cloud attempt|sorted(r)[0][2]=="cloud_failed" and |
+web: cloud records allowed|ok=bool(r) and sorted(r)[0][2]=="private_context" and all(x[1]=="studio" and not x[2].startswith("cloud") for x in r)|ok=bool(r) and sorted(r)[0][2]=="private_context"
+web: first record not required private_context|sorted(r)[0][2]=="private_context" and all(|all(
+web: ledger not compared|ok=ok and a["usd"]==b["usd"] and a["person_usd"]==b["person_usd"] and a["input_tokens"]==b["input_tokens"]|ok=ok
 http: content not required|[ "$1" = 200 ] && grep -q 'content=yes' <<< "$2"|[ "$1" = 200 ]
 EOF
   echo "MUTANTS $CAUGHT/$M caught"; [ "$CAUGHT" = "$M" ] || RC=1
