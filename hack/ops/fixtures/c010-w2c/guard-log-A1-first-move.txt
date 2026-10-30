@@ -1,0 +1,1 @@
+cloud-spend-init: moved: month.json (month 2026-10, usd 0.441624) and 1 sticky store(s) from the old profile ledger; marker 2026-10 inits 25; seeded

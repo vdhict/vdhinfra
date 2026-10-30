@@ -1,0 +1,1 @@
+cloud-spend-init: shared month.json present, kept; marker 2026-10 inits 27

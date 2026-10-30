@@ -1,0 +1,231 @@
+{
+ "spec": {
+  "initContainers": [
+   {
+    "name": "seed-once",
+    "image": "docker.io/nousresearch/hermes-agent:v0.22.5@sha256:9c5561579f3ffdf333401797094ac3a743738d6c25d40f4331c7bf77b694238d",
+    "env": [
+     {
+      "name": "FAMILY_LLM_MODEL",
+      "valueFrom": {
+       "configMapKeyRef": {
+        "key": "FAMILY_LLM_MODEL",
+        "name": "family-ai-runtime"
+       }
+      }
+     }
+    ],
+    "envFrom": null,
+    "volumeMounts": [
+     {
+      "mountPath": "/opt/data",
+      "name": "data"
+     },
+     {
+      "mountPath": "/seed",
+      "name": "seed",
+      "readOnly": true
+     },
+     {
+      "mountPath": "/bundle",
+      "name": "bundle",
+      "readOnly": true
+     }
+    ]
+   },
+   {
+    "name": "cloud-spend-init",
+    "image": "docker.io/nousresearch/hermes-agent:v0.22.5@sha256:9c5561579f3ffdf333401797094ac3a743738d6c25d40f4331c7bf77b694238d",
+    "env": null,
+    "envFrom": null,
+    "volumeMounts": [
+     {
+      "mountPath": "/cloud-spend",
+      "name": "cloud-spend"
+     },
+     {
+      "mountPath": "/cloud-spend-old",
+      "name": "cloud-spend-old",
+      "readOnly": true
+     },
+     {
+      "mountPath": "/opt/data",
+      "name": "data"
+     },
+     {
+      "mountPath": "/cloud-spend-init",
+      "name": "cloud-spend-init",
+      "readOnly": true
+     }
+    ]
+   }
+  ],
+  "containers": [
+   {
+    "name": "app",
+    "image": "docker.io/nousresearch/hermes-agent:v0.22.5@sha256:9c5561579f3ffdf333401797094ac3a743738d6c25d40f4331c7bf77b694238d",
+    "env": [
+     {
+      "name": "API_SERVER_ENABLED",
+      "value": "true"
+     },
+     {
+      "name": "API_SERVER_HOST",
+      "value": "0.0.0.0"
+     },
+     {
+      "name": "API_SERVER_PORT",
+      "value": "8642"
+     },
+     {
+      "name": "TZ",
+      "value": "Europe/Amsterdam"
+     },
+     {
+      "name": "FAMILY_LLM_BASE_URL",
+      "value": "https://api.bluejungle.net/v1"
+     },
+     {
+      "name": "FAMILY_LLM_MODEL",
+      "valueFrom": {
+       "configMapKeyRef": {
+        "key": "FAMILY_LLM_MODEL",
+        "name": "family-ai-runtime"
+       }
+      }
+     },
+     {
+      "name": "GEZIN_URL",
+      "value": "http://gezinsdienst:8080"
+     },
+     {
+      "name": "PYTHONPATH",
+      "value": "/opt/family-ai-py"
+     },
+     {
+      "name": "SSL_CERT_FILE",
+      "value": "/etc/studio-ca/ca.crt"
+     },
+     {
+      "name": "REQUESTS_CA_BUNDLE",
+      "value": "/etc/studio-ca/ca.crt"
+     },
+     {
+      "name": "CURL_CA_BUNDLE",
+      "value": "/etc/studio-ca/ca.crt"
+     },
+     {
+      "name": "SEARXNG_URL",
+      "value": "http://searxng.family-ai.svc.cluster.local:8080"
+     },
+     {
+      "name": "FIRECRAWL_API_URL",
+      "value": "http://web-extract.family-ai.svc.cluster.local:8080"
+     },
+     {
+      "name": "HTTPS_PROXY",
+      "value": "http://egress-proxy:3128"
+     },
+     {
+      "name": "HTTP_PROXY",
+      "value": "http://egress-proxy:3128"
+     },
+     {
+      "name": "NO_PROXY",
+      "value": "localhost,127.0.0.1,api.bluejungle.net,172.16.2.200,gezinsdienst,searxng,web-extract,.family-ai.svc.cluster.local,.svc,.cluster.local"
+     },
+     {
+      "name": "no_proxy",
+      "value": "localhost,127.0.0.1,api.bluejungle.net,172.16.2.200,gezinsdienst,searxng,web-extract,.family-ai.svc.cluster.local,.svc,.cluster.local"
+     },
+     {
+      "name": "API_SERVER_MODEL_NAME",
+      "value": "hermes-agent-profiel-3"
+     },
+     {
+      "name": "FIRECRAWL_API_KEY",
+      "value": "profiel-3"
+     },
+     {
+      "name": "KENNIS_URL",
+      "value": "http://kennisdienst.family-ai.svc.cluster.local:8088"
+     },
+     {
+      "name": "HERMES_IMAGE",
+      "value": "docker.io/nousresearch/hermes-agent:v0.22.5@sha256:9c5561579f3ffdf333401797094ac3a743738d6c25d40f4331c7bf77b694238d"
+     },
+     {
+      "name": "CLOUD_SPEND_PATH",
+      "value": "/cloud-spend/month.json"
+     }
+    ],
+    "envFrom": [
+     {
+      "secretRef": {
+       "name": "family-ai-hermes-profiel-3"
+      }
+     }
+    ]
+   }
+  ],
+  "volumes": [
+   {
+    "name": "data",
+    "persistentVolumeClaim": {
+     "claimName": "hermes-profiel-data-3"
+    }
+   },
+   {
+    "configMap": {
+     "defaultMode": 365,
+     "name": "hermes-seed-3"
+    },
+    "name": "seed"
+   },
+   {
+    "name": "bundle",
+    "secret": {
+     "secretName": "family-ai-hermes-profiel-bundle-3"
+    }
+   },
+   {
+    "configMap": {
+     "name": "studio-ca"
+    },
+    "name": "studio-ca"
+   },
+   {
+    "configMap": {
+     "items": [
+      {
+       "key": "sitecustomize.py",
+       "path": "sitecustomize.py"
+      }
+     ],
+     "name": "hermes-logscrub-3"
+    },
+    "name": "logscrub"
+   },
+   {
+    "name": "cloud-spend",
+    "persistentVolumeClaim": {
+     "claimName": "hermes-cloud-spend-shared"
+    }
+   },
+   {
+    "name": "cloud-spend-old",
+    "persistentVolumeClaim": {
+     "claimName": "hermes-profiel-cloud-spend-3",
+     "readOnly": true
+    }
+   },
+   {
+    "configMap": {
+     "defaultMode": 365,
+     "name": "hermes-cloud-spend-init-shared"
+    },
+    "name": "cloud-spend-init"
+   }
+  ]
+ }
+}

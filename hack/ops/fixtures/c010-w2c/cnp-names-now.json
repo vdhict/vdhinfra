@@ -1,0 +1,16 @@
+[
+  "chat-retention",
+  "default-deny",
+  "egress-proxy",
+  "gezinsdienst",
+  "hermes",
+  "hermes-profiel-1-kennis",
+  "hermes-profiel-2-kennis",
+  "hermes-profiel-3-kennis",
+  "huiswerk-refresh",
+  "kennis-prive-vullen",
+  "kennisdienst",
+  "open-webui",
+  "searxng-web-extract",
+  "volsync-mover"
+]

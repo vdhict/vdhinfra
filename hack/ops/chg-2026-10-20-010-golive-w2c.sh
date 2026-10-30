@@ -38,6 +38,10 @@ eval "$(cd "$REPO" && mise env -s bash 2>/dev/null)"
 GL="$HACK/ops/$CHG-golive.sh"
 blk() { sed -n "/^# >>> $1 /,/^# <<< $1\$/p" "$GL"; }   # the reviewed blocks, sourced as-is (as the tests do)
 for b in c010-rev c010-chk c010-auth c010-exitguard; do eval "$(blk $b)"; done
+# Every post-check is a tested predicate on recorded input (Atlas 30-10, after two harness faults):
+# hack/ops/chg-2026-10-20-010-w2c-checks.sh, tests + mutants in chg-2026-10-20-010-test-w2c-checks.sh.
+. "$HACK/ops/$CHG-w2c-checks.sh"
+case "$STAGE" in A|B1) CNPEXP=3;; B2|C1) CNPEXP=2,3;; C2) CNPEXP=1,2,3;; esac
 # Stage rollback replaces golive's land-2 rollback_core (that one runs rollback.sh for profiel-3 only).
 rollback_core() {
   ROLLED_BACK=1; log "ROLLBACK ($STAGE): $1"
@@ -56,6 +60,10 @@ rollback_core() {
   if [ "$STAGE" = A ]; then   # revert alone would bring back budget 200 + the stale per-profile ledger: cloud off for p3
     fresh_token "cloud-off push" && bash "$HACK/ops/$CHG-cloud-off.sh" --execute "$rv" "W2c stage A red: $1" | tee -a "$EV"; revoke_token "cloud-off push"
   fi
+  # read-back after the rollback: the cloud CNPs in the cluster == the previous stage's set (tested predicate)
+  local want; case "$STAGE" in A) want="";; B1|B2) want=3;; C1|C2) want=2,3;; esac
+  kubectl -n $NS get cnp -o json | jq '[.items[].metadata.name]' > "$CACHE/rollback-cnps.json"
+  w2c_cloud_cnps "$CACHE/rollback-cnps.json" "$want" && log "  ok   after the rollback the cloud CNPs == {$want}" || log "  RED  after the rollback the cloud CNPs != {$want}: $(jq -c '[.[] | select(test("-cloud$"))]' "$CACHE/rollback-cnps.json")"
   [ -n "${CLEANUP_HOOK:-}" ] && "$CLEANUP_HOOK"; CLEANUP_HOOK=""
 }
 gate() { [ "$RED" = 0 ] || { if [ -n "$PUSHED" ]; then rollback_core "$1"; log "RESULT go RED at $1 -> reverted"; exit 1; else log "RESULT ${MODE#--} RED at $1 (nothing pushed)"; exit 1; fi; }; }
@@ -76,6 +84,7 @@ chk "stage = a fast-forward of origin/main by exactly this one commit" "[ \"\$(g
 chk "wiring check for stage $STAGE (cloud=$CLOUDSET${EGOFF:+ egress-off=$EGOFF}) + mutation self-test" \
   "cd '$SRC' && python3 -I hack/family-ai/check-cloud-wiring.py --cloud $CLOUDSET ${EGOFF:+--egress-off $EGOFF} --self-test | tail -1 | grep -q '^PASS self-test'"
 chk "shared ledger guard tests" "cd '$SRC' && python3 -I hack/family-ai/test_cloud_spend_shared.py >/dev/null 2>&1"
+chk "post-check tests (real fixtures) + mutants" "cd '$SRC' && bash hack/ops/$CHG-test-w2c-checks.sh --mutants 2>&1 | tail -1 | grep -q '^MUTANTS \([0-9]*\)/\1 caught'"
 chk "server-side dry-run of hermes + network-policies (no Secrets)" "cd '$SRC' && for t in hermes network-policies/app; do kustomize build kubernetes/main/apps/family-ai/\$t | yq 'select(.kind != \"Secret\")' | kubectl apply -n $NS --dry-run=server -f - >/dev/null || exit 1; done"
 chk "profiel-$PROF and OWUI pods Running" "[ -n \"\$(pod $PROF)\" ] && kubectl -n $NS get pod -l app.kubernetes.io/name=open-webui --field-selector=status.phase=Running -o name | grep -q ."
 if [ "$MODE" = --go ]; then
@@ -99,7 +108,11 @@ for p in $SNAPS; do
 done
 gate "snapshots"
 U1=$(uid 1); U2=$(uid 2); U3=$(uid 3)
-L0=""; [ "$STAGE" != A ] && L0=$(ledger)
+# the reference ledger, always from the profiel-3 pod before the push: stage A = its OWN ledger, B/C = the shared one
+# (profiel-1/-2 mount no ledger before their B1/C1, so reading "this profile's" ledger would be empty there)
+L0=$(xp "$(pod 3)" cat /cloud-spend/month.json 2>/dev/null); printf '%s' "$L0" > "$CACHE/ledger-before.json"
+chk "reference ledger read before the push is a valid ledger (usd $(num usd < "$CACHE/ledger-before.json" 2>/dev/null))" "w2c_ledger_schema '$CACHE/ledger-before.json'"
+gate "reference ledger"
 fresh_token "deploy push" && git -C "$SRC" push -q origin "$SHA:main"; PRC=$?; revoke_token "deploy push"
 [ $PRC = 0 ] || { log "RESULT go RED: push failed (nothing pushed)"; exit 1; }
 PUSHED=$SHA; PUSH_E=$(date +%s); log "  ok   pushed $SHA to main"
@@ -111,35 +124,47 @@ gate "flux"
 PP=$(pod "$PROF")
 for n in 1 2 3; do [ $n = $PROF ] && continue; chk "profiel-$n pod untouched" "[ \"\$(uid $n)\" = \"\$U$n\" ]"; done
 
-# ---------------------------------------------------------------- 2. read-back per stage
+# ---------------------------------------------------------------- 2. read-back per stage (recorded input -> w2c-checks)
 SET=/opt/data/plugins/model-providers/family-cloud/settings.json
-if [ "$STAGE" = A ] || [ "$STAGE" = B1 ] || [ "$STAGE" = C1 ]; then
-  chk "C3/W5 HERMES_IMAGE == pod image" "[ \"\$(xp $PP printenv HERMES_IMAGE)\" = \"\$(kubectl -n $NS get pod $PP -o jsonpath='{.spec.containers[?(@.name==\"app\")].image}')\" ]"
-  chk "W4 Secret has CLOUD_API_KEY, length >= 47 (value not read out)" "[ \"\$(kubectl -n $NS get secret family-ai-hermes-profiel-$PROF -o json | jq -r '.data.CLOUD_API_KEY // \"\"' | base64 -d | wc -c | tr -d ' ')\" -ge 47 ]"
-  chk "W4 init containers: no envFrom / secret env" "[ \"\$(kubectl -n $NS get pod $PP -o json | jq '[.spec.initContainers[] | select(.envFrom or ([.env[]?.valueFrom.secretKeyRef] | map(select(.)) | length > 0))] | length')\" = 0 ]"
-  chk "pod settings: budget_usd 99, price_confirmed true, person profiel-$PROF (numbers only)" "[ \"\$(xp $PP cat $SET | jq -c '[.budget_usd, .price_confirmed, .person]')\" = '[99,true,\"profiel-$PROF\"]' ]"
-  chk "W2c shared ledger mounted, numbers-only schema" "ledger | python3 -I -c 'import json,sys; d=json.load(sys.stdin); assert set(d)=={\"month\",\"usd\",\"input_tokens\",\"output_tokens\",\"cache_read_tokens\",\"cache_write_tokens\",\"person_usd\"} and set(d[\"person_usd\"])=={\"profiel-1\",\"profiel-2\",\"profiel-3\"}'"
-  chk "W2c seed present (source migrated)" "xp $PP cat /cloud-spend/.ledger-seeded | jq -e '.source == \"migrated\"' >/dev/null"
-fi
+rec() { # $1 tag: record the live inputs of the checks (numbers, names, specs; never a secret value)
+  local d="$CACHE/rec-$1"; mkdir -p "$d"; PP=$(pod "$PROF")
+  kubectl -n $NS get pod "$PP" -o json > "$d/pod.json"
+  xp "$PP" cat $SET | jq '{budget_usd, price_confirmed, person}' > "$d/settings.json"
+  ledger > "$d/ledger.json"; xp "$PP" cat /cloud-spend/.ledger-seeded > "$d/seed.json" 2>/dev/null
+  kubectl -n $NS logs "$PP" -c cloud-spend-init > "$d/guard.log" 2>/dev/null
+  kubectl -n $NS get cnp -o json | jq '[.items[].metadata.name]' > "$d/cnps.json"
+  log "  info recorded $1: guard \"$(tr -d '\n' < "$d/guard.log" | cut -c1-160)\"; ledger usd $(ledger | num usd); cnps $(jq -c '[.[] | select(test("-cloud$"))]' "$d/cnps.json")"; }
+rec post; D="$CACHE/rec-post"
+chk "W4 init containers: no envFrom / secret env (ConfigMap env allowed)" "w2c_init_no_secret '$D/pod.json'"
+chk "C3/W5 HERMES_IMAGE == app image, tag@sha256" "w2c_image_pinned '$D/pod.json'"
+chk "W2c ledger volumes: shared at /cloud-spend; old ledger only in profiel-3's guard, read-only" "w2c_ledger_mounts '$D/pod.json' $PROF"
+chk "pod settings: budget_usd 99, price_confirmed true, person profiel-$PROF" "w2c_settings '$D/settings.json' $PROF"
+chk "W2c shared ledger: numbers-only schema" "w2c_ledger_schema '$D/ledger.json'"
+chk "W2c seed present (source migrated)" "w2c_seed '$D/seed.json'"
+chk "W4 Secret has CLOUD_API_KEY, length >= 47 (value not read out)" "[ \"\$(kubectl -n $NS get secret family-ai-hermes-profiel-$PROF -o json | jq -r '.data.CLOUD_API_KEY // \"\"' | base64 -d | wc -c | tr -d ' ')\" -ge 47 ]"
+chk "W3 cloud CNPs in the cluster == {$CNPEXP}" "w2c_cloud_cnps '$D/cnps.json' $CNPEXP"
 if [ "$STAGE" = A ]; then
-  GL0=$(kubectl -n $NS logs "$PP" -c cloud-spend-init 2>/dev/null); log "  info guard: $(printf '%s' "$GL0" | tr -d '\n' | cut -c1-200)"
-  chk "W2c guard moved profiel-3's ledger on this first start (no refusal)" "grep -q 'moved: month.json' <<< \"\$GL0\" && ! grep -q REFUSED <<< \"\$GL0\""
-  chk "W2c moved total == seed total (numbers only)" "[ \"\$(ledger | num usd)\" = \"\$(xp $PP cat /cloud-spend/.ledger-seeded | num usd)\" ]"
-  chk "W3 hermes-profiel-3-cloud unchanged and still the only cloud CNP" "[ \"\$(kubectl -n $NS get cnp -o name | grep -c -- '-cloud\$')\" = 1 ] && tcp $PP api.anthropic.com 443"
-  MJ=$(spend); kubectl -n $NS rollout restart deploy/hermes-profiel-3 >/dev/null
-  chk "p3 restart rollout" "kubectl -n $NS rollout status deploy/hermes-profiel-3 --timeout=10m >/dev/null"; PP=$(pod 3)
-  chk "W2c second start: guard kept the shared ledger byte-for-byte" "kubectl -n $NS logs $PP -c cloud-spend-init | grep -q 'present, kept' && [ \"\$(spend)\" = '$MJ' ] && [ \"\$(xp $PP cat $SET | jq .price_confirmed)\" = true ]"
+  chk "W2c guard moved or kept the shared ledger (no refusal)" "w2c_guard_ok '$D/guard.log' A"
+  chk "W2c shared ledger total == profiel-3's own total before the push ($(num usd < "$CACHE/ledger-before.json"))" "w2c_total_equal '$D/ledger.json' '$CACHE/ledger-before.json'"
+  chk "W3 profiel-3 -> api.anthropic.com:443 connects" "tcp $PP api.anthropic.com 443"
+  kubectl -n $NS rollout restart deploy/hermes-profiel-3 >/dev/null
+  chk "p3 restart rollout" "kubectl -n $NS rollout status deploy/hermes-profiel-3 --timeout=10m >/dev/null"
+  rec restart; D2="$CACHE/rec-restart"
+  chk "W2c second start: guard kept (no refusal)" "w2c_guard_ok '$D2/guard.log' B"
+  chk "W2c second start: ledger byte-for-byte unchanged" "w2c_same_bytes '$D2/ledger.json' '$D/ledger.json'"
+  chk "W2c second start: settings still budget 99 / confirmed" "w2c_settings '$D2/settings.json' 3"
   gate "stage A read-back"
 fi
 if [ "$STAGE" = B1 ] || [ "$STAGE" = C1 ]; then
-  chk "W2c guard kept the shared ledger (no refusal)" "kubectl -n $NS logs $PP -c cloud-spend-init | grep -q 'present, kept' && ! kubectl -n $NS logs $PP -c cloud-spend-init | grep -q REFUSED"
-  chk "W3 no cloud CNP for profiel-$PROF yet" "! kubectl -n $NS get cnp hermes-profiel-$PROF-cloud >/dev/null 2>&1"
+  chk "W2c guard kept the shared ledger (no refusal)" "w2c_guard_ok '$D/guard.log' B"
+  chk "W2c shared ledger unchanged by the wiring" "w2c_total_equal '$D/ledger.json' '$CACHE/ledger-before.json'"
   chk "W3 profiel-$PROF cannot reach api.anthropic.com:443 (fallback precondition)" "! tcp $PP api.anthropic.com 443"
   chk "W3 profiel-$PROF -> Studio 172.16.2.200:443 connects" "tcp $PP 172.16.2.200 443"
   gate "stage $STAGE read-back"
 fi
 if [ "$STAGE" = B2 ] || [ "$STAGE" = C2 ]; then
-  chk "W3 CNP live spec == repo file" "[ \"\$(kubectl -n $NS get cnp hermes-profiel-$PROF-cloud -o json | jq -cS .spec)\" = \"\$(yq -o=json '.spec' '$SRC/kubernetes/main/apps/family-ai/network-policies/app/hermes-profiel-$PROF-cloud.yaml' | jq -cS .)\" ]"
+  kubectl -n $NS get cnp hermes-profiel-$PROF-cloud -o json > "$D/cnp-live.json"; yq -o=json '.' "$SRC/kubernetes/main/apps/family-ai/network-policies/app/hermes-profiel-$PROF-cloud.yaml" > "$D/cnp-repo.json"
+  chk "W3 CNP live spec == repo file" "w2c_cnp_spec_eq '$D/cnp-live.json' '$D/cnp-repo.json'"
   chk "W3 profiel-$PROF -> api.anthropic.com:443 connects" "tcp $PP api.anthropic.com 443"
   chk "W3 profiel-$PROF -> api.anthropic.com:80 fails" "! tcp $PP api.anthropic.com 80"
   chk "W3 profiel-$PROF -> 1.1.1.1:443 fails" "! tcp $PP 1.1.1.1 443"
@@ -176,7 +201,8 @@ CANARY_UID=$(api "$OWUI_ADMIN_KEY" POST /api/v1/auths/add '{"name":"c010-canary-
 GID=$(api "$OWUI_ADMIN_KEY" GET /api/v1/groups/ | jq -r '.[] | select(.name=="owui-profiel-'"$PROF"'") | .id')
 api "$OWUI_ADMIN_KEY" POST "/api/v1/groups/id/$GID/users/add" "{\"user_ids\":[\"$CANARY_UID\"]}" -o /dev/null
 TOK=$(api - POST /api/v1/auths/signin '{"email":"'"$MAIL"'","password":"'"$PW"'"}' -H 'Authorization:' | jq -r '.token // empty')
-chk "canary account in owui-profiel-$PROF sees only hermes-agent-profiel-$PROF" "[ -n '$CANARY_UID' ] && [ \"\$(api '$TOK' GET /api/models | jq -c '[.data[].id | select(startswith(\"hermes-agent\"))]')\" = '[\"hermes-agent-profiel-$PROF\"]' ]"
+api "$TOK" GET /api/models > "$CACHE/models.json"
+chk "canary account in owui-profiel-$PROF sees only hermes-agent-profiel-$PROF" "[ -n '$CANARY_UID' ] && w2c_models_only '$CACHE/models.json' $PROF"
 gate "canary account"
 newchat() { api "$TOK" POST /api/v1/chats/new '{"chat":{"title":"c010-canary","models":["hermes-agent-profiel-'"$PROF"'"],"messages":[]}}' | jq -r '.id'; }
 ask() { local c="$1" ms="$2"; shift 2
@@ -188,13 +214,14 @@ one_turn() { # $1 tag $2 question -> sets T_HTTP T_META T_REC T_E0 T_E1 ; ledger
   r=$(ask "$cid" "$(jq -nc --arg q "$2" '[{role:"user",content:$q}]')" -w '\n%{http_code}'); T_HTTP="${r##*$'\n'}"; T_META=$(printf '%s' "${r%$'\n'*}" | resp_meta); unset r
   sleep 3; c6_settle "$T_E0" "$CACHE/$1-s0.json" "$T_HTTP" "$1" || log "  info $1: server turn did not settle cleanly"
   T_E1=$(pod_now); T_REC=$(routes_all "$((T_E0 - 1))" "$((T_E1 + 1))"); T_L1=$(ledger)
+  printf '%s' "$T_REC" > "$CACHE/$1-recs.json"; printf '%s' "$T_L0" > "$CACHE/$1-L0.json"; printf '%s' "$T_L1" > "$CACHE/$1-L1.json"
   log "  $1: http=$T_HTTP $T_META; route records $(printf '%s' "$T_REC" | jq -c '[.records[] | (.[1] + "/" + .[2])]')"; }
 if [ "$STAGE" = B1 ] || [ "$STAGE" = C1 ]; then
   F0=$(fails); one_turn "fallback" "Hoeveel dagen heeft een schrikkeljaar? Antwoord kort."
-  chk "M3 fallback: HTTP 200 with an answer (cloud unreachable)" "[ '$T_HTTP' = 200 ] && grep -q 'content=yes' <<< '$T_META'"
-  chk "M3 fallback: exactly one route record, studio/cloud_failed (no retry loop)" "[ \"\$(printf '%s' '$T_REC' | jq -c '[.records[] | (.[1] + \"/\" + .[2])]')\" = '[\"studio/cloud_failed\"]' ]"
-  chk "M3 fallback: failure lines +1 exactly" "[ \$(( \$(fails) - $F0 )) = 1 ]"
-  chk "M3 fallback: shared ledger rose by exactly one reservation, booked on profiel-$PROF (no billed call)" "python3 -I -c 'import json,sys; a=json.loads(sys.argv[1]); b=json.loads(sys.argv[2]); r=float(sys.argv[3]); sys.exit(0 if abs((b[\"usd\"]-a[\"usd\"])-r) < 1e-9 and abs((b[\"person_usd\"][\"profiel-$PROF\"]-a[\"person_usd\"][\"profiel-$PROF\"])-r) < 1e-9 and b[\"input_tokens\"]==a[\"input_tokens\"] else 1)' '$T_L0' '$T_L1' '$RESERVE'"
+  FD=$(( $(fails) - F0 ))
+  chk "M3 fallback: HTTP 200 with an answer (cloud unreachable)" "w2c_http_answer '$T_HTTP' '$T_META'"
+  chk "M3 fallback: exactly one studio/cloud_failed, no cloud record, failure lines +1, ledger +1 reservation on profiel-$PROF, no tokens (no retry, nothing billed)" \
+    "w2c_fallback '$CACHE/fallback-recs.json' '$CACHE/fallback-L0.json' '$CACHE/fallback-L1.json' '$RESERVE' $PROF $FD"
   gate "M3 fallback ($STAGE)"
   GO_FINISHED=1; cleanup; CLEANUP_HOOK=""
   log "RESULT go GREEN (stage $STAGE: profiel-$PROF wired, egress off, fallback proven)"
@@ -204,27 +231,30 @@ fi
 # B2 / C2: ONE real cloud turn (M4), then private turns + F1/F2
 if [ "$STAGE" = B2 ]; then Q="Hoeveel poten heeft een spin? Antwoord kort."; else Q="Zoek op internet wat de hoofdstad van Australië is en noem je bron."; fi
 one_turn "cloud" "$Q"; F2WIN="$((T_E0 - 1)):$((T_E1 + 1))"
-RECS=$(printf '%s' "$T_REC" | jq -c '[.records[] | (.[1] + "/" + .[2])]')
-chk "cloud turn: HTTP 200 with an answer" "[ '$T_HTTP' = 200 ] && grep -q 'content=yes' <<< '$T_META'"
-if [ "$STAGE" = B2 ]; then
-  chk "M4 cloud turn: exactly one route record, cloud/cloud_ok" "[ '$RECS' = '[\"cloud/cloud_ok\"]' ]"
-else
-  chk "C2 web turn: the first call cloud/cloud_ok, the web tool result answered on the Studio (private_context)" "printf '%s' '$RECS' | jq -e '.[0] == \"cloud/cloud_ok\" and (.[1:] | length >= 1) and all(.[1:][]; . == \"studio/private_context\")' >/dev/null"
-fi
-chk "M4 the cloud call is in the shared ledger: usd and person_usd profiel-$PROF rose, tokens counted" "python3 -I -c 'import json,sys; a=json.loads(sys.argv[1]); b=json.loads(sys.argv[2]); sys.exit(0 if b[\"usd\"]>a[\"usd\"] and b[\"person_usd\"][\"profiel-$PROF\"]>a[\"person_usd\"][\"profiel-$PROF\"] and b[\"input_tokens\"]>a[\"input_tokens\"] else 1)' '$T_L0' '$T_L1'"
+KIND=plain; [ "$STAGE" = C2 ] && KIND=web
+chk "cloud turn: HTTP 200 with an answer" "w2c_http_answer '$T_HTTP' '$T_META'"
+chk "M4 cloud turn ($KIND): route records as expected; ledger usd + profiel-$PROF rose by > 0 and <= one reservation per cloud call; tokens rose; others unchanged" \
+  "w2c_cloud_turn '$CACHE/cloud-recs.json' '$CACHE/cloud-L0.json' '$CACHE/cloud-L1.json' '$RESERVE' $PROF $KIND"
 log "  info M4 ledger: usd $(printf '%s' "$T_L0" | num usd) -> $(printf '%s' "$T_L1" | num usd); person profiel-$PROF $(printf '%s' "$T_L1" | num person_usd.profiel-$PROF)"
 gate "cloud turn ($STAGE)"
 : > "$CACHE/f6.tsv"; SL7=$(spend)
 c7() { local cid; pf_fresh "C7 $3 new chat" && cid=$(newchat)
   [ -n "${cid:-}" ] && [ "$cid" != null ] || { printf '%s\tprivate\tred\tno_chat\t-\n%s next\tnext\tred\tno_chat\t-\n' "$3" "$3" >> "$CACHE/f6.tsv"; return 1; }
   pturn "$3" private "$cid" "$1" "${4:-}"; pturn "$3 next" next "$cid" "$2"; }
-MK="c010-kanarie-$(od -An -tx1 -N6 /dev/urandom | tr -d ' \n')"
-c7 '[{"role":"user","content":"Vergeet '"$MK"'."}]' '[{"role":"user","content":"Vergeet '"$MK"'."},{"role":"assistant","content":"(antwoord)"},{"role":"user","content":"Hoe laat is het?"}]' vergeet
 PNG='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+if [ "$PROF" = 2 ]; then   # child: the gezin plugin injects the vergeet context (private)
+  MK="c010-kanarie-$(od -An -tx1 -N6 /dev/urandom | tr -d ' \n')"
+  c7 '[{"role":"user","content":"Vergeet '"$MK"'."}]' '[{"role":"user","content":"Vergeet '"$MK"'."},{"role":"assistant","content":"(antwoord)"},{"role":"user","content":"Hoe laat is het?"}]' vergeet
+else                       # adult profiel-1 has no gezin plugin: "vergeet" would be a PUBLIC turn (cloud); use a document
+  printf 'c010 synthetisch document: de kanarie is blauw.\n' > "$CACHE/c010-canary.txt"
+  FID=""; pf_fresh "C7 document upload" && FID=$(printf 'header = "Authorization: Bearer %s"\n' "$TOK" | curl -s -K - -F "file=@$CACHE/c010-canary.txt;filename=c010-canary.txt;type=text/plain" "$U/api/v1/files/" | jq -r '.id // empty')
+  if [ -n "$FID" ]; then c7 '[{"role":"user","content":"Welke kleur heeft de kanarie in het document?"}]' '[{"role":"user","content":"Welke kleur heeft de kanarie in het document?"},{"role":"assistant","content":"(antwoord)"},{"role":"user","content":"Dank je."}]' document "[{\"type\":\"file\",\"id\":\"$FID\"}]"
+  else log "  RED  C7 document: upload gave no file id"; printf 'document\tprivate\tred\tno_upload\t-\ndocument next\tnext\tred\tno_upload\t-\n' >> "$CACHE/f6.tsv"; fi
+fi
 c7 '[{"role":"user","content":[{"type":"text","text":"Wat zie je?"},{"type":"image_url","image_url":{"url":"data:image/png;base64,'$PNG'"}}]}]' \
    '[{"role":"user","content":[{"type":"text","text":"Wat zie je?"},{"type":"image_url","image_url":{"url":"data:image/png;base64,'$PNG'"}}]},{"role":"assistant","content":"(antwoord)"},{"role":"user","content":"Welke kleur?"}]' image
 chk "C7 ledger unchanged over the private turns" "[ \"\$(spend)\" = '$SL7' ]"
-chk "F6 private turns + next turns: route records == api_call_count increase, 0 cloud (4 rows ok)" "[ \$(awk -F'\t' '\$3==\"ok\"' '$CACHE/f6.tsv' | wc -l) = 4 ] && [ \$(wc -l < '$CACHE/f6.tsv') = 4 ]"
+chk "F6 private turns + next turns: route records == api_call_count increase, 0 cloud (4 rows ok)" "w2c_private_rows '$CACHE/f6.tsv' 4"
 F2OUT=$(f2_check "$PUSH_E" "$F2WIN"); F2RC=$?; log "  $F2OUT"
 chk "F2 no cloud_ok outside the cloud-turn window since the push" "[ $F2RC = 0 ]"
 gate "C7/F ($STAGE)"
