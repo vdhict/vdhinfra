@@ -15,3 +15,26 @@ spec:
   interval: 30m
   timeout: 5m
   wait: true
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Platform-wide Cilium policies (cluster-scoped CCNPs). NO targetNamespace:
+# kustomize would stamp a namespace on the cluster-scoped CCNP. prune: true
+# so a git revert removes the policy again (rollback path).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cilium-policies
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: cilium
+  path: ./kubernetes/main/apps/kube-system/cilium/policies
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: true
+  interval: 30m
+  retryInterval: 1m
+  timeout: 5m

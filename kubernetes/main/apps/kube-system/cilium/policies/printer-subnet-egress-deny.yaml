@@ -1,0 +1,44 @@
+---
+# Keeps cluster pods away from PRINTER-VLAN 70 (172.16.7.0/28, printer .10)
+# (chg-2026-10-30-004, Argus ruling 2026-10-30T10:52:10Z).
+#
+# Why: the UniFi policy Internal -> printer allows the worker-node IPs
+# .81-.83, and pod egress is masqueraded to the node IP, so without this
+# policy EVERY pod on the workers would reach the printer (Moonraker is
+# unauthenticated, full control including heating).
+#
+# Semantics (Cilium v1.19.8):
+#   * Deny always wins over allow, from any policy, so the print3d exception
+#     cannot be an allow rule. It is carved out of the endpointSelector.
+#   * enableDefaultDeny egress/ingress false: this policy selects (almost)
+#     every endpoint; without it every selected pod would drop into
+#     default-deny and lose all egress in the cluster.
+#   * CIDR rules never match pods or nodes, so only traffic to the printer
+#     subnet is affected.
+#
+# NOT COVERED (residual, by design):
+#   * hostNetwork pods (home-assistant, esphome, music-assistant, ...) and
+#     node processes on every node: cilium-config enable-host-firewall=false,
+#     so no CCNP ever selects them. They keep reaching the printer through
+#     the UniFi node-IP allow.
+#   * mypka: print3d is NOT denied here, but the mypka tenant egress boundary
+#     (apps/mypka/boundary, toCIDRSet 172.16.0.0/12) still denies it; that
+#     boundary needs its own carve-out when print3d is deployed.
+#
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumclusterwidenetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: printer-subnet-egress-deny
+spec:
+  description: "Deny pod egress to PRINTER-VLAN 172.16.7.0/28 except mypka print3d (chg-2026-10-30-004). CANARY: ns tools only."
+  # CANARY stage: one namespace only.
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: tools
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  egressDeny:
+    - toCIDRSet:
+        - cidr: 172.16.7.0/28
