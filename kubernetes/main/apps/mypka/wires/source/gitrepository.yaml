@@ -31,9 +31,10 @@ spec:
   # v11 (chg-2026-10-07-007, Argus range 13e207a..dd461cb, 2026-10-30):
   # image v11-5f3ba77, new wire trip-autopilot lands suspended + shadow.
   # Rollback: branch main commit 13e207a (v10).
+  # Teamregie (chg-2026-10-30-002, Argus range dd461cb..a7b55ad 2026-10-30): rollback dd461cb, branch main.
   ref:
-    branch: main
-    commit: dd461cb8dfd2fd2d87d6f78c1e655a1610df4130
+    branch: teamregie/cluster-page
+    commit: a7b55add267be572b98cc4252bee7ee398436741
   # Fetch only what the tenant Kustomization applies (as Mack proposed).
   ignore: |
     /*

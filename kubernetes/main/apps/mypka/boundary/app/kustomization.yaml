@@ -11,8 +11,11 @@ resources:
   - ./admission-policy.yaml
   # Read-only pull credential for forge.bluejungle.net/wires-publisher/cluster-wires
   # (cluster-wires v8+, chg-2026-10-22-002). Forgejo token of the bot user
-  # wires-publisher (non-admin, private, owns only that package), scope
+  # wires-publisher (non-admin, private, owns the cluster-wires and teamregie packages), scope
   # read:package, no expiry: listed in the token register
-  # (observability/aiops-token-expiry), rotate-by 90 days with the others. The dockerconfigjson key is path-scoped to that image.
-  # The tenant CronJobs reference it by name in imagePullSecrets.
+  # (observability/aiops-token-expiry), rotate-by 90 days with the others. The dockerconfigjson keys are path-scoped:
+  # .../wires-publisher/cluster-wires and (chg-2026-10-30-002) .../wires-publisher/teamregie, the same credential.
+  # The tenant CronJobs and the teamregie Deployment reference it by name in imagePullSecrets.
   - ./cluster-wires-pull-v8.sops.yaml
+  # Authelia extAuth for the tenant route teamregie + its ReferenceGrant (chg-2026-10-30-002).
+  - ./teamregie-auth.yaml
