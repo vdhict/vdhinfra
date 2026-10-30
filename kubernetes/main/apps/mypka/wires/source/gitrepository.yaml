@@ -32,9 +32,10 @@ spec:
   # image v11-5f3ba77, new wire trip-autopilot lands suspended + shadow.
   # Rollback: branch main commit 13e207a (v10).
   # Teamregie (chg-2026-10-30-002, Argus ranges dd461cb..a7b55ad + a7b55ad..21fafab 2026-10-30): rollback dd461cb, branch main.
+  # Argus range 21fafab..bbc26b1 (chg-2026-10-30-002 + chg-2026-10-07-007, 2026-10-30): Teamregie werkagenda + Teamregie image + trip seed; rollback 21fafab, branch teamregie/cluster-page.
   ref:
     branch: teamregie/cluster-page
-    commit: 21fafab0ada693c24f712cf95847c1674096ee73
+    commit: bbc26b1d2b7fd130d8d220596d081e1282395776
   # Fetch only what the tenant Kustomization applies (as Mack proposed).
   ignore: |
     /*
