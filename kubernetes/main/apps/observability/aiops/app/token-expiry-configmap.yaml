@@ -27,6 +27,9 @@
 # wires-publisher (non-admin, owns only the cluster-wires package); stored as SOPS Secret mypka/cluster-wires-pull-v8
 # (kubernetes/main/apps/mypka/boundary/app/cluster-wires-pull-v8.sops.yaml); issued 2026-10-22, rotate-by 90 days
 # with the other Forgejo tokens; Heph rotates (mint new, re-encrypt, pull-test, then delete the old token).
+# forge/pka-mini-read ssh user key (chg-2026-10-30-001): forge-read_ed25519 on vdhmini01, READ on 7 VDHICT repos,
+# created 2026-10-30, rotate-by 90 days (ssh keys carry no expiry). SHARED WITH myPKA (uid 501, ar-018). The
+# fingerprint is in ops/cmdb.yaml cred.forge.pka-mini-read, not here. Heph rotates (new key, add, fetch-test, drop old).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -44,6 +47,8 @@ data:
          "owner": "k8s-engineer", "expires": "2027-01-11T12:00:00Z"},
         {"name": "forgejo/wires-publisher cluster-pull-v8 read:package (rotate-by, issued 2026-10-22)", "kind": "forge",
          "owner": "k8s-engineer", "expires": "2027-01-20T12:00:00Z"},
+        {"name": "forge/pka-mini-read forge-read_ed25519 vdhmini01 read 7 repos, shared with myPKA (rotate-by, created 2026-10-30)", "kind": "forge",
+         "owner": "k8s-engineer", "expires": "2027-01-28T07:37:15Z"},
         {"name": "cloudflare/cert-manager-dns01", "kind": "cloudflare", "owner": "k8s-engineer",
          "expires": "2028-01-31T23:59:59Z"},
         {"name": "cloudflare/external-dns", "kind": "cloudflare", "owner": "udm-engineer",
