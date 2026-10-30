@@ -1,0 +1,16 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+# chg-2026-10-20-010 W2c: shared spend ledger + its guard, referenced by name from profiel-1/2/3 (no nameSuffix here,
+# so the profile overlays point at these exact names).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./pvc.yaml
+configMapGenerator:
+  - name: hermes-cloud-spend-init-shared
+    files:
+      - ./cloud-spend-init.py
+    options:
+      disableNameSuffixHash: true
+      annotations:
+        kustomize.toolkit.fluxcd.io/substitute: disabled

@@ -1,0 +1,20 @@
+---
+# chg-2026-10-20-010 W2c: the ONE family-cloud spend ledger shared by hermes-profiel-1/2/3 (owner: "USD 200 is one
+# shared ceiling for profiel-1/2/3 together"). CephFS, ReadWriteMany: the three pods run on different nodes and all
+# take the same flock on month.lock (family-cloud __init__.py and cloud-spend-init.py). Numbers only (month.json:
+# month, usd, token counters, person_usd), the per-profile sticky-profiel-N.json HMAC stores, .ledger-marker and
+# .ledger-seeded; no conversation text.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hermes-cloud-spend-shared
+  labels:
+    # A git revert must NEVER delete the total: it is the overspend guard for the whole promo credit until
+    # the cut-off (2026-11-14T00:00Z). Deleting it is a recorded, manual step.
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: rook-ceph-filesystem
+  resources:
+    requests:
+      storage: 1Gi
