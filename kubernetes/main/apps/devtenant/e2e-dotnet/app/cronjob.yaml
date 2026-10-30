@@ -12,7 +12,10 @@
 #           e2e/secreq-1.0-idtype aee4e84 (= 3ccfbab + Node 24.22.1 base node:24-trixie-slim 1375326a); grype 0 outside
 #           ar-015, signed + attested, cosign verify vs OOB key. Desk under test 7e090d0. Rollback: git revert.
 #   config  passkey-point-e2e-dotnet-config (origins.web = the .NET LAB); hostAliases for that host on envoy-internal.
-#   E2E_COMMIT / E2E_LAB_IMAGE_DIGEST  the desk under test: v10 72d654b (chg-2026-10-22-006), desk digest (components/desk-image).
+#   chg-2026-10-22-006 (30-10): image e2e-0cec4a3 = harness e2e/v11 0cec4a3 (on aee4e84; adds E03 E08 E10 E11 E13 E14 E15),
+#           index sha256:b93db636 (amd64 106d5e11, arm64 ff96050b), grype 0 outside ar-015, signed + attested, cosign verify vs
+#           OOB key (evidence 20261030t0614z-e2e-0cec4a3-*). activeDeadlineSeconds 19800 (E13 idle + E14 maximum-session waits).
+#   E2E_COMMIT / E2E_LAB_IMAGE_DIGEST  the desk under test: v12b f9c04f9 (chg-2026-10-22-006; E2E_LAB_IMAGE_DIGEST is mandatory for harness e2e/v11), desk digest (components/desk-image).
 #   initContainer desk-ready: GET https://<.NET LAB>/readyz through envoy-internal, 15 s apart for up to 10 min; not 200
 #           -> exit 1 BEFORE any tenant step (no password attempt, no TAP): "must not run before the desk is up".
 #   initContainer persona-gate (Argus C12, 2026-10-21), AFTER desk-ready: personas are shared and Entra allows one TAP
@@ -50,7 +53,7 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 0  # a failed run is not retried: no second password attempt (smart lockout)
-      activeDeadlineSeconds: 3600
+      activeDeadlineSeconds: 19800
       ttlSecondsAfterFinished: 604800
       template:
         metadata:
@@ -65,7 +68,7 @@ spec:
           securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 0, fsGroup: 10001, seccompProfile: {type: RuntimeDefault}}
           initContainers:
             - name: desk-ready
-              image: forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:e3341b128ac05b300b760fbc47a5826194e87d1aca8d822275fe07fb71d483df
+              image: forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:b93db63602ab1a81150266fa0549b912c742bf381577f78eea8618510529908c
               command:
                 - node
                 - -e
@@ -148,12 +151,12 @@ spec:
                 - {name: gate-tmp, mountPath: /gate-tmp}
           containers:
             - name: e2e
-              image: forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:e3341b128ac05b300b760fbc47a5826194e87d1aca8d822275fe07fb71d483df
+              image: forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:b93db63602ab1a81150266fa0549b912c742bf381577f78eea8618510529908c
               args: ["--set", "nightly"]
               env:
                 - {name: E2E_SECRETS_DIR, value: /secrets}
-                - {name: E2E_COMMIT, value: "72d654b55fbfd372810ea7d768105c7268269135"}
-                - {name: E2E_LAB_IMAGE_DIGEST, value: "sha256:9e2a6a43b8bdce7b4432f4fd51d78e5271949359c74e2e945e385e5faf56cdae"}
+                - {name: E2E_COMMIT, value: "f9c04f95b486f944d2c9e7fbace6dffea7ce22c1"}
+                - {name: E2E_LAB_IMAGE_DIGEST, value: "sha256:3a1e4a45aba627ca64ef60a4cbbf7fa8a19367f78c1147c439fe367651b9775d"}
               securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
               resources: {requests: {cpu: 500m, memory: 1Gi}, limits: {memory: 2Gi}}
               volumeMounts:

@@ -15,10 +15,13 @@
 #   aspnet-runtime f99c1b07, user 65532; migrations V001-V012 unchanged apart from comments), built + signed by k8s-engineer
 #   2026-10-29 (grype gate 0, cosign verify + slsaprovenance1 vs OOB key, evidence ops/evidence/chg-2026-10-22-006/20261029t2035z-desk-72d654b-*).
 #   Was 9dc3dbca (7e090d0). Rollback: git revert.
+#   chg-2026-10-22-006 (30-10): desk-f9c04f9 = v12b f9c04f95b486f944d2c9e7fbace6dffea7ce22c1 (bundle sha256 2a8a5441; src/ = v12),
+#   built + signed by k8s-engineer (grype gate 0, cosign verify + slsaprovenance1 vs OOB key, evidence 20261030t0622z-desk-f9c04f9-*).
+#   Was 9e2a6a43 (v10 72d654b, kept frozen in the registry). Rollback: git revert.
 # A new desk build: change digest (and the comment), and the Job names in migrate/app + grants/app (immutable Jobs).
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 images:
   - name: passkey-point-desk
     newName: forge.bluejungle.net/palamedes/passkey-point-dotnet
-    digest: sha256:9e2a6a43b8bdce7b4432f4fd51d78e5271949359c74e2e945e385e5faf56cdae
+    digest: sha256:3a1e4a45aba627ca64ef60a4cbbf7fa8a19367f78c1147c439fe367651b9775d

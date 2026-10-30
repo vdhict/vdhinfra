@@ -1,4 +1,6 @@
 ---
+# chg-2026-10-22-006 (30-10): tpAppId = AR1 (LAB ENTRA_CLIENT_ID), employeeAppId = AR2 (LAB PP_EMPLOYEE_CLIENT_ID) for E08/E11/E15;
+# idleMinutes not set (LAB = policy default 15). origins.webMaxSession/maxSessionMinutes wait for the E14 instance.
 # E2E config for the .NET LAB run (chg-2026-10-20-001): the live passkey-point-e2e/passkey-point-e2e-config
 # (dev-tenant.json, read 2026-10-20) with ONE change, origins.web -> the .NET LAB host. Non-secret: dev tenant
 # 7m5b27gbc persona aliases, object ids and UPNs (synthetic), the runner app id. Passwords and passkeys stay in Secret
@@ -16,6 +18,8 @@ data:
     {
       "target": "dev-tenant",
       "runnerAppId": "dca464ef-5b97-4d32-b80d-d98532b26652",
+      "tpAppId": "6e05d927-e0c2-418b-9f01-ab909aec5699",
+      "employeeAppId": "fc2dbe71-1e24-47f7-af55-13e196640b37",
       "origins": {
         "web": "https://passkey-point-dotnet-lab.bluejungle.net"
       },
