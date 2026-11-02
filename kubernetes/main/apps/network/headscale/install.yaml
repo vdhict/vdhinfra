@@ -1,0 +1,30 @@
+---
+# chg-2026-11-02-012 (tsk-2026-10-21-006): Headscale control server, first stage LAN-only.
+# Reachable at home and over VDHVPN02/Mudi only: own LoadBalancer IP with its own TLS (Envoy Gateway v1.3 cannot pass the
+# Tailscale control-protocol upgrade), UniFi DNS record only, no Cloudflare record. Policy is deny-all until the
+# Argus-reviewed ACL. Public exposure and server nodes come after the Argus review.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app headscale
+  namespace: flux-system
+spec:
+  targetNamespace: network
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  dependsOn:
+    - name: cert-manager-issuers
+  path: ./kubernetes/main/apps/network/headscale/app
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: false
+  interval: 30m
+  retryInterval: 1m
+  timeout: 5m
+  postBuild:
+    substitute:
+      APP: *app

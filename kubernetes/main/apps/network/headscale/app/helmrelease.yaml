@@ -1,0 +1,109 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app headscale
+spec:
+  interval: 30m
+  maxHistory: 2
+  chart:
+    spec:
+      chart: app-template
+      version: 3.7.3
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  values:
+    controllers:
+      headscale:
+        strategy: Recreate
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: docker.io/headscale/headscale
+              tag: v0.29.7@sha256:11f81665e842809db9fe3006a38c56a66e968baa5abd4bac498e86445572b970
+            args: ["serve"]
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet: { path: /health, port: 8443, scheme: HTTPS }
+                  periodSeconds: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet: { path: /health, port: 8443, scheme: HTTPS }
+                  periodSeconds: 10
+            resources:
+              requests:
+                cpu: 10m
+                memory: 64Mi
+              limits:
+                memory: 256Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: { type: RuntimeDefault }
+    service:
+      app:
+        controller: *app
+        type: LoadBalancer
+        annotations:
+          external-dns-unifi.bluejungle.net/hostname: headscale.${SECRET_DOMAIN}
+          lbipam.cilium.io/ips: "172.16.2.249"
+        ports:
+          https:
+            port: 443
+            targetPort: 8443
+          metrics:
+            port: 9090
+    persistence:
+      data:
+        type: persistentVolumeClaim
+        accessMode: ReadWriteOnce
+        size: 1Gi
+        storageClass: rook-ceph-block
+        globalMounts:
+          - path: /var/lib/headscale
+      run:
+        type: emptyDir
+        globalMounts:
+          - path: /var/run/headscale
+      config:
+        type: configMap
+        name: headscale-configmap
+        globalMounts:
+          - path: /etc/headscale/config.yaml
+            subPath: config.yaml
+            readOnly: true
+          - path: /etc/headscale/policy.hujson
+            subPath: policy.hujson
+            readOnly: true
+      tls:
+        type: secret
+        name: headscale-tls
+        globalMounts:
+          - path: /etc/headscale/tls
+            readOnly: true

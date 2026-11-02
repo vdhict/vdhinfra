@@ -1,0 +1,7 @@
+// chg-2026-11-02-012: deny-all until the Argus-reviewed ACL (tags rekenkracht/agenthost/router, group:admin) lands.
+// An empty acls list allows no traffic between nodes; enrolment itself is not affected.
+{
+  "groups": {},
+  "tagOwners": {},
+  "acls": []
+}
