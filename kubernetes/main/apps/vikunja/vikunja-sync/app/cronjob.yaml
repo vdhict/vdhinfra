@@ -14,7 +14,8 @@
 # Pod Security: namespace vikunja ENFORCES restricted; every field that
 # restricted checks is set explicitly.
 #
-# Staged landing: suspend: true. First a manual Job
+# Staged landing done 2026-11-02: manual Jobs ran green (created 22, then 0),
+# so suspend: false. History: first a manual Job
 # (kubectl create job --from=cronjob/vikunja-sync), then a follow-up commit
 # sets suspend: false.
 #
@@ -29,7 +30,7 @@ metadata:
 spec:
   schedule: "*/5 * * * *"
   timeZone: Europe/Amsterdam
-  suspend: true
+  suspend: false
   concurrencyPolicy: Forbid          # never two runs against one state file
   startingDeadlineSeconds: 240
   successfulJobsHistoryLimit: 3
