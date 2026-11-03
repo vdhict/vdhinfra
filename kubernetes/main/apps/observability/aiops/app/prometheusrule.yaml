@@ -186,6 +186,32 @@ spec:
           annotations:
             summary: "{{ $labels.host }}: myPKA pka-heartbeat-check watches nothing"
             description: Its sweep matched 0 registry lines. ALERT_HOST_ROLE in ~/.config/pka-alert/alert.env or the wires.conf host column is wrong. Owner Mack.
+        - alert: StudiemateriaalWorkerDown
+          # The study-material reader on the Studio (launchd
+          # com.sander.pka-studiemateriaal-studio, loopback 18769) does not
+          # answer /gezond. Probe: hack/studio/studiemateriaal-probe.sh every
+          # 5 min into studiemateriaal.prom (chg-2026-11-03-007). Counts only.
+          expr: studiemateriaal_worker_up{job="mac-node"} == 0
+          for: 15m
+          labels:
+            severity: warning
+            component: aiops-hosts
+          annotations:
+            summary: "{{ $labels.host }}: study-material reader not answering /gezond for 15 min"
+            description: Check `launchctl print gui/$(id -u)/com.sander.pka-studiemateriaal-studio` on the Studio and `curl -s 127.0.0.1:18769/gezond`. Uploads from the boys' chats fail while it is down.
+        - alert: StudiemateriaalProbeStale
+          # The Studio answers but the reader probe stopped (unloaded) or its
+          # file is gone: then StudiemateriaalWorkerDown is blind.
+          expr: |
+            ((time() - studiemateriaal_probe_last_run_timestamp_seconds{job="mac-node"} > 1800) and on(instance) up{job="mac-node"} == 1)
+            or (up{job="mac-node",host="vdhllmsrv01"} == 1 unless on(instance) studiemateriaal_probe_last_run_timestamp_seconds{job="mac-node"})
+          for: 30m
+          labels:
+            severity: warning
+            component: aiops-hosts
+          annotations:
+            summary: "{{ $labels.host }}: study-material reader probe has not run for 30 min or more"
+            description: Check `launchctl print gui/$(id -u)/com.vdhict.studiemateriaal-probe` and ~/.local/share/aiops/textfile/studiemateriaal.prom on the Studio.
         - alert: MacDiskSpaceLow
           # Honest home for the Mac disk alerts that used to page as
           # CephNodeRootFilesystemFull / CephNodeDiskspaceWarning (those are
