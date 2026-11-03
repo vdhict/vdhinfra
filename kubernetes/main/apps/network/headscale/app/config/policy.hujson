@@ -1,7 +1,19 @@
-// chg-2026-11-02-012: deny-all until the Argus-reviewed ACL (tags rekenkracht/agenthost/router, group:admin) lands.
-// An empty acls list allows no traffic between nodes; enrolment itself is not affected.
+// chg-2026-11-02-012 stage 2, Argus-reviewed (verdict 2026-11-03, B1/B2). Deny by default: only the grants below pass.
+// NEVER drop the "grants" key: Headscale treats a policy without acls/grants as ALLOW-ALL.
+// No autoApprovers, no routes, no exit nodes, no ssh rules (OpenSSH over the tailnet IP only).
+// B1: tagOwners are empty lists. Tags come only from pre-auth keys created in-pod with --tags (no self-tagging).
+// B3: vdhnblin01 is node id 1 at 100.64.0.1. Losing that device: remove the hosts entry first, then `nodes delete -i 1`.
 {
   "groups": {},
-  "tagOwners": {},
-  "acls": []
+  "tagOwners": {
+    "tag:agenthost": [],   // vdhmini01: shared uid with myPKA, destination only, never a source
+    "tag:rekenkracht": [], // vdhllmsrv01 (Studio), vdhwslin01
+    "tag:canary": []       // in-cluster test node (B2: Mini ssh only)
+  },
+  "hosts": { "vdhnblin01": "100.64.0.1/32" },
+  "grants": [
+    { "src": ["vdhnblin01"], "dst": ["tag:agenthost", "tag:rekenkracht"], "ip": ["tcp:22"] },
+    { "src": ["tag:canary"], "dst": ["tag:agenthost"], "ip": ["tcp:22"] }
+  ],
+  "ssh": []
 }
