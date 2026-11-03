@@ -25,6 +25,13 @@ sha() { if command -v shasum >/dev/null; then shasum -a 256 "$1"; else sha256sum
 
 [[ ! -e "$DEST" && ! -L "$DEST" ]] || die "$DEST already exists (not overwriting); revoke/rotate deliberately"
 mkdir -p "$CONF"; chmod 0700 "$CONF"
+# Argus 4 (2026-11-03): the key dir must be excluded from Time Machine BEFORE the key lands there.
+if command -v tmutil >/dev/null; then
+  tmutil isexcluded "$CONF" | grep -q '^\[Excluded\]' \
+    || die "$CONF is not excluded from Time Machine; run: tmutil addexclusion \"$CONF\" (then again)"
+elif [[ "${TEAMKEY_NO_TMUTIL_OK:-}" != 1 ]]; then
+  die "tmutil not found: not on the Mini? (tests: TEAMKEY_NO_TMUTIL_OK=1)"
+fi
 sshb "test -f ~/$BOXFILE && test ! -L ~/$BOXFILE && test \"\$(stat -c '%a %s' ~/$BOXFILE)\" = '400 48'" \
   || die "box copy missing, a symlink, or not 0400/48 bytes"
 

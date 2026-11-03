@@ -18,7 +18,22 @@ the way the team runs `provision.sh`.
 - `sudo bash owner-session.sh --dry-run`, then `sudo bash owner-session.sh`.
 - It installs podman + tailscale (tailscaled stays off), the agent sudo drop-in `/etc/sudoers.d/50-agent-team`
   (visudo-checked, output-logged), and the team keyslot. cryptsetup asks him for his own passphrase once.
+- It first shows the Argus consent warning. He types `I UNDERSTAND`, then `NO CLIENT DATA` to confirm the box holds
+  no client data.
+- **Stop line:** if the last line is not exactly `owner-session.sh: OK` (or `owner-session.sh: DRY RUN OK` for the dry
+  run), he stops and sends the output back.
 - He sends back the "SEND THIS BACK" block.
+
+## 1a. Done by the team before Sander (2026-11-03, Argus 16:12Z conditions)
+- M1 + M2, live through agent: `restrict,pty` on both agent keys, plus
+  `from="172.16.3.108,172.16.3.23,192.168.12.6,192.168.4.6"` on the MacBook key. Read back and tested (evidence 65).
+  Rollback: `~agent/.ssh/authorized_keys.bak-20261103T161012Z`.
+- **Larry: after this, the MacBook's agent ssh only works from those four addresses.** Over Headscale it needs an
+  added address.
+- Time Machine: `~/.config/vdhwslin01` on the Mini is excluded, and `teamkey-pull.sh` refuses unless it is. The Mini
+  has no TM destination at all.
+- The Mini was searched for other copies of the owner passphrase (count only): none found outside its own file
+  (evidence 65).
 
 ## 2. Team (Mini, Atlas/Heph), all through agent's sudo
 1. `mini/teamkey-pull.sh`: pull the team key to `~/.config/vdhwslin01/team-luks.key` (0400), compare checksums, then

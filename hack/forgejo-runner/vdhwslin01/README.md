@@ -161,7 +161,11 @@ cluster.
 
 - **Standing sudo (new):** root on vdhwslin01, Sander's workstation with his desktop session and files, is reachable
   by whoever can use agent's ssh key. That includes myPKA through the Mini's shared uid 501. Mitigations proposed in
-  evidence 63.
+  evidence 63. Argus passed packet 63 with conditions (16:12Z). Done: M1 + M2 (restrict,pty and the MacBook `from=`), the
+  consent warning, the client-data confirmation, the `owner-session.sh: OK` stop line, and the Time Machine exclusion.
+  Due within 7 days of the sudo going live: Loki shipping + a daily scan (M3), a root-owned AuthorizedKeysFile, an
+  owner credential inventory, and a runbook rule (no untrusted code as agent). Within 30 days: the M4 review and the
+  M5 owner decision.
 
 - **mypka-bot can run code in the job VM.** It has write on 6 vdhict repos (team `mypka-write`), so it can push a
   workflow and run code as root in the per-job VM. Its credentials live on the Mini and in the cluster. All other

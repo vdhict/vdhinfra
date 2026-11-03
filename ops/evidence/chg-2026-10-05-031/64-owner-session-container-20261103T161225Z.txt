@@ -1,0 +1,107 @@
+# chg-2026-10-05-031 tests/owner-session-container.sh in throwaway pod; 2026-11-03T16:12:25Z; runner: vdhmini01
+# namespace vdhwslin01-test-owner-20261103t161225z (PSA enforce=baseline), image docker.io/library/archlinux:base@sha256:ece6c971fec3c532fd508bce299a446deaf469feecbfe7c353e995bc1a5e7bba, capabilities {"drop": []}, activeDeadlineSeconds 1800
+# bundle provision.sh sha256 8420c0727d83011f6bef6221b99b3829f6768c4e3452e7b0ee82e93ac72591b5
+# node: vdhclu01node02, kernel: 6.18.18-talos
+== setup
+ok   setup sudoers has includedir
+ok   setup image has 1 keyslot
+== A dry run changes nothing
+ok   A dry-run exit 0
+ok   A no drop-in
+ok   A still 1 keyslot
+ok   A packages not installed by dry-run
+ok   A says visudo -cf OK
+ok   A dry-run ends with DRY RUN OK, never with the real OK line
+== B refusals
+ok   B1 refuses to run as agent
+ok   B2 refuses without SUDO_USER (root login)
+ok   B3 refuses a drop-in with other content
+ok   B3 foreign drop-in left untouched
+== B4/B5 consent refusals change nothing
+FAIL B4 wrong consent answer -> refused, no drop-in, 1 slot
+ok   B4 no OK line
+FAIL B5 no client-data confirmation -> refused, nothing changed
+ok   B5 still 1 keyslot, packages untouched
+== C real run
+    | spawn env SUDO_USER=sander LUKS_DEV=/root/disk.img bash owner/owner-session.sh
+    | invalid command name "^:"
+    |     while executing
+    | "^:"
+    |     invoked from within
+    | "expect {
+    |       -re "Type I UNDERSTAND to continue: $" { send -- "$env(ANS1)\r"; exp_continue }
+    |       -re "Type NO CLIENT DATA to confirm[^:]*: $" { se..."
+ok   C exit 0
+FAIL C last line is owner-session.sh: OK
+FAIL C warning shown before any change
+FAIL C consent recorded
+error: package 'podman' was not found
+error: package 'tailscale' was not found
+FAIL C podman + tailscale installed
+stat: cannot statx '/etc/sudoers.d/50-agent-team': No such file or directory
+FAIL C drop-in 0440 root:root
+/etc/sudoers: parsed OK
+ok   C visudo -c OK
+FAIL C sudo -l -U agent: NOPASSWD: ALL
+sudo: a password is required
+FAIL C agent: sudo -n works
+FAIL C sudo logfile records agent commands
+grep: /var/log/sudo-agent.log: No such file or directory
+FAIL C I/O log written under /var/log/sudo-io/agent (root-only)
+FAIL C sudoreplay lists the agent session
+FAIL C 2 keyslots now (owner + team)
+FAIL C slot recorded ()
+stat: cannot statx '/home/agent/.vdh-teamkey/team-luks.key': No such file or directory
+FAIL C key file 0400 agent 48 bytes
+FAIL C key opens exactly the recorded slot
+ok   C owner passphrase still opens slot 0
+ok   C no root temp copies left
+grep: /home/agent/.vdh-teamkey/team-luks.key: No such file or directory
+FAIL C generated key never in the session output
+ok   C owner passphrase never in the session output
+ok   C tailscaled not enabled
+== D idempotent re-run
+ok   D exit 0
+FAIL D still 2 keyslots
+FAIL D drop-in unchanged
+FAIL D keyslot not re-added
+== E F1: agent plants a symlink for the key dir (fresh slot request)
+mv: cannot stat '/etc/vdh-runner/team-keyslot': No such file or directory
+sha256sum: /home/agent/.vdh-teamkey/team-luks.key: No such file or directory
+mv: cannot stat '/home/agent/.vdh-teamkey': No such file or directory
+FAIL E refused
+    e| spawn env SUDO_USER=sander LUKS_DEV=/root/disk.img bash owner/owner-session.sh
+    e| invalid command name "^:"
+    e|     while executing
+    e| "^:"
+    e|     invoked from within
+    e| "expect {
+    e|       -re "Type I UNDERSTAND to continue: $" { send -- "$env(ANS1)\r"; exp_continue }
+    e|       -re "Type NO CLIENT DATA to confirm[^:]*: $" { se..."
+FAIL E says symlink
+ok   E /etc untouched and no key written there
+FAIL E no extra keyslot
+mv: cannot stat '/root/teamkey.keep': No such file or directory
+== F team pull (Mini side) with an ssh stub that runs box commands as agent
+mv: cannot stat '/root/slotrec.keep': No such file or directory
+    | teamkey-pull: box copy missing, a symlink, or not 0400/48 bytes
+FAIL F pull exit 0
+stat: cannot statx '/root/miniconf/team-luks.key': No such file or directory
+FAIL F Mini copy 0400, 48 bytes, same sha256
+ok   F box copy shredded, dir gone
+FAIL F pulled key opens the team slot
+grep: /root/miniconf/team-luks.key: No such file or directory
+FAIL F key never in the pull output
+ok   F2 second pull refuses (Mini copy exists)
+ok   F3 pull refuses without a Time Machine exclusion check
+== G revoke paths work
+ok   G after removing the drop-in agent has no sudo
+FAIL G luksKillSlot removes the team slot; owner slot stays
+RESULT: 26 passed, 28 failed
+command terminated with exit code 1
+# suite exit code: 1
+
+# cleanup 2026-11-03T16:12:30Z: kubectl --context admin@vdhinfra-local delete namespace vdhwslin01-test-owner-20261103t161225z
+#   namespace "vdhwslin01-test-owner-20261103t161225z" deleted
+# readback: namespace vdhwslin01-test-owner-20261103t161225z NotFound
+# readback: throwaway pods left (chg label, all namespaces) = 0; throwaway namespaces left = 0

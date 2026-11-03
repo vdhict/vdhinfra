@@ -24,14 +24,17 @@ printf '%s' 'owner-existing-passphrase-TEST' > /root/ownerpass; chmod 0600 /root
 cryptsetup luksFormat --batch-mode --type luks2 --pbkdf pbkdf2 --pbkdf-force-iterations 1000 "$IMG" /root/ownerpass >/dev/null
 nslots() { cryptsetup luksDump "$IMG" | awk '/^Keyslots:/{k=1;next} /^[A-Z][a-z]+:/{k=0} k && /^ +[0-9]+: luks2/{n++} END{print n+0}'; }
 check "setup image has 1 keyslot" test "$(nslots)" = 1
-run_os() { # run_os <log> [args]: SUDO_USER=sander, expect answers the existing-passphrase prompt
+run_os() { # run_os <log> [args]: SUDO_USER=sander, expect answers consent (ANS1/ANS2) + passphrase
   local log="$1"; shift
+  export ANS1="${ANS1:-I UNDERSTAND}" ANS2="${ANS2:-NO CLIENT DATA}"
   expect -c '
     set timeout 600
     log_user 1
     spawn env SUDO_USER=sander LUKS_DEV=/root/disk.img bash '"$OS"' '"$*"'
     expect {
-      -re "Enter any existing passphrase: ?$" { set f [open /root/ownerpass r]; set p [read $f]; close $f; log_user 0; send -- "$p\r"; log_user 1; exp_continue }
+      -re {Type I UNDERSTAND to continue: $} { send -- "$env(ANS1)\r"; exp_continue }
+      -re {Type NO CLIENT DATA to confirm.*: $} { send -- "$env(ANS2)\r"; exp_continue }
+      -re {Enter any existing passphrase: ?$} { set f [open /root/ownerpass r]; set p [read $f]; close $f; log_user 0; send -- "$p\r"; log_user 1; exp_continue }
       eof
     }
     catch wait r; exit [lindex $r 3]' > "$log" 2>&1
@@ -44,6 +47,7 @@ check "A no drop-in" test ! -e "$DROPIN"
 check "A still 1 keyslot" test "$(nslots)" = 1
 check "A packages not installed by dry-run" bash -c '! pacman -Q podman >/dev/null 2>&1'
 check "A says visudo -cf OK" grep -q 'after visudo -cf: OK' /root/a.log
+check "A dry-run ends with DRY RUN OK, never with the real OK line" bash -c 'grep -q "owner-session.sh: DRY RUN OK" /root/a.log && ! grep -qx "owner-session.sh: OK" /root/a.log' 
 
 echo "== B refusals"
 SUDO_USER=agent LUKS_DEV="$IMG" bash "$OS" --dry-run > /root/b1.log 2>&1 && bad "B1 SUDO_USER=agent accepted" || ok "B1 refuses to run as agent"
@@ -53,10 +57,20 @@ SUDO_USER=sander LUKS_DEV="$IMG" bash "$OS" --dry-run > /root/b3.log 2>&1 && bad
 check "B3 foreign drop-in left untouched" grep -qx 'agent ALL=(ALL) ALL' "$DROPIN"
 rm -f "$DROPIN"
 
+echo "== B4/B5 consent refusals change nothing"
+ANS1="no" run_os /root/b4.log; rc=$?
+check "B4 wrong consent answer -> refused, no drop-in, 1 slot" bash -c '[[ "$1" != 0 && ! -e "$2" && "$(grep -c "not confirmed; nothing changed" /root/b4.log)" == 1 ]]' _ "$rc" "$DROPIN"
+check "B4 no OK line" bash -c '! grep -q "owner-session.sh: OK" /root/b4.log'
+ANS2="client data present" run_os /root/b5.log; rc=$?
+check "B5 no client-data confirmation -> refused, nothing changed" bash -c '[[ "$1" != 0 && ! -e "$2" ]] && grep -q "client-data confirmation not given" /root/b5.log' _ "$rc" "$DROPIN"
+check "B5 still 1 keyslot, packages untouched" bash -c '[[ "$(cryptsetup luksDump /root/disk.img | grep -c "^  [0-9]*: luks2")" == 1 ]] && ! pacman -Q podman >/dev/null 2>&1'
 echo "== C real run"
 run_os /root/c.log; rc=$?
 sed 's/^/    | /' /root/c.log | grep -v 'Enter any existing' | tail -40
 check "C exit 0" test "$rc" = 0
+check "C last line is owner-session.sh: OK" bash -c '[[ "$(tr -d "\r" < /root/c.log | grep -v "^$" | tail -n1)" == "owner-session.sh: OK" ]]'
+check "C warning shown before any change" bash -c 'awk "/can become root on THIS workstation/{w=NR} /1 packages/{p=NR} END{exit !(w && p && w<p)}" /root/c.log'
+check "C consent recorded" grep -q "warning understood; no client data on this box" /root/c.log
 check "C podman + tailscale installed" bash -c 'pacman -Q podman tailscale >/dev/null'
 check "C drop-in 0440 root:root" test "$(stat -c '%a %U:%G' "$DROPIN")" = "440 root:root"
 check "C visudo -c OK" visudo -c
@@ -107,15 +121,16 @@ shift   # host alias
 exec runuser -l agent -c "$*"
 STUB
 chmod 0755 /root/ssh-stub
-SSH=/root/ssh-stub CONF=/root/miniconf bash mini/teamkey-pull.sh > /root/f.log 2>&1; rc=$?
+TEAMKEY_NO_TMUTIL_OK=1 SSH=/root/ssh-stub CONF=/root/miniconf bash mini/teamkey-pull.sh > /root/f.log 2>&1; rc=$?
 sed 's/^/    | /' /root/f.log
 check "F pull exit 0" test "$rc" = 0
 check "F Mini copy 0400, 48 bytes, same sha256" bash -c '[[ "$(stat -c "%a %s" /root/miniconf/team-luks.key)" == "400 48" && "$(sha256sum /root/miniconf/team-luks.key | cut -d" " -f1)" == "$1" ]]' _ "$KEYSHA"
 check "F box copy shredded, dir gone" test ! -e /home/agent/.vdh-teamkey
 check "F pulled key opens the team slot" bash -c 'cryptsetup open --test-passphrase -v --key-file /root/miniconf/team-luks.key "$1" 2>&1 | grep -q "Key slot $2 unlocked"' _ "$IMG" "$slot"
 check "F key never in the pull output" test "$(grep -cF -f /root/miniconf/team-luks.key /root/f.log)" = 0
-SSH=/root/ssh-stub CONF=/root/miniconf bash mini/teamkey-pull.sh > /root/f2.log 2>&1 && bad "F2 second pull overwrote" || ok "F2 second pull refuses (Mini copy exists)"
+TEAMKEY_NO_TMUTIL_OK=1 SSH=/root/ssh-stub CONF=/root/miniconf bash mini/teamkey-pull.sh > /root/f2.log 2>&1 && bad "F2 second pull overwrote" || ok "F2 second pull refuses (Mini copy exists)"
 
+SSH=/root/ssh-stub CONF=/root/miniconf2 bash mini/teamkey-pull.sh > /root/f3.log 2>&1 && bad "F3 pull ran without tmutil and without the test override" || ok "F3 pull refuses without a Time Machine exclusion check"
 echo "== G revoke paths work"
 rm -f "$DROPIN"
 check "G after removing the drop-in agent has no sudo" bash -c '! runuser -u agent -- sudo -n true 2>/dev/null'

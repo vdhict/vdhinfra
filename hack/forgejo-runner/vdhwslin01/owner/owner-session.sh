@@ -20,6 +20,9 @@
 #               The team key is handed to agent as ~agent/.vdh-teamkey/team-luks.key (0400). The
 #               team pulls it to the Mini and shreds this copy (mini/teamkey-pull.sh). It is never printed.
 #   4 report    what to send back (no secrets in it)
+#   Before step 1 it shows the Argus consent warning and asks you to type I UNDERSTAND and
+#   NO CLIENT DATA. The last line is "owner-session.sh: OK" only if everything passed; anything
+#   else means: stop and send the output back.
 # Everything else (runner provisioning, tailscale up) the team does later through agent's sudo.
 set -euo pipefail
 umask 077
@@ -72,6 +75,25 @@ fi
 cryptsetup isLuks "$LUKS_DEV" || die "$LUKS_DEV is not LUKS"
 info "you: ${SUDO_USER}; team account: $AGENT (groups:${g}); disk: $LUKS_DEV"
 (( DRY )) && info "DRY RUN: nothing will change"
+
+# ---------------------------------------------------------------------------
+say "consent (Argus 2026-11-03 conditions 1 and 5)"
+cat <<'WARN'
+    !!! After this, the agent key on the Mini, which myPKA can also read (shared uid 501),
+    !!! can become root on THIS workstation: your desktop session, browser profiles and home.
+    !!! Revoke any time with: sudo rm /etc/sudoers.d/50-agent-team
+WARN
+echo "    This box must hold NO client data (Argus H1/C1)."
+if (( DRY )); then
+  info "[dry-run] the real run asks you to type: I UNDERSTAND   and then:   NO CLIENT DATA"
+else
+  [[ -r /dev/tty ]] || die "needs a terminal (ssh -t); nothing changed"
+  read -r -p "    Type I UNDERSTAND to continue: " a1 </dev/tty
+  [[ "$a1" == "I UNDERSTAND" ]] || die "not confirmed; nothing changed"
+  read -r -p "    Type NO CLIENT DATA to confirm this box holds no client data: " a2 </dev/tty
+  [[ "$a2" == "NO CLIENT DATA" ]] || die "client-data confirmation not given; nothing changed"
+  info "confirmed by ${SUDO_USER} at $(date -u +%FT%TZ): warning understood; no client data on this box"
+fi
 
 # ---------------------------------------------------------------------------
 say "1 packages: podman tailscale (tailscaled stays disabled)"
@@ -160,4 +182,4 @@ info "sudo drop-in: $(stat -c '%a %U:%G' "$DROPIN" 2>/dev/null || echo absent) $
 info "agent sudo: $(sudo -l -U "$AGENT" 2>/dev/null | grep -c 'NOPASSWD: ALL') NOPASSWD rule(s)"
 info "team keyslot: $(head -n1 "$SLOTREC" 2>/dev/null || echo none)"
 info "team key for pull: $(stat -c '%a %U %s bytes' "$KEYFILE" 2>/dev/null || echo absent)"
-say "done$( (( DRY )) && echo ' (dry run: nothing changed)')"
+if (( DRY )); then echo "owner-session.sh: DRY RUN OK (nothing changed)"; else echo "owner-session.sh: OK"; fi
