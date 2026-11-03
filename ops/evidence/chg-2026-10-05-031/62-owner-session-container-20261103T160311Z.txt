@@ -1,0 +1,109 @@
+# chg-2026-10-05-031 tests/owner-session-container.sh in throwaway pod; 2026-11-03T16:03:11Z; runner: vdhmini01
+# namespace vdhwslin01-test-owner-20261103t160311z (PSA enforce=baseline), image docker.io/library/archlinux:base@sha256:ece6c971fec3c532fd508bce299a446deaf469feecbfe7c353e995bc1a5e7bba, capabilities {"drop": []}, activeDeadlineSeconds 1800
+# bundle provision.sh sha256 8420c0727d83011f6bef6221b99b3829f6768c4e3452e7b0ee82e93ac72591b5
+# node: vdhclu01node02, kernel: 6.18.18-talos
+== setup
+ok   setup sudoers has includedir
+ok   setup image has 1 keyslot
+== A dry run changes nothing
+ok   A dry-run exit 0
+ok   A no drop-in
+ok   A still 1 keyslot
+ok   A packages not installed by dry-run
+ok   A says visudo -cf OK
+== B refusals
+ok   B1 refuses to run as agent
+ok   B2 refuses without SUDO_USER (root login)
+ok   B3 refuses a drop-in with other content
+ok   B3 foreign drop-in left untouched
+== C real run
+    |     sh: for demo script [installed]
+    | installing podman...
+    | Optional dependencies for podman
+    |     apparmor: for AppArmor support
+    |     btrfs-progs: support btrfs backend devices
+    |     fuse-overlayfs: for deprecated storage driver in rootless environment
+    |     podlet: Generate Podman Quadlet files from a Podman command, compose file,
+    |     or existing object
+    |     podman-compose: for docker-compose compatibility
+    |     podman-desktop: GUI and tray to manage Podman containers (and Kubernetes
+    |     pods)
+    |     podman-docker: for Docker-compatible CLI
+    | installing tailscale...
+    | :: Running post-transaction hooks...
+    | (1/4) Creating temporary files...
+    | /usr/lib/tmpfiles.d/journal-nocow.conf:26: Failed to resolve specifier: uninitialized /etc/ detected, skipping.
+    | All rules containing unresolvable specifiers will be skipped.
+    | (2/4) Reloading system manager configuration...
+    |   Skipped: Current root is not booted.
+    | (3/4) Reloading user manager configuration...
+    |   Skipped: Current root is not booted.
+    | (4/4) Arming ConditionNeedsUpdate...
+    | [?25h==> 2 sudo for agent: /etc/sudoers.d/50-agent-team
+    |     installed /etc/sudoers.d/50-agent-team; visudo -c OK
+    |     read-back: (ALL : ALL) NOPASSWD: ALL
+    | ==> 3 team LUKS keyslot on /root/disk.img
+    | 
+    |     >>> cryptsetup will now ask for YOUR EXISTING disk passphrase (the one you type at boot).
+    |     >>> It is used once to authorise the new team slot and is not stored anywhere.
+    |     team keyslot 1 added and tested (keyslots 1 -> 2); your own slot is untouched
+    |     key handed to agent: /home/agent/.vdh-teamkey/team-luks.key (0400, 48 bytes); the root temp copy is shredded
+    | ==> 4 SEND THIS BACK to the team (no secrets in it)
+    |     owner-session.sh sha256: 2e7923700d48077b26ae7e90c31682bdf5cadc43f0ff909f937b5e221872ec4f
+    |     packages: podman 6.1.4-1; tailscale 1.104.4-1
+    |     tailscaled: disabled (expected: disabled or empty)
+    |     sudo drop-in: 440 root:root /etc/sudoers.d/50-agent-team
+    |     agent sudo: 1 NOPASSWD rule(s)
+    |     team keyslot: 1
+    |     team key for pull: 400 agent 48 bytes
+    | ==> done
+ok   C exit 0
+ok   C podman + tailscale installed
+ok   C drop-in 0440 root:root
+/etc/sudoers: parsed OK
+/etc/sudoers.d/50-agent-team: parsed OK
+ok   C visudo -c OK
+ok   C sudo -l -U agent: NOPASSWD: ALL
+ok   C agent: sudo -n works
+ok   C sudo logfile records agent commands
+ok   C I/O log written under /var/log/sudo-io/agent (root-only)
+ok   C sudoreplay lists the agent session
+ok   C 2 keyslots now (owner + team)
+ok   C slot recorded (1)
+ok   C key file 0400 agent 48 bytes
+ok   C key opens exactly the recorded slot
+ok   C owner passphrase still opens slot 0
+ok   C no root temp copies left
+ok   C generated key never in the session output
+ok   C owner passphrase never in the session output
+ok   C tailscaled not enabled
+== D idempotent re-run
+ok   D exit 0
+ok   D still 2 keyslots
+ok   D drop-in unchanged
+ok   D keyslot not re-added
+== E F1: agent plants a symlink for the key dir (fresh slot request)
+ok   E refused
+ok   E says symlink
+ok   E /etc untouched and no key written there
+ok   E no extra keyslot
+== F team pull (Mini side) with an ssh stub that runs box commands as agent
+    | pulled: /root/miniconf/team-luks.key (0400, 48 bytes), sha256 match
+    | box copy shredded; ~agent/.vdh-teamkey absent (read back)
+    | next: C8 attended reboot unlocking with PASSFILE=/root/miniconf/team-luks.key, then point the waker at it (it already reads team-luks.key)
+ok   F pull exit 0
+ok   F Mini copy 0400, 48 bytes, same sha256
+ok   F box copy shredded, dir gone
+ok   F pulled key opens the team slot
+ok   F key never in the pull output
+ok   F2 second pull refuses (Mini copy exists)
+== G revoke paths work
+ok   G after removing the drop-in agent has no sudo
+ok   G luksKillSlot removes the team slot; owner slot stays
+RESULT: 45 passed, 0 failed
+# suite exit code: 0
+
+# cleanup 2026-11-03T16:03:40Z: kubectl --context admin@vdhinfra-local delete namespace vdhwslin01-test-owner-20261103t160311z
+#   namespace "vdhwslin01-test-owner-20261103t160311z" deleted
+# readback: namespace vdhwslin01-test-owner-20261103t160311z NotFound
+# readback: throwaway pods left (chg label, all namespaces) = 0; throwaway namespaces left = 0

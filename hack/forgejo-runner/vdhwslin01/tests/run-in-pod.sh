@@ -2,8 +2,9 @@
 # Runs one pod-based suite of the vdhwslin01 bundle in a THROWAWAY namespace and
 # cleans up with delete + read-back (chg-2026-10-05-031). Run from the Mini.
 #
-#   tests/run-in-pod.sh <arch|nft|sudo> <evidence-file> [fixtures-box-dir]
+#   tests/run-in-pod.sh <arch|nft|sudo|owner> <evidence-file> [fixtures-box-dir]
 #   sudo  tests/sudo-window-container.sh: as arch (PSA baseline, default capabilities).
+#   owner tests/owner-session-container.sh: as arch (PSA baseline, default capabilities; LUKS on an image file).
 #
 #   arch  tests/arch-container.sh: namespace PSA enforce=baseline, root in the
 #         container with the DEFAULT capability set only (pacman, useradd,
@@ -19,7 +20,7 @@
 # namespace and every pod with the label are gone; the read-back is appended to
 # the evidence file, which is written once (refuses an existing file) and made 0444.
 set -euo pipefail
-suite="${1:?arch|nft|sudo}"; ev="${2:?evidence file}"; fixtures="${3:-}"
+suite="${1:?arch|nft|sudo|owner}"; ev="${2:?evidence file}"; fixtures="${3:-}"
 here="$(cd "$(dirname "$0")" && pwd)"; bundle="$(cd "$here/.." && pwd)"
 [[ ! -e "$ev" ]] || { echo "evidence $ev exists (write-once)" >&2; exit 2; }
 # C6 (Argus 2026-11-03): every kubectl call pins the context and an absolute binary.
@@ -33,9 +34,11 @@ case "$suite" in
         res='"requests": {"cpu": "500m", "memory": "1Gi", "ephemeral-storage": "4Gi"}, "limits": {"cpu": "2", "memory": "4Gi", "ephemeral-storage": "12Gi"}' ;;
   sudo) psa=baseline; caps='"drop": []'; script=tests/sudo-window-container.sh; deadline=1800
         res='"requests": {"cpu": "500m", "memory": "512Mi", "ephemeral-storage": "2Gi"}, "limits": {"cpu": "2", "memory": "2Gi", "ephemeral-storage": "6Gi"}' ;;
+  owner) psa=baseline; caps='"drop": []'; script=tests/owner-session-container.sh; deadline=1800
+        res='"requests": {"cpu": "500m", "memory": "1Gi", "ephemeral-storage": "2Gi"}, "limits": {"cpu": "2", "memory": "4Gi", "ephemeral-storage": "6Gi"}' ;;
   nft)  psa=privileged; caps='"add": ["NET_ADMIN"]'; script=tests/nft-kernel.sh; deadline=1200
         res='"requests": {"cpu": "200m", "memory": "256Mi", "ephemeral-storage": "1Gi"}, "limits": {"cpu": "1", "memory": "1Gi", "ephemeral-storage": "3Gi"}' ;;
-  *) echo "suite must be arch, nft or sudo" >&2; exit 2 ;;
+  *) echo "suite must be arch, nft, sudo or owner" >&2; exit 2 ;;
 esac
 
 # shellcheck disable=SC2329  # called by the EXIT trap
@@ -81,7 +84,7 @@ echo "# node: $("${K[@]}" -n "$ns" get pod suite -o jsonpath='{.spec.nodeName}')
 
 # Bundle in: only what the suites need; fixtures-box (if given) next to it.
 "${K[@]}" -n "$ns" exec suite -- mkdir -p /bundle
-COPYFILE_DISABLE=1 tar -C "$bundle" -cf - provision.sh src tests sudo-window \
+COPYFILE_DISABLE=1 tar -C "$bundle" -cf - provision.sh src tests sudo-window owner mini \
   | "${K[@]}" -n "$ns" exec -i suite -- tar -C /bundle -xf -
 if [[ -n "$fixtures" ]]; then
   COPYFILE_DISABLE=1 tar -C "$(dirname "$fixtures")" -cf - "$(basename "$fixtures")" | "${K[@]}" -n "$ns" exec -i suite -- tar -C /bundle -xf -

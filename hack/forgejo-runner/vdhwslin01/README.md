@@ -117,7 +117,8 @@ cluster.
 - **When jobs wait and the box is off:**
   1. POST the local-only HA webhook. HA presses WoL and caps it at 4/day.
   2. Wait for 2222 (ssh alias `vdhwslin01-unlock`, pinned host key, StrictHostKeyChecking yes; no pin = refuse).
-  3. Send `~/.config/vdhwslin01/luks-passphrase` as ssh stdin. The vdh-teamboot wrapper echoes the boot_id.
+  3. Send `~/.config/vdhwslin01/team-luks.key` (the TEAM keyslot, B5 = a; never the owner's passphrase) as ssh
+     stdin. The vdh-teamboot wrapper echoes the boot_id.
   4. Wait for 22.
   5. Write one change-log line.
 - **Never:** it never touches a running box, and never unlocks a prompt it did not cause.
@@ -140,7 +141,27 @@ cluster.
   + one-resource SA) is designed in `docs/design/vdhwslin01-waker-queue-narrow-route.md`, due within 30 days.
 - **Rollback:** `launchctl bootout gui/$(id -u)/net.vdhict.vdhwslin01-waker`.
 
+## Owner decisions 2026-11-03 (Larry 165632)
+
+- **B5 = a, team LUKS keyslot.**
+  - `owner/owner-session.sh` generates a 48-char random passphrase as root and adds it with `cryptsetup luksAddKey`.
+    The owner types his own passphrase once at the prompt.
+  - The slot is recorded in `/etc/vdh-runner/team-keyslot`, and the key is handed to agent at 0400.
+  - `mini/teamkey-pull.sh` copies the key to the Mini (0400), verifies it, then shreds the box copy.
+  - The waker reads only `team-luks.key`. The owner's own passphrase file leaves the Mini.
+- **Standing sudo for `agent`.**
+  - `/etc/sudoers.d/50-agent-team` is `NOPASSWD: ALL`, with the same logging as the runbook describes: journald,
+    `/var/log/sudo-agent.log`, and output-only I/O logs in `/var/log/sudo-io/agent`.
+  - Owner-installed, `visudo -cf` checked before install. Revoke: `sudo rm /etc/sudoers.d/50-agent-team`.
+  - The 3 h window kit (`install-window.sh`, `90-agent-provision`) is retired. The team stages with
+    `mini/team-stage.sh <commit>` and runs the unchanged wrapper.
+- **Tailscale** is installed in the owner session only. Enable/up is a later team step with a single-use key.
+
 ## Residuals (written down, not fixed; Argus re-review 2026-11-03)
+
+- **Standing sudo (new):** root on vdhwslin01, Sander's workstation with his desktop session and files, is reachable
+  by whoever can use agent's ssh key. That includes myPKA through the Mini's shared uid 501. Mitigations proposed in
+  evidence 63.
 
 - **mypka-bot can run code in the job VM.** It has write on 6 vdhict repos (team `mypka-write`), so it can push a
   workflow and run code as root in the per-job VM. Its credentials live on the Mini and in the cluster. All other

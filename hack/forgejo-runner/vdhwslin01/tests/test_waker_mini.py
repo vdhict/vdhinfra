@@ -463,6 +463,11 @@ class RealIOStatic(unittest.TestCase):
         self.assertNotIn("print(secret", self.src)
         self.assertNotIn("log(secret", self.src)
 
+    def test_unlock_uses_team_key_only(self):
+        # B5 = a: the waker never reads the owner's passphrase file
+        self.assertIn('PASS_FILE = os.path.join(CONF, "team-luks.key")', self.src)
+        self.assertNotIn('"luks-passphrase"', self.src)
+
     def test_unlock_uses_pinned_alias(self):
         self.assertIn('UNLOCK_ALIAS = "vdhwslin01-unlock"', self.src)
         self.assertNotIn("StrictHostKeyChecking=no", self.src)

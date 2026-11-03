@@ -30,7 +30,8 @@ credential, because every forge API route that lists jobs needs org-owner rights
 
 Secrets:
   ~/.config/vdhwslin01/ha-webhook-id     0600, HA webhook id (sent to curl via -K -)
-  ~/.config/vdhwslin01/luks-passphrase   0600, existing file (chg-2026-10-21-003)
+  ~/.config/vdhwslin01/team-luks.key     0400, the TEAM LUKS keyslot passphrase (B5 = a, owner
+                                         2026-11-03); never the owner's own passphrase
 Both are only read as bytes and handed to a child process's stdin. They are
 never logged, printed or placed on a command line.
 
@@ -86,7 +87,7 @@ CONF = os.environ.get("WAKER_CONF_DIR", os.path.join(HOME, ".config", "vdhwslin0
 STATE_FILE = os.path.join(CONF, "waker-state.json")
 LOCK_FILE = os.path.join(CONF, "waker.lock")
 WEBHOOK_FILE = os.path.join(CONF, "ha-webhook-id")
-PASS_FILE = os.path.join(CONF, "luks-passphrase")
+PASS_FILE = os.path.join(CONF, "team-luks.key")   # team keyslot only (B5 = a)
 KNOWN_HOSTS = os.environ.get("WAKER_KNOWN_HOSTS", os.path.join(HOME, ".ssh", "known_hosts_vdhwslin01"))
 NTFY_ENV = os.environ.get("AIOPS_ENV", os.path.join(HOME, ".config", "aiops", "ntfy.env"))
 KUBE_CONTEXT = "admin@vdhinfra-local"
