@@ -1,0 +1,22 @@
+# chg-2026-10-05-031 C7 (Argus re-review): real dry tick of an INSTALLED waker with a valid pin; measured start 2026-11-03T13:48:07Z, vdhmini01
+# install root (scratch HOME, nothing in ~/Library/LaunchAgents, nothing loaded): /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/ee591319-eebc-404d-a6ee-14e79ef61e04/scratchpad/c7home-20261103T134807Z
+## install-waker.sh 4694513e
+installed /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/ee591319-eebc-404d-a6ee-14e79ef61e04/scratchpad/c7home-20261103T134807Z/.local/libexec/vdhwslin01-waker/vdhwslin01-waker.py sha256 5b654de471fddddcdcfee3bc290a32c14d359145db5b662326dd4ad86423da79 from 4694513eff07a1d7990ce01554ed94be09e21cdc; plist /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/ee591319-eebc-404d-a6ee-14e79ef61e04/scratchpad/c7home-20261103T134807Z/.local/libexec/vdhwslin01-waker/net.vdhict.vdhwslin01-waker.plist (not in LaunchAgents, not loaded)
+## INSTALLED
+commit=4694513eff07a1d7990ce01554ed94be09e21cdc
+sha256=5b654de471fddddcdcfee3bc290a32c14d359145db5b662326dd4ad86423da79
+kubectl=/Users/sheijden/.local/share/mise/installs/aqua-kubernetes-kubernetes-kubectl/1.36.2/kubectl
+changes_log=/Users/sheijden/Code/homelab-migration/vdhinfra/ops/changes.jsonl
+installed_utc=2026-11-03T13:48:08Z
+# -r--r--r--@ INSTALLED
+# -rw-r--r--@ net.vdhict.vdhwslin01-waker.plist
+# -r-xr-xr-x@ vdhwslin01-waker.py
+## post-run-checks.sh waker (pins from INSTALLED)
+# installed: commit 4694513eff07a1d7990ce01554ed94be09e21cdc sha256 5b654de471fddddcdcfee3bc290a32c14d359145db5b662326dd4ad86423da79 at 2026-11-03T13:48:08Z
+# file sha256 now: 5b654de471fddddcdcfee3bc290a32c14d359145db5b662326dd4ad86423da79
+2026-11-03T13:48:08Z waker: box=up jobs=13 oldest=83024s wakes_today=0 action=stuck: box up but a job has waited 83024s: runner not taking jobs
+# waker dry tick exit code: 0 (0 = self-check passed and a decision was printed; 3 = self-check refused)
+## negative: same tick with a wrong pin must refuse (rc 3) and, being --dry-run, write nothing
+2026-11-03T13:48:08Z waker: SELF-CHECK FAILED: sha256 5b654de471fddddc != pin 0000000000000000; refusing to act
+# exit code: 3; change-log lines added by the negative: 0
+# end 2026-11-03T13:48:08Z

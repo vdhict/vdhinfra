@@ -2,7 +2,7 @@
 # After Sander's provision.sh run (chg-2026-10-05-031). Run from the Mini.
 #   post-run-checks.sh c1 <file with his SEND THIS BACK block>
 #   post-run-checks.sh c6        # from a CONTROL-PLANE pod (SNAT .84-.86 = NOT allow-listed; since 2026-11-03 no node is)
-#   post-run-checks.sh rotate    # R7: new org vdhict registration token, old one invalid; nothing printed
+#   post-run-checks.sh rotate    # R7: deactivate the active org vdhict token(s), generate a new one; nothing printed
 #   post-run-checks.sh scope     # forge read-only: runner vdhwslin01 is org vdhict (repo 0), labels, online
 #   post-run-checks.sh waker     # one Mini waker --dry-run, print its decision (no side effects)
 #   post-run-checks.sh writers   # B3 read-only: vdhict members, teams, collaborators, fork-PR trust (names + counts)
@@ -28,6 +28,21 @@ pgw() { # pgw <sql>: ONE write statement in its own transaction (prereg --apply 
   "${K[@]}" -n devtools exec "$p" -c postgres -- psql -X -q -At -v ON_ERROR_STOP=1 -U postgres -d forgejo -c "$1"
 }
 ORG_ID="(SELECT id FROM \"user\" WHERE lower_name='vdhict')"
+# Real rotation of the org vdhict registration token. Forgejo 15's CLI generate-runner-token RETURNS the
+# existing active token and only creates one when none is active (routers/private/actions.go:56-58), so:
+# 1) deactivate every active vdhict org token (guarded UPDATE), 2) generate a new one (value to /dev/null),
+# 3) read back: exactly one active, and it is newer than every token that existed before.
+rotate_org_token() {
+  local maxb n act newest
+  maxb=$(pgq "SELECT coalesce(max(id),0) FROM action_runner_token WHERE owner_id=$ORG_ID")
+  n=$(pgw "UPDATE action_runner_token SET is_active=false WHERE owner_id=$ORG_ID AND is_active RETURNING id" | grep -c . || true)
+  echo "deactivated vdhict tokens: $n"
+  "${K[@]}" -n devtools exec deploy/forgejo -c forgejo -- sh -c 'forgejo actions generate-runner-token --scope vdhict >/dev/null && echo "new token generated (value discarded)"'
+  act=$(pgq "SELECT count(*) FROM action_runner_token WHERE owner_id=$ORG_ID AND is_active")
+  newest=$(pgq "SELECT coalesce(max(id),0) FROM action_runner_token WHERE owner_id=$ORG_ID AND is_active")
+  if [[ "$act" == 1 && "$newest" -gt "$maxb" ]]; then echo "rotation ok: 1 active vdhict token, id $newest > previous max $maxb"; return 0; fi
+  echo "rotation FAIL: active=$act newest_active=$newest previous_max=$maxb"; return 1
+}
 case "${1:-}" in
   c1)
     f="${2:?report file}"; rc=0
@@ -65,8 +80,7 @@ for port in (22, 2222):
     echo "Expect 'inactive' + 'STOPPED forgejo-runner-vm'. Restore:"
     echo "  sudo systemctl restart vdh-runner-nft forgejo-runner-vm && systemctl is-active forgejo-runner-vm" ;;
   rotate)
-    "${K[@]}" -n devtools exec deploy/forgejo -c forgejo -- sh -c \
-      'forgejo actions generate-runner-token --scope vdhict >/dev/null && echo rotated' ;;
+    rotate_org_token ;;
   scope)
     pgq "SELECT r.id, r.name, coalesce(u.lower_name,'-') AS owner, r.repo_id, r.agent_labels, r.version, to_timestamp(r.last_online) FROM action_runner r LEFT JOIN \"user\" u ON u.id=r.owner_id WHERE r.deleted IS NULL ORDER BY r.id" \
         "SELECT t.id, coalesce(u.lower_name,'-'), t.repo_id, t.is_active FROM action_runner_token t LEFT JOIN \"user\" u ON u.id=t.owner_id ORDER BY t.id"
@@ -86,11 +100,11 @@ for port in (22, 2222):
     pgq "SELECT r.id, r.name, r.repo_id, r.last_online, coalesce(r.deleted::text,'-') FROM action_runner r WHERE r.owner_id=$ORG_ID ORDER BY r.id" \
         "SELECT t.id, t.is_active FROM action_runner_token t WHERE t.owner_id=$ORG_ID ORDER BY t.id"
     if (( ! apply )); then
-      echo "# DRY: would (1) forgejo actions generate-runner-token --scope vdhict >/dev/null (Forgejo 15 NewRunnerToken deactivates every older vdhict token, incl. id 1);"
+      echo "# DRY: would (1) rotate the org token: deactivate active vdhict tokens (incl. id 1), then generate-runner-token --scope vdhict >/dev/null;"
       echo "#      (2) UPDATE action_runner SET deleted=<now> WHERE id=1 AND name='forgejo-runner-vdhict' AND last_online=0 AND deleted IS NULL (guarded, exactly 1 row)."
       echo "# re-run with --apply to do it."; exit 0
     fi
-    "${K[@]}" -n devtools exec deploy/forgejo -c forgejo -- sh -c 'forgejo actions generate-runner-token --scope vdhict >/dev/null && echo "token rotated (value discarded)"'
+    rotate_org_token || true
     n=$(pgw "UPDATE action_runner SET deleted = extract(epoch FROM now())::bigint WHERE id=1 AND name='forgejo-runner-vdhict' AND owner_id=$ORG_ID AND last_online=0 AND deleted IS NULL RETURNING id" | grep -c . || true)
     echo "runner id 1 soft-deleted rows: $n (expect 1, or 0 if already deleted)"
     echo "# after (read-back)"
@@ -102,6 +116,15 @@ for port in (22, 2222):
     if [[ "$act" == 1 && "$one" == 0 && "$live1" == 0 ]]; then echo "PREREG PASS: 1 active vdhict token (not id 1), runner id 1 deleted"
     else echo "PREREG FAIL: active=$act id1_active=$one runner1_live=$live1"; exit 1; fi ;;
   waker)
-    /usr/bin/python3 -I "${WAKER:-$HOME/.local/libexec/vdhwslin01-waker/vdhwslin01-waker.py}" --dry-run ;;
+    # C7: a real dry tick of the INSTALLED copy with its own pins (from INSTALLED, written by install-waker.sh).
+    inst="${WAKER_HOME:-$HOME}/.local/libexec/vdhwslin01-waker"
+    [[ -r "$inst/INSTALLED" ]] || { echo "no $inst/INSTALLED: run mini/install-waker.sh <commit> first" >&2; exit 2; }
+    get() { sed -n "s/^$1=//p" "$inst/INSTALLED"; }
+    echo "# installed: commit $(get commit) sha256 $(get sha256) at $(get installed_utc)"
+    echo "# file sha256 now: $(shasum -a 256 "$inst/vdhwslin01-waker.py" | cut -d' ' -f1)"
+    /usr/bin/python3 -I "$inst/vdhwslin01-waker.py" --dry-run --expect-sha256 "$(get sha256)" \
+      --kubectl "$(get kubectl)" --changes-log "$(get changes_log)"; rc=$?
+    echo "# waker dry tick exit code: $rc (0 = self-check passed and a decision was printed; 3 = self-check refused)"
+    exit $rc ;;
   *) sed -n '2,14p' "$0" ;;
 esac

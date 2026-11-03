@@ -140,6 +140,24 @@ cluster.
   + one-resource SA) is designed in `docs/design/vdhwslin01-waker-queue-narrow-route.md`, due within 30 days.
 - **Rollback:** `launchctl bootout gui/$(id -u)/net.vdhict.vdhwslin01-waker`.
 
+## Residuals (written down, not fixed; Argus re-review 2026-11-03)
+
+- **mypka-bot can run code in the job VM.** It has write on 6 vdhict repos (team `mypka-write`), so it can push a
+  workflow and run code as root in the per-job VM. Its credentials live on the Mini and in the cluster. All other
+  writers: evidence 54 (`post-run-checks.sh writers`).
+- **The waker's integrity rests on uid 501.** The waker, its sha256 pin (in the plist and `INSTALLED`) and the plist
+  sit in `$HOME`, writable by the shared uid 501 (Atlas and myPKA). The self-check catches drift and accidents, not a
+  deliberate rewrite by that uid.
+- **The narrow-route deadline counts from the waker's go-live.** The C6 narrow queue route
+  (`docs/design/vdhwslin01-waker-queue-narrow-route.md`) is due 30 days after the waker is LOADED. Record that date in
+  the change log when it happens.
+- **Earlier Argus residuals:**
+  - H2: autologin on team boots, up to 4×/day unattended (owner accepted 2026-10-13).
+  - M2: any HA token can press the WoL button.
+  - The Mini unlock-key line in `/etc/remote-unlock/authorized_keys` lacks `no-port-forwarding,…` (low; owner edit
+    plus `limine-mkinitcpio`).
+- **Open with the owner:** B1 (org secrets) and B5 (passphrase route a/b).
+
 ## Tests
 
 - Offline: `tests/run-all.sh`, which covers shellcheck, build sync, the idle-poweroff unit tests, the remote-unlock

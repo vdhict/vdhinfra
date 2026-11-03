@@ -35,8 +35,10 @@ Larry's only part is to relay Sander's sudo session.
    reads back `PREREG PASS`. Then re-check the writers with `post-run-checks.sh writers` (B3; evidence 54).
 3. **Mint the org registration token straight to a 0600 file on the Mini (C5).**
    - It is never on stdout, and the value never enters a transcript.
-   - Minting a new token deactivates every older org vdhict token, including id 1, which sits in 1P mypka-cluster.
-     That behaviour is in Forgejo 15 `NewRunnerToken`.
+   - `generate-runner-token` RETURNS the active org token (Forgejo 15 `routers/private/actions.go:56-58`); it only
+     creates one when none is active. After step 2 the active token is the fresh, unused one from `prereg`, and old
+     id 1 (whose value sits in 1P mypka-cluster) is inactive. Rotation is always `post-run-checks.sh rotate`
+     (deactivate, then generate).
    ```
    umask 077; mkdir -p ~/.vdh
    kubectl -n devtools exec deploy/forgejo -c forgejo -- forgejo actions generate-runner-token --scope vdhict \
@@ -66,3 +68,11 @@ Larry's only part is to relay Sander's sudo session.
    - `post-run-checks.sh c1 <log>`.
    - Box-only tests: R5 (two jobs back to back) and R6 negatives as workflow jobs.
    - Then re-run run 1 of the VDHICT mobile-app repo.
+
+## Residuals to keep in mind (README "Residuals")
+- mypka-bot (write on 6 vdhict repos) can push a workflow and run code in the job VM.
+- The waker, its pin and its plist sit in `$HOME` under the shared uid 501; the self-check does not stop that uid.
+- The 30-day deadline for the narrow queue route starts when the waker is loaded: log that date.
+- Status 2026-11-03: B2 done (`58-b2-prereg-apply-20261103T134853Z.txt`, PREREG PASS: token id 4 active and unused,
+  id 1 inactive, runner 1 deleted). Step 2 of the order of work is DONE; do not run `prereg --apply` again before
+  registering. Step 3 mints from the now-active token id 4.

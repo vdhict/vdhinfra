@@ -13,13 +13,16 @@
 # - --load: launchctl bootstrap (only after Argus + Hestia's webhook + C8). Without
 #   it nothing is loaded.
 # Rollback: launchctl bootout gui/$(id -u)/net.vdhict.vdhwslin01-waker; move the
-# plist to ~/Library/LaunchAgents.retired/.
+# plist out of ~/Library/LaunchAgents to ~/Library/LaunchAgents.retired/.
 # Paths can be redirected for tests: WAKER_HOME (default $HOME), REPO.
 set -euo pipefail
 commit="${1:?commit on origin/main}"; load=0; [[ "${2:-}" == --load ]] && load=1
 REPO="${REPO:-/Users/sheijden/Code/homelab-migration/vdhinfra}"
 H="${WAKER_HOME:-$HOME}"
-DEST="$H/.local/libexec/vdhwslin01-waker"; PL="$H/Library/LaunchAgents/net.vdhict.vdhwslin01-waker.plist"
+DEST="$H/.local/libexec/vdhwslin01-waker"
+# The plist is generated NEXT TO the waker; it goes into ~/Library/LaunchAgents only with --load,
+# because launchd loads every plist in that folder at the next login (no accidental go-live).
+PL="$DEST/net.vdhict.vdhwslin01-waker.plist"; LA="$H/Library/LaunchAgents/net.vdhict.vdhwslin01-waker.plist"
 SRC=hack/forgejo-runner/vdhwslin01/mini/vdhwslin01-waker.py
 KUBECTL="${KUBECTL:-$(command -v kubectl || true)}"
 CHANGES="$REPO/ops/changes.jsonl"
@@ -32,7 +35,7 @@ full="$(git -C "$REPO" rev-parse --verify "${commit}^{commit}")" || die "unknown
 git -C "$REPO" merge-base --is-ancestor "$full" origin/main || die "$full is not on origin/main; refusing"
 
 umask 022
-mkdir -p "$DEST" "$(dirname "$PL")"
+mkdir -p "$DEST"
 tmp="$DEST/.vdhwslin01-waker.py.new"
 git -C "$REPO" show "${full}:${SRC}" > "$tmp"
 chmod 0555 "$tmp"; mv -f "$tmp" "$DEST/vdhwslin01-waker.py"
@@ -66,8 +69,9 @@ mv -f "$PL.new" "$PL"
 [[ ! -e "$DEST/INSTALLED" ]] || chmod 0644 "$DEST/INSTALLED"
 printf 'commit=%s\nsha256=%s\nkubectl=%s\nchanges_log=%s\ninstalled_utc=%s\n' "$full" "$sha" "$KUBECTL" "$CHANGES" "$(date -u +%FT%TZ)" > "$DEST/INSTALLED"
 chmod 0444 "$DEST/INSTALLED"
-echo "installed $DEST/vdhwslin01-waker.py sha256 $sha from $full; plist $PL (not loaded)"
+echo "installed $DEST/vdhwslin01-waker.py sha256 $sha from $full; plist $PL (not in LaunchAgents, not loaded)"
 if (( load )); then
-  launchctl bootstrap "gui/$(id -u)" "$PL"
+  mkdir -p "$(dirname "$LA")"; cp -f "$PL" "$LA"
+  launchctl bootstrap "gui/$(id -u)" "$LA"
   launchctl print "gui/$(id -u)/net.vdhict.vdhwslin01-waker" | grep -E 'state|run interval' || true
 fi

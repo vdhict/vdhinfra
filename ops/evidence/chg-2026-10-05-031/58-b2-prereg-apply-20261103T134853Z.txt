@@ -1,0 +1,15 @@
+# chg-2026-10-05-031 B2 (Argus) second apply, after fixing the rotation (the first apply left token id 1 active: the CLI returns the active token). Measured start 2026-11-03T13:48:53Z, vdhmini01, context admin@vdhinfra-local. No token value printed.
+# before: vdhict runners (id|name|repo|last_online|deleted) and registration tokens (id|active)
+1 | forgejo-runner-vdhict | 0 | 0 | 1793713696
+1 | t
+deactivated vdhict tokens: 1
+new token generated (value discarded)
+rotation ok: 1 active vdhict token, id 4 > previous max 1
+runner id 1 soft-deleted rows: 0 (expect 1, or 0 if already deleted)
+# after (read-back)
+1 | forgejo-runner-vdhict | 1793713696
+1 | f
+4 | t
+PREREG PASS: 1 active vdhict token (not id 1), runner id 1 deleted
+# exit code: 0
+# end 2026-11-03T13:48:55Z

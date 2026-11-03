@@ -1,0 +1,12 @@
+# chg-2026-10-05-031 B2 (Argus): post-run-checks.sh prereg --apply; measured start 2026-11-03T13:48:15Z, vdhmini01, context admin@vdhinfra-local. No token value is ever printed (generate-runner-token output goes to /dev/null).
+# before: vdhict runners (id|name|repo|last_online|deleted) and registration tokens (id|active)
+1 | forgejo-runner-vdhict | 0 | 0 | -
+1 | t
+token rotated (value discarded)
+runner id 1 soft-deleted rows: 1 (expect 1, or 0 if already deleted)
+# after (read-back)
+1 | forgejo-runner-vdhict | 1793713696
+1 | t
+PREREG FAIL: active=1 id1_active=1 runner1_live=0
+# exit code: 1
+# end 2026-11-03T13:48:16Z
