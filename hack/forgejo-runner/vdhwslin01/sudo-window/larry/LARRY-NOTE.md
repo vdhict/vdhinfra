@@ -1,45 +1,68 @@
-# Larry: vdhwslin01 remote provisioning through the sudo window
+# vdhwslin01 remote provisioning through the sudo window (revised 2026-11-03)
 
-Change chg-2026-10-05-031; conditions C1–C8 from Argus's verdict of 2026-10-13T21:52:27Z.
+Change chg-2026-10-05-031. The conditions are C1–C8 from Argus's verdict of 2026-10-13T21:52:27Z, plus the delta
+D1–D6 (`ops/evidence/chg-2026-10-05-031/51-argus-delta-packet-*.md`).
+
+Since 2026-10-27 **the Mini drives this, not the MacBook**:
+- `ssh vdhwslin01` works as agent from the Mini (key `from=172.16.2.201`, pinned host key);
+- `/usr/bin/expect` exists on the Mini.
+
+Larry's only part is to relay Sander's sudo session.
 
 ## Not part of this window
-- **No LUKS passphrase file**, in any form (Argus R1: rejected). If one exists, Sander deletes it himself.
-- **The controller keyslot is deferred.** Later, Sander types it at `/dev/tty` himself, with the controller passphrase from the sanctioned pipe.
-- **The wrapper never runs the keyslot step.** Its `--steps` list is fixed and leaves keyslot out.
+- **No new LUKS keyslot.**
+  - The wrapper's `--steps` list leaves keyslot out.
+  - The default step list leaves it out too.
+- **The waker unlocks with the existing passphrase file** on the Mini (chg-2026-10-21-003), over the remote-unlock dropbear.
 
 ## Order of work
-1. **Sander opens the window** at the box, as himself: `bash install-window.sh` in the folder with the four files (see the bundle). It checks `agent` has no wheel/sudo, verifies every hash, runs `visudo -cf`, installs the 0440 drop-in, and starts a 3 h backstop that removes the drop-in.
-2. **Mint the registration token straight to a 0600 file** (C5). The API reply goes to disk with `curl -o`, never to stdout. Your API credential comes from a header file, so it never sits on argv either.
+1. **Sander, one sudo session on the box (as himself, over ssh or at the console):**
    ```
-   umask 077; mkdir -p ~/.vdh && cd ~/.vdh
-   # api-auth.hdr (0600) holds one line: "Authorization: token <a short-lived mypka-bot token,
-   #   repository-restricted to mypka-bot/passkey-point-dotnet, scope write:repository>"
-   curl -sS -o regtoken.json -H @api-auth.hdr \
-     https://forge.bluejungle.net/api/v1/repos/mypka-bot/passkey-point-dotnet/actions/runners/registration-token
-   python3 -c 'import json,os; t=json.load(open("regtoken.json"))["token"]; fd=os.open("regtoken",os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600); os.write(fd,t.encode()); os.close(fd)'
+   sudo pacman -S --needed podman              # chg-2026-11-03-001 (Argus: distro package, no docker group)
+   bash install-window.sh                      # in the folder with provision.sh, vdh-provision-tonight,
+                                               # 90-agent-provision, install-window.sh (hashes pinned inside)
    ```
-   - Never widen token 31 (the waker's: read:repository, one repo) for this.
-   - Delete the short-lived API token afterwards and read back 404 on it.
-3. **Drive the wrapper with expect.** The token is read inside the script, `log_user 0` is set around `send`, there is no `-d`/`exp_internal`/`log_file`, and ssh runs with `-t`:
+   `install-window.sh` does the following:
+   - checks that agent has no wheel/sudo;
+   - verifies every hash;
+   - runs `visudo -cf`;
+   - installs root-owned copies and the 0440 drop-in;
+   - starts a 3 h backstop that removes the drop-in.
+
+   That is all Sander types.
+2. **B2, before minting:** run `post-run-checks.sh prereg` (dry: plan + read-back), then
+   `post-run-checks.sh prereg --apply`. It rotates the org token (id 1 dies) and soft-deletes stale runner id 1, then
+   reads back `PREREG PASS`. Then re-check the writers with `post-run-checks.sh writers` (B3; evidence 54).
+3. **Mint the org registration token straight to a 0600 file on the Mini (C5).**
+   - It is never on stdout, and the value never enters a transcript.
+   - Minting a new token deactivates every older org vdhict token, including id 1, which sits in 1P mypka-cluster.
+     That behaviour is in Forgejo 15 `NewRunnerToken`.
+   ```
+   umask 077; mkdir -p ~/.vdh
+   kubectl -n devtools exec deploy/forgejo -c forgejo -- forgejo actions generate-runner-token --scope vdhict \
+     > ~/.vdh/regtoken-vdhict
+   stat -f '%Lp %z' ~/.vdh/regtoken-vdhict      # expect 600 and a non-zero size; never cat it
+   ```
+4. **Drive the wrapper with expect, from the Mini.**
+   - The token is read inside the script.
+   - `log_user 0` is set around `send`.
    ```
    expect provision-expect.exp dry
-   expect provision-expect.exp real ~/.vdh/regtoken
+   expect provision-expect.exp real ~/.vdh/regtoken-vdhict
    expect provision-expect.exp c4
    ```
    - **C8:** if `real` exits non-zero, run `expect provision-expect.exp uninstall`.
-   - Do NOT reboot the box. Console unlock is unchanged, and the initramfs step dies before the boot path changes if the image check fails.
-4. **Close the window in the same session** (C4):
-   - `expect provision-expect.exp revoke`. Its output is the root-side read-back: the drop-in is gone and `/etc/sudoers.d` is listed.
-   - Then, as agent on the box: `bash verify-revoked.sh`. It writes the write-once evidence file `vdhwslin01-sudo-revoked-<ts>.txt`; copy that file to Atlas.
-5. **Sweep, count-only** (C7). This prints counts, never matches. Expect a total of 0, then delete the token files.
-   ```
-   bash sweep-count.sh ~/.vdh/regtoken <Larry session jsonl dir> ~/.zsh_history <captured expect output>
-   ```
-   - The on-box part (`journalctl -b`, `/var/log/vdh-runner-initramfs-*.log`, `/var/log/vdh-provision-*.log`) needs root. Sander runs it, or it goes in the next window.
-6. **R7:** Heph rotates the registration token from the Mini right after the run: `post-run-checks.sh rotate` (nothing printed).
-
-## Tested on 2026-10-14 (on the Mini, fake ssh)
-- The token arrives intact.
-- The token appears 0 times in the captured output.
-- The sweep counts a planted leak as 1.
-- It refuses a token file that is not 0600, and a bad mode.
+   - Do NOT reboot the box. The first team wake proves the new initramfs, and console unlock is unchanged.
+5. **Close the window in the same session (C4):**
+   - `expect provision-expect.exp revoke`;
+   - then `ssh vdhwslin01 'bash -s' < ../verify-revoked.sh` writes the write-once read-back.
+6. **Rotate (R7) and sweep (C7):**
+   - `post-run-checks.sh rotate` creates a fresh org token and deactivates the used one. Nothing is printed.
+   - `sweep-count.sh ~/.vdh/regtoken-vdhict <Atlas session jsonl dir> <captured expect output>` must give total 0.
+   - Then move the token file to the scratchpad.
+7. **Read back:**
+   - `post-run-checks.sh scope`: runner vdhwslin01 with owner vdhict, repo 0, labels docker and x86-linux.
+   - Delete the stale runner id 1 `forgejo-runner-vdhict`, which never came online.
+   - `post-run-checks.sh c1 <log>`.
+   - Box-only tests: R5 (two jobs back to back) and R6 negatives as workflow jobs.
+   - Then re-run run 1 of the VDHICT mobile-app repo.

@@ -1,5 +1,5 @@
 #!/usr/bin/expect -f
-# Larry's MacBook: drive the vdhwslin01 provisioning wrapper over ssh
+# The Mini (since 2026-11-03; was Larry's MacBook): drive the vdhwslin01 provisioning wrapper over ssh
 # (chg-2026-10-05-031, Argus 2026-10-13T21:52:27Z C6).
 #
 #   expect provision-expect.exp <dry|real|c4|uninstall|revoke> [<0600 token file>]

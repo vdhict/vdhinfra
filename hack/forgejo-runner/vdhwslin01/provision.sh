@@ -12,8 +12,8 @@
 # - The box stays Sander's workstation on CLIENT-VLAN. CI isolation is
 #   enforced ON THE HOST (KVM VM per job + nftables), not by LAB-VLAN 60.
 #   This is a recorded deviation from Argus R4/R6 for Argus.
-# - Only own-team repos (registration scope = the token's scope; first
-#   mypka-bot/passkey-point-dotnet), no secrets, no client data on the box.
+# - Registration scope = the token's scope: org VDHICT (owner 2026-11-03 via
+#   Larry, reopening this change; Argus delta D1). No client data on the box.
 # - Argus H2 (autologin opens the desktop on a team boot): OWNER RISK
 #   ACCEPTANCE, Sander 2026-10-13 (machine is in his own office, low risk).
 #   Autologin stays, and there is NO screen-lock hook. /run/team-boot is
@@ -21,7 +21,7 @@
 #
 # What it sets up:
 #   user `runner` (system, nologin, no sudo, groups: kvm)
-#   forgejo-runner v13.2.0 vendor binary, sha256-pinned
+#   forgejo-runner v13.2.1 vendor binary, sha256-pinned
 #   qemu/KVM (qemu-base). libvirt is deliberately NOT used: qemu:///system
 #     would make `runner` root-equivalent; qemu runs unprivileged as runner.
 #   golden VM: Debian 13 cloud image (sha512-pinned) + docker, built once,
@@ -32,7 +32,7 @@
 #     stays on the host, 0600) against the VM's dockerd over an ssh-forwarded
 #     socket; one job per VM.
 #   nftables table inet vdh_runner (on top of the existing firewall):
-#     inbound 22/2222 only from the cluster nodes, the Mini and Sander's
+#     inbound 22/2222 only from the Mini (the waker) and Sander's
 #     MacBook (LAN + WireGuard peer, + --allow-ssh-from);
 #     everything uid `runner` (qemu/VMs and the runner) sends: only tcp
 #     80/443 to public addresses, tcp 443 to envoy-forge, DNS via the host
@@ -44,15 +44,14 @@
 #     uptime >= 2 h. Never a boot Sander started.
 #   initramfs: controller's dropbear PUBLIC key + the vdh-teamboot wrapper
 #     (marks ssh-unlocked boots as team boots); rebuilds the initramfs.
-#   LUKS: a separate keyslot for the controller, passphrase read from stdin
-#     (or a hidden prompt), never written to disk. Revoke: luksKillSlot.
+#   LUKS: NOT by default (2026-11-03). The Mini waker unlocks with the existing
+#     passphrase over the remote-unlock dropbear. The old controller keyslot
+#     step stays available only via --steps ...,keyslot.
 #
-# Usage (as root):
-#   <controller passphrase on stdin, see the bundle> | \
+# Usage (as root; normally via the sudo-window wrapper vdh-provision-tonight):
 #   sudo ./provision.sh --forge-url https://forge.<domain> \
 #     --envoy-forge-ip 172.16.2.251 --reg-token - \
-#     --controller-pubkey 'ssh-ed25519 AAAA... vdhwslin01-waker'
-#   Without a pipe it asks for the passphrase with a hidden prompt.
+#     --controller-pubkey '<the Mini's vdhwslin01_unlock_mini public key>'
 #   --reg-token -   asks for the one-time registration token (hidden prompt).
 #   --dry-run       detect and print the plan, change nothing.
 #   --steps a,b     run only these steps (see STEPS below).
@@ -61,18 +60,25 @@
 set -euo pipefail
 umask 022
 
-RUNNER_VERSION=13.2.0
+RUNNER_VERSION=13.2.1
 RUNNER_URL="https://code.forgejo.org/forgejo/runner/releases/download/v${RUNNER_VERSION}/forgejo-runner-${RUNNER_VERSION}-linux-amd64"
-RUNNER_SHA256=fadaec897f5e6641c363f87ecaf75f866f99c81b7097ec6b433e4c48123fcad1
-BASE_NAME=debian-13-genericcloud-amd64-20261001-2618.qcow2
-BASE_URL="https://cloud.debian.org/images/cloud/trixie/20261001-2618/${BASE_NAME}"
-BASE_SHA512=f46f0671a6e5bdec5291ab8972bae2f10e5408c2f64a74078f11efc2f06a436a9d0313ed50e0472542eeabf780e9f7c792ac0a314c6c20507fcd9fd81b468c3d
+RUNNER_SHA256=bb369fe1ecb50fdc983c0b1d993f19b0920df6e5864511892b3cdbf16d858b34
+BASE_NAME=debian-13-genericcloud-amd64-20261026-2643.qcow2
+BASE_URL="https://cloud.debian.org/images/cloud/trixie/20261026-2643/${BASE_NAME}"
+BASE_SHA512=3ace18e33bdd036edb49d1f79342bd01d2ab980e35194edb0b410435cd543538d286a0bd13bbb0835f7862306e3d385ce2f6a70d8ecf0bd961111166adbc1b8e
 RUNNER_NAME=vdhwslin01
-RUNNER_LABELS="docker:docker://node:24-bookworm,x86-linux:docker://node:24-bookworm"
+# Job image pinned by digest (OCI index of node:24-bookworm, measured 2026-11-03; Argus D4).
+# The golden VM pre-pulls the same reference (src/vm-golden-build.sh).
+JOB_IMAGE="node:24-bookworm@sha256:e7add2a490bb17d97b485b8641bd88455fff7839ade0f5eba493c3508124d413"
+RUNNER_LABELS="docker:docker://${JOB_IMAGE},x86-linux:docker://${JOB_IMAGE}"
+# Registration scope = the scope of the registration token: org VDHICT only
+# (owner 2026-11-03 via Larry; Argus D1). Never also register mypka-bot here (A3).
+RUNNER_SCOPE=vdhict
 KEY_COMMENT=vdhwslin01-waker
 # Inbound 22/2222 allow-list (host addresses only, never subnets):
-#   cluster worker nodes (controller CronJob egress is SNATed to these) + the Mini
-SSH_ALLOW_CLUSTER=(172.16.2.81 172.16.2.82 172.16.2.83 172.16.2.201)
+#   the Mini, where the waker runs (2026-11-03: no cluster component any more,
+#   so the worker nodes .81-.83 are NOT allowed; Argus D5)
+SSH_ALLOW_MINI=(172.16.2.201)
 #   Sander's MacBook, where the agent access lives (SOP-023): Wi-Fi + wired,
 #   both DHCP-reserved (Larry/Atlas 2026-10-13)
 SSH_ALLOW_MACBOOK=(172.16.3.108 172.16.3.23)
@@ -80,13 +86,20 @@ SSH_ALLOW_MACBOOK=(172.16.3.108 172.16.3.23)
 #   IPs only, never the server subnets 192.168.12.0/24 / 192.168.4.0/24.
 #   192.168.12.6 = VDHNGFW peer "Macbook", 192.168.4.6 = VDHVPN02 peer "MacBook Sander".
 SSH_ALLOW_MACBOOK_WG_PEERS=(192.168.12.6 192.168.4.6)
-SSH_ALLOW=("${SSH_ALLOW_CLUSTER[@]}" "${SSH_ALLOW_MACBOOK[@]}" "${SSH_ALLOW_MACBOOK_WG_PEERS[@]}")
+SSH_ALLOW=("${SSH_ALLOW_MINI[@]}" "${SSH_ALLOW_MACBOOK[@]}" "${SSH_ALLOW_MACBOOK_WG_PEERS[@]}")
 BOX_IP=172.16.3.205
 UNLOCK_PORT=2222
 STEPS_ALL=(preflight packages user binary payload vmkey firewall golden register services initramfs keyslot report)
+# Default run: everything except keyslot. The Mini waker unlocks with the existing
+# passphrase over the remote-unlock dropbear (chg-2026-10-21-003), so no extra
+# LUKS keyslot is added unless someone asks for it with --steps (Argus D2).
+STEPS_DEFAULT=(preflight packages user binary payload vmkey firewall golden register services initramfs report)
 
 FORGE_URL=""; FORGE_HOST=""; ENVOY_FORGE_IP=""; REG_TOKEN=""; CTRL_PUBKEY=""
 LUKS_DEV=""; DRY=0; UNINSTALL=0; REBUILD_GOLDEN=0; STEPS=()
+REMOTE_UNLOCK_DIR=${REMOTE_UNLOCK_DIR:-/etc/remote-unlock}   # env override is for tests/remote-unlock.test.sh
+REMOTE_UNLOCK_BACKUP_DIR=${REMOTE_UNLOCK_BACKUP_DIR:-/var/backups/vdh-runner}
+REMOTE_UNLOCK_HOSTKEY=${REMOTE_UNLOCK_DIR}/dropbear_ed25519_host_key
 INITRD_SSHD=""; INITRD_KEYFILE=""; DNS_STUB=0; DNS_SERVERS=()
 
 say()  { echo "==> $*"; }
@@ -165,7 +178,7 @@ parse_args() {
     done
     want_step preflight || STEPS=(preflight "${STEPS[@]}")
   else
-    STEPS=("${STEPS_ALL[@]}")
+    STEPS=("${STEPS_DEFAULT[@]}")
   fi
 }
 
@@ -336,7 +349,7 @@ while true; do
 done
 VDH_PAYLOAD_EOF
 }
-# --- from src/vm-golden-build.sh (sha256 2a4eef0457a026b3)
+# --- from src/vm-golden-build.sh (sha256 afe18f8f2abd9af6)
 payload_vm_golden_build() {
 cat <<'VDH_PAYLOAD_EOF'
 #!/usr/bin/env bash
@@ -398,7 +411,8 @@ runcmd:
   - [systemd-tmpfiles, --create, /etc/tmpfiles.d/forgejo-runner.conf]
   - [systemctl, daemon-reload]
   - [systemctl, enable, --now, docker]
-  - [docker, pull, node:24-bookworm]
+  # same digest as JOB_IMAGE in provision.in.sh (tests/run-all.sh checks they match)
+  - [docker, pull, "node:24-bookworm@sha256:e7add2a490bb17d97b485b8641bd88455fff7839ade0f5eba493c3508124d413"]
   - [touch, /etc/cloud/cloud-init.disabled]
   - [fstrim, -av]
 power_state:
@@ -744,7 +758,7 @@ HELPEOF
 }
 VDH_PAYLOAD_EOF
 }
-# --- from src/forgejo-runner-vm.service (sha256 ae80639fca6b6bbc)
+# --- from src/forgejo-runner-vm.service (sha256 cbd472671d63243b)
 payload_forgejo_runner_vm_service() {
 cat <<'VDH_PAYLOAD_EOF'
 # vdhwslin01 (chg-2026-10-05-031): forgejo-runner, one job per throwaway KVM VM.
@@ -772,6 +786,9 @@ RuntimeDirectoryMode=0755
 # own /etc/hosts and resolver order stay untouched.
 BindReadOnlyPaths=/etc/vdh-runner/hosts:/etc/hosts /etc/vdh-runner/nsswitch.conf:/etc/nsswitch.conf
 # Sandbox: no access to /home, /root, /run/user (Sander's session and files).
+# D6: never Sander's own container daemons (host dockerd/podman sockets), even
+# if a group slipped in ("-" = ignore when absent).
+InaccessiblePaths=-/run/docker.sock -/var/run/docker.sock -/run/docker -/run/podman -/run/containerd
 ProtectHome=yes
 # F4: Sander's processes (and their command lines) are invisible.
 ProtectProc=invisible
@@ -894,13 +911,26 @@ detect_initramfs() {
     fi
     die "no encryptssh hook in HOOKS; how is the dropbear unlock on ${UNLOCK_PORT} built? Tell Heph (send the HOOKS line above)."
   fi
+  local n_ssh=0
+  [[ "$hooks" == *" dropbear "* ]] && n_ssh=$((n_ssh + 1))
+  [[ "$hooks" == *" tinyssh "* ]] && n_ssh=$((n_ssh + 1))
+  [[ "$hooks" == *" remote-unlock "* ]] && n_ssh=$((n_ssh + 1))
+  (( n_ssh <= 1 )) || die "more than one ssh unlock hook (dropbear/tinyssh/remote-unlock) in HOOKS; ambiguous, refusing. Tell Heph (send the HOOKS line above)."
   if [[ "$hooks" == *" dropbear "* ]]; then
     INITRD_SSHD=dropbear; INITRD_KEYFILE=/etc/dropbear/root_key
   elif [[ "$hooks" == *" tinyssh "* ]]; then
     INITRD_SSHD=tinyssh; INITRD_KEYFILE=/etc/tinyssh/root_key
+  elif [[ "$hooks" == *" remote-unlock "* ]]; then
+    # Custom hook (Omarchy box): its inputs live in /etc/remote-unlock and are
+    # copied into the image at build (authorized_keys -> /root/.ssh, host key ->
+    # /etc/dropbear). We only ever append to authorized_keys; the hook files are not touched.
+    INITRD_SSHD=remote-unlock; INITRD_KEYFILE=${REMOTE_UNLOCK_DIR}/authorized_keys
+    [[ -s "$REMOTE_UNLOCK_HOSTKEY" ]] || die "$REMOTE_UNLOCK_HOSTKEY is missing or empty (needed for the host-key pin); refusing"
+    command -v dropbearkey >/dev/null || die "dropbearkey not found (needed to derive the unlock host key); refusing"
   else
-    die "encryptssh found but no dropbear/tinyssh hook"
+    die "encryptssh found but no dropbear/tinyssh/remote-unlock hook"
   fi
+  [[ ! -L "$INITRD_KEYFILE" && -f "$INITRD_KEYFILE" ]] || die "$INITRD_KEYFILE is not a regular file; refusing"
   [[ -s "$INITRD_KEYFILE" ]] || die "$INITRD_KEYFILE is missing or empty (expected Sander's existing unlock key)"
   info "initramfs ssh: ${INITRD_SSHD}, authorized keys: ${INITRD_KEYFILE}"
 }
@@ -943,7 +973,7 @@ step_preflight() {
   want_step firewall && detect_dns
   info "steps: ${STEPS[*]}"
   info "inbound 22/${UNLOCK_PORT} will be allowed only from: ${SSH_ALLOW[*]}"
-  (( ${#SSH_ALLOW_MACBOOK_WG_PEERS[@]} )) || [[ ${#SSH_ALLOW[@]} -gt $(( ${#SSH_ALLOW_CLUSTER[@]} + ${#SSH_ALLOW_MACBOOK[@]} )) ]] \
+  (( ${#SSH_ALLOW_MACBOOK_WG_PEERS[@]} )) || [[ ${#SSH_ALLOW[@]} -gt $(( ${#SSH_ALLOW_MINI[@]} + ${#SSH_ALLOW_MACBOOK[@]} )) ]] \
     || warn "no MacBook WireGuard peer IP set: ssh over WireGuard will be dropped; add --allow-ssh-from <peer-ip>"
   info "ssh from any other machine will be dropped; add --allow-ssh-from <ip> for each one you use"
 }
@@ -968,8 +998,14 @@ step_user() {
   if (( ! DRY )); then
     local g; g=" $(id -nG runner) "
     [[ "$g" != *" wheel "* && "$g" != *" sudo "* ]] || die "runner is in wheel/sudo; refusing"
+    # D6 (2026-11-03): the host now runs Sander's own dockerd (socket-activated,
+    # /run/docker.sock root:docker 0660). Group docker = root on the host, so
+    # runner must never be in it; nor in libvirt. Groups must be exactly runner + kvm.
+    [[ "$g" != *" docker "* && "$g" != *" libvirt "* ]] || die "runner is in docker/libvirt (root-equivalent); refusing"
+    [[ "$(id -nG runner | tr ' ' '\n' | sort | tr '\n' ' ')" == "kvm runner " ]] \
+      || die "runner groups are not exactly 'runner kvm' (have:${g}); refusing"
     if command -v sudo >/dev/null && sudo -l -U runner 2>/dev/null | grep -q 'may run'; then die "runner has sudo rights; refusing"; fi
-    info "runner groups:${g}(no wheel/sudo)"
+    info "runner groups:${g}(exactly runner+kvm; no wheel/sudo/docker/libvirt)"
   fi
   # The home dir is created by useradd (fresh, as root, in root-owned /var/lib).
   if (( ! DRY )); then
@@ -1260,7 +1296,9 @@ initramfs_rebuild() {
 print_initrd_hostkeys() {
   echo "    controller known_hosts lines (PUBLIC host keys of the ${INITRD_SSHD} unlock server):"
   local f
-  if [[ "$INITRD_SSHD" == dropbear ]]; then
+  if [[ "$INITRD_SSHD" == remote-unlock ]]; then
+    dropbearkey -y -f "$REMOTE_UNLOCK_HOSTKEY" | awk -v h="[${BOX_IP}]:${UNLOCK_PORT}" '/^(ssh-|ecdsa-)/{print "    " h " " $1 " " $2}'
+  elif [[ "$INITRD_SSHD" == dropbear ]]; then
     for f in /etc/dropbear/dropbear_ed25519_host_key /etc/dropbear/dropbear_ecdsa_host_key /etc/dropbear/dropbear_rsa_host_key; do
       [[ -s "$f" ]] || continue
       dropbearkey -y -f "$f" | awk -v h="[${BOX_IP}]:${UNLOCK_PORT}" '/^(ssh-|ecdsa-)/{print "    " h " " $1 " " $2}'
@@ -1276,12 +1314,28 @@ step_initramfs() {
   say "initramfs: controller unlock key + team-boot marker"
   local blob opts line
   blob="$(awk '{print $2}' <<<"$CTRL_PUBKEY")"
-  opts=""; [[ "$INITRD_SSHD" == dropbear ]] && opts="no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty "
+  opts=""; [[ "$INITRD_SSHD" == dropbear || "$INITRD_SSHD" == remote-unlock ]] && opts="no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty "
   line="${opts}ssh-ed25519 ${blob} ${KEY_COMMENT}"
   if grep -qF "$blob" "$INITRD_KEYFILE"; then info "controller key already in $INITRD_KEYFILE"
   else
-    [[ -f "${INITRD_KEYFILE}.vdh-orig" ]] || run cp -a "$INITRD_KEYFILE" "${INITRD_KEYFILE}.vdh-orig"
-    { cat "$INITRD_KEYFILE"; echo "$line"; } | write_file "$INITRD_KEYFILE" 0600 root:root
+    # keep the file's own mode/owner (never widen or change who can read the unlock key)
+    local kmode kowner; kmode="$(stat -c '%a' "$INITRD_KEYFILE")"; kowner="$(stat -c '%U:%G' "$INITRD_KEYFILE")"
+    # the backup of the existing unlock keys: next to the file, except for remote-unlock
+    # whose directory is a hook input (keep it free of extra files)
+    local bak="${INITRD_KEYFILE}.vdh-orig"
+    [[ "$INITRD_SSHD" == remote-unlock ]] && bak=${REMOTE_UNLOCK_BACKUP_DIR}/remote-unlock-authorized_keys.vdh-orig
+    if [[ ! -f "$bak" ]]; then
+      run install -d -m 0700 -o root -g root "$(dirname "$bak")"
+      run cp -a "$INITRD_KEYFILE" "$bak"
+    fi
+    { cat "$INITRD_KEYFILE"; [[ -n "$(tail -c1 "$INITRD_KEYFILE")" ]] && echo; echo "$line"; } | write_file "$INITRD_KEYFILE" "$kmode" "$kowner"
+    if (( ! DRY )); then
+      # fail closed: every key that was there before must still be there, plus ours
+      if ! grep -qF "$blob" "$INITRD_KEYFILE" || [[ -n "$(comm -23 <(sort "$bak") <(sort "$INITRD_KEYFILE"))" ]]; then
+        cp -a "$bak" "$INITRD_KEYFILE"
+        die "post-check: $INITRD_KEYFILE lost a key; restored from $bak, nothing else changed"
+      fi
+    fi
   fi
   payload_initcpio_install_vdh_teamboot | write_file /etc/initcpio/install/vdh-teamboot 0644 root:root
   if [[ " $(effective_hooks) " == *" vdh-teamboot "* ]]; then info "vdh-teamboot already in HOOKS"
@@ -1333,6 +1387,8 @@ step_report() {
   info "forgejo-runner: $(/usr/local/bin/forgejo-runner --version 2>/dev/null || echo missing)"
   info "golden sha256: $(cat /etc/vdh-runner/golden.sha256 2>/dev/null || echo missing)"
   info "runner registered: $([[ -s /var/lib/forgejo-runner/.runner ]] && echo yes || echo no)"
+  info "registration scope expected: org ${RUNNER_SCOPE} (Atlas verifies owner/repo of the runner on the forge)"
+  info "job image: ${JOB_IMAGE}"
   info "luks keyslot: $(cat /etc/vdh-runner/luks-keyslot 2>/dev/null || echo none)"
   local u; for u in vdh-runner-nft.service vdh-runner-nft-guard.timer forgejo-runner-vm.service idle-poweroff.timer vdh-teamboot-record.service; do
     info "$u: $(systemctl is-enabled "$u" 2>/dev/null || true)/$(systemctl is-active "$u" 2>/dev/null || true)"
@@ -1347,9 +1403,9 @@ uninstall() {
   (( DRY )) || (( EUID == 0 )) || die "run with sudo"
   run systemctl disable --now vdh-runner-nft-guard.timer forgejo-runner-vm.service idle-poweroff.timer vdh-teamboot-record.service vdh-runner-nft.service || true
   local kf
-  for kf in /etc/dropbear/root_key /etc/tinyssh/root_key; do
+  for kf in /etc/dropbear/root_key /etc/tinyssh/root_key "${REMOTE_UNLOCK_DIR}/authorized_keys"; do
     if ! { [[ -f "$kf" ]] && grep -q " ${KEY_COMMENT}\$" "$kf"; }; then continue; fi
-    grep -v " ${KEY_COMMENT}\$" "$kf" | write_file "$kf" 0600 root:root
+    grep -v " ${KEY_COMMENT}\$" "$kf" | write_file "$kf" "$(stat -c '%a' "$kf")" "$(stat -c '%U:%G' "$kf")"
   done
   run rm -f -- /etc/mkinitcpio.conf.d/zz-vdh-teamboot.conf /etc/initcpio/install/vdh-teamboot
   if command -v mkinitcpio >/dev/null; then

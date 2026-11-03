@@ -9,17 +9,21 @@
 # /usr/local/sbin/vdh-provision.sh, then runs it with FIXED arguments: no
 # argument from the caller ever reaches provision.sh. No keyslot step (the
 # owner's LUKS passphrase is never involved; Argus R1).
+# 2026-11-03 revive: --controller-pubkey is the Mini's existing unlock key
+# (vdhwslin01_unlock_mini, added by the owner 2026-10-27), so the initramfs
+# step finds it present and appends nothing; org VDHICT scope comes from the
+# registration token (Argus D1/D2).
 set -euo pipefail
 umask 077
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
 PROV=/usr/local/sbin/vdh-provision.sh
-PROV_SHA256=ad0304513bbff75f0d6c71bd4afc065e75078660faeb0d0dc53ea1b5eee6de38
+PROV_SHA256=8420c0727d83011f6bef6221b99b3829f6768c4e3452e7b0ee82e93ac72591b5
 DROPIN=/etc/sudoers.d/90-agent-provision
 # shellcheck disable=SC2054  # the --steps value is one comma-separated word
 ARGS=(--forge-url https://forge.bluejungle.net
       --envoy-forge-ip 172.16.2.251
       --reg-token -
-      --controller-pubkey 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEkF3ELErsUQ2/sByTETPVGD9ouNXVn1V2rMVYOvJ/4l vdhwslin01-waker'
+      --controller-pubkey 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILm7XDmbXX9ndqbiA8+ab2VkMMn1Kv4wkQVhUFxp3tFC vdhwslin01_unlock_mini@vdhmini01-20261027'
       --steps preflight,packages,user,binary,payload,vmkey,firewall,golden,register,services,initramfs,report)
 
 die() { echo "vdh-provision-tonight: $*" >&2; exit 2; }

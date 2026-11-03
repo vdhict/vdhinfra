@@ -1,0 +1,106 @@
+# chg-2026-10-05-031 revive: hack/forgejo-runner/vdhwslin01/tests/run-all.sh on vdhmini01, 2026-11-03T13:30:33Z, shellcheck 0.11.0, /usr/bin/python3 3.9.6 + python3 3.15.2
+== shellcheck
+== provision.sh in sync with sources
+provision.sh is in sync
+== bash -n on every shell file
+== idle-poweroff unit tests
+ok   all conditions hold -> poweroff
+ok   poweroff respects inhibitors
+ok   Sander boot (no marker) -> keep
+ok   marker from another boot -> keep
+ok   marker not team -> keep
+ok   uptime < 2h -> keep
+ok   job running -> keep
+ok   last job 30 min ago -> keep
+ok   no job this boot, all idle -> poweroff
+ok   seat0 IdleHint=no -> keep
+ok   seat0 idle 30 min -> keep
+ok   Sander ssh session active -> keep
+ok   greeter session ignored -> poweroff
+ok   logind unreadable -> keep
+ok   unreadable uptime -> keep
+ok   unreadable last-job-end -> keep
+ok   symlink in runner-owned /run/forgejo-runner -> keep
+ok   test seam inert without VDH_IDLE_TEST=1
+idle-poweroff tests: 18 passed, 0 failed
+== sudo-window: install-window.sh pins in sync
+install-window.sh pins in sync
+== remote-unlock hook fixture tests
+== 1 remote-unlock accepted
+ok   1 exit 0
+ok   1 detects remote-unlock + key path
+== 2 neither hook -> refuse (encryptssh only)
+ok   2 refuses
+ok   2 says no dropbear/tinyssh/remote-unlock hook
+== 3 refusals around remote-unlock
+ok   3a host key missing -> refuse
+ok   3b authorized_keys missing -> refuse
+ok   3c authorized_keys empty -> refuse
+ok   3d two ssh hooks (ambiguous) -> refuse
+== 4 key appended, idempotent, existing keys preserved, mode kept
+ok   4 exit 0
+ok   4 controller key present exactly once
+ok   4 restricted options on controller line
+ok   4 existing keys preserved byte-identical (first 2 lines)
+ok   4 file mode preserved 640
+ok   4 backup of the original taken, equals original
+ok   4 no extra file in the hook input dir
+ok   4 initramfs rebuilt via the script's own function
+ok   4 host key line derived (known_hosts format)
+ok   4 hook input files untouched
+== 5 no trailing newline in existing file: keys not glued together
+ok   5 exit 0
+ok   5 sander line intact on its own line
+ok   5 two lines
+== 6 post-check restores on key loss
+ok   6 refuses
+ok   6 original key restored
+== 7 uninstall removes only our line
+ok   7 controller line gone
+ok   7 both original keys remain
+== 8 the box as measured 2026-11-03 + the Mini unlock key already present (owner, 27-10)
+ok   8 exit 0
+ok   8 order check passes on the real line + appended vdh-teamboot (after encryptssh, after resume)
+ok   8 detects remote-unlock on the real HOOKS line
+ok   8 key already present -> said so
+ok   8 authorized_keys byte-identical (nothing appended)
+ok   8 no backup needed, none taken
+ok   8 uninstall leaves the owner-added Mini key alone
+RESULT: pass=32 fail=0
+== D6 runner group refusal
+ok   runner kvm accepted
+ok   kvm runner (order) accepted
+ok   docker refused
+ok   libvirt refused
+ok   wheel refused
+ok   extra group (video) refused
+ok   missing kvm refused
+RESULT: pass=7 fail=0
+== nft-guard unit tests
+ok   check passes with the full table
+ok   guard leaves a running runner alone when the table is fine
+ok   check fails when the table is gone
+ok   guard STOPS the runner when the table is gone
+ok   guard says why
+ok   check fails on a flushed (empty-chain) table
+ok   guard stops the runner on a flushed table
+ok   check fails when the IPv6 drop is missing
+ok   check fails when the final catch-all drop is gone
+ok   guard does not call stop when the runner is already stopped
+ok   test seam inert without VDH_GUARD_TEST=1 (real nft absent/denied -> check fails)
+nft-guard tests: 11 passed, 0 failed
+== Mini waker unit tests (macOS /usr/bin/python3 3.9 = what launchd runs, and python3)
+....................................
+----------------------------------------------------------------------
+Ran 36 tests in 0.001s
+
+OK
+....................................
+----------------------------------------------------------------------
+Ran 36 tests in 0.001s
+
+OK
+== revive invariants (2026-11-03, Argus D4/D5)
+ok   job image pinned + golden matches, no .81-.83, scope vdhict, wrapper without keyslot
+== no secrets / client names in the bundle
+ALL GREEN

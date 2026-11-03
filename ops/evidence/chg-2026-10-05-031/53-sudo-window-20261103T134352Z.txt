@@ -1,0 +1,96 @@
+# chg-2026-10-05-031 tests/sudo-window-container.sh in throwaway pod; 2026-11-03T13:43:52Z; runner: vdhmini01
+# namespace vdhwslin01-test-sudo-20261103t134352z (PSA enforce=baseline), image docker.io/library/archlinux:base@sha256:ece6c971fec3c532fd508bce299a446deaf469feecbfe7c353e995bc1a5e7bba, capabilities {"drop": []}, activeDeadlineSeconds 1800
+# bundle provision.sh sha256 8420c0727d83011f6bef6221b99b3829f6768c4e3452e7b0ee82e93ac72591b5
+# node: vdhclu01node02, kernel: 6.18.18-talos
+== setup
+ok   S0 wrapper pins this provision.sh
+== S1 install-window.sh as sander
+ok   S1 install-window.sh exits 0
+    | ==> agent account
+    |     agent groups: agent (no wheel/sudo)
+    | ==> file hashes
+    |     ok provision.sh 8420c0727d83011f6bef6221b99b3829f6768c4e3452e7b0ee82e93ac72591b5
+    |     ok vdh-provision-tonight b428faf9feb95bc6d0841abf3f40faed40a601da1d73edef7ea568c1b2a6633a
+    |     ok 90-agent-provision 108c432d900bc4ed877df49877c3407152a4a1bde6fa35c5723eefc1c19b356b
+    | ==> sudoers: includedir present and drop-in valid
+    | ./90-agent-provision: parsed OK
+    | ==> install root-owned copies
+    |     ok /usr/local/sbin/vdh-provision.sh root:root 755
+    |     ok /usr/local/sbin/vdh-provision-tonight root:root 755
+    | ==> start the 3 h backstop (removes the drop-in even if nobody revokes)
+    | ==> install the drop-in (0440)
+    |     visudo -c: whole sudoers config valid
+    |     Matching Defaults entries for agent on suite:
+    |         secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/bin
+    |     
+    |     Runas and Command-specific defaults for agent:
+    |         Defaults!/usr/bin/visudo env_keep+="SUDO_EDITOR EDITOR VISUAL"
+    |     
+    |     User agent may run the following commands on suite:
+    |         (root) NOPASSWD: /usr/local/sbin/vdh-provision-tonight dry, /usr/local/sbin/vdh-provision-tonight real, /usr/local/sbin/vdh-provision-tonight c4, /usr/local/sbin/vdh-provision-tonight uninstall, /usr/local/sbin/vdh-provision-tonight revoke
+    | ==> window OPEN. agent may run: sudo -n /usr/local/sbin/vdh-provision-tonight dry|real|c4|uninstall|revoke
+    | ==> closes by: 'revoke', or the backstop at 
+ok   S1 drop-in root:root 0440
+ok   S1 provision copy root:root 0755
+ok   S1 wrapper root:root 0755
+ok   S1 3 h backstop timer requested
+ok   S1 visudo -c whole config valid
+ok   S1 refuses when agent is in wheel
+ok   S1 refuses a tampered drop-in (hash)
+== S2 sudo admits exactly the five words
+ok   S2 sudo -l lists exactly the five invocations
+ok   S2 no ALL command, no SETENV
+ok   S2 refused: /usr/local/sbin/vdh-provision-tonight bogus
+ok   S2 refused: /usr/local/sbin/vdh-provision-tonight dry --steps keyslot
+ok   S2 refused: /usr/local/sbin/vdh-provision-tonight
+ok   S2 refused: /usr/local/sbin/vdh-provision.sh --dry-run
+ok   S2 refused: /bin/sh -c id
+ok   S2 refused: PROV=/tmp/x /usr/local/sbin/vdh-provision-tonight dry
+ok   S2 refused: -E /usr/local/sbin/vdh-provision-tonight dry
+ok   S2 refused: -u sander /usr/local/sbin/vdh-provision-tonight dry
+== S3 dry runs with the fixed args
+ok   S3 dry exits 0
+ok   S3 hash checked before running
+ok   S3 fixed steps, keyslot absent
+ok   S3 keyslot step never runs (no LUKS/passphrase activity)
+ok   S3 provision dry-run completed
+ok   S3 root log written
+== S4 wrapper refuses a bad provision.sh
+ok   S4 tampered content refused
+ok   S4 world-writable refused (mode 777)
+ok   S4 symlink refused
+ok   S4 non-root owner refused
+ok   S4 wrapper itself rejects two words (root direct)
+ok   S4 wrapper rejects 'dry;id'
+ok   S4 original restored
+== S5 revoke + verify-revoked
+ok   S5 verify-revoked FAILs (exit != 0) while the window is open
+ok   S5 revoke exits 0
+    | vdh-provision-tonight: mode=revoke log=/var/log/vdh-provision-revoke-20261103T134357Z.log
+    | REVOKE ok: /etc/sudoers.d/90-agent-provision removed (root read-back):
+    | total 8
+    | drwxr-x--- 2 root root   28 Nov  3 13:43 .
+    | drwxr-xr-x 1 root root 4096 Nov  3 13:43 ..
+    | -r--r----- 1 root root   35 Nov  3 13:43 00-test-sander
+    | sudoers still valid (visudo -c)
+    | agent groups: agent
+ok   S5 drop-in gone
+ok   S5 wrapper no longer runnable for agent
+ok   S5 verify-revoked.sh PASS
+    | ./verify-revoked.sh: line 11: hostname: command not found
+    | # chg-2026-10-05-031 sudo-window revoke read-back, host , user agent, 2026-11-03T13:43:57Z
+    | sudo -n -l exit=1
+    |   | sudo: a password is required
+    | ok   sudo -n -l fails, no may-run lines
+    | ok   wrapper no longer runnable via sudo
+    | ok   agent groups: agent (no wheel/sudo)
+    | info backstop timer still pending (harmless: rm -f of an absent file)
+    | RESULT: PASS
+ok   S5 write-once evidence file 0444
+RESULT: 38 passed, 0 failed
+# suite exit code: 0
+
+# cleanup 2026-11-03T13:43:57Z: kubectl --context admin@vdhinfra-local delete namespace vdhwslin01-test-sudo-20261103t134352z
+#   namespace "vdhwslin01-test-sudo-20261103t134352z" deleted
+# readback: namespace vdhwslin01-test-sudo-20261103t134352z NotFound
+# readback: throwaway pods left (chg label, all namespaces) = 0; throwaway namespaces left = 0

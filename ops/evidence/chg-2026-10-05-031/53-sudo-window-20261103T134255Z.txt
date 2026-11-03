@@ -1,0 +1,78 @@
+# chg-2026-10-05-031 tests/sudo-window-container.sh in throwaway pod; 2026-11-03T13:42:55Z; runner: vdhmini01
+# namespace vdhwslin01-test-sudo-20261103t134255z (PSA enforce=baseline), image docker.io/library/archlinux:base@sha256:ece6c971fec3c532fd508bce299a446deaf469feecbfe7c353e995bc1a5e7bba, capabilities {"drop": []}, activeDeadlineSeconds 1800
+# bundle provision.sh sha256 8420c0727d83011f6bef6221b99b3829f6768c4e3452e7b0ee82e93ac72591b5
+# node: vdhclu01node02, kernel: 6.18.18-talos
+== setup
+sed: can't read /bundle/sudo-window/vdh-provision-tonight: No such file or directory
+FAIL S0 wrapper pin != provision.sh
+cp: cannot stat '/bundle/sudo-window/vdh-provision-tonight': No such file or directory
+cp: cannot stat '/bundle/sudo-window/90-agent-provision': No such file or directory
+cp: cannot stat '/bundle/sudo-window/install-window.sh': No such file or directory
+cp: cannot stat '/bundle/sudo-window/verify-revoked.sh': No such file or directory
+== S1 install-window.sh as sander
+FAIL S1 install-window
+bash: /home/sander/win/install-window.sh: No such file or directory
+    | bash: /home/sander/win/install-window.sh: No such file or directory
+FAIL S1 drop-in perms
+FAIL S1 provision perms
+stat: cannot statx '/usr/local/sbin/vdh-provision.sh': No such file or directory
+stat: cannot statx '/usr/local/sbin/vdh-provision-tonight': No such file or directory
+FAIL S1 wrapper perms
+grep: /var/log/stub-calls: No such file or directory
+FAIL S1 no backstop call
+ok   S1 visudo -c whole config valid
+FAIL S1 wheel message
+cp: cannot stat '/home/sander/win/90-agent-provision': No such file or directory
+FAIL S1 tamper message
+cp: cannot stat '/root/dropin.keep': No such file or directory
+== S2 sudo admits exactly the five words
+FAIL S2 sudo -l
+sudo: a password is required
+ok   S2 no ALL command, no SETENV
+ok   S2 refused: /usr/local/sbin/vdh-provision-tonight bogus
+ok   S2 refused: /usr/local/sbin/vdh-provision-tonight dry --steps keyslot
+ok   S2 refused: /usr/local/sbin/vdh-provision-tonight
+ok   S2 refused: /usr/local/sbin/vdh-provision.sh --dry-run
+ok   S2 refused: /bin/sh -c id
+ok   S2 refused: PROV=/tmp/x /usr/local/sbin/vdh-provision-tonight dry
+ok   S2 refused: -E /usr/local/sbin/vdh-provision-tonight dry
+ok   S2 refused: -u sander /usr/local/sbin/vdh-provision-tonight dry
+== S3 dry runs with the fixed args
+FAIL S3 dry
+sudo: a password is required
+FAIL S3 no hash line
+FAIL S3 steps line: 
+ok   S3 keyslot step never runs (no LUKS/passphrase activity)
+FAIL S3 dry-run incomplete
+FAIL S3 no root log
+== S4 wrapper refuses a bad provision.sh
+cp: cannot stat '/usr/local/sbin/vdh-provision.sh': No such file or directory
+FAIL S4 tamper msg
+cp: cannot stat '/root/prov.keep': No such file or directory
+ok   S4 world-writable refused ()
+cp: cannot stat '/root/prov.keep': No such file or directory
+ok   S4 symlink refused
+ok   S4 non-root owner refused
+FAIL S4 two words
+FAIL S4 injection word
+FAIL S4 restore
+== S5 revoke + verify-revoked
+install: cannot stat '/home/sander/win/verify-revoked.sh': No such file or directory
+FAIL S5 pre message
+FAIL S5 revoke
+sudo: a password is required
+    | sudo: a password is required
+ok   S5 drop-in gone
+ok   S5 wrapper no longer runnable for agent
+install: cannot stat '/home/sander/win/verify-revoked.sh': No such file or directory
+FAIL S5 verify-revoked
+    | bash: ./verify-revoked.sh: No such file or directory
+FAIL S5 evidence file
+RESULT: 16 passed, 22 failed
+command terminated with exit code 1
+# suite exit code: 1
+
+# cleanup 2026-11-03T13:42:59Z: kubectl --context admin@vdhinfra-local delete namespace vdhwslin01-test-sudo-20261103t134255z
+#   namespace "vdhwslin01-test-sudo-20261103t134255z" deleted
+# readback: namespace vdhwslin01-test-sudo-20261103t134255z NotFound
+# readback: throwaway pods left (chg label, all namespaces) = 0; throwaway namespaces left = 0

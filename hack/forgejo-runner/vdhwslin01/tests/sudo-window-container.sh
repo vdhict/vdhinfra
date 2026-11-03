@@ -33,6 +33,9 @@ ssh-keygen -q -t ed25519 -N '' -C sander-unlock -f /root/sander_unlock <<<y >/de
 cp /root/sander_unlock.pub /etc/dropbear/root_key
 printf 'HOOKS=(base udev keyboard modconf kms keymap consolefont block netconf dropbear encryptssh filesystems fsck)\n' > /etc/mkinitcpio.conf.d/omarchy_hooks.conf
 W=/home/sander/win; install -d -o sander -m 0755 "$W"
+# the provision.sh hash the wrapper pins (no hard-coded copy that can go stale)
+PROV_SHA="$(sed -n 's/^PROV_SHA256=//p' "$B/sudo-window/vdh-provision-tonight")"
+[[ "$PROV_SHA" == "$(sha256sum "$B/provision.sh" | cut -d' ' -f1)" ]] && ok "S0 wrapper pins this provision.sh" || bad "S0 wrapper pin != provision.sh"
 cp "$B/provision.sh" "$B/sudo-window/vdh-provision-tonight" "$B/sudo-window/90-agent-provision" "$B/sudo-window/install-window.sh" "$B/sudo-window/verify-revoked.sh" "$W/"
 chown -R sander "$W"
 
@@ -73,7 +76,7 @@ done
 
 echo "== S3 dry runs with the fixed args"
 if A 'sudo -n /usr/local/sbin/vdh-provision-tonight dry' > /root/s3.log 2>&1; then ok "S3 dry exits 0"; else bad "S3 dry"; tail -15 /root/s3.log; fi
-grep -q 'sha256 ok (ad0304513bbff75f0d6c71bd4afc065e75078660faeb0d0dc53ea1b5eee6de38)' /root/s3.log && ok "S3 hash checked before running" || bad "S3 no hash line"
+grep -qF "sha256 ok (${PROV_SHA})" /root/s3.log && ok "S3 hash checked before running" || bad "S3 no hash line"
 grep -q 'steps: preflight packages user binary payload vmkey firewall golden register services initramfs report' /root/s3.log && ok "S3 fixed steps, keyslot absent" || bad "S3 steps line: $(grep 'steps:' /root/s3.log)"
 ! grep -qE 'LUKS: separate controller keyslot|luksAddKey|passphrase' /root/s3.log && ok "S3 keyslot step never runs (no LUKS/passphrase activity)" || bad "S3 keyslot activity"
 grep -q 'done (dry-run: nothing changed)' /root/s3.log && ok "S3 provision dry-run completed" || bad "S3 dry-run incomplete"
@@ -95,11 +98,12 @@ A 'sudo -n /usr/local/sbin/vdh-provision-tonight dry' > /root/s4d.log 2>&1 && ba
 chown root:root /usr/local/sbin/vdh-provision.sh
 /usr/local/sbin/vdh-provision-tonight dry extra >/dev/null 2>&1; [[ $? == 2 ]] && ok "S4 wrapper itself rejects two words (root direct)" || bad "S4 two words"
 /usr/local/sbin/vdh-provision-tonight 'dry;id' >/dev/null 2>&1; [[ $? == 2 ]] && ok "S4 wrapper rejects 'dry;id'" || bad "S4 injection word"
-[[ "$(sha256sum /usr/local/sbin/vdh-provision.sh | cut -d' ' -f1)" == ad0304513bbff75f0d6c71bd4afc065e75078660faeb0d0dc53ea1b5eee6de38 ]] && ok "S4 original restored" || bad "S4 restore"
+[[ "$(sha256sum /usr/local/sbin/vdh-provision.sh | cut -d' ' -f1)" == "$PROV_SHA" ]] && ok "S4 original restored" || bad "S4 restore"
 
 echo "== S5 revoke + verify-revoked"
 install -o agent -m 0755 "$W/verify-revoked.sh" /home/agent/verify-revoked.sh
-if A "cd ~ && bash ./verify-revoked.sh" > /root/s5pre.log 2>&1; then bad "S5 verify-revoked PASSED while the drop-in is still installed"; else grep -q 'RESULT: FAIL' /root/s5pre.log && ok "S5 verify-revoked FAILs (exit != 0) while the window is open" || bad "S5 pre message"; fi
+# own dir: verify-revoked writes a write-once file named by the second; keep it apart from the real read-back
+if A "mkdir -p ~/s5pre && cd ~/s5pre && bash ../verify-revoked.sh" > /root/s5pre.log 2>&1; then bad "S5 verify-revoked PASSED while the drop-in is still installed"; else grep -q 'RESULT: FAIL' /root/s5pre.log && ok "S5 verify-revoked FAILs (exit != 0) while the window is open" || bad "S5 pre message"; fi
 if A 'sudo -n /usr/local/sbin/vdh-provision-tonight revoke' > /root/s5.log 2>&1; then ok "S5 revoke exits 0"; else bad "S5 revoke"; cat /root/s5.log; fi
 sed 's/^/    | /' /root/s5.log
 [[ ! -e /etc/sudoers.d/90-agent-provision ]] && ok "S5 drop-in gone" || bad "S5 drop-in still there"

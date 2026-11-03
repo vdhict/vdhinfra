@@ -57,7 +57,8 @@ runcmd:
   - [systemd-tmpfiles, --create, /etc/tmpfiles.d/forgejo-runner.conf]
   - [systemctl, daemon-reload]
   - [systemctl, enable, --now, docker]
-  - [docker, pull, node:24-bookworm]
+  # same digest as JOB_IMAGE in provision.in.sh (tests/run-all.sh checks they match)
+  - [docker, pull, "node:24-bookworm@sha256:e7add2a490bb17d97b485b8641bd88455fff7839ade0f5eba493c3508124d413"]
   - [touch, /etc/cloud/cloud-init.disabled]
   - [fstrim, -av]
 power_state:

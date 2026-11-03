@@ -61,8 +61,11 @@ if bash ./provision.sh --steps "$STEPS" "${ARGS[@]}" > /root/real1.log 2>&1; the
 sed 's/^/    | /' /root/real1.log | grep -v '^    | +' | head -60 || true
 check "B runner: system user, nologin, locked" bash -c '[[ "$(getent passwd runner | cut -d: -f7)" == /usr/bin/nologin ]] && passwd -S runner | grep -q " L "'
 check "B runner: in kvm, not wheel" bash -c 'g=" $(id -nG runner) "; [[ "$g" == *" kvm "* && "$g" != *" wheel "* ]]'
-check "B forgejo-runner binary sha256 pinned" bash -c '[[ "$(sha256sum /usr/local/bin/forgejo-runner | cut -d" " -f1)" == fadaec897f5e6641c363f87ecaf75f866f99c81b7097ec6b433e4c48123fcad1 ]]'
-check "B forgejo-runner reports 13.2.0" bash -c '/usr/local/bin/forgejo-runner --version | grep -q 13.2.0'
+PIN_SHA="$(sed -n 's/^RUNNER_SHA256=//p' provision.sh)"; PIN_VER="$(sed -n 's/^RUNNER_VERSION=//p' provision.sh)"
+check "B forgejo-runner binary sha256 = pin ${PIN_SHA:0:12}" bash -c '[[ "$(sha256sum /usr/local/bin/forgejo-runner | cut -d" " -f1)" == "$1" ]]' _ "$PIN_SHA"
+check "B forgejo-runner reports ${PIN_VER}" bash -c '/usr/local/bin/forgejo-runner --version | grep -qF "$1"' _ "$PIN_VER"
+check "B runner groups exactly runner+kvm (D6)" bash -c '[[ "$(id -nG runner | tr " " "\n" | sort | tr "\n" " ")" == "kvm runner " ]]'
+check "B runner unit hides host container sockets (D6)" grep -q '^InaccessiblePaths=-/run/docker.sock' /etc/systemd/system/forgejo-runner-vm.service
 check "B runner.yaml: docker_host = VM socket, cache off, no privileged" bash -c 'grep -q "docker_host: \"unix:///run/forgejo-runner/docker.sock\"" /etc/vdh-runner/runner.yaml && grep -A1 "^cache:" /etc/vdh-runner/runner.yaml | grep -q "enabled: false" && grep -q "privileged: false" /etc/vdh-runner/runner.yaml'
 check "B hosts override maps forge to envoy-forge" grep -qx '172.16.2.251 forge.example.invalid' /etc/vdh-runner/hosts
 check "B VM key 0600 runner, private key never printed" bash -c '[[ "$(stat -c "%a %U" /var/lib/forgejo-runner/.ssh/vm_ed25519)" == "600 runner" ]] && ! grep -q "PRIVATE KEY" /root/real1.log'
@@ -119,7 +122,8 @@ echo "== E: nftables ruleset"
 ( . ./provision.sh; FORGE_HOST=forge.example.invalid; ENVOY_FORGE_IP=172.16.2.251; DNS_STUB=0; DNS_SERVERS=(172.16.3.1); nft_ruleset ) > /root/vdh-nostub.nft
 sed 's/^/    | /' /root/vdh.nft
 check "E ruleset never flushes the host ruleset" bash -c '! grep -q "flush ruleset" /root/vdh.nft'
-check "E ssh allow-list = nodes + Mini + MacBook" grep -q 'elements = { 172.16.2.81, 172.16.2.82, 172.16.2.83, 172.16.2.201, 172.16.3.108, 172.16.3.23, 192.168.12.6, 192.168.4.6 }' /root/vdh.nft
+check "E ssh allow-list = Mini + MacBook only (D5)" grep -q 'elements = { 172.16.2.201, 172.16.3.108, 172.16.3.23, 192.168.12.6, 192.168.4.6 }' /root/vdh.nft
+check "E no cluster worker in the ruleset (D5)" bash -c '! grep -qE "172\.16\.2\.8[1-3]" /root/vdh.nft'
 check "E non-stub DNS rule renders" grep -q 'ip daddr { 172.16.3.1 } meta l4proto { tcp, udp } th dport 53 accept' /root/vdh-nostub.nft
 for f in /root/vdh.nft /root/vdh-nostub.nft; do
   if unshare -rn true 2>/dev/null; then
@@ -194,10 +198,49 @@ grep -q 'already registered' /root/g5b.log && ok "G5 re-run skips (already regis
 runuser -u runner -- rm /var/lib/forgejo-runner/.runner
 cp /root/forgejo-runner.real /usr/local/bin/forgejo-runner
 
+check "G3c base image staged = Debian pin (real download, sha512 verified by provision.sh)" grep -qF "$(sed -n 's/^BASE_NAME=//p' provision.sh)" /root/g3c.log
 # G4: after everything, nothing outside runner's own trees is owned by runner
 stray="$(find / -xdev -user runner -not -path '/var/lib/forgejo-runner*' -not -path '/proc/*' 2>/dev/null | head -5)"
 [[ -z "$stray" ]] && ok "G4 no runner-owned path outside /var/lib/forgejo-runner" || bad "G4 runner owns: $stray"
 grep -q 'Running build hook' /root/real1.log && ok "G (B ran before G)" || true
+
+echo "== H: the box's own remote-unlock hook (fixtures-box/, copied read-only from vdhwslin01 on the day; not in Git)"
+if [[ -d fixtures-box ]]; then
+  pacman -S --noconfirm --needed dropbear psmisc mkinitcpio-nfs-utils >/dev/null
+  install -m 0644 fixtures-box/remote-unlock.install /etc/initcpio/install/remote-unlock
+  install -m 0644 fixtures-box/remote-unlock.hook /etc/initcpio/hooks/remote-unlock
+  install -m 0644 fixtures-box/zz-remote-unlock.conf /etc/mkinitcpio.conf.d/zz-remote-unlock.conf
+  # Omarchy's x86 platform line (00-omarchy-hooks.conf), minus the hooks a container lacks (plymouth, btrfs-overlayfs)
+  printf 'HOOKS=(base udev keyboard autodetect microcode modconf kms keymap consolefont block encrypt filesystems fsck resume)\n' \
+    > /etc/mkinitcpio.conf.d/omarchy_hooks.conf
+  install -d -m 0700 /etc/remote-unlock
+  dropbearkey -t ed25519 -f /etc/remote-unlock/dropbear_ed25519_host_key >/dev/null 2>&1
+  echo 00:11:22:33:44:55 > /etc/remote-unlock/mac
+  # the owner's unlock key + the Mini key ALREADY present (as on the box since 27-10)
+  ssh-keygen -q -t ed25519 -N '' -C vdhwslin01_unlock_mini@vdhmini01-test -f /root/mini_unlock
+  { cat /root/sander_unlock.pub; cat /root/mini_unlock.pub; } > /etc/remote-unlock/authorized_keys; chmod 0600 /etc/remote-unlock/authorized_keys
+  ak_before="$(sha256sum /etc/remote-unlock/authorized_keys | cut -d' ' -f1)"
+  ru_before="$(find /etc/remote-unlock -mindepth 1 -maxdepth 1 -printf '%f\n' | sort | tr '\n' ' ')"; echo "    /etc/remote-unlock before: $ru_before"
+  eff="$(bash -c 'HOOKS=(); . /etc/mkinitcpio.conf; for f in /etc/mkinitcpio.conf.d/*.conf; do . "$f"; done; echo "${HOOKS[*]}"')"
+  echo "    effective HOOKS now: $eff"
+  check "H effective HOOKS: remote-unlock encryptssh ... vdh-teamboot (dropbear gone)" bash -c '[[ " $1 " == *" remote-unlock encryptssh "*" vdh-teamboot "* && " $1 " != *" dropbear "* ]]' _ "$eff"
+  if bash ./provision.sh --steps initramfs --forge-url https://forge.example.invalid --envoy-forge-ip 172.16.2.251 \
+       --controller-pubkey "$(cat /root/mini_unlock.pub)" > /root/h.log 2>&1; then ok "H initramfs step exits 0"; else bad "H initramfs step"; tail -30 /root/h.log; fi
+  check "H detects remote-unlock + its authorized_keys" grep -q 'initramfs ssh: remote-unlock, authorized keys: /etc/remote-unlock/authorized_keys' /root/h.log
+  check "H Mini key already present -> nothing appended" grep -q 'controller key already in /etc/remote-unlock/authorized_keys' /root/h.log
+  check "H authorized_keys byte-identical" test "$(sha256sum /etc/remote-unlock/authorized_keys | cut -d' ' -f1)" = "$ak_before"
+  check "H every image: encryptssh = vdh-teamboot = wrapped, exit 0" grep -qE 'images with encryptssh: ([1-9]), with vdh-teamboot: \1, wrapped: \1, exit: 0' /root/h.log
+  check "H unlock host key printed as known_hosts line" grep -qE '^\s+\[172\.16\.3\.205\]:2222 ssh-ed25519 ' /root/h.log
+  XH=/root/initrd-h; install -d "$XH"; (cd "$XH" && lsinitcpio -x /boot/initramfs-linux.img)
+  check "H image: dropbear started by the remote-unlock hook" test -f "$XH/hooks/remote-unlock"
+  check "H image: root login shell = wrapper, real shell kept" bash -c 'grep -q "^root:x:0:0:root:/root:/bin/cryptsetup_shell$" "$1/etc/passwd" && grep -q "vdh-teamboot: wrapper" "$1/usr/bin/cryptsetup_shell" && test -s "$1/usr/bin/cryptsetup_shell.vdh-real"' _ "$XH"
+  check "H image: Mini key + owner key in /root/.ssh/authorized_keys" bash -c 'grep -qF "$(cut -d" " -f2 /root/mini_unlock.pub)" "$1/root/.ssh/authorized_keys" && grep -qF "$(cut -d" " -f2 /root/sander_unlock.pub)" "$1/root/.ssh/authorized_keys"' _ "$XH"
+  ru_after="$(find /etc/remote-unlock -mindepth 1 -maxdepth 1 -printf '%f\n' | sort | tr '\n' ' ')"; echo "    /etc/remote-unlock after:  $ru_after"
+  check "H hook input dir unchanged by provision.sh (no backup or extra file added)" test "$ru_after" = "$ru_before"
+  check "H no *.vdh-orig anywhere in the hook input dir" bash -c '! ls -A /etc/remote-unlock | grep -q vdh-orig'
+else
+  echo "SKIP H: no fixtures-box/ in the bundle"
+fi
 
 echo "RESULT: ${pass} passed, ${fail} failed"
 (( fail == 0 ))

@@ -23,6 +23,9 @@ RuntimeDirectoryMode=0755
 # own /etc/hosts and resolver order stay untouched.
 BindReadOnlyPaths=/etc/vdh-runner/hosts:/etc/hosts /etc/vdh-runner/nsswitch.conf:/etc/nsswitch.conf
 # Sandbox: no access to /home, /root, /run/user (Sander's session and files).
+# D6: never Sander's own container daemons (host dockerd/podman sockets), even
+# if a group slipped in ("-" = ignore when absent).
+InaccessiblePaths=-/run/docker.sock -/var/run/docker.sock -/run/docker -/run/podman -/run/containerd
 ProtectHome=yes
 # F4: Sander's processes (and their command lines) are invisible.
 ProtectProc=invisible
