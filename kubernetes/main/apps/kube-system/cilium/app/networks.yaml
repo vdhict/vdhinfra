@@ -23,6 +23,13 @@ spec:
     - ^enp89s0$
     - ^enp2s0$
   loadBalancerIPs: true
+  # chg-2026-11-02-012 D1: headscale has its own policy (network/headscale/app/l2-policy.yaml, node01 only, co-located
+  # with the pod). NotIn also matches services WITHOUT the label, so every other LB service is unaffected.
+  serviceSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: NotIn
+        values: ["headscale"]
   nodeSelector:
     matchLabels:
       kubernetes.io/os: linux

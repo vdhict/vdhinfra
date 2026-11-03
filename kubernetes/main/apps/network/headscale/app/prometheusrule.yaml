@@ -1,0 +1,26 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/prometheusrule_v1.json
+# chg-2026-11-02-012 design s7 / Argus B6: a new tailnet node is always news.
+# Measured in v0.29.7 source: a pre-auth-key registration logs only at DEBUG (state.go "Registering node with pre-auth
+# key"); only the CLI `auth register` path logs "node registered successfully" at INFO. So the path-independent signal
+# is the NodeStore gauge going up. A Loki rule (loki-rules.yaml, headscale.yaml) covers the CLI path as well.
+# severity warning: ntfy-day 07-23, ntfy-night (silent) 23-07, AGR-074. Annotations carry NO log text and no keys.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: headscale
+spec:
+  groups:
+    - name: headscale
+      rules:
+        - alert: HeadscaleNodeRegistered
+          expr: max(delta(headscale_nodestore_nodes{namespace="network"}[15m])) > 0
+          for: 0m
+          labels:
+            severity: warning
+            component: headscale
+          annotations:
+            summary: "Headscale: a node joined the tailnet"
+            description: >-
+              The headscale node count went up in the last 15 minutes. Expected only during a logged enrolment
+              (chg-2026-11-02-012). Check with: kubectl -n network exec deploy/headscale -- headscale nodes list

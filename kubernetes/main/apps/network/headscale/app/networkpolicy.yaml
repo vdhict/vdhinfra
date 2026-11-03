@@ -1,0 +1,58 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/cilium.io/ciliumnetworkpolicy_v2.json
+# chg-2026-11-02-012 D8 + Argus B4. Allow-only, no CIDR ranges (inc-002).
+# - 8443/TCP (control + DERP) and 3478/UDP (STUN) from world, host and remote-node: LAN/VPN/internet clients and
+#   kubelet probes, also if a SNAT hop ever comes back.
+# - B4: the in-cluster canary reaches the LB IP as a cluster endpoint, so it is admitted by endpoint, not by entity.
+# - 9090 (metrics) only from observability Prometheus pods.
+# - Egress: kube-dns only. Own DERP only (derp.urls: []), no update check, no logtail: headscale dials nothing.
+# Its value is closing 9090 and egress, not telling the internet from the LAN.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: headscale
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: headscale
+      app.kubernetes.io/component: headscale
+  ingress:
+    - fromEntities:
+        - world
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "8443"
+              protocol: TCP
+            - port: "3478"
+              protocol: UDP
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            app.kubernetes.io/name: headscale-canary
+      toPorts:
+        - ports:
+            - port: "8443"
+              protocol: TCP
+            - port: "3478"
+              protocol: UDP
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: observability
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "9090"
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP

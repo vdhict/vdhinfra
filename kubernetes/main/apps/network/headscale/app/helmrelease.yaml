@@ -59,6 +59,11 @@ spec:
               readOnlyRootFilesystem: true
               capabilities: { drop: ["ALL"] }
     defaultPodOptions:
+      # chg-2026-11-02-012 D1: co-locate with the L2 announcer (CiliumL2AnnouncementPolicy l2-headscale, same node) so
+      # LoadBalancer traffic needs no SNAT hop and the real source IP reaches headscale (STUN, logs). node01 has no Lab
+      # trunk. Single point of failure (R1): recovery is this line plus the l2-headscale nodeSelector to another worker.
+      nodeSelector:
+        kubernetes.io/hostname: vdhclu01node01
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
@@ -69,6 +74,7 @@ spec:
     service:
       app:
         controller: *app
+        primary: true
         type: LoadBalancer
         annotations:
           external-dns-unifi.bluejungle.net/hostname: headscale.${SECRET_DOMAIN}
@@ -77,8 +83,29 @@ spec:
           https:
             port: 443
             targetPort: 8443
+            protocol: TCP
+          # chg-2026-11-02-012 D6: embedded DERP STUN (mixed TCP+UDP on one Cilium LB, as vector .235).
+          stun:
+            port: 3478
+            targetPort: 3478
+            protocol: UDP
+      # chg-2026-11-02-012 D6: metrics OFF the LoadBalancer (was readable from every LAN/VPN client). ClusterIP only;
+      # the CiliumNetworkPolicy admits 9090 from observability Prometheus pods only.
+      metrics:
+        controller: *app
+        type: ClusterIP
+        ports:
           metrics:
             port: 9090
+    serviceMonitor:
+      app:
+        serviceName: headscale-metrics
+        endpoints:
+          - port: metrics
+            scheme: http
+            path: /metrics
+            interval: 30s
+            scrapeTimeout: 10s
     persistence:
       data:
         type: persistentVolumeClaim

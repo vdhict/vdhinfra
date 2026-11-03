@@ -115,3 +115,23 @@ data:
                 Then verify each (kubectl get servicemonitor,prometheusrule -n
                 observability -l app.kubernetes.io/instance=<instance>) has no
                 live release and delete if confirmed orphaned.
+  headscale.yaml: |
+    groups:
+      - name: headscale
+        rules:
+          # chg-2026-11-02-012 design s7. The CLI `headscale auth register` path logs this line at INFO.
+          # Pre-auth-key enrolments log only at DEBUG; the PrometheusRule network/headscale (NodeStore gauge)
+          # covers every path. The annotation must NEVER template the log line: it carries registration_key=hskey-...
+          - alert: HeadscaleNodeRegistered
+            expr: |
+              sum(count_over_time({namespace="network", app="headscale"} |= "node registered successfully" [10m])) > 0
+            for: 0s
+            labels:
+              severity: warning
+              component: headscale
+              source: loki
+            annotations:
+              summary: "Headscale: a node was registered via the CLI"
+              description: |
+                headscale logged a completed CLI registration in the last 10 minutes. Expected only during a
+                logged enrolment (chg-2026-11-02-012). Check: kubectl -n network exec deploy/headscale -- headscale nodes list

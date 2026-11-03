@@ -5,6 +5,10 @@ kind: Kustomization
 resources:
   - ./certificate.yaml
   - ./helmrelease.yaml
+  - ./l2-policy.yaml
+  - ./networkpolicy.yaml
+  - ./prometheusrule.yaml
+  - ./canary.yaml
 configMapGenerator:
   - name: headscale-configmap
     files:

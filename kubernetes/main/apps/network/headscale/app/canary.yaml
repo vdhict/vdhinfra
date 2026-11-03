@@ -1,0 +1,99 @@
+---
+# chg-2026-11-02-012 stage 2: in-cluster tailnet canary, node tag:canary (Argus Q4/B2: may reach tag:agenthost tcp:22 only).
+# Userspace tailscaled (no TUN, no capabilities, non-root, read-only root fs). Tailnet state lives in Secret
+# hs-canary-state; the ServiceAccount may get/update ONLY that Secret (B2, resourceNames; no patch/create/list).
+# Enrolment key (B5): created in-pod (`headscale preauthkeys create --tags tag:canary -e 30m`, single use), written to a
+# 0600 file, loaded into Secret hs-canary-authkey from that file (never in Git, argv or transcript), and blanked after
+# the first login. TS_AUTH_ONCE: a restart reuses the stored state and never re-auths with a key.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: headscale-canary
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: headscale-canary-state
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["hs-canary-state"]
+    verbs: ["get", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: headscale-canary-state
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: headscale-canary-state
+subjects:
+  - kind: ServiceAccount
+    name: headscale-canary
+---
+# Created once by Flux, then owned by tailscaled (IfNotPresent: Flux never overwrites the state it writes).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hs-canary-state
+  annotations:
+    kustomize.toolkit.fluxcd.io/ssa: IfNotPresent
+type: Opaque
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: headscale-canary
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: headscale-canary
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: headscale-canary
+    spec:
+      serviceAccountName: headscale-canary
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: tailscale
+          image: docker.io/tailscale/tailscale:v1.104.4@sha256:ed6480b33c6eb67c9cbd203ed42b9fb57e361986725b6856def71b7a3d9e276c
+          env:
+            - { name: HOME, value: /tmp }
+            - { name: TS_USERSPACE, value: "true" }
+            - { name: TS_KUBE_SECRET, value: hs-canary-state }
+            - { name: TS_AUTH_ONCE, value: "true" }
+            - { name: TS_HOSTNAME, value: hs-canary }
+            - { name: TS_ENABLE_HEALTH_CHECK, value: "true" }
+            - { name: TS_LOCAL_ADDR_PORT, value: "0.0.0.0:9002" }
+            - name: TS_EXTRA_ARGS
+              value: "--login-server=https://headscale.${SECRET_DOMAIN} --accept-dns=false --accept-routes=false"
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: hs-canary-authkey
+                  key: authkey
+          readinessProbe:
+            httpGet: { path: /healthz, port: 9002 }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}

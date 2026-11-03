@@ -1,6 +1,8 @@
 # chg-2026-11-02-012: Headscale v0.29.7, from the upstream config-example.yaml of that tag; changed lines only:
 # server_url, listen_addr (own TLS on 8443), metrics_listen_addr, disable_check_updates, tls_*_path, policy.path,
 # dns.base_domain, dns.override_local_dns. LAN-only (LoadBalancer + UniFi DNS, no Cloudflare record). See install.yaml.
+# Stage 2 commit B (Argus verdict 2026-11-03): derp.server.enabled, derp.server.ipv4/ipv6 (Q2), derp.urls (Q1),
+# derp.auto_update_enabled, node.expiry 180d (Q7), taildrop.enabled false + tuning.register_cache_max_entries 64 (D7).
 ---
 # headscale will look for a configuration file named `config.yaml` (or `config.json`) in the following order:
 #
@@ -95,7 +97,7 @@ derp:
   server:
     # If enabled, runs the embedded DERP server and merges it into the rest of the DERP config
     # The Headscale server_url defined above MUST be using https, DERP requires TLS to be in place
-    enabled: false
+    enabled: true
 
     # Region ID to use for the embedded DERP server.
     # The local DERP prevails if the region ID collides with other region ID coming from
@@ -126,12 +128,13 @@ derp:
 
     # For better connection stability (especially when using an Exit-Node and DNS is not working),
     # it is possible to optionally add the public IPv4 and IPv6 address to the Derp-Map using:
-    ipv4: 198.51.100.1
-    ipv6: 2001:db8::1
+    # chg-2026-11-02-012 Q2: no hard-coded address. Clients resolve server_url (split horizon: LAN .249, internet KPN).
+    ipv4: ""
+    ipv6: "none"
 
   # List of externally available DERP maps encoded in JSON
-  urls:
-    - https://controlplane.tailscale.com/derpmap/default
+  # chg-2026-11-02-012 Q1: own DERP only. Fallback is one line: the Tailscale derpmap URL back in this list.
+  urls: []
 
   # Locally available DERP map files encoded in YAML
   #
@@ -146,7 +149,7 @@ derp:
   # If enabled, a worker will be set up to periodically
   # refresh the given sources and update the derpmap
   # will be set up.
-  auto_update_enabled: true
+  auto_update_enabled: false
 
   # How often should we check for DERP updates?
   update_frequency: 3h
@@ -168,7 +171,8 @@ node:
   # Tailscale SaaS uses 180d; set to a positive duration to match that behaviour.
   #
   # Default: 0 (no default expiry)
-  expiry: 0
+  # chg-2026-11-02-012 Q7: 180d for untagged nodes registered from now on (tagged nodes never expire).
+  expiry: 180d
 
   ephemeral:
     # Time before an inactive ephemeral node is deleted.
@@ -469,7 +473,7 @@ taildrop:
   # Enable or disable Taildrop tailnet-wide. When disabled, headscale
   # withholds `https://tailscale.com/cap/file-sharing` from every
   # node's CapMap.
-  enabled: true
+  enabled: false
 
 # Default node auto-update behaviour. When enabled, every node's
 # CapMap carries `default-auto-update: [true]` so clients that have
@@ -498,3 +502,6 @@ auto_update:
 #   #
 #   # node_store_batch_size: 100
 #   # node_store_batch_timeout: 500ms
+# chg-2026-11-02-012 D7: cap unauthenticated pending registrations (~4 MiB instead of ~64 MiB, 256Mi pod limit).
+tuning:
+  register_cache_max_entries: 64

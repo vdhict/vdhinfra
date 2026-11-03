@@ -1,0 +1,22 @@
+---
+# chg-2026-11-02-012 D1: headscale's LoadBalancer IP (.249) is announced ONLY by node01, the node the pod is pinned to
+# (helmrelease defaultPodOptions.nodeSelector). Announcer == backend node, so no SNAT hop and the real client source
+# reaches headscale. The global l2-policy (kube-system/cilium/app/networks.yaml) excludes this service.
+# Moving off node01 (R1): change BOTH nodeSelectors in one commit.
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: l2-headscale
+spec:
+  serviceSelector:
+    matchLabels:
+      app.kubernetes.io/name: headscale
+      app.kubernetes.io/service: headscale
+  nodeSelector:
+    matchLabels:
+      kubernetes.io/hostname: vdhclu01node01
+  # Same anchored native-NIC list as l2-policy (chg-2026-10-05-010): never announce into the LAB VLAN.
+  interfaces:
+    - ^enp89s0$
+    - ^enp2s0$
+  loadBalancerIPs: true
