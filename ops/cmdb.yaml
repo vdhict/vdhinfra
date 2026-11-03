@@ -83,6 +83,25 @@ components:
     group: lan-dns
     sla_tier: best-effort
     health_source: dns://172.16.2.1/pikvm.bluejungle.net
+  net.dns.cloudflare.headscale:
+    type: external-service
+    owner_agent: k8s-engineer
+    description: >-
+      Cloudflare A record headscale.bluejungle.net -> KPN wan2 86.80.222.126, proxied=false, TTL 300 (chg-2026-11-02-012
+      S7, design D4, Argus C10). Created 2026-11-03T12:42Z by a one-shot Job, NOT external-dns: no owner TXT, so
+      neither Cloudflare external-dns instance touches it. LAN keeps .249 via external-dns-unifi. Goes stale if the KPN
+      PPPoE address changes (R5).
+    external_id: cloudflare-dns-record:16be2772502683b31fdf7b6b78216f01
+    decommission: >-
+      hack/ops/chg-2026-11-02-012-cf-record.sh --delete 16be2772502683b31fdf7b6b78216f01 (refuses any record that is
+      not this A record; then DoH must return NXDOMAIN). Turn the wan2 forwards off first
+      (hack/ops/chg-2026-11-02-012-forwards.sh off).
+    depends_on: [net.dns.cloudflare, net.udm]
+    sensitive: true
+    tier: 0
+    group: wan
+    sla_tier: ops-only
+    health_source: https://cloudflare-dns.com/dns-query?name=headscale.bluejungle.net&type=A
   net.cloudflared:
     type: k8s-app
     owner_agent: k8s-engineer
