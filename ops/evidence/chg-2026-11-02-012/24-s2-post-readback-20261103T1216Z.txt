@@ -1,0 +1,11 @@
+# S2 post readback 2026-11-03T12:16:53Z, origin/main eb57efdd
+headscale	refs/heads/main@sha1:eb57efdd	False    	True 	Applied revision: refs/heads/main@sha1:eb57efdd	
+headscale-5c8ffd79bb-wt2fn   1/1   Running   0     31s   10.42.5.73   vdhclu01node02   <none>   <none>
+# diff policy get vs git file (empty = identical):
+20d19
+< 
+# nodes:
+{"id":1,"name":"vdhnblin01","ipv4":"100.64.0.1","online":true}
+# policy errors in log since restart:
+0
+# note: the only diff is one trailing newline that 'policy get' appends; content byte-identical otherwise

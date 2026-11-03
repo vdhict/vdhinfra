@@ -1,0 +1,24 @@
+# S3 pre baseline 2026-11-03T12:21:44Z
+# L2 lease holders:
+cilium-l2announce-database-postgres-lb                            vdhclu01master02
+cilium-l2announce-devtools-forgejo-ssh                            vdhclu01master02
+cilium-l2announce-home-automation-home-assistant                  vdhclu01master03
+cilium-l2announce-home-automation-mosquitto                       vdhclu01master03
+cilium-l2announce-home-automation-music-assistant                 vdhclu01node01
+cilium-l2announce-home-automation-tesla-http-proxy                vdhclu01node01
+cilium-l2announce-media-plex                                      vdhclu01node01
+cilium-l2announce-network-envoy-network-envoy-external-27f017ad   vdhclu01master02
+cilium-l2announce-network-envoy-network-envoy-forge-77b8806d      vdhclu01master01
+cilium-l2announce-network-envoy-network-envoy-internal-1102ed95   vdhclu01node03
+cilium-l2announce-network-headscale                               vdhclu01node01
+cilium-l2announce-observability-vector                            vdhclu01node01
+cilium-l2announce-storage-minio-lb                                vdhclu01node01
+# LAN probes from vdhmini01 (nc -z, 443 = control):
+tcp/443 open
+tcp/9090 open
+tcp/3478 closed
+metrics9090 http=200
+# mini LAN IPs:
+172.16.2.201
+# headscale log remote= first-octet histogram, last 30m:
+  43 remote=172.16.2.82

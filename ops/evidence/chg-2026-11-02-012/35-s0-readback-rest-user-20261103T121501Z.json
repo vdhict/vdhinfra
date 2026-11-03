@@ -1,0 +1,14 @@
+{
+  "meta": {
+    "rc": "ok"
+  },
+  "n_fixed_249": 0,
+  "n_usefixed_249": 0,
+  "hue": {
+    "_id": "63ce866d9d15370983512bb8",
+    "hostname": "HueZadelmakerij",
+    "mac": "00:17:88:23:97:a0",
+    "use_fixedip": false,
+    "fixed_ip": ""
+  }
+}

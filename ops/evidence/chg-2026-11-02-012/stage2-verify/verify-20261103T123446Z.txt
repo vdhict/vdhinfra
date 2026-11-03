@@ -1,0 +1,34 @@
+# chg-2026-11-02-012 stage-2 verify 2026-11-03T12:34:46Z mode=check origin/main=d13c25ee
+PASS T2 control tcp/443 open on 172.16.2.249
+PASS T2 tcp/9090 closed on 172.16.2.249
+PASS T2 tcp/50443 closed on 172.16.2.249
+PASS T2 tcp/8443 closed on 172.16.2.249
+PASS T2 /health 200 with verified TLS
+PASS T2 /api/v1/node 401 without a key
+PASS T2 STUN answered, mapped address = this host's LAN IP (source preserved)
+PASS REG envoy-internal .241 answers (404)
+PASS REG Home Assistant .237 200
+{"id":1,"name":"vdhnblin01","given":"vdhnblin01","ip":"100.64.0.1","tags":null,"online":true}
+{"id":2,"name":"hs-canary","given":"hs-canary","ip":"100.64.0.2","tags":["tag:canary"],"online":true}
+PASS B3 100.64.0.1 == node id 1 vdhnblin01, untagged
+PASS NODES no untagged node other than id 1
+PASS NODES only the expected set (id1 + canary + named server tags)
+PASS Q5 API keys = 0
+pre-auth keys (no material): [{"id":1,"tags":["tag:canary"],"used":true,"reusable":null}]
+PASS PAK no reusable or untagged pre-auth key
+PASS POLICY live policy passes the G1 guard
+PASS CANARY tags = tag:canary
+PASS T2 canary home DERP = headscale (own region 999)
+PASS CANARY online (headscale + tailscaled)
+PASS T1 canary -> 100.64.0.1 22 denied
+PASS T1 canary -> 100.64.0.1 443 denied
+SKIP T1 agenthost tests: no tag:agenthost node yet (S4)
+SKIP T1 rekenkracht tests: no tag:rekenkracht node yet (S4); B2 asserted statically by the G1 guard above
+PASS vdhnblin01 online
+PASS D1 pod node == L2 lease holder (vdhclu01node01)
+# forwards status:
+# chg-2026-11-02-012 forwards status at 2026-11-03T12:35:13Z
+6ae9d05f83cbbf8f2e36f907 'HS443 headscale' enabled=False tcp 443 -> 172.16.2.249:443 if=wan2 src=any log=True
+6ae9d06183cbbf8f2e36f90b 'HS3478 headscale derp-stun' enabled=False udp 3478 -> 172.16.2.249:3478 if=wan2 src=any log=True
+total forwards: 5 | others: LetsEncrypt enabled=False tcp/80 if=wan2; Wireguard enabled=False tcp_udp/61952 if=wan; Plex enabled=True tcp/32400 if=all
+# RESULT rollback_class=0 warn=0

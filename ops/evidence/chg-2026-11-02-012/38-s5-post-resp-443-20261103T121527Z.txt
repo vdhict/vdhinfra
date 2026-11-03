@@ -1,0 +1,2 @@
+{"meta":{"rc":"ok"},"data":[{"name":"HS443 headscale","enabled":false,"proto":"tcp","dst_port":"443","fwd":"172.16.2.249","fwd_port":"443","pfwd_interface":"wan2","src":"any","log":true,"destination_ips":[{"destination_ip":"any","interface":"wan2"}],"site_id":"5e9afa104edb2e02cf522ee5","_id":"6ae9d05f83cbbf8f2e36f907"}]}
+http=200

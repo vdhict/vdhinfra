@@ -1,0 +1,17 @@
+# G1 commit A 2026-11-03T12:15:46Z, worktree off origin/main b80ab803
+PASS policy-check vv0.29.7: Policy is valid
+PASS grants key present and non-empty
+PASS acls absent or empty
+PASS no autoApprovers
+PASS no * / autogroup:internet / danger-all
+PASS B1 tagOwners all empty lists (3 tags)
+PASS C12 exactly one hosts entry, a single /32
+PASS hosts vdhnblin01 == 100.64.0.1/32
+PASS B2 canary grant exactly tag:canary -> tag:agenthost tcp:22
+PASS tag:agenthost is never a source
+PASS every grant is tcp:22 only
+PASS ssh rules empty
+G1 RESULT PASS
+# negative control (bogus field + dst *): guard exit 1, policy-check InvalidArgument (run 2026-11-03T12:15:47Z)
+PASS yamllint headscale/
+# correction: the negative control ran before this file was written (between 12:14:15Z and 12:15:45Z); the stamp on the line above is the write time, not the run time

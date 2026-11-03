@@ -1,0 +1,4 @@
+# chg-2026-11-02-012 forwards status at 2026-11-03T12:36:32Z
+6ae9d05f83cbbf8f2e36f907 'HS443 headscale' enabled=False tcp 443 -> 172.16.2.249:443 if=wan2 src=any log=True
+6ae9d06183cbbf8f2e36f90b 'HS3478 headscale derp-stun' enabled=False udp 3478 -> 172.16.2.249:3478 if=wan2 src=any log=True
+total forwards: 5 | others: LetsEncrypt enabled=False tcp/80 if=wan2; Wireguard enabled=False tcp_udp/61952 if=wan; Plex enabled=True tcp/32400 if=all

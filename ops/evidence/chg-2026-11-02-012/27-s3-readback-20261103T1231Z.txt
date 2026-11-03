@@ -1,0 +1,46 @@
+# S3 commit B readback 2026-11-03T12:31:01Z, origin/main 90e738cd (Flux headscale/cilium/loki applied 90e738cd at 12:25Z)
+cilium refs/heads/main@sha1:90e738cd True
+headscale refs/heads/main@sha1:90e738cd True
+loki refs/heads/main@sha1:90e738cd True
+# pods:
+headscale-946fcb648-ml82n 1/1 Running vdhclu01node01
+headscale-canary-666c94d846-ltmd7 1/1 Running vdhclu01node02
+# services:
+headscale           LoadBalancer   10.43.190.5     172.16.2.249   443:30546/TCP,3478:32766/UDP   16h
+headscale-metrics   ClusterIP      10.43.249.163   <none>         9090/TCP                       5m57s
+# lease headscale: vdhclu01node01
+# other 12 leases: unchanged vs 25-s3-pre-baseline (diff empty at 12:26Z)
+# CNP:
+{"valid":[{"lastTransitionTime":"2026-11-03T12:25:04Z","message":"Policy validation succeeded","status":"True","type":"Valid"}],"ingress":[{"e":["world","host","remote-node"],"p":["8443/TCP","3478/UDP"]},{"e":[{"app.kubernetes.io/name":"headscale-canary","k8s:io.kubernetes.pod.namespace":"network"}],"p":["8443/TCP","3478/UDP"]},{"e":[{"app.kubernetes.io/name":"prometheus","k8s:io.kubernetes.pod.namespace":"observability"}],"p":["9090/TCP"]}],"egress":[["53/UDP","53/TCP"]]}
+# L2 policies:
+{"name":"l2-headscale","svc":{"matchLabels":{"app.kubernetes.io/name":"headscale","app.kubernetes.io/service":"headscale"}},"node":{"matchLabels":{"kubernetes.io/hostname":"vdhclu01node01"}}}
+{"name":"l2-policy","svc":{"matchExpressions":[{"key":"app.kubernetes.io/name","operator":"NotIn","values":["headscale"]}]},"node":{"matchLabels":{"kubernetes.io/os":"linux"}}}
+# DERP region served (startup log):
+derp region: {RegionID:999 RegionCode:headscale RegionName:Headscale Embedded DERP Latitude:0 Longitude:0 Avoid:false NoMeasureNoHome:false Nodes:[0x2acc59b05dd0]}
+derp nodes[0]: &{Name:999 RegionID:999 HostName:headscale.bluejungle.net CertName: IPv4: IPv6:none STUNPort:3478 STUNOnly:false DERPPort:443 InsecureForTests:false STUNTestIP: CanPort80:false}
+2026-11-03T12:25:20Z INF stun server started at [::]:3478
+# nodes:
+{"id":1,"name":"vdhnblin01","ipv4":"100.64.0.1","tags":null,"online":true,"expiry":null}
+{"id":2,"name":"hs-canary","ipv4":"100.64.0.2","tags":["tag:canary"],"online":true,"expiry":null}
+# pre-auth keys (no key material):
+{"id":1,"acl_tags":["tag:canary"],"used":true,"reusable":null}
+# apikeys=0
+# canary: status
+{"ip":"100.64.0.2","tags":["tag:canary"],"relay":"headscale","online":true,"peers":0}
+# canary Secrets: state keys + authkey length (B2/B5):
+{"state":["_current-profile","_machinekey","_profiles","profile-53b7"]}
+{"authkey_len":0}
+# canary RBAC:
+[{"apiGroups":[""],"resourceNames":["hs-canary-state"],"resources":["secrets"],"verbs":["get","update"]}]
+can-i get secret/hs-canary-state: yes
+can-i update secret/hs-canary-state: yes
+can-i patch secret/hs-canary-state: no
+can-i create secret/hs-canary-state: no
+can-i list secret/hs-canary-state: no
+can-i delete secret/hs-canary-state: no
+can-i get secret/hs-canary-authkey: no
+# canary pod securityContext:
+{"pod":{"runAsGroup":65532,"runAsNonRoot":true,"runAsUser":65532,"seccompProfile":{"type":"RuntimeDefault"}},"c":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true}}
+# B5 key handling: preauthkeys create --tags tag:canary -e 30m -o json > 0600 file in 0700 scratch dir (umask 077); Secret from --from-file; key never printed; key id 1 used=true; authkey blanked 12:28:28Z (len 0)
+# key file moved out of reach:
+moved scratch key dir to /private/tmp/claude-501/-Users-sheijden-Code-homelab-migration-vdhinfra/ee591319-eebc-404d-a6ee-14e79ef61e04/scratchpad/retired/ (not printed)

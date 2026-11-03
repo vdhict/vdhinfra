@@ -1,0 +1,28 @@
+# S1 (C7) VolumeSnapshot via kubectl, outside Flux paths. 2026-11-03T12:14:23Z
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"snapshot.storage.k8s.io/v1","kind":"VolumeSnapshot","metadata":{"annotations":{},"labels":{"ops.vdh/chg":"chg-2026-11-02-012"},"name":"headscale-data-pre-s2","namespace":"network"},"spec":{"source":{"persistentVolumeClaimName":"headscale-data"},"volumeSnapshotClassName":"csi-ceph-blockpool"}}
+  creationTimestamp: "2026-11-03T12:14:15Z"
+  finalizers:
+  - snapshot.storage.kubernetes.io/volumesnapshot-as-source-protection
+  - snapshot.storage.kubernetes.io/volumesnapshot-bound-protection
+  generation: 1
+  labels:
+    ops.vdh/chg: chg-2026-11-02-012
+  name: headscale-data-pre-s2
+  namespace: network
+spec:
+  source:
+    persistentVolumeClaimName: headscale-data
+  volumeSnapshotClassName: csi-ceph-blockpool
+status:
+  boundVolumeSnapshotContentName: snapcontent-c45e7f6d-d506-40d2-906f-6d0526b631c5
+  creationTime: "2026-11-03T12:14:15Z"
+  readyToUse: true
+  restoreSize: 1Gi
+# flux labels on snapshot (expect none):
+{"ops.vdh/chg":"chg-2026-11-02-012"}
+# note: class deletionPolicy=Delete; do not delete this VolumeSnapshot until stage 2 is closed

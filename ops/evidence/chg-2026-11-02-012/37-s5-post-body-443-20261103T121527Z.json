@@ -1,0 +1,1 @@
+{"name":"HS443 headscale","enabled":false,"proto":"tcp","dst_port":"443","fwd":"172.16.2.249","fwd_port":"443","pfwd_interface":"wan2","src":"any","log":true,"destination_ips":[{"destination_ip":"any","interface":"wan2"}]}

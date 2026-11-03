@@ -1,0 +1,13 @@
+# S2 pre-state 2026-11-03T12:15:45Z
+{"id":1,"name":"vdhnblin01","ipv4":"100.64.0.1","tags":null,"online":true}
+apikeys=0
+preauthkeys=0
+# live policy get:
+// chg-2026-11-02-012: deny-all until the Argus-reviewed ACL (tags rekenkracht/agenthost/router, group:admin) lands.
+// An empty acls list allows no traffic between nodes; enrolment itself is not affected.
+{
+  "groups": {},
+  "tagOwners": {},
+  "acls": []
+}
+

@@ -1,0 +1,2 @@
+{"meta":{"rc":"ok"},"data":[{"name":"HS3478 headscale derp-stun","enabled":false,"proto":"udp","dst_port":"3478","fwd":"172.16.2.249","fwd_port":"3478","pfwd_interface":"wan2","src":"any","log":true,"destination_ips":[{"destination_ip":"any","interface":"wan2"}],"site_id":"5e9afa104edb2e02cf522ee5","_id":"6ae9d06183cbbf8f2e36f90b"}]}
+http=200

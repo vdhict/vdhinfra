@@ -1,0 +1,29 @@
+# G1 commit B 2026-11-03T12:24:21Z, worktree on origin/main eb57efdd + uncommitted commit-B diff
+PASS policy-check vv0.29.7: Policy is valid
+PASS grants key present and non-empty
+PASS acls absent or empty
+PASS no autoApprovers
+PASS no * / autogroup:internet / danger-all
+PASS B1 tagOwners all empty lists (3 tags)
+PASS C12 exactly one hosts entry, a single /32
+PASS hosts vdhnblin01 == 100.64.0.1/32
+PASS B2 canary grant exactly tag:canary -> tag:agenthost tcp:22
+PASS tag:agenthost is never a source
+PASS every grant is tcp:22 only
+PASS ssh rules empty
+PASS derp.server.enabled true
+PASS derp.urls empty (own DERP only, Q1)
+PASS derp.auto_update_enabled false
+PASS derp verify_clients true
+PASS derp ipv4 empty (Q2)
+PASS derp ipv6 none (Q2)
+PASS placeholders gone
+PASS node.expiry 180d (Q7)
+PASS taildrop off (D7)
+PASS register_cache_max_entries 64 (D7)
+PASS grpc on loopback
+PASS trusted_proxies empty
+G1 RESULT PASS
+# headscale configtest (pinned v0.29.7, throwaway pod hs-cfgtest, emptyDir state, new config): exit 0 at 2026-11-03T12:24:10Z; pod + cm deleted after
+# kustomize build 11 objects; kubeconform 0 invalid; yamllint ok; server-side dry-run: SA/Role/RoleBinding/Secret/Deployment/CNP/L2 policy/PrometheusRule created, l2-policy configured
+# helm template app-template 3.7.3: services headscale (LoadBalancer 443/TCP + 3478/UDP, primary, annotations kept) + headscale-metrics (ClusterIP 9090); ServiceMonitor headscale -> headscale-metrics

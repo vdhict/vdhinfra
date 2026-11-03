@@ -1,0 +1,6 @@
+meta rc ok; total 5 pre 3 new 2
+6ae9d05f83cbbf8f2e36f907 HS443 headscale enabled=False proto=tcp dst=443 fwd=172.16.2.249:443 if=wan2 src=any log=True dips=[{'destination_ip': 'any', 'interface': 'wan2'}] DIFF: none extra: []
+6ae9d06183cbbf8f2e36f90b HS3478 headscale derp-stun enabled=False proto=udp dst=3478 fwd=172.16.2.249:3478 if=wan2 src=any log=True dips=[{'destination_ip': 'any', 'interface': 'wan2'}] DIFF: none extra: []
+pre LetsEncrypt unchanged
+pre Wireguard unchanged
+pre Plex unchanged

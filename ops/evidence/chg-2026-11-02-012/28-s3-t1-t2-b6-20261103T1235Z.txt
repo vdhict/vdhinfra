@@ -1,0 +1,32 @@
+# chg-2026-11-02-012 S3 tests T1 / T2 / B6 (measured 2026-11-03, UTC times as measured; written after)
+## T2 LAN (from vdhmini01 172.16.2.201; nc -z with 443 as known-open control; /usr/bin/curl)
+12:25:5xZ  tcp/443 open (control), tcp/9090 CLOSED (was open + /metrics 200 at 12:21:44Z baseline), /metrics http=000
+12:25:5xZ  /health 200, TLS verified (ssl_verify=0) via --resolve headscale.<domain>:443:172.16.2.249
+12:26:24Z  plain RFC5389 STUN (no SOFTWARE/FINGERPRINT): reaches pod (hubble: 172.16.2.201 -> headscale:3478 ALLOWED, FORWARDED) but no
+           reply: tailscale net/stun ParseBindingRequest requires SOFTWARE=tailnode + FINGERPRINT. Public-STUN control answered (32 B).
+~12:27Z    Tailscale-format STUN to 172.16.2.249:3478: Binding Success 0x0101, XOR-MAPPED-ADDRESS (family v6-mapped) = 172.16.2.201
+           -> STUN answered on the LAN with the TRUE source (D1 holds for UDP).
+12:25:5xZ  D1 source preservation: /health requests from the Mini logged remote=172.16.2.201 (before: every request remote=172.16.2.82
+           node IP). remote=172.16.2.81 lines = node01 kubelet probes.
+12:26Z     pod node = vdhclu01node01 = lease holder; other 12 L2 leases identical to 25-s3-pre-baseline (R2).
+12:27:44Z  canary: "home is now derp-999 (headscale)", "derp-999 connected", NetInfo udp=true derp=#999; status Relay=headscale.
+12:33-12:35Z verify script T2 block all PASS incl. 50443/8443 closed, /api/v1/node 401, envoy-internal .241 answers, HA .237 200.
+## T1 ACL
+12:29Z  canary (100.64.0.2, tag:canary) peer list = 0 (headscale does not even send vdhnblin01 to it).
+12:29Z  canary -> 100.64.0.1:22 / :443 / :5900 via `tailscale nc`: all rc=1 (denied). No positive control possible yet (no
+        tag:agenthost node until S4).
+12:30Z  policy check (gRPC, stdin, live file untouched) with tests block: tag:canary deny 100.64.0.1:22/443/5900; 100.64.0.1 deny
+        tag:canary:22/443 -> "Policy is valid" rc=0. Negative control (tag:canary accept 100.64.0.1:22) -> "expected ALLOWED, got
+        DENIED" rc=1.
+12:30Z  Tests naming tag:agenthost / tag:rekenkracht cannot be evaluated yet: "destination resolved to no IP addresses" (no tagged
+        nodes). canary -> Studio:22 (B2 negative) therefore asserted statically by G1 ("B2 canary grant exactly tag:canary ->
+        tag:agenthost tcp:22", PASS) and must be re-run live at S4 (verify script does this automatically once the nodes exist).
+        Mini/Studio-sourced negatives also wait for S4.
+## B6 alert on a real enrolment
+12:27:30Z canary key (id 1, tag:canary, single use, 30m) loaded; 12:27:41Z canary started; node 2 registered.
+12:28:01Z Alertmanager: HeadscaleNodeRegistered active, labels severity=warning component=headscale, receivers matched ntfy-day
+          (07-23 active) / ntfy-night (23-07 only). 13:29 CET = daytime -> ntfy-day. Payload grep 'hskey-' = 0.
+          alertmanager_notifications_total{integration=webhook} +3 in 15m, failed +0 (no receiver label: per-receiver delivery not
+          attributable from metrics).
+          Prometheus rule = NodeStore gauge (pre-auth registrations log only at DEBUG in v0.29.7 state.go). Loki rule (CLI path,
+          "node registered successfully") loaded health=ok, not yet exercised by a real CLI registration (C8 enrolments at S4 will).
