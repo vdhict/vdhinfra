@@ -5,6 +5,10 @@
 # account. Runs inside the CNPG exporter, so nobody needs exec on forge-pg.
 # Metric: cnpg_forgejo_oidc_links_links{source="..."}; alert in
 # observability/aiops (ForgeOidcLinksUnexpected).
+# CNPG runs custom queries as pg_monitor, so it needs column grants (set once
+# by hack/ops/chg-2026-11-04-004-forge-oidc-k8s-secrets.py grant):
+#   login_source(id, name, type), external_login_user(login_source_id).
+# The subject column (external_id) is deliberately NOT granted.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -14,7 +18,7 @@ metadata:
 data:
   queries: |
     forgejo_oidc_links:
-      query: "SELECT ls.name AS source, count(e.external_id) AS links FROM login_source ls LEFT JOIN external_login_user e ON e.login_source_id = ls.id WHERE ls.type = 6 GROUP BY ls.name"
+      query: "SELECT ls.name AS source, count(e.login_source_id) AS links FROM login_source ls LEFT JOIN external_login_user e ON e.login_source_id = ls.id WHERE ls.type = 6 GROUP BY ls.name"
       target_databases: ["forgejo"]
       metrics:
         - source:

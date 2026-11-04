@@ -87,5 +87,16 @@ def link_step():
         "devtools"), uid))
 
 
+def grant_step():
+    """Argus C3: column grants so the CNPG exporter (pg_monitor) can count links per source. No subject column."""
+    stmt = ("GRANT SELECT (id, name, type) ON login_source TO pg_monitor; "
+            "GRANT SELECT (login_source_id) ON external_login_user TO pg_monitor;")
+    kubectl("-n", "devtools", "exec", "-i", "forge-pg-1", "-c", "postgres", "--", "psql", "-U", "postgres", "-d",
+            "forgejo", "-At", "-q", "-v", "ON_ERROR_STOP=1", stdin=stmt.encode())
+    print("readback: pg_monitor column grants: %s" % psql("forge-pg-1", "forgejo", (
+        "SELECT string_agg(table_name||'.'||column_name, ',' ORDER BY 1) FROM information_schema.column_privileges "
+        "WHERE grantee='pg_monitor' AND table_name IN ('login_source','external_login_user')"), "devtools"))
+
+
 if __name__ == "__main__":
-    {"secrets": secrets_step, "link": link_step}[sys.argv[1] if len(sys.argv) > 1 else ""]()
+    {"secrets": secrets_step, "link": link_step, "grant": grant_step}[sys.argv[1] if len(sys.argv) > 1 else ""]()
