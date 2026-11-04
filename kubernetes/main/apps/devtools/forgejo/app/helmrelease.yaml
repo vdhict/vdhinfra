@@ -146,7 +146,19 @@ spec:
       # P5 appends a single entry here with `existingSecret:` pointing at a
       # 1Password-backed secret and `autoDiscoverUrl` on Authelia. No other
       # values change is required.
-      oauth: []
+      # P5 (chg-2026-11-04-004): Authelia as the OIDC login source. The
+      # chart's configure-gitea init container runs add-oauth/update-oauth
+      # with these settings; key (client id) and secret come from
+      # devtools/forgejo-oauth-authelia. Registration stays off and
+      # ENABLE_AUTO_REGISTRATION stays at its default false, so only an
+      # identity pre-linked to an existing user (external_login_user) can
+      # sign in this way.
+      oauth:
+        - name: authelia
+          provider: openidConnect
+          existingSecret: forgejo-oauth-authelia
+          autoDiscoverUrl: https://auth.${SECRET_DOMAIN}/.well-known/openid-configuration
+          scopes: openid,profile,email
 
       # The DB password never appears in app.ini as plaintext in Git. The
       # chart's init-app-ini container runs config_environment.sh, which
@@ -200,6 +212,11 @@ spec:
           SSH_SERVER_MACS: hmac-sha2-256-etm@openssh.com,hmac-sha2-256
           LFS_START_SERVER: true
           OFFLINE_MODE: true
+
+        # Explicit, not the default (Argus C2, chg-2026-11-04-004): an OIDC
+        # identity that is not pre-linked must never create an account.
+        oauth2_client:
+          ENABLE_AUTO_REGISTRATION: false
 
         service:
           # This forge holds client repositories. Self-registration off,

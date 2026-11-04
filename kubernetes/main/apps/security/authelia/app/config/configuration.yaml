@@ -129,6 +129,16 @@ identity_providers:
         rules:
           - policy: two_factor
             subject: [group:vikunja]
+      # forgejo (chg-2026-11-04-004): owner login to the forge without a
+      # local password. Default DENY, two_factor for group admins. Forgejo
+      # itself admits only an identity pre-linked to an existing user
+      # (registration and auto-registration are off), so passing this policy
+      # alone creates no forge account.
+      forgejo:
+        default_policy: deny
+        rules:
+          - policy: two_factor
+            subject: [group:admins]
     # Put the claims Open WebUI reads (groups for role + group sync, email,
     # name) in the ID token as well as userinfo, so role management never
     # sees an empty groups claim and falls back to a "pending" account.
@@ -178,6 +188,24 @@ identity_providers:
         token_endpoint_auth_method: client_secret_basic
         scopes: [openid, profile, email]
         redirect_uris: ["https://vikunja.bluejungle.net/auth/openid/authelia"]
+        userinfo_signed_response_alg: none
+      - client_name: Forge
+        client_id: forgejo
+        # bcrypt digest in security/authelia-oidc-forgejo; the plaintext is
+        # in devtools/forgejo-oauth-authelia. Both written once by
+        # hack/ops/chg-2026-11-04-004-forge-oidc-k8s-secrets.py. Nobody types it.
+        client_secret: "$${FORGEJO_OAUTH_CLIENT_DIGEST}"
+        public: false
+        authorization_policy: forgejo
+        pre_configured_consent_duration: 1y
+        # Forgejo sends an S256 code_challenge for openidConnect sources
+        # (since v8.0.0, PR #4094; routers/web/auth/oauth.go, Argus
+        # 2026-11-04), so PKCE is required here.
+        require_pkce: true
+        pkce_challenge_method: S256
+        token_endpoint_auth_method: client_secret_basic
+        scopes: [openid, profile, email]
+        redirect_uris: ["https://forge.${SECRET_DOMAIN}/user/oauth2/authelia/callback"]
         userinfo_signed_response_alg: none
       - client_name: grafana
         client_id: grafana

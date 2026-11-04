@@ -81,6 +81,11 @@ spec:
               # (oidc-vikunja-secret.yaml, chg-2026-09-28-003)
               - secretRef:
                   name: authelia-oidc-vikunja
+              # bcrypt digest of the forgejo OIDC client secret, written by
+              # hack/ops/chg-2026-11-04-004-forge-oidc-k8s-secrets.py (not 1P:
+              # the Connect token is read-only). Must exist before this lands.
+              - secretRef:
+                  name: authelia-oidc-forgejo
             args: [--config, /config/configuration.yaml, --config.experimental.filters, expand-env]
             probes:
               liveness: &probes

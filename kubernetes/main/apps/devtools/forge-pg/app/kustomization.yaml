@@ -5,3 +5,4 @@ kind: Kustomization
 resources:
   - ./cluster.yaml
   - ./secrets.yaml
+  - ./oidc-links-queries.yaml

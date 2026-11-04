@@ -186,6 +186,19 @@ spec:
           annotations:
             summary: "{{ $labels.host }}: myPKA pka-heartbeat-check watches nothing"
             description: Its sweep matched 0 registry lines. ALERT_HOST_ROLE in ~/.config/pka-alert/alert.env or the wires.conf host column is wrong. Owner Mack.
+        - alert: ForgeOidcLinksUnexpected
+          # Argus C3 (chg-2026-11-04-004): the forge's authelia login source
+          # must have exactly one linked identity (the owner's). Another link
+          # means an identity was attached to a second account (a logged-in
+          # user completing Authelia links it to themselves). Counts only.
+          expr: cnpg_forgejo_oidc_links_links{namespace="devtools",source="authelia"} != 1
+          for: 30m
+          labels:
+            severity: warning
+            component: aiops-hosts
+          annotations:
+            summary: "forge: {{ $value }} identities linked to the authelia login source (expected 1)"
+            description: List them read-only in forge-pg (external_login_user by login_source_id) and remove any link that is not the owner's.
         - alert: StudiemateriaalWorkerDown
           # The study-material reader on the Studio (launchd
           # com.sander.pka-studiemateriaal-studio, loopback 18769) does not

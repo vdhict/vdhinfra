@@ -1,0 +1,25 @@
+---
+# Argus C3 (chg-2026-11-04-004): count the external identities linked to each
+# OIDC login source of the forge. The authelia source must have exactly one
+# (the owner's pre-link); more means someone linked an identity to another
+# account. Runs inside the CNPG exporter, so nobody needs exec on forge-pg.
+# Metric: cnpg_forgejo_oidc_links_links{source="..."}; alert in
+# observability/aiops (ForgeOidcLinksUnexpected).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: forge-pg-oidc-links-queries
+  labels:
+    cnpg.io/reload: ""
+data:
+  queries: |
+    forgejo_oidc_links:
+      query: "SELECT ls.name AS source, count(e.external_id) AS links FROM login_source ls LEFT JOIN external_login_user e ON e.login_source_id = ls.id WHERE ls.type = 6 GROUP BY ls.name"
+      target_databases: ["forgejo"]
+      metrics:
+        - source:
+            usage: "LABEL"
+            description: "Forgejo OAuth2 login source name"
+        - links:
+            usage: "GAUGE"
+            description: "External identities linked through this source"
