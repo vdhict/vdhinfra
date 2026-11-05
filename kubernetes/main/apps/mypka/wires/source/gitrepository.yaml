@@ -33,9 +33,12 @@ spec:
   # Rollback: branch main commit 13e207a (v10).
   # Teamregie (chg-2026-10-30-002, Argus ranges dd461cb..a7b55ad + a7b55ad..21fafab 2026-10-30): rollback dd461cb, branch main.
   # Argus range 21fafab..bbc26b1 (chg-2026-10-30-002 + chg-2026-10-07-007, 2026-10-30): Teamregie werkagenda + Teamregie image + trip seed; rollback 21fafab, branch teamregie/cluster-page.
+  # Argus delta 51abac2+4ae7497 qa_passed + F6a/F6b closure 3a90fd7 (chg-2026-11-03-001, tsk-2026-11-03-048, 2026-11-05):
+  # runner client-term fence, path fence, FQDN egress (runner-egress CNP), ES mypka-runner-client-terms, image pin
+  # v4-4ae7497 (index 7bff7529) in 9605ae0; runner CronJob stays suspend: true. Rollback bbc26b1, branch teamregie/cluster-page.
   ref:
-    branch: teamregie/cluster-page
-    commit: bbc26b1d2b7fd130d8d220596d081e1282395776
+    branch: runner/2026-11-05-fence-v4
+    commit: 9605ae0d3f89afa235a0f457f70a48a0842b6126
   # Fetch only what the tenant Kustomization applies (as Mack proposed).
   ignore: |
     /*
