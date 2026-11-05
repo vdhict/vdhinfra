@@ -1,6 +1,10 @@
 ---
 # chg-2026-10-22-006 (30-10): tpAppId = AR1 (LAB ENTRA_CLIENT_ID), employeeAppId = AR2 (LAB PP_EMPLOYEE_CLIENT_ID) for E08/E11/E15;
-# idleMinutes not set (LAB = policy default 15). origins.webMaxSession/maxSessionMinutes wait for the E14 instance.
+# idleMinutes not set (LAB = policy default 15).
+# chg-2026-10-22-006 (05-11, E14): origins.webMaxSession = the second .NET LAB instance lab-passkey-dotnet-maxsession (same
+# desk digest, SESSION_MAX_HOURS "1"); maxSessionMinutes 60 = that maximum (the desk loader's minimum is 1 hour). E14
+# waits maxSessionMinutes + 2 = 62 min with a page load every 2 min (activity), inside the 122-min per-probe budget of
+# activeDeadlineSeconds 19800. Harness checks (e2e/v11 probes.ts): https, own origin != origins.web, 1..120 minutes.
 # E2E config for the .NET LAB run (chg-2026-10-20-001): the live passkey-point-e2e/passkey-point-e2e-config
 # (dev-tenant.json, read 2026-10-20) with ONE change, origins.web -> the .NET LAB host. Non-secret: dev tenant
 # 7m5b27gbc persona aliases, object ids and UPNs (synthetic), the runner app id. Passwords and passkeys stay in Secret
@@ -21,8 +25,10 @@ data:
       "tpAppId": "6e05d927-e0c2-418b-9f01-ab909aec5699",
       "employeeAppId": "fc2dbe71-1e24-47f7-af55-13e196640b37",
       "origins": {
-        "web": "https://passkey-point-dotnet-lab.bluejungle.net"
+        "web": "https://passkey-point-dotnet-lab.bluejungle.net",
+        "webMaxSession": "https://passkey-point-dotnet-lab-maxsession.bluejungle.net"
       },
+      "maxSessionMinutes": 60,
       "denyListFile": "config/denylist.txt",
       "personas": [
         {

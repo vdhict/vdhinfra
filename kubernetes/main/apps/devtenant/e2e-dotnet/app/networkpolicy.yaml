@@ -24,6 +24,7 @@ spec:
           rules:
             dns:
               - matchName: passkey-point-dotnet-lab.bluejungle.net
+              - matchName: passkey-point-dotnet-lab-maxsession.bluejungle.net  # E14 instance (chg-2026-10-22-006)
 ---
 # ADDITIVE, .NET E2E pods only (chg-2026-10-20-001, Argus C12): the persona-gate initContainer reads Jobs in this
 # namespace from the API server. Allow-only, one port. Only the gate initContainer holds a token.

@@ -17,6 +17,7 @@ spec:
   dependsOn:
     - name: devtenant-base
     - name: lab-passkey-dotnet-desk
+    - name: lab-passkey-dotnet-maxsession-desk  # E14 instance (chg-2026-10-22-006); remove at its teardown
   path: ./kubernetes/main/apps/devtenant/e2e-dotnet/app
   sourceRef:
     kind: GitRepository

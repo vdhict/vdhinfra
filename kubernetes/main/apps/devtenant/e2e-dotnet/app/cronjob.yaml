@@ -12,6 +12,8 @@
 #           e2e/secreq-1.0-idtype aee4e84 (= 3ccfbab + Node 24.22.1 base node:24-trixie-slim 1375326a); grype 0 outside
 #           ar-015, signed + attested, cosign verify vs OOB key. Desk under test 7e090d0. Rollback: git revert.
 #   config  passkey-point-e2e-dotnet-config (origins.web = the .NET LAB); hostAliases for that host on envoy-internal.
+#   chg-2026-10-22-006 (05-11, E14): hostAliases also carries the maxsession host (lab-passkey-dotnet-maxsession, same
+#           envoy-internal address); config origins.webMaxSession points at it.
 #   chg-2026-10-22-006 (30-10): image e2e-0cec4a3 = harness e2e/v11 0cec4a3 (on aee4e84; adds E03 E08 E10 E11 E13 E14 E15),
 #           index sha256:b93db636 (amd64 106d5e11, arm64 ff96050b), grype 0 outside ar-015, signed + attested, cosign verify vs
 #           OOB key (evidence 20261030t0614z-e2e-0cec4a3-*). activeDeadlineSeconds 19800 (E13 idle + E14 maximum-session waits).
@@ -63,7 +65,7 @@ spec:
           automountServiceAccountToken: false
           restartPolicy: Never
           nodeSelector: {kubernetes.io/hostname: vdhclu01node02}
-          hostAliases: [{ip: "172.16.2.241", hostnames: ["passkey-point-dotnet-lab.bluejungle.net"]}]
+          hostAliases: [{ip: "172.16.2.241", hostnames: ["passkey-point-dotnet-lab.bluejungle.net", "passkey-point-dotnet-lab-maxsession.bluejungle.net"]}]
           imagePullSecrets: [{name: passkey-point-e2e-pull}]
           securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 0, fsGroup: 10001, seccompProfile: {type: RuntimeDefault}}
           initContainers:
