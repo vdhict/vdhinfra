@@ -12,13 +12,14 @@
 #   * 9dc3dbc (chg-2026-10-21-012): desk 7e090d0, no new migration (V012 stays; run is a no-op).
 #   * 9e2a6a4 (chg-2026-10-22-006): desk v10 72d654b, no new migration (V012 stays; run is a no-op).
 #   * 3a1e4a4 (chg-2026-10-22-006): desk v12b f9c04f9, no new migration (V012 stays; run is a no-op).
+#   * e0f369e (chg-2026-10-22-006): desk 0404ac1 (forge main line + callback refusal), no new migration (V012 stays).
 #   * -r2 (inc-2026-10-20-002): run 1 failed to connect (DB not up yet, nothing applied); the new name makes Flux
 #     create a fresh Job and prune the failed one.
 # yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/batch/job_v1.json
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: passkey-point-migrate-3a1e4a4
+  name: passkey-point-migrate-e0f369e
 spec:
   backoffLimit: 0
   activeDeadlineSeconds: 600

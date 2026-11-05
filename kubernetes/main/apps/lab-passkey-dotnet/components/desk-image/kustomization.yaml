@@ -18,10 +18,15 @@
 #   chg-2026-10-22-006 (30-10): desk-f9c04f9 = v12b f9c04f95b486f944d2c9e7fbace6dffea7ce22c1 (bundle sha256 2a8a5441; src/ = v12),
 #   built + signed by k8s-engineer (grype gate 0, cosign verify + slsaprovenance1 vs OOB key, evidence 20261030t0622z-desk-f9c04f9-*).
 #   Was 9e2a6a43 (v10 72d654b, kept frozen in the registry). Rollback: git revert.
+#   chg-2026-10-22-006 (05-11, E08): desk-0404ac1 = mypka-bot/passkey-point-dotnet 0404ac12464788d640f030c046e2acede0dad56a (forge main 7e090d0 +
+#   8e6b865 callback refusal: AADSTS claims challenge at the code exchange -> /refused pr_mfa_required, no 500), built +
+#   signed by k8s-engineer (grype gate 0, cosign verify + slsaprovenance1 vs OOB key, evidence 20261105t2049z/2054z-desk-0404ac1-*).
+#   NOTE: line change, v12b (bundle, Red Hat Hardened base) -> forge main line (mcr aspnet 84def277); migrations V001-V012
+#   same set. Was 3a1e4a45 (v12b f9c04f9). Rollback: git revert.
 # A new desk build: change digest (and the comment), and the Job names in migrate/app + grants/app (immutable Jobs).
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 images:
   - name: passkey-point-desk
     newName: forge.bluejungle.net/palamedes/passkey-point-dotnet
-    digest: sha256:3a1e4a45aba627ca64ef60a4cbbf7fa8a19367f78c1147c439fe367651b9775d
+    digest: sha256:e0f369e64b779d6a77a188bb5e7e02cf613b94c93f8ff0e7da5887290af8305d
