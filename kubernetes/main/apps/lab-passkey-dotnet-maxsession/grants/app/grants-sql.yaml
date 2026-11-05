@@ -1,0 +1,44 @@
+---
+# migrations/postgres/grants.sql from mypka-bot/passkey-point-dotnet e7fbe8a (read from the forge 2026-10-20,
+# sha256 e344673e8ce2da0579c644898d67baa80d6154ba56043368ca1829d6ff0a3a14), with ONE line removed: "CREATE ROLE pp_runtime LOGIN;" (the role is created by CNPG
+# as a managed role with its generated password, db/app/cluster.yaml; pp_migrator has no CREATEROLE).
+# Everything else verbatim, incl. the V012 rights: SELECT, INSERT on id_check_confirmations, REVOKE UPDATE, DELETE,
+# TRUNCATE. Resulting file sha256 234141e2e3ba7bc509eda6a1dc57ccb16ab64c2adfac0adecc979faa1df0a0d7.
+# Flux substitution DISABLED for this object: drone/envsubst would turn the PL/pgSQL "$$" quotes into "$".
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/v1/configmap.json
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: passkey-point-grants-sql
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+data:
+  grants.sql: |
+    -- Example rights (PostgreSQL). Run once as the database owner, after the migrations. Adapt the role names.
+    --   pp_migrator: owns the schema, runs `npm run migrate` (DDL). Not created here.
+    --   pp_runtime:  the api tier. Data only, no DDL. Audit: INSERT and SELECT.
+    --   (pp_roster, the roster workload's principal, went with gate G3: V008 drops it on an existing database.)
+    -- Review round S2 #9: on PostgreSQL 14 every role inherits CREATE on schema public through PUBLIC, so revoking it from
+    -- pp_runtime alone changes nothing. Take it from PUBLIC (the default from PostgreSQL 15 on); the migration principal
+    -- keeps it (as owner, or by the explicit grant below). Check: SELECT has_schema_privilege('pp_runtime', 'public', 'CREATE');  -> false
+    REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+    DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pp_migrator') THEN GRANT USAGE, CREATE ON SCHEMA public TO pp_migrator; END IF;
+    END $$;
+
+    GRANT USAGE ON SCHEMA public TO pp_runtime;
+    REVOKE CREATE ON SCHEMA public FROM pp_runtime;
+    GRANT SELECT, INSERT ON audit TO pp_runtime;
+    GRANT USAGE, SELECT ON SEQUENCE audit_seq_seq TO pp_runtime;
+    GRANT SELECT, UPDATE ON ship_cursor TO pp_runtime;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON taps, keys TO pp_runtime;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON spent_touches TO pp_runtime;   -- SR-05: one key touch, one TAP (V002)
+    GRANT SELECT, INSERT, UPDATE, DELETE ON issue_locks TO pp_runtime;     -- one issue in flight per worker (V003)
+    GRANT SELECT, INSERT, DELETE ON tap_requests TO pp_runtime;            -- TAP requests per session and per Trusted Person (V007)
+    GRANT SELECT, INSERT, UPDATE, DELETE ON rate_incidents TO pp_runtime;  -- one CDC incident per window (V007)
+    GRANT SELECT, INSERT, DELETE ON tp_sessions TO pp_runtime;             -- sign-ins per Trusted Person, SIEM alert (V007)
+    GRANT SELECT ON schema_migrations TO pp_runtime;
+    GRANT USAGE ON SEQUENCE tap_request_id_seq TO pp_runtime;          -- the PKP request number: next value only (V010)
+
+    GRANT SELECT, INSERT ON id_check_confirmations TO pp_runtime; -- SEC-06.3 (V012)
+    REVOKE UPDATE, DELETE, TRUNCATE ON id_check_confirmations FROM pp_runtime;

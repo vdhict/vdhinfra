@@ -1,0 +1,31 @@
+---
+# https://passkey-point-dotnet-lab-maxsession.${SECRET_DOMAIN} -> envoy-internal (wildcard cert) -> passkey-point-web:8080
+# in lab-passkey-dotnet-maxsession (E14, chg-2026-10-22-006). Same shape as the .NET LAB route: LAN and WireGuard only,
+# NEVER envoy-external, no forward-auth (the app's own Entra sign-in). DNS exactly as the .NET LAB: controller none
+# keeps both Cloudflare instances off (no public record); external-dns-unifi writes the LAN record (do NOT hand-write
+# one). Entra: the dev-tenant bootstrap (devtenant 00455aa, lab.extraOrigins) puts /auth/callback (AR1) and
+# /employee/callback (AR2) on this host; logout stays on the primary .NET LAB origin.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/gateway.networking.k8s.io/httproute_v1.json
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: passkey-point-dotnet-lab-maxsession
+  annotations:
+    external-dns.alpha.kubernetes.io/controller: none
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: envoy-internal
+      namespace: network
+      sectionName: https
+  hostnames:
+    - passkey-point-dotnet-lab-maxsession.${SECRET_DOMAIN}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: passkey-point-web
+          port: 8080

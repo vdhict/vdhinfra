@@ -1,0 +1,49 @@
+---
+# Dedicated PostgreSQL for the .NET LAB (chg-2026-10-20-001), same pattern as devtools/forge-pg, smaller.
+#   * ONE instance: lab data only (synthetic dev-tenant personas), teardown with the LAB; no HA needed.
+#   * Same image/digest as forge-pg (16.9-22): one PG major on the estate; migrations need PostgreSQL 14+.
+#   * NO backup and NO barmanObjectStore: nothing here may leave the house, and there is nothing worth restoring.
+#   * Principals (migrations/README.md @e7fbe8a):
+#       pp_migrator  initdb owner of database passkeypoint: owns the schema, runs `ops migrate` and grants.sql.
+#                    Secret pp-dotnet-pg-app (CNPG-generated, never printed).
+#       pp_runtime   managed role, LOGIN, no CREATEDB/CREATEROLE/superuser; data rights come from grants.sql.
+#   * enableSuperuserAccess omitted (false). No LoadBalancer, no monitoring (LAB).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/postgresql.cnpg.io/cluster_v1.json
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: pp-dotnet-pg
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.9-22@sha256:cca50a94e2da46ddcaefb23260c805ed3b466763bd2a25e1617410176d5fd0ab
+  primaryUpdateStrategy: unsupervised
+  storage:
+    size: 2Gi
+    storageClass: rook-ceph-block
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  postgresql:
+    parameters:
+      max_connections: "50"
+      shared_buffers: 64MB
+  bootstrap:
+    initdb:
+      database: passkeypoint
+      owner: pp_migrator
+  managed:
+    roles:
+      - name: pp_runtime
+        ensure: present
+        login: true
+        superuser: false
+        createdb: false
+        createrole: false
+        inherit: true
+        replication: false
+        connectionLimit: 20
+        passwordSecret:
+          name: pp-dotnet-pg-runtime

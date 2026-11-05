@@ -1,0 +1,62 @@
+---
+# O365 Management Database Service simulator config for the .NET LAB: byte-identical to lab-passkey/passkey-point/app/
+# tap-sim-config.yaml (passkey-point@f573026 deploy/lab/tap-sim-dev-fake.json + tap-wire-client.json). TapSim keys
+# are unchanged by the o365-mds rename (Mack 2026-10-20). The api reads wire.json via PP_O365_MDS_WIRE_FILE.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/v1/configmap.json
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tap-sim-config
+data:
+  config.json: |
+    {
+      "environment": "dev",
+      "listen": {
+        "host": "127.0.0.1",
+        "port": 8090
+      },
+      "basePath": "/api",
+      "wire": {
+        "profile": "client"
+      },
+      "mandatoryFields": [
+        "requestType",
+        "userPrincipalName",
+        "action",
+        "idempotencyId"
+      ],
+      "lifetimeMinutes": {
+        "min": 60,
+        "max": 480,
+        "default": 480
+      },
+      "usableOnceDefault": false,
+      "allowMultiUse": true,
+      "idempotency": "replay",
+      "timing": {
+        "createdMs": 500,
+        "inProgressMs": 1500
+      },
+      "retrieval": {
+        "codeTtlSeconds": 300,
+        "maxFailuresPerUpn": 5
+      },
+      "tapLength": 8,
+      "backend": "fake",
+      "auth": {
+        "mode": "off"
+      },
+      "faults": {
+        "failFirstAttempts": 0,
+        "failUpns": [],
+        "refuseUpns": [],
+        "loseCreateAnswers": 0,
+        "statusLagMs": 0,
+        "failureCode": "simulated_failure"
+      },
+      "maxRequests": 10000
+    }
+  wire.json: |
+    {
+      "profile": "client"
+    }

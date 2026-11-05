@@ -1,0 +1,43 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+#
+# lab-passkey-dotnet-maxsession: a SECOND .NET LAB instance for E2E case E14 (session ends at its maximum even with
+# activity), chg-2026-10-22-006 / tsk-2026-10-13-049 (Mack handoff 2026-11-05, devtenant 00455aa). A copy of
+# lab-passkey-dotnet with ONLY these deltas (Argus condition c, chg-2026-10-22-006 qa_passed 05-11):
+#   * namespace lab-passkey-dotnet-maxsession and Flux Kustomizations lab-passkey-dotnet-maxsession-* (same dependsOn chain)
+#   * host https://passkey-point-dotnet-lab-maxsession.${SECRET_DOMAIN} (HTTPRoute + PP_PUBLIC_ORIGIN), envoy-internal only,
+#     external-dns controller none (no Cloudflare record; LAN record by external-dns-unifi, as the .NET LAB)
+#   * base/app/env.yaml SESSION_MAX_HOURS "1" (the E14 shortened maximum; e2e maxSessionMinutes 60)
+#   * namespace-local names that carry the namespace (DNS names in CNP dns rules, Npgsql/libpq hosts, cert dnsNames,
+#     CA/SecretStore/quota names)
+# Same desk digest by construction: migrate/ and desk/ use ../lab-passkey-dotnet/components/desk-image (no second pin).
+# A desk bump of the .NET LAB therefore rolls this instance too (migrate Job recreated by force: true, a no-op while
+# migrations do not change). Same node pinning (vdhclu01node02, chg-2026-10-12-004 E1), same CNPs, read-only key mounts.
+# Own data: own CNPG Cluster pp-dotnet-pg in THIS namespace (own PVC, own CNPG secrets, own runtime password generated
+# in-cluster), own migrate/grants Jobs, own namespace-local CA. Nothing in lab-passkey-dotnet is read or written.
+# Secrets: the same 1Password sources as the .NET LAB (shared dev-app material: op-connect-token-passkey-point-dev-app,
+# pp-v01-AR1/AR2/AR3-cert). Nothing new in 1Password. Pull secret passkey-point-palamedes-pull: one-off labelled copy of
+# devtenant-build/devtenant-pull by hack/ops/chg-2026-10-22-006-maxsession-rollout.py (same pattern as the .NET LAB).
+# TEMPORARY: lab data only (synthetic dev-tenant personas), no backup.
+#
+# TEARDOWN (in this order, never skip a step):
+#   1. Remove https://passkey-point-dotnet-lab-maxsession.bluejungle.net from lab.extraOrigins in the devtenant
+#      bootstrap (VDHICT/passkey-point infra/devtenant), build + run bootstrap-v01 (dry run, then --yes).
+#   2. Wait for the 02:10 bootstrap read-back to show the AR1 /auth/callback and AR2 /employee/callback for this host
+#      GONE (redirect URIs = the TS and .NET LAB callbacks only).
+#   3. Only then, one commit: remove origins.webMaxSession + maxSessionMinutes, the hostAliases entry, the DNS matchName
+#      and the dependsOn lab-passkey-dotnet-maxsession-desk in devtenant/e2e-dotnet, AND this directory (HTTPRoute ->
+#      LAN DNS record pruned by external-dns-unifi; the CNPG PVC goes with the namespace).
+#   4. Read back: no HTTPRoute, no LAN DNS record, namespace gone, no Flux Kustomization lab-passkey-dotnet-maxsession-*.
+# Flux order (each dependsOn the previous, wait: true): network-policies -> base -> db -> migrate -> grants -> desk.
+# Cluster-apps picks this directory up from kubernetes/main/apps/ (no root list, same as lab-passkey-dotnet).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./namespace.yaml
+  - ./network-policies/install.yaml
+  - ./base/install.yaml
+  - ./db/install.yaml
+  - ./migrate/install.yaml
+  - ./grants/install.yaml
+  - ./desk/install.yaml

@@ -1,0 +1,35 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# The .NET LAB's OWN PostgreSQL (requirement 2: the TS LAB's SQLite on lab-passkey/pp-data is never touched, and
+# neither is database/postgres16). wait: true -> Ready only when the CNPG Cluster is healthy and the runtime-role
+# Secret exists; migrate/ dependsOn this.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app lab-passkey-dotnet-maxsession-db
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: lab-passkey-dotnet-maxsession-base
+    - name: cloudnative-pg
+  targetNamespace: lab-passkey-dotnet-maxsession
+  commonMetadata:
+    labels:
+      app.kubernetes.io/part-of: lab-passkey-dotnet-maxsession
+  path: ./kubernetes/main/apps/lab-passkey-dotnet-maxsession/db/app
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: true
+  # inc-2026-10-20-002: the generic (kstatus) check counted the new Cluster Current at "Setting up primary", so
+  # migrate/ ran before PostgreSQL accepted connections. Ready now means: every instance ready AND healthy phase.
+  healthCheckExprs:
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: Cluster
+      current: has(status.readyInstances) && status.readyInstances == spec.instances && status.phase == 'Cluster in healthy state'
+      inProgress: "!has(status.readyInstances) || status.readyInstances < spec.instances || status.phase != 'Cluster in healthy state'"
+  interval: 30m
+  retryInterval: 2m
+  timeout: 10m

@@ -1,0 +1,144 @@
+---
+# .NET desk, api tier (deploy/base/api.yaml @e7fbe8a, filled like lab-passkey/passkey-point/app/api.yaml):
+#   * image passkey-point-desk (components/desk-image), args ["api"]; config passkey-point-config + explicit env.
+#   * TAP issuing: PP_TAP_SERVICE=o365-mds (ConfigMap) with PP_O365_MDS_ENV=dev-fake against the TapSim sidecar on
+#     loopback (http allowed only for a loopback dev-fake, ConfigLoader.cs:810/844). These three keys are the renamed
+#     PP_TAP_CUSTOMER_ENV/_BASE_URL/_WIRE_FILE of the TS LAB, same values. No PP_TAP_CUSTOMER_* anywhere (fail closed).
+#   * database: PP_DB_URL = Secret pp-dotnet-pg-runtime key url (runtime principal pp_runtime, no DDL), TLS
+#     VerifyFull against the CNPG CA (ca.crt only). The api refuses a schema older than 12 -> /readyz stays red.
+#   * PSA restricted, uid 10001 (the image accepts an arbitrary UID), drop ALL, ro rootfs, automount false,
+#     replicas 1 + Recreate (per-session state is in memory, DESIGN 9). Pinned to node02 like the TS LAB (Entra
+#     sign-in egress via the node02 route, Argus E1).
+#   * TapSim sidecar: the SAME image and command as in lab-passkey (TS simulator, palamedes/passkey-point 3ecb605f,
+#     already signed and running); the .NET TapSim is a port of it (same config file). Only loopback 127.0.0.1:8090.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/apps/deployment_v1.json
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: passkey-point-api
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  progressDeadlineSeconds: 300
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: passkey-point-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: passkey-point-api
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+      terminationGracePeriodSeconds: 30
+      nodeSelector:
+        kubernetes.io/hostname: vdhclu01node02
+      imagePullSecrets:
+        - name: passkey-point-palamedes-pull
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          image: passkey-point-desk
+          args: ["api"]
+          envFrom:
+            - configMapRef:
+                name: passkey-point-config
+          env:
+            - {name: PP_MODE, value: "entra"}
+            - {name: PP_WEB_CLIENT_ID, value: "6e05d927-e0c2-418b-9f01-ab909aec5699"}
+            - {name: PP_EMPLOYEE_SCOPE, value: "openid profile"}
+            - {name: PP_CONTRACTOR_TENURE_MINUTES, value: "120"}
+            - {name: PP_O365_MDS_ENV, value: "dev-fake"}
+            - {name: PP_O365_MDS_BASE_URL, value: "http://127.0.0.1:8090/api"}
+            - {name: PP_O365_MDS_WIRE_FILE, value: "/etc/tap-sim/wire.json"}
+            - {name: PP_API_SCOPE, value: "api://6e05d927-e0c2-418b-9f01-ab909aec5699/access_as_user"}
+            - name: PP_DB_URL
+              valueFrom: {secretKeyRef: {name: pp-dotnet-pg-runtime, key: url, optional: false}}
+            - {name: PP_DATA_DIR, value: "/var/lib/passkey-point"}
+            - {name: HOME, value: "/tmp"}
+            - {name: HOST, value: "0.0.0.0"}
+            - {name: PORT, value: "8443"}
+            - {name: PP_TLS_CERT_FILE, value: "/tls/server/tls.crt"}
+            - {name: PP_TLS_KEY_FILE, value: "/tls/server/tls.key"}
+            - {name: PP_TLS_CLIENT_CA_FILE, value: "/tls/server/ca.crt"}
+          ports:
+            - {name: https, containerPort: 8443, protocol: TCP}
+          startupProbe:
+            httpGet: {path: /healthz, port: 8443, scheme: HTTPS}
+            periodSeconds: 3
+            timeoutSeconds: 3
+            failureThreshold: 40
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8443, scheme: HTTPS}
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8443, scheme: HTTPS}
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 50m, memory: 192Mi}
+            limits: {memory: 512Mi}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: data, mountPath: /var/lib/passkey-point}
+            - {name: tls-server, mountPath: /tls/server, readOnly: true}
+            - {name: pg-ca, mountPath: /tls/pg, readOnly: true}
+            - {name: ar1, mountPath: /var/run/secrets/passkey-point/ar1, readOnly: true}
+            - {name: ar2, mountPath: /var/run/secrets/passkey-point/ar2, readOnly: true}
+            - {name: ar3, mountPath: /var/run/secrets/passkey-point/ar3, readOnly: true}
+            - {name: tap-sim-config, mountPath: /etc/tap-sim, readOnly: true}
+        - name: tap-sim
+          image: forge.bluejungle.net/palamedes/passkey-point@sha256:3ecb605f1c7bdd2811346aa014640911d6f2d078d6d4fd67c05b047711864564
+          command: [node, src/tap-sim/server.ts]
+          env:
+            - {name: TAPSIM_CONFIG, value: /etc/tap-sim/config.json}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 20m, memory: 96Mi}
+            limits: {memory: 256Mi}
+          volumeMounts:
+            - {name: tap-sim-config, mountPath: /etc/tap-sim, readOnly: true}
+      volumes:
+        - name: tmp
+          emptyDir: {sizeLimit: 64Mi}
+        # Database is PostgreSQL; PP_DATA_DIR holds no store here (LAB, not production: ConfigLoader.cs:711).
+        - name: data
+          emptyDir: {sizeLimit: 128Mi}
+        - name: tls-server
+          secret: {secretName: passkey-point-api-tls, defaultMode: 0440}
+        - name: pg-ca
+          secret:
+            secretName: pp-dotnet-pg-ca
+            defaultMode: 0440
+            items:
+              - {key: ca.crt, path: ca.crt}
+        - name: ar1
+          secret: {secretName: passkey-point-ar1-cert, defaultMode: 0440}
+        - name: ar2
+          secret: {secretName: passkey-point-ar2-cert, defaultMode: 0440}
+        - name: ar3
+          secret: {secretName: passkey-point-ar3-cert, defaultMode: 0440}
+        - name: tap-sim-config
+          configMap: {name: tap-sim-config}
