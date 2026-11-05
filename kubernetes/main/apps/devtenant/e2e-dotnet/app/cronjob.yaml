@@ -25,6 +25,9 @@
 #           auth-context request stripped; base 0820eaa8 unchanged. index sha256:3c24f38e (amd64 58bcba9e, arm64 efcca31f), grype 0
 #           outside ar-015, signed + attested, cosign verify vs OOB key (evidence 20261105t1448z/1452z-e2e-5bb1514-*).
 #           Previous value 1fca4d7c (e2e-c551aa7). Rollback: git revert.
+#   chg-2026-10-22-006 (05-11, E08 desk refusal): image e2e-4418d4c = 5bb1514 + E08 check 2 requires the desk's /refused
+#           pr_mfa_required (callback 302); base 0820eaa8. index sha256:c8f0f6c1 (amd64 7b712fe5, arm64 579539d9), grype 0 outside ar-015,
+#           signed + attested, cosign verify vs OOB key (evidence 20261105t2100z/2104z-e2e-4418d4c-*). Previous value 3c24f38e. Rollback: git revert.
 #   E2E_COMMIT / E2E_LAB_IMAGE_DIGEST  the desk under test: 0404ac1 e0f369e (05-11, E08 callback refusal; was v12b f9c04f9 3a1e4a4; E2E_LAB_IMAGE_DIGEST is mandatory for harness e2e/v11), desk digest (components/desk-image).
 #   initContainer desk-ready: GET https://<.NET LAB>/readyz through envoy-internal, 15 s apart for up to 10 min; not 200
 #           -> exit 1 BEFORE any tenant step (no password attempt, no TAP): "must not run before the desk is up".
@@ -78,7 +81,7 @@ spec:
           securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 0, fsGroup: 10001, seccompProfile: {type: RuntimeDefault}}
           initContainers:
             - name: desk-ready
-              image: forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:3c24f38e59ced5e6a3e1e58dafff1f81c8d87cd833632f041b26c00e29a5c385
+              image: forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:c8f0f6c15c4c7e1627fc4f65fff969bb4033fb0fd94335c6d62275a67864e9e2
               command:
                 - node
                 - -e
@@ -161,7 +164,7 @@ spec:
                 - {name: gate-tmp, mountPath: /gate-tmp}
           containers:
             - name: e2e
-              image: forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:3c24f38e59ced5e6a3e1e58dafff1f81c8d87cd833632f041b26c00e29a5c385
+              image: forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:c8f0f6c15c4c7e1627fc4f65fff969bb4033fb0fd94335c6d62275a67864e9e2
               args: ["--set", "nightly"]
               env:
                 - {name: E2E_SECRETS_DIR, value: /secrets}
