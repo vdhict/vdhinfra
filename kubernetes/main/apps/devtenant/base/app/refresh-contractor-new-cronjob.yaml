@@ -14,6 +14,11 @@
 # chg-2026-10-21-012 (2026-10-21): devtenant 8e24b22 (a79ede4f; ac1358d + Node 24.22.1 base node:24-alpine 6a1c190e):
 # grype 0 gate hits, signed + attested, cosign verify vs OOB key. Dry-run devtenant-refresh-dry-8e24b22-20261021t1521z on
 # a79ede4f: Would-write list identical to the 0f8411ac dry run, 0 web drift. Rollback: git revert -> 0f8411ac.
+# chg-2026-10-22-006 (2026-11-05): devtenant 287b77e (f9174560; --no-ff merge of e264cd6 [msal-node 7.1.2, Argus 03-11
+# lows, Connect read-back] and Mack's 00455aa [E14 maxsession extraOrigin, E15 PP-DEV CA-DEVICE-REPORT report-only];
+# Argus qa_passed 05-11). Dry/--yes/post-dry Jobs 09:27-09:31Z: the only new writes were AR1/AR2 web and
+# CA-DEVICE-REPORT; post-dry = the standing nightly set (9). Rollback: git revert -> a79ede4f, but first remove the
+# maxsession extraOrigin/CA from the desired state (the old image does not know them).
 apiVersion: batch/v1
 kind: CronJob
 metadata: {name: devtenant-refresh-contractor-new, namespace: devtenant-build}
@@ -40,13 +45,13 @@ spec:
           initContainers:
             # Nothing is deleted unless the bootstrap after it can run: a BASELINE that is not 64-hex stops the Job here.
             - name: guard
-              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:a79ede4fd7c6781f81f6295f745b5bba84508a8a9f97a354f9c219c984df4f82
+              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:f917456053c7d057b6db9854f8889a3b0c9e0a56396ace1bdf33bd97c6f98513
               command: [node, -e, "process.exit(/^[0-9a-f]{64}$/.test(process.env.BASELINE ?? '') ? 0 : 78)"]
               env:
                 - {name: BASELINE, value: 31b738a4a438f2464d844779c05b60994f5728d48a7f022672327225a112268b}
               securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
             - name: renew
-              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:a79ede4fd7c6781f81f6295f745b5bba84508a8a9f97a354f9c219c984df4f82
+              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:f917456053c7d057b6db9854f8889a3b0c9e0a56396ace1bdf33bd97c6f98513
               # Argus F3: leak-check wraps the step (output redacted, /tmp scanned after it, pass or fail).
               command: [node, infra/devtenant/leak-check.ts, /tmp, --run, --, node, infra/devtenant/devtenant.ts]
               args: [renew-persona, --alias, tp-contractor-new, --yes]
@@ -60,7 +65,7 @@ spec:
                 - {name: tmp, mountPath: /tmp}
           containers:
             - name: bootstrap
-              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:a79ede4fd7c6781f81f6295f745b5bba84508a8a9f97a354f9c219c984df4f82
+              image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:f917456053c7d057b6db9854f8889a3b0c9e0a56396ace1bdf33bd97c6f98513
               # Argus F3: leak-check wraps the step (output redacted, out and /tmp scanned after it, pass or fail).
               command: [node, infra/devtenant/leak-check.ts, /app/infra/devtenant/out, /tmp, --ok-exit, '3', --run, --, node, infra/devtenant/devtenant.ts]
               args: [bootstrap-v01, --execute, --yes, --baseline-sha256, 31b738a4a438f2464d844779c05b60994f5728d48a7f022672327225a112268b]
