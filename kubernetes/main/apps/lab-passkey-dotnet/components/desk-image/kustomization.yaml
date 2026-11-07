@@ -23,10 +23,14 @@
 #   signed by k8s-engineer (grype gate 0, cosign verify + slsaprovenance1 vs OOB key, evidence 20261105t2049z/2054z-desk-0404ac1-*).
 #   NOTE: line change, v12b (bundle, Red Hat Hardened base) -> forge main line (mcr aspnet 84def277); migrations V001-V012
 #   same set. Was 3a1e4a45 (v12b f9c04f9). Rollback: git revert.
+#   chg-2026-10-22-006 (07-11, Argus C1/C2): desk-10d8340 = mypka-bot/passkey-point-dotnet 10d8340acad8b75e3cf7a0057d9dcdeab202b34d (0404ac1 +
+#   b9a1b6d idp_unavailable refusal for Entra outages at the code exchange + tests through the real MSAL catch), built +
+#   signed by k8s-engineer (grype gate 0, cosign verify + slsaprovenance1 vs OOB key, evidence 20261107t2049z/2055z-desk-10d8340-*).
+#   Same base (mcr aspnet 84def277), migrations V001-V012 same set. Was e0f369e6 (0404ac1). Rollback: git revert.
 # A new desk build: change digest (and the comment), and the Job names in migrate/app + grants/app (immutable Jobs).
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 images:
   - name: passkey-point-desk
     newName: forge.bluejungle.net/palamedes/passkey-point-dotnet
-    digest: sha256:e0f369e64b779d6a77a188bb5e7e02cf613b94c93f8ff0e7da5887290af8305d
+    digest: sha256:abfa7f25418d17e6f1b0f390841211a2c717b9eddacf1b15e91c18da15629b2f

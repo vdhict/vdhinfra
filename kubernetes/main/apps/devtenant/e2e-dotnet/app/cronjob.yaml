@@ -28,7 +28,7 @@
 #   chg-2026-10-22-006 (05-11, E08 desk refusal): image e2e-4418d4c = 5bb1514 + E08 check 2 requires the desk's /refused
 #           pr_mfa_required (callback 302); base 0820eaa8. index sha256:c8f0f6c1 (amd64 7b712fe5, arm64 579539d9), grype 0 outside ar-015,
 #           signed + attested, cosign verify vs OOB key (evidence 20261105t2100z/2104z-e2e-4418d4c-*). Previous value 3c24f38e. Rollback: git revert.
-#   E2E_COMMIT / E2E_LAB_IMAGE_DIGEST  the desk under test: 0404ac1 e0f369e (05-11, E08 callback refusal; was v12b f9c04f9 3a1e4a4; E2E_LAB_IMAGE_DIGEST is mandatory for harness e2e/v11), desk digest (components/desk-image).
+#   E2E_COMMIT / E2E_LAB_IMAGE_DIGEST  the desk under test: 10d8340 abfa7f2 (07-11, idp_unavailable refusal; was 0404ac1 e0f369e; E2E_LAB_IMAGE_DIGEST is mandatory for harness e2e/v11), desk digest (components/desk-image).
 #   initContainer desk-ready: GET https://<.NET LAB>/readyz through envoy-internal, 15 s apart for up to 10 min; not 200
 #           -> exit 1 BEFORE any tenant step (no password attempt, no TAP): "must not run before the desk is up".
 #   initContainer persona-gate (Argus C12, 2026-10-21), AFTER desk-ready: personas are shared and Entra allows one TAP
@@ -168,8 +168,8 @@ spec:
               args: ["--set", "nightly"]
               env:
                 - {name: E2E_SECRETS_DIR, value: /secrets}
-                - {name: E2E_COMMIT, value: "0404ac12464788d640f030c046e2acede0dad56a"}
-                - {name: E2E_LAB_IMAGE_DIGEST, value: "sha256:e0f369e64b779d6a77a188bb5e7e02cf613b94c93f8ff0e7da5887290af8305d"}
+                - {name: E2E_COMMIT, value: "10d8340acad8b75e3cf7a0057d9dcdeab202b34d"}
+                - {name: E2E_LAB_IMAGE_DIGEST, value: "sha256:abfa7f25418d17e6f1b0f390841211a2c717b9eddacf1b15e91c18da15629b2f"}
               securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
               resources: {requests: {cpu: 500m, memory: 1Gi}, limits: {memory: 2Gi}}
               volumeMounts:
