@@ -37,4 +37,4 @@ spec:
   storageClassName: rook-ceph-block
   resources:
     requests:
-      storage: 2Gi
+      storage: 6Gi  # 2Gi full on 2026-11-08 (ENOSPC, chg-2026-10-22-006); keep-last-N follows
