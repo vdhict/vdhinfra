@@ -31,19 +31,23 @@ spec:
     # 8Gi (was 6Gi) for kennisdienst (land-11): measured 2.0 GiB resident,
     # requested as 2Gi. With land-9 that is ~5.5Gi requested steady state;
     # 6Gi would leave <0.5Gi for a VolSync mover + the retention job.
-    requests.memory: 8Gi
+    # 10Gi (was 8Gi, 13-11): + hermes-profiel-4 (256Mi) and up to four VolSync movers at once (4 x 256Mi).
+    requests.memory: 10Gi
     # 16Gi (was 14Gi) for RAG in open-webui (5Gi limit): worst case with a
     # mover and the retention job running left only ~190Mi (Themis).
-    limits.memory: 16Gi
+    # 22Gi (was 16Gi, 13-11): hermes-profiel-4 (1.5Gi limit, chg-2026-11-13-004) left 368Mi, so no VolSync mover
+    # (1Gi limit) could start and all four backups stalled. Four movers can run at once (catch-up after a stall).
+    limits.memory: 22Gi
     pods: "16"
     # 20 (was 16): hermes-profiel-4 (chg-2026-11-13-004) took the last PVC slot, so every VolSync mover's temporary
     # source PVC was refused from 09:20Z on 13-11 (quota exceeded, all four backups). 16 in use + up to 2 movers +
-    # headroom.
-    persistentvolumeclaims: "20"
+    # headroom; 24 so four movers (4 temporary source PVCs) fit at once.
+    persistentvolumeclaims: "24"
     # PVCs 10 + 3x5 + 1 = 26Gi; VolSync snapshot clones of the 4 backed-up
     # PVCs add 25Gi while a mover runs. Caches are on openebs-hostpath but
     # still count here (4 x 2Gi).
-    requests.storage: 80Gi
+    # 100Gi (was 80Gi, 13-11): + hermes-profiel-4 PVC 2Gi; four simultaneous snapshot clones measured 70Gi in use.
+    requests.storage: 100Gi
     # Nothing in family-ai is exposed except through envoy-internal.
     services.loadbalancers: "0"
     services.nodeports: "0"
