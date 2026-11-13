@@ -1,5 +1,5 @@
 {
- "bron": "family-ai-cluster 89fbb49 (fe6fd3e + Argus C2/C3/N4), bin/owui-bijlagen-build",
+ "bron": "family-ai-cluster 04634d5 (fe6fd3e + Argus C2/C3/N4 + R1/S1/S2), bin/owui-bijlagen-build",
  "doel": "land 3 overlay, sha256 per ConfigMap key ('/' encoded as '--'); init container refuses on mismatch",
  "sha256": {
   "open_webui--config.py": "0ab5a98b6b1500177d25c37f5604795267c6df6ca9e9e02f6ecc25a81d957dec",
@@ -17,8 +17,8 @@
   "open_webui--utils--access_control--__init__.py": "f0c4d033fcb1c6829b1d2506d0d54fab3061625db4c8e93b637b0ab8f01f0bd4",
   "open_webui--utils--files.py": "4183622e47f152a0becd6cc2397e009750d14a30444c03ed50cd2c5f0d91711c",
   "open_webui--utils--middleware.py": "0a791bdef3616a9a9dbd27931698418670f612ff84a0aa888c362515c239482b",
-  "service--owui_bijlagen--__init__.py": "73449b80f39c3b5287542b1c473bfadd38ff5c87da525e12fb86b22a8651540b",
-  "service--owui_bijlagen--server.py": "8545adf42f4d4b931894e3a81de4c98f61168fd59e0b267eaeef1db8dc01aef0",
+  "service--owui_bijlagen--__init__.py": "207b30fe43b5cd4314455bc25460d1b26ac8479cd8818fec387a35717e3393a7",
+  "service--owui_bijlagen--server.py": "11d1a1eeb98dffe82dba9592582c152170c6be0d6cd99484c580a0896cf846f6",
   "service--studiemateriaal--__init__.py": "a51eb6cbf23cb8cd48c0b745407c42d17953c1debedaf42da9bb430251af3971",
   "service--studiemateriaal--core.py": "7440b60040ffd90a796a98a2849a02a8b4e7ebce8843276750c29293ab02c56b"
  }

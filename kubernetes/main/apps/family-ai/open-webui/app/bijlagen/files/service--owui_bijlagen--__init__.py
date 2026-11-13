@@ -28,8 +28,14 @@ async def scoped(user_id, db=None):
     from open_webui.models.groups import Groups
     # Explicit per-group activation keeps the image rollout itself from enabling
     # all four profiles before the canary. Global defaults are not changed/read.
+    try:
+        groups = await Groups.get_groups_by_member_id(user_id, db=db)
+    except Exception:
+        # Argus S1 (N4, second half): a lookup failure means "not activated" - no transcription, and the upload still
+        # works; prepare_upload already treats the uploader as family, so storage stays sanitized.
+        return False
     return any(g.name in GROUPS and ((g.permissions or {}).get('chat') or {}).get('file_upload') is True
-               for g in await Groups.get_groups_by_member_id(user_id, db=db))
+               for g in groups)
 
 
 def sanitize(data, filename=''):
@@ -83,7 +89,7 @@ def vision(data):
     http = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
     req = urllib.request.Request(url, data=data, headers={'Authorization': 'Bearer ' + token,
                                                         'Content-Type': 'application/octet-stream'})
-    with http.open(req, timeout=120) as response:   # Argus C3: well under 600
+    with http.open(req, timeout=300) as response:   # Argus C3/R1: 20 pages x ~11.5 s fits, still under 600
         result = json.loads(response.read(MAX_TEXT * 6 + 1024))
     text = result.get('text')
     if not isinstance(text, str) or not text.strip() or len(text) > MAX_TEXT:
