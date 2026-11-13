@@ -36,7 +36,10 @@ spec:
     # mover and the retention job running left only ~190Mi (Themis).
     limits.memory: 16Gi
     pods: "16"
-    persistentvolumeclaims: "16"
+    # 20 (was 16): hermes-profiel-4 (chg-2026-11-13-004) took the last PVC slot, so every VolSync mover's temporary
+    # source PVC was refused from 09:20Z on 13-11 (quota exceeded, all four backups). 16 in use + up to 2 movers +
+    # headroom.
+    persistentvolumeclaims: "20"
     # PVCs 10 + 3x5 + 1 = 26Gi; VolSync snapshot clones of the 4 backed-up
     # PVCs add 25Gi while a mover runs. Caches are on openebs-hostpath but
     # still count here (4 x 2Gi).
