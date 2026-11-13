@@ -44,6 +44,17 @@ def upload(tok, name, data, mime, process=True):
     return req("POST", "/api/v1/files/" + ("" if process else "?process=false"), tok=tok, raw=body, ctype="multipart/form-data; boundary=" + bnd)
 
 
+def ready(tok, fid, limit=300):
+    """Wait like the UI does: chat only after Open WebUI finished processing the file."""
+    t = time.time()
+    while time.time() - t < limit:
+        st = ((req("GET", f"/api/v1/files/{fid}", tok=tok) or {}).get("data") or {}).get("status")
+        if st in ("completed", "failed"):
+            return st, time.time() - t
+        time.sleep(2)
+    return "timeout", time.time() - t
+
+
 def page(text, fmt):
     im = Image.new("RGB", (1000, 360), "white"); d = ImageDraw.Draw(im)
     for i, line in enumerate(text.split("\n")):
@@ -85,7 +96,8 @@ try:
     ok(((perms.get("chat") or {}).get("file_upload")) is True, "P1 file upload permission on for the group")
     pdf = page("Synthetische toetsstof hoofdstuk 3\nDe Rijn en de Maas zijn rivieren in Nederland.\nVraag: noem een rivier.", "PDF")
     p = upload(tok, "toetsstof.pdf", pdf, "application/pdf"); files.append(p["id"])
-    ok(bool(p.get("id")), "P2 synthetic PDF uploaded")
+    st, s2 = ready(tok, p["id"])
+    ok(bool(p.get("id")) and st == "completed", f"P2 synthetic PDF uploaded and processed ({st}, {s2:.0f}s)")
     jpg = page("Synthetische boekpagina\nHet Wad is een getijdengebied.", "JPEG")
     f = upload(tok, "boekpagina.jpg", jpg, "image/jpeg"); files.append(f["id"])
     stored = req("GET", f"/api/v1/files/{f['id']}/content", tok=tok)
@@ -101,6 +113,7 @@ try:
     ok(code == 200 and len(txt3) > 0, f"P6 plain follow-up turn: {code}, {len(txt3)} chars, {s:.0f}s")
     lang = ("Synthetische oefentekst over aardrijkskunde en rivieren. " * 90)[:4500] + " ik wil er gewoon niet meer zijn. " + "Einde oefentekst. " * 5
     c = upload(tok, "lange-tekst.txt", lang.encode(), "text/plain"); files.append(c["id"])
+    ready(tok, c["id"])
     code, txt4, s = chat(tok, "Kun je deze tekst samenvatten?", [c["id"]])
     ok(code == 200 and "113" in txt4, f"P7 crisis phrase past character 4000 inside an attachment -> help line 113 present ({code}, {s:.0f}s)")
     a = upload(admin, "admin-foto.jpg", jpg, "image/jpeg", process=False); files.append(a["id"])
