@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # ha-team-token-macbook.sh: run ON THE MACBOOK (op signs in with Touch ID). Copies the HA team token (account
-# mypka-team, AGR-126, chg-2026-11-13-006) from the cluster Secret mypka/ha-team-token, via ssh to the Mini, into
+# mypka-team, AGR-126, chg-2026-11-13-006) from the Mini's copy ~/.config/pka-ha/token (= Secret mypka/ha-team-token) into
 #   1. ~/.config/pka-ha/token (mode 600, outside vault and git) for the Stream Deck, and
 #   2. 1Password item `ha-team-token` in vault mypka-cluster (refused if the item exists; check by hand, no overwrite).
-# The token goes ssh -> file (umask 077) -> python stdin -> op stdin: never printed, never in argv.
+# The token goes scp -> file (umask 077) -> python stdin -> op stdin: never printed, never in argv.
 #     bash ha-team-token-macbook.sh            (MINI defaults to sheijden@172.16.2.201)
 set -euo pipefail
 MINI="${MINI:-sheijden@172.16.2.201}"
@@ -11,7 +11,9 @@ VAULT="${VAULT:-mypka-cluster}"; ITEM="${ITEM:-ha-team-token}"
 DIR="$HOME/.config/pka-ha"; F="$DIR/token"
 umask 077
 mkdir -p "$DIR"; chmod 700 "$DIR"
-ssh "$MINI" "kubectl -n mypka get secret ha-team-token -o jsonpath='{.data.token}' | base64 -d" > "$F.new"
+# The Mini keeps a copy in ~/.config/pka-ha/token (700/600). kubectl is only on PATH there through mise, not in an
+# ssh shell (Larry 122748), so copy the file instead of calling kubectl remotely.
+scp -q "$MINI:.config/pka-ha/token" "$F.new"
 python3 -c 'import sys; t=open(sys.argv[1]).read().strip(); assert t.count(".")==2 and len(t)>100, "unexpected token shape"' "$F.new"
 mv "$F.new" "$F"; chmod 600 "$F"
 echo "file: $F ($(stat -f %Lp "$F"), $(wc -c < "$F" | tr -d ' ') bytes)"
