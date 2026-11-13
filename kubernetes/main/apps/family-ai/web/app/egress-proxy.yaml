@@ -37,6 +37,7 @@ spec:
     - {name: profiel-1, port: 3131, targetPort: profiel-1}
     - {name: profiel-2, port: 3132, targetPort: profiel-2}
     - {name: profiel-3, port: 3133, targetPort: profiel-3}
+    - {name: profiel-4, port: 3134, targetPort: profiel-4}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -77,6 +78,7 @@ spec:
             - {name: profiel-1, containerPort: 3131}
             - {name: profiel-2, containerPort: 3132}
             - {name: profiel-3, containerPort: 3133}
+            - {name: profiel-4, containerPort: 3134}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

@@ -3,7 +3,7 @@
 # Build the SOPS Secret carrying one Hermes profile's config bundle
 # (chg-2026-09-26-001). Run on the workstation, inside the repo.
 #
-#   hack/family-ai/build-bundle.sh <1|2|3> <delivery-root>
+#   hack/family-ai/build-bundle.sh <1|2|3|4> <delivery-root>
 #
 # <delivery-root> is Mack's delivery (path from Sander). Its root SHA256SUMS
 # is verified in full first; a delivery carrying VERVANGEN.txt (superseded)
@@ -22,7 +22,7 @@
 set -euo pipefail
 . "$(dirname "$0")/lib.sh"
 N="${1:-}"; SRC="${2:-}"
-case "$N" in 1|2|3) ;; *) die "usage: $0 <1|2|3> <delivery-root>";; esac
+case "$N" in 1|2|3|4) ;; *) die "usage: $0 <1|2|3|4> <delivery-root>";; esac
 command -v sops >/dev/null || die "sops not on PATH (mise install)"
 verify_delivery "$SRC"
 ROOT="$(git rev-parse --show-toplevel)"
@@ -40,6 +40,26 @@ while IFS= read -r f; do
 done <<<"$files"
 
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
+# chg-2026-11-13-004 (Argus C1): a family profile's plugin code never changes silently. A delivery rendered from an
+# older line once carried a webeerlijk/kennis older than live. Every plugins/** file that exists in the LIVE bundle
+# (decrypted from Git) and differs in this delivery must be named in ALLOW_PLUGIN_CHANGE (space-separated paths).
+if [ "$N" != 4 ] && [ -f "$OUT" ]; then
+  mkdir "$TMP/live"
+  sops -d --output-type json "$OUT" | python3 -I -c '
+import sys, json, base64, io, tarfile
+t = tarfile.open(fileobj=io.BytesIO(base64.b64decode(json.load(sys.stdin)["data"]["bundle.tar.gz"])))
+t.extractall(sys.argv[1], filter="data")' "$TMP/live" || die "cannot read the live bundle for the plugin guard"
+  changed=""
+  while IFS= read -r f; do
+    case "$f" in plugins/*) ;; *) continue ;; esac
+    [ -f "$TMP/live/$f" ] || continue
+    cmp -s "$TMP/live/$f" "$P/$f" || changed="$changed $f"
+  done <<<"$files"
+  for f in $changed; do
+    case " ${ALLOW_PLUGIN_CHANGE:-} " in *" $f "*) echo "plugin change allowed: $f" ;;
+      *) die "plugin file differs from live and is not in ALLOW_PLUGIN_CHANGE: $f (live $(shasum -a 256 "$TMP/live/$f" | cut -c1-8), delivery $(shasum -a 256 "$P/$f" | cut -c1-8))" ;; esac
+  done
+fi
 mkdir "$TMP/b"
 ( cd "$P" && COPYFILE_DISABLE=1 tar -cf - $files ) | ( cd "$TMP/b" && tar -xf - )
 ( cd "$TMP/b" && shasum -a 256 $files > SHA256SUMS )

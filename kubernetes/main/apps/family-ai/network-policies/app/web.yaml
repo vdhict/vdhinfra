@@ -27,6 +27,7 @@ spec:
             - {port: "3131", protocol: TCP}
             - {port: "3132", protocol: TCP}
             - {port: "3133", protocol: TCP}
+            - {port: "3134", protocol: TCP}   # profiel-4 (chg-2026-11-13-004)
     - fromEndpoints:
         - matchLabels: {app.kubernetes.io/name: sandbox, app.kubernetes.io/instance: sandbox-profiel-1}
       toPorts:
@@ -95,6 +96,7 @@ spec:
             - {port: "3131", protocol: TCP}
             - {port: "3132", protocol: TCP}
             - {port: "3133", protocol: TCP}
+            - {port: "3134", protocol: TCP}   # profiel-4 (chg-2026-11-13-004)
     - toEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: kube-system

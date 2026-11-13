@@ -1,0 +1,60 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+# hermes-profiel-4 (chg-2026-11-13-004, tsk-2026-11-13-103): the owner's own TEST profile, "Testprofiel" in Open
+# WebUI, group owui-profiel-4 only. Support use: reproduce what profiel-1 sees. Never for work or client material
+# (AGR-073). Same base, image and args as profiel-1, minus kennis: no KENNIS_URL/KENNIS_TOKEN, no GEZIN_URL/
+# GEZIN_TOKEN, no cloud route, no VolSync (a test profile needs no backup). kennisdienst and gezinsdienst admit
+# profiel-1..3 by instance label only, so this pod cannot reach them even by mistake.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+nameSuffix: "-4"
+labels:
+  - pairs:
+      app.kubernetes.io/instance: hermes-profiel-4
+    includeSelectors: true
+    includeTemplates: true
+resources:
+  - ../base
+  - ./externalsecret.yaml
+  - ./bundle.sops.yaml
+patches:
+  - target: {kind: Deployment, name: hermes-profiel}
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/envFrom/0/secretRef/name
+        value: family-ai-hermes-profiel-4
+      # the gateway key comes from its own generated Secret (externalsecret.yaml)
+      - op: add
+        path: /spec/template/spec/containers/0/envFrom/-
+        value: {secretRef: {name: family-ai-hermes-profiel-4-gateway}}
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: API_SERVER_MODEL_NAME, value: hermes-agent-profiel-4}
+      # web-extract caller id -> its own proxy port 3134, same squid rules as profiel-1
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: FIRECRAWL_API_KEY, value: profiel-4}
+      # idles at ~230Mi like profiel-1; small request, same limit (a web fetch can spike)
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests
+        value: {cpu: 20m, memory: 256Mi}
+  # no gezin plugin and no token: drop the gezinsdienst URL from the base env
+  - target: {kind: Deployment, name: hermes-profiel}
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: hermes-profiel
+      spec:
+        template:
+          spec:
+            containers:
+              - name: app
+                env:
+                  - name: GEZIN_URL
+                    $patch: delete
+  - target: {kind: PersistentVolumeClaim, name: hermes-profiel-data}
+    patch: |-
+      - op: replace
+        path: /spec/resources/requests/storage
+        value: 2Gi

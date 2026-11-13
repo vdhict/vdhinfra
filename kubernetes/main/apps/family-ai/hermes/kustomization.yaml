@@ -13,3 +13,4 @@ resources:
   - ./profiel-1
   - ./profiel-2
   - ./profiel-3
+  - ./profiel-4   # chg-2026-11-13-004: the owner's test profile (no kennis, no gezin)

@@ -22,9 +22,9 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # EGRESS_PROXY_BASE = "http://egress-proxy.family-ai.svc.cluster.local"; each profile has
-# its own squid port (3131..3133) so the proxy log records WHICH profile fetched.
+# its own squid port (3131..3134) so the proxy log records WHICH profile fetched.
 PROXY_BASE = os.environ["EGRESS_PROXY_BASE"].rstrip("/")
-PROFILE_PORTS = {"profiel-1": 3131, "profiel-2": 3132, "profiel-3": 3133}
+PROFILE_PORTS = {"profiel-1": 3131, "profiel-2": 3132, "profiel-3": 3133, "profiel-4": 3134}
 MAX_URL = int(os.environ.get("MAX_URL_CHARS", "512"))       # caps data smuggling in URLs
 MAX_BYTES = int(os.environ.get("MAX_BYTES", str(2 * 1024 * 1024)))
 MAX_CHARS = int(os.environ.get("MAX_CHARS", "60000"))
