@@ -1,0 +1,59 @@
+---
+# chg-2026-10-30-004 item 2: the printer exporter may reach ONLY the Snapmaker
+# U1 172.16.7.10 TCP 7125, and there only GET /server/info and
+# GET /printer/objects/query?print_stats=state.
+#
+# Egress default-deny is ON (the default when egress rules exist; stated
+# explicitly). inc-2026-11-13-003: with enableDefaultDeny egress false, Cilium
+# 1.19.8 forwarded every method and path through the proxy (L7 rule =
+# visibility only). Tested before this change (evidence 46-item2-l7-semantics-
+# test-*): with default-deny on, other paths, query strings and POST get 403
+# and other hosts/ports are dropped. No DNS egress: the targets are IPs.
+# Ingress default-deny is ON too (Argus V1): only Prometheus (pods
+# app.kubernetes.io/name=prometheus in observability) may call /probe on TCP
+# 9115, plus the host for the kubelet liveness/readiness checks. Otherwise any
+# pod, including the mypka tenant that the CCNP keeps off the printer, could
+# read the printer state through the exporter.
+#
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: blackbox-printer
+  namespace: observability
+spec:
+  description: "blackbox-printer: ingress only Prometheus + host on 9115; egress only 172.16.7.10:7125 GET /server/info + print_stats (chg-2026-10-30-004)"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: blackbox-printer
+  enableDefaultDeny:
+    egress: true
+    ingress: true
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: observability
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "9115"
+              protocol: TCP
+    - fromEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "9115"
+              protocol: TCP
+  egress:
+    - toCIDR:
+        - 172.16.7.10/32
+      toPorts:
+        - ports:
+            - port: "7125"
+              protocol: TCP
+          rules:
+            http:
+              - method: GET
+                path: "/server/info"
+              - method: GET
+                path: "/printer/objects/query\\?print_stats=state"

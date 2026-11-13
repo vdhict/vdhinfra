@@ -26,6 +26,18 @@
 #     boundary needs its own carve-out when print3d is deployed.
 #   * The tenant sets its own pod labels, so ANY mypka pod labelled
 #     app.kubernetes.io/name=print3d is exempt from this policy.
+#   * observability: only the dedicated printer exporter (pods labelled
+#     app.kubernetes.io/name=blackbox-printer, chg-2026-10-30-004 item 2) is
+#     exempt from the /28 deny, and only for 172.16.7.10 TCP 7125 (spec 4).
+#     Its own CNP observability/blackbox-printer has egress default-deny and
+#     an L7 rule: GET /server/info and GET /printer/objects/query?print_stats=
+#     state only. The shared blackbox-exporter is fully denied (spec 3).
+#     Only Flux and controllers create pods in observability (Argus checked
+#     can-i for every SA there, 2026-11-13), so the label is not forgeable.
+#   * ICMP (Argus H4): specs 1-3 are L3 CIDR denies, so ICMP to the /28 is
+#     dropped for those pods too. Spec 4 denies only L4 ports on .10, but the
+#     printer exporter's egress default-deny drops ICMP as well; nothing in
+#     the cluster pings the printer.
 #
 # yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumclusterwidenetworkpolicy_v2.json
 apiVersion: cilium.io/v2
@@ -41,7 +53,7 @@ specs:
       matchExpressions:
         - key: k8s:io.kubernetes.pod.namespace
           operator: NotIn
-          values: ["mypka"]
+          values: ["mypka", "observability"]
     enableDefaultDeny:
       egress: false
       ingress: false
@@ -63,3 +75,47 @@ specs:
     egressDeny:
       - toCIDRSet:
           - cidr: 172.16.7.0/28
+  # 3. observability: every pod that is NOT the printer exporter, including
+  #    the shared blackbox-exporter.
+  - description: "Deny egress to PRINTER-VLAN 172.16.7.0/28, observability pods other than blackbox-printer (chg-2026-10-30-004)"
+    endpointSelector:
+      matchLabels:
+        k8s:io.kubernetes.pod.namespace: observability
+      matchExpressions:
+        - key: k8s:app.kubernetes.io/name
+          operator: NotIn
+          values: ["blackbox-printer"]
+    enableDefaultDeny:
+      egress: false
+      ingress: false
+    egressDeny:
+      - toCIDRSet:
+          - cidr: 172.16.7.0/28
+  # 4. blackbox-printer: the printer subnet stays denied except 172.16.7.10
+  #    TCP 7125 (defence in depth under its default-deny CNP).
+  - description: "blackbox-printer: deny PRINTER-VLAN except 172.16.7.10 TCP 7125 (chg-2026-10-30-004)"
+    endpointSelector:
+      matchLabels:
+        k8s:io.kubernetes.pod.namespace: observability
+        k8s:app.kubernetes.io/name: blackbox-printer
+    enableDefaultDeny:
+      egress: false
+      ingress: false
+    egressDeny:
+      - toCIDRSet:
+          - cidr: 172.16.7.0/28
+            except:
+              - 172.16.7.10/32
+      - toCIDR:
+          - 172.16.7.10/32
+        toPorts:
+          - ports:
+              - port: "1"
+                endPort: 7124
+                protocol: TCP
+              - port: "7126"
+                endPort: 65535
+                protocol: TCP
+              - port: "1"
+                endPort: 65535
+                protocol: UDP

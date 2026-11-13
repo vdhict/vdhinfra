@@ -1,0 +1,39 @@
+---
+# chg-2026-10-30-004: config of the dedicated printer exporter (blackbox-printer).
+# Only these two modules exist here, both GET, no redirects. The CNP
+# blackbox-printer is the control: any other method or path gets 403 from the
+# Cilium L7 proxy, any other host or port is dropped.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blackbox-printer-config
+  namespace: observability
+data:
+  blackbox.yml: |
+    modules:
+      http_moonraker_ready:
+        prober: http
+        timeout: 5s
+        http:
+          method: GET
+          preferred_ip_protocol: ip4
+          ip_protocol_fallback: false
+          follow_redirects: false
+          valid_status_codes: [200]
+          # GET /server/info -> result.klippy_state
+          fail_if_body_not_matches_regexp:
+            - '"klippy_state"\s*:\s*"ready"'
+      http_moonraker_printing:
+        prober: http
+        timeout: 5s
+        http:
+          method: GET
+          preferred_ip_protocol: ip4
+          ip_protocol_fallback: false
+          follow_redirects: false
+          valid_status_codes: [200]
+          # GET /printer/objects/query?print_stats=state; success = a job is
+          # running or paused. Failing is the NORMAL idle state: this probe
+          # never alerts on its own (excluded from BlackboxProbeFailure).
+          fail_if_body_not_matches_regexp:
+            - '"state"\s*:\s*"(printing|paused)"'
