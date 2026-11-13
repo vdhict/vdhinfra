@@ -40,25 +40,29 @@ while IFS= read -r f; do
 done <<<"$files"
 
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
-# chg-2026-11-13-004 (Argus C1): a family profile's plugin code never changes silently. A delivery rendered from an
-# older line once carried a webeerlijk/kennis older than live. Every plugins/** file that exists in the LIVE bundle
-# (decrypted from Git) and differs in this delivery must be named in ALLOW_PLUGIN_CHANGE (space-separated paths).
-if [ "$N" != 4 ] && [ -f "$OUT" ]; then
+# chg-2026-11-13-004 (Argus C1) + chg-2026-10-20-010 (Argus N3): a live profile's bundle never changes silently.
+# Compared with the LIVE bundle (decrypted from Git), every file that is new, removed or different - config.yaml,
+# SOUL.md and plugins/** alike, every profile including 4 - must be named in ALLOW_BUNDLE_CHANGE (space-separated
+# paths). A delivery rendered from an older line once carried a webeerlijk/kennis older than live, and would have
+# added a cloud provider to profiel-1. ALLOW_PLUGIN_CHANGE is still read as an alias.
+ALLOW=" ${ALLOW_BUNDLE_CHANGE:-} ${ALLOW_PLUGIN_CHANGE:-} "
+if [ -f "$OUT" ]; then
   mkdir "$TMP/live"
   sops -d --output-type json "$OUT" | python3 -I -c '
 import sys, json, base64, io, tarfile
 t = tarfile.open(fileobj=io.BytesIO(base64.b64decode(json.load(sys.stdin)["data"]["bundle.tar.gz"])))
-t.extractall(sys.argv[1], filter="data")' "$TMP/live" || die "cannot read the live bundle for the plugin guard"
+t.extractall(sys.argv[1], filter="data")' "$TMP/live" || die "cannot read the live bundle for the change guard"
+  live=$(cd "$TMP/live" && find . -type f ! -name SHA256SUMS | sed 's|^\./||' | LC_ALL=C sort)
   changed=""
-  while IFS= read -r f; do
-    case "$f" in plugins/*) ;; *) continue ;; esac
-    [ -f "$TMP/live/$f" ] || continue
-    cmp -s "$TMP/live/$f" "$P/$f" || changed="$changed $f"
-  done <<<"$files"
-  for f in $changed; do
-    case " ${ALLOW_PLUGIN_CHANGE:-} " in *" $f "*) echo "plugin change allowed: $f" ;;
-      *) die "plugin file differs from live and is not in ALLOW_PLUGIN_CHANGE: $f (live $(shasum -a 256 "$TMP/live/$f" | cut -c1-8), delivery $(shasum -a 256 "$P/$f" | cut -c1-8))" ;; esac
+  for f in $(printf '%s\n%s\n' "$files" "$live" | LC_ALL=C sort -u); do
+    if [ ! -f "$TMP/live/$f" ]; then changed="$changed $f"; why="new"
+    elif [ ! -f "$P/$f" ]; then changed="$changed $f"; why="removed"
+    elif ! cmp -s "$TMP/live/$f" "$P/$f"; then changed="$changed $f"; why="differs"
+    else continue; fi
+    case "$ALLOW" in *" $f "*) echo "bundle change allowed ($why): $f" ;;
+      *) die "bundle file $why vs live and is not in ALLOW_BUNDLE_CHANGE: $f" ;; esac
   done
+  [ -n "$changed" ] || echo "bundle identical to live (no file changes)"
 fi
 mkdir "$TMP/b"
 ( cd "$P" && COPYFILE_DISABLE=1 tar -cf - $files ) | ( cd "$TMP/b" && tar -xf - )
