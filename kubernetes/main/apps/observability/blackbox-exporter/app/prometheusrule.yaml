@@ -14,8 +14,10 @@ spec:
       rules:
         - alert: BlackboxProbeFailure
           # `probe_success == 0` for any target. Generic alert so future
-          # probes get coverage automatically.
-          expr: probe_success == 0
+          # probes get coverage automatically. The printer (target_role
+          # printer) is excluded: it is powered on demand, and its print-state
+          # probe fails whenever it is idle; group printer-u1 alerts for it.
+          expr: probe_success{target_role!="printer"} == 0
           for: 3m
           labels:
             severity: warning
@@ -45,3 +47,64 @@ spec:
               (health-z2m-watchdog CronJob) restarts the bridge for.
               If the watchdog is in DRY_RUN, restart manually:
               `kubectl -n home-automation rollout restart deploy/zigbee2mqtt`
+
+    # chg-2026-10-30-004 (tsk-2026-10-30-010): Snapmaker U1. Alert only when
+    # the owner must act (AGR-128). Power is on demand, so the printer being
+    # off is normal; it "should be on" when (a) it answers but Klipper is not
+    # ready, or (b) it vanished while a job was printing or paused. Both are
+    # severity warning, never critical: warning goes to ntfy-day 07-23 and to
+    # the silent ntfy-night 23-07 (AGR-074, no sound at night), never to HA.
+    - name: printer-u1
+      interval: 1m
+      rules:
+        - alert: PrinterU1NotReady
+          expr: |
+            probe_success{job="blackbox-printer-ready"} == 0
+            and probe_http_status_code{job="blackbox-printer-ready"} == 200
+          for: 1h
+          labels:
+            severity: warning
+            component: printer-u1
+          annotations:
+            summary: "Snapmaker U1 is on but Klipper is not ready for 1h"
+            description: |
+              Moonraker on 172.16.7.10:7125 answers, but /server/info has not
+              shown klippy_state "ready" for an hour (error, shutdown or a
+              stuck startup). Check Fluidd on the LAN; a FIRMWARE_RESTART or a
+              power cycle at the printer usually clears it.
+        - alert: PrinterU1LostDuringPrint
+          expr: |
+            (
+              probe_success{job="blackbox-printer-ready"} == 0
+              and probe_http_status_code{job="blackbox-printer-ready"} != 200
+            )
+            and on()
+            max_over_time(probe_success{job="blackbox-printer-printing"}[6h]) == 1
+          for: 1h
+          labels:
+            severity: warning
+            component: printer-u1
+          annotations:
+            summary: "Snapmaker U1 unreachable for 1h after a print was running"
+            description: |
+              The printer was printing or paused in the last 6 hours and has
+              not answered on 172.16.7.10:7125 for an hour since (Wi-Fi
+              VDHPRINT on AP04, power, or a firmware hang). Look at the
+              printer; the job may need attention.
+        - alert: PrinterU1ProbeBlocked
+          # Argus H3 (2026-11-13): a 403 on the printer probes comes from the
+          # Cilium L7 proxy (CNP observability/blackbox-exporter-printer-l7),
+          # never from Moonraker: the policy no longer matches the probe path.
+          # Without this rule a policy regression would be silent, because
+          # BlackboxProbeFailure excludes the printer.
+          expr: probe_http_status_code{target_friendly="snapmaker-u1"} == 403
+          for: 15m
+          labels:
+            severity: warning
+            component: printer-u1
+          annotations:
+            summary: "Snapmaker U1 probe blocked by the L7 policy (403) for 15m"
+            description: |
+              The blackbox probe {{ $labels.job }} to the printer gets HTTP 403
+              from the Cilium proxy. Compare the probe URLs in probe.yaml with
+              the paths in networkpolicy-printer.yaml (chg-2026-10-30-004).

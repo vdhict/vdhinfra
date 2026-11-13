@@ -1,0 +1,42 @@
+---
+# chg-2026-10-30-004 (tsk-2026-10-30-010): the blackbox exporter may reach the
+# Snapmaker U1 only with GET on two read-only Moonraker paths.
+#
+# Why L7: Moonraker on the U1 has no auth (Argus option A), and /probe on the
+# exporter takes any target from any caller in the cluster. Without this rule
+# the exporter would be a confused deputy around printer-subnet-egress-deny.
+# The Envoy proxy answers 403 to every other method or path on 7125.
+#
+# enableDefaultDeny false: this policy must not put the exporter into default
+# deny (it probes the LAN, the PiKVM and in-cluster services). It only adds
+# the L7 rule on 172.16.7.10:7125. All other ports and hosts on the printer
+# subnet are denied for this pod by the CCNP printer-subnet-egress-deny
+# (spec "blackbox-exporter").
+#
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: blackbox-exporter-printer-l7
+  namespace: observability
+spec:
+  description: "blackbox-exporter -> Snapmaker U1 172.16.7.10:7125 GET /server/info and print_stats only (chg-2026-10-30-004)"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: blackbox-exporter
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  egress:
+    - toCIDR:
+        - 172.16.7.10/32
+      toPorts:
+        - ports:
+            - port: "7125"
+              protocol: TCP
+          rules:
+            http:
+              - method: GET
+                path: "/server/info"
+              - method: GET
+                path: "/printer/objects/query(\\?print_stats=state)?"

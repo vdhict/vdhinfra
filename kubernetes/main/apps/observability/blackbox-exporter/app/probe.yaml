@@ -187,3 +187,57 @@ spec:
         - http://dispatcharr.dispatcharr.svc.cluster.local:9191/api/accounts/initialize-superuser/
       labels:
         target_friendly: dispatcharr-setup-closed
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/probe_v1.json
+#
+# chg-2026-10-30-004 (tsk-2026-10-30-010, AGR-131 eis 3): Snapmaker U1
+# heartbeat. Power is on-demand, so "unreachable" alone is normal and never
+# alerts; see PrometheusRule group printer-u1. target_role=printer keeps both
+# probes out of the generic BlackboxProbeFailure rule.
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: printer-u1-ready
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: blackbox-exporter
+spec:
+  jobName: blackbox-printer-ready
+  prober:
+    url: blackbox-exporter.observability.svc.cluster.local:9115
+    path: /probe
+  module: http_moonraker_ready
+  interval: 60s
+  scrapeTimeout: 10s
+  targets:
+    staticConfig:
+      static:
+        - http://172.16.7.10:7125/server/info
+      labels:
+        target_friendly: snapmaker-u1
+        target_role: printer
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/probe_v1.json
+# Same printer, print state (a Probe takes one module, hence two Probes).
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: printer-u1-printing
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: blackbox-exporter
+spec:
+  jobName: blackbox-printer-printing
+  prober:
+    url: blackbox-exporter.observability.svc.cluster.local:9115
+    path: /probe
+  module: http_moonraker_printing
+  interval: 60s
+  scrapeTimeout: 10s
+  targets:
+    staticConfig:
+      static:
+        - http://172.16.7.10:7125/printer/objects/query?print_stats=state
+      labels:
+        target_friendly: snapmaker-u1
+        target_role: printer
