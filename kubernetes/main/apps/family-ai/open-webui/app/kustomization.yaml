@@ -11,13 +11,48 @@ resources:
   - ./volsync.yaml
   - ./chat-retention.yaml
   - ./oidc-proxy.yaml
+  - ./bijlagen/externalsecret.yaml   # land 3 worker token (chg-2026-10-20-010)
 configMapGenerator:
+  # land 3 overlay (chg-2026-10-20-010, owner's time-boxed exception B1: mounted read-only, init check, expires at
+  # the next Open WebUI bump). Split in three: a ConfigMap holds at most 1 MiB.
+  - name: owui-bijlagen-a
+    files:
+      - open_webui__config.py=./bijlagen/files/open_webui__config.py
+      - open_webui__routers__retrieval.py=./bijlagen/files/open_webui__routers__retrieval.py
+      - open_webui__utils__middleware.py=./bijlagen/files/open_webui__utils__middleware.py
+  - name: owui-bijlagen-b
+    files:
+      - open_webui__models__access_grants.py=./bijlagen/files/open_webui__models__access_grants.py
+      - open_webui__models__groups.py=./bijlagen/files/open_webui__models__groups.py
+      - open_webui__models__knowledge.py=./bijlagen/files/open_webui__models__knowledge.py
+      - open_webui__retrieval__loaders__main.py=./bijlagen/files/open_webui__retrieval__loaders__main.py
+      - open_webui__retrieval__loaders__pdf.py=./bijlagen/files/open_webui__retrieval__loaders__pdf.py
+      - open_webui__retrieval__utils.py=./bijlagen/files/open_webui__retrieval__utils.py
+      - open_webui__routers__files.py=./bijlagen/files/open_webui__routers__files.py
+      - open_webui__routers__groups.py=./bijlagen/files/open_webui__routers__groups.py
+      - open_webui__routers__knowledge.py=./bijlagen/files/open_webui__routers__knowledge.py
+      - open_webui__storage__provider.py=./bijlagen/files/open_webui__storage__provider.py
+      - open_webui__utils__access_control____init__.py=./bijlagen/files/open_webui__utils__access_control____init__.py
+      - open_webui__utils__files.py=./bijlagen/files/open_webui__utils__files.py
+  - name: owui-bijlagen-svc
+    files:
+      - service__owui_bijlagen____init__.py=./bijlagen/files/service__owui_bijlagen____init__.py
+      - service__owui_bijlagen__server.py=./bijlagen/files/service__owui_bijlagen__server.py
+      - service__studiemateriaal____init__.py=./bijlagen/files/service__studiemateriaal____init__.py
+      - service__studiemateriaal__core.py=./bijlagen/files/service__studiemateriaal__core.py
+  - name: owui-bijlagen-check
+    files:
+      - ./bijlagen/check.py
+      - ./bijlagen/source.json
+      - ./bijlagen/overlay-sha256.json
   - name: open-webui-chat-retention
     files:
       - ./chat-retention.py
   - name: open-webui-oidc-proxy
     files:
       - nginx.conf=./oidc-proxy-nginx.conf
+patches:
+  - path: ./bijlagen/deployment-patch.yaml   # land 3, chg-2026-10-20-010
 generatorOptions:
   annotations:
     kustomize.toolkit.fluxcd.io/substitute: disabled

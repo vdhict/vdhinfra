@@ -27,6 +27,9 @@ paths = [
   '''kubernetes/test/(talosconfig|kubeconfig)$''',
   '''hack/restore-test/.*''',                      # dummy/local restore-test fixtures
   '''ops/changes\.jsonl$''',                       # change-log echoes prior findings (FP loop)
+  # land 3 (chg-2026-10-20-010): sha256 pins of PUBLIC Open WebUI 0.11.4 files and of the overlay; a key named
+  # "...access_grants.py" next to a 64-hex value trips generic-api-key. Hash manifests only, nothing secret.
+  '''kubernetes/main/apps/family-ai/open-webui/app/bijlagen/(source|overlay-sha256)\.json$''',
 ]
 
 stopwords = [ "REDACTED", "example", "changeme" ]

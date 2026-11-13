@@ -1,0 +1,25 @@
+{
+ "bron": "family-ai-cluster 89fbb49 (fe6fd3e + Argus C2/C3/N4), bin/owui-bijlagen-build",
+ "doel": "land 3 overlay, sha256 per ConfigMap key; init container refuses on mismatch",
+ "sha256": {
+  "open_webui__config.py": "0ab5a98b6b1500177d25c37f5604795267c6df6ca9e9e02f6ecc25a81d957dec",
+  "open_webui__models__access_grants.py": "15a91a3c0fcf85f02a81ff70ff472d270c319e6756624c39d3e83e631c8d4666",
+  "open_webui__models__groups.py": "25d957f81d4c317ab12f4a6a02e6eef7639289a1cf7ffe59f391dacca036d9d1",
+  "open_webui__models__knowledge.py": "dcc3a0a6bba6a88e0571b3e974579372f2ff96dc848327301dae55df1f0208fa",
+  "open_webui__retrieval__loaders__main.py": "6b01fa032c8c78dfe99c01e1de4474b920715fe0d885442b167a71904c65ed45",
+  "open_webui__retrieval__loaders__pdf.py": "c5637d51ff2757febd0ff3b0d3d4a490e347d9718145ed4bf88defa1462c6026",
+  "open_webui__retrieval__utils.py": "03265e27c679f2a5cac7f502ae93f83cc51d56938b514eb32f73334dfa90c3c1",
+  "open_webui__routers__files.py": "06c996a1665ca9921036dd74eeb107ce6946cfba6b15fb70c6c36bb3ee331050",
+  "open_webui__routers__groups.py": "be2181a97cc371b1ebc67794a81ff4196b57c8aa4996a02b54424053af23b7ba",
+  "open_webui__routers__knowledge.py": "95e05f5c316bb03720dc82067c623084c99b31e0e4f882d6700fe6a5b9ab93bf",
+  "open_webui__routers__retrieval.py": "cde0259728fcb32803ad1490ab2ecd9be457e05e00a8acd3b08d2345586da740",
+  "open_webui__storage__provider.py": "a3668edbbccd9e6f7db5b32e35e744c4866699d3077fa415bd968633075c3036",
+  "open_webui__utils__access_control____init__.py": "f0c4d033fcb1c6829b1d2506d0d54fab3061625db4c8e93b637b0ab8f01f0bd4",
+  "open_webui__utils__files.py": "4183622e47f152a0becd6cc2397e009750d14a30444c03ed50cd2c5f0d91711c",
+  "open_webui__utils__middleware.py": "0a791bdef3616a9a9dbd27931698418670f612ff84a0aa888c362515c239482b",
+  "service__owui_bijlagen____init__.py": "73449b80f39c3b5287542b1c473bfadd38ff5c87da525e12fb86b22a8651540b",
+  "service__owui_bijlagen__server.py": "8545adf42f4d4b931894e3a81de4c98f61168fd59e0b267eaeef1db8dc01aef0",
+  "service__studiemateriaal____init__.py": "a51eb6cbf23cb8cd48c0b745407c42d17953c1debedaf42da9bb430251af3971",
+  "service__studiemateriaal__core.py": "7440b60040ffd90a796a98a2849a02a8b4e7ebce8843276750c29293ab02c56b"
+ }
+}

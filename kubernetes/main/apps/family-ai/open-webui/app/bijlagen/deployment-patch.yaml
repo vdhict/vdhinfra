@@ -1,0 +1,86 @@
+---
+# land 3 (chg-2026-10-20-010): attachments overlay on the VENDOR image (no derived image; owner's time-boxed exception
+# B1, 13-11, expires at the next Open WebUI bump: the Renovate PR for open-webui is the trigger to move to the Filter
+# Function shape and drop this patch). Argus C2 (vision backend pinned to the Studio), C3 (token), C4 (RAM /tmp).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: open-webui
+spec:
+  template:
+    spec:
+      # merged with the base list by ip: the Studio already carries api.bluejungle.net
+      hostAliases:
+        - ip: 172.16.2.200
+          hostnames: [api.bluejungle.net, bijlagen.bluejungle.net]
+      initContainers:
+        # runs AFTER ca-bundle; the vendor files in this image and the mounted overlay must match their pins
+        - name: bijlagen-check
+          image: ghcr.io/open-webui/open-webui:v0.11.4@sha256:9591b13f13843c7721c2b8eaf7382846c81b3ffe126526d1888d1fed50c6a33f
+          command: ["python3", "-I", "/bijlagen-check/check.py"]
+          securityContext:
+            runAsUser: 65534
+            runAsGroup: 65534
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 128Mi}
+          volumeMounts:
+            - {name: owui-bijlagen-check, mountPath: /bijlagen-check, readOnly: true}
+            - {name: owui-bijlagen-a, mountPath: /overlay/a, readOnly: true}
+            - {name: owui-bijlagen-b, mountPath: /overlay/b, readOnly: true}
+            - {name: owui-bijlagen-svc-flat, mountPath: /overlay/svc, readOnly: true}
+      containers:
+        - name: app
+          env:
+            - {name: PYTHONPATH, value: /app/backend}
+            - {name: TMPDIR, value: /tmp}
+            # Argus C2: Studio only; the code's cloud-service value is never set here
+            - {name: OWUI_ATTACHMENT_VISION_BACKEND, value: local-studio}
+            # Caddy on the Studio, LAN-only site bijlagen.* (no DNS record, no Envoy route; hostAlias below; studio-ca
+            # trusted), POST /transcribe only, from the node IPs only (Argus addendum A1/A2)
+            - {name: OWUI_ATTACHMENT_VISION_URL, value: "https://bijlagen.bluejungle.net/transcribe"}
+            - name: OWUI_ATTACHMENT_VISION_TOKEN
+              valueFrom:
+                secretKeyRef: {name: family-ai-owui-bijlagen, key: OWUI_ATTACHMENT_VISION_TOKEN}
+          volumeMounts:
+            - {name: owui-bijlagen-a, mountPath: /app/backend/open_webui/config.py, subPath: open_webui__config.py, readOnly: true}
+            - {name: owui-bijlagen-b, mountPath: /app/backend/open_webui/models/access_grants.py, subPath: open_webui__models__access_grants.py, readOnly: true}
+            - {name: owui-bijlagen-b, mountPath: /app/backend/open_webui/models/groups.py, subPath: open_webui__models__groups.py, readOnly: true}
+            - {name: owui-bijlagen-b, mountPath: /app/backend/open_webui/models/knowledge.py, subPath: open_webui__models__knowledge.py, readOnly: true}
+            - {name: owui-bijlagen-b, mountPath: /app/backend/open_webui/retrieval/loaders/main.py, subPath: open_webui__retrieval__loaders__main.py, readOnly: true}
+            - {name: owui-bijlagen-b, mountPath: /app/backend/open_webui/retrieval/loaders/pdf.py, subPath: open_webui__retrieval__loaders__pdf.py, readOnly: true}
+            - {name: owui-bijlagen-b, mountPath: /app/backend/open_webui/retrieval/utils.py, subPath: open_webui__retrieval__utils.py, readOnly: true}
+            - {name: owui-bijlagen-b, mountPath: /app/backend/open_webui/routers/files.py, subPath: open_webui__routers__files.py, readOnly: true}
+            - {name: owui-bijlagen-b, mountPath: /app/backend/open_webui/routers/groups.py, subPath: open_webui__routers__groups.py, readOnly: true}
+            - {name: owui-bijlagen-b, mountPath: /app/backend/open_webui/routers/knowledge.py, subPath: open_webui__routers__knowledge.py, readOnly: true}
+            - {name: owui-bijlagen-a, mountPath: /app/backend/open_webui/routers/retrieval.py, subPath: open_webui__routers__retrieval.py, readOnly: true}
+            - {name: owui-bijlagen-b, mountPath: /app/backend/open_webui/storage/provider.py, subPath: open_webui__storage__provider.py, readOnly: true}
+            - {name: owui-bijlagen-b, mountPath: /app/backend/open_webui/utils/access_control//init/.py, subPath: open_webui__utils__access_control____init__.py, readOnly: true}
+            - {name: owui-bijlagen-b, mountPath: /app/backend/open_webui/utils/files.py, subPath: open_webui__utils__files.py, readOnly: true}
+            - {name: owui-bijlagen-a, mountPath: /app/backend/open_webui/utils/middleware.py, subPath: open_webui__utils__middleware.py, readOnly: true}
+            - {name: owui-bijlagen-svc, mountPath: /app/backend/service, readOnly: true}
+            # Argus C4: multipart spool in RAM, never on node disk
+            - {name: attachment-tmp, mountPath: /tmp}
+      volumes:
+        - name: owui-bijlagen-a
+          configMap: {name: owui-bijlagen-a}
+        - name: owui-bijlagen-b
+          configMap: {name: owui-bijlagen-b}
+        - name: owui-bijlagen-svc
+          configMap:
+            name: owui-bijlagen-svc
+            items:
+                - {key: service__owui_bijlagen____init__.py, path: owui_bijlagen//init/.py}
+                - {key: service__owui_bijlagen__server.py, path: owui_bijlagen/server.py}
+                - {key: service__studiemateriaal____init__.py, path: studiemateriaal//init/.py}
+                - {key: service__studiemateriaal__core.py, path: studiemateriaal/core.py}
+        - name: owui-bijlagen-svc-flat
+          configMap: {name: owui-bijlagen-svc}
+        - name: owui-bijlagen-check
+          configMap: {name: owui-bijlagen-check}
+        - name: attachment-tmp
+          emptyDir: {medium: Memory, sizeLimit: 256Mi}
