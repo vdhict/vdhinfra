@@ -4,7 +4,7 @@
 Open WebUI syncs group membership from the OIDC groups claim on every login (ENABLE_OAUTH_GROUP_MANAGEMENT, creation
 off), so the OWUI group owui-profiel-4 keeps the owner only while lldap says so too.
   mode dry | apply | verify | rollback   (rollback: owner removed from the group, group deleted)
-env: LLDAP_URL (http://127.0.0.1:<port-forward>), LLDAP_ADMIN (uid or DN), LLDAP_ADMIN_PASS, OWNER_UID, OWNER_EMAIL.
+env: LLDAP_URL (http://127.0.0.1:<port-forward>), LLDAP_ADMIN (uid or DN), LLDAP_ADMIN_PASS, OWNER_EMAIL.
 The owner's uid/email are matched in-process and never printed; neither is the credential. Prints booleans and counts.
 """
 import os
@@ -25,7 +25,7 @@ def gql(tok, query, variables=None):
     r.raise_for_status()
     d = r.json()
     if d.get("errors"):
-        raise SystemExit("graphql error: " + "; ".join(str(x.get("message", ""))[:80] for x in d["errors"]))
+        raise SystemExit("graphql error (%d), message withheld: it can carry user ids" % len(d["errors"]))
     return d["data"]
 
 
@@ -34,10 +34,11 @@ r = httpx.post(E["LLDAP_URL"] + "/auth/simple/login", json={"username": admin, "
 if r.status_code != 200:
     raise SystemExit("lldap admin login http %d (credential not printed)" % r.status_code)
 tok = r.json()["token"]
-owner = gql(tok, "query($id: String!) { user(userId: $id) { id email groups { displayName } } }", {"id": E["OWNER_UID"]})["user"]
-same = (owner.get("email") or "").lower() == E["OWNER_EMAIL"].lower()
-print("owner account found, email matches the Open WebUI owner:", same)
-assert same, "owner uid and email do not belong together"
+# the owner is found by email (matched in-process, never printed); exactly one account must carry it
+hits = [u for u in gql(tok, "{ users { id email } }")["users"] if (u.get("email") or "").lower() == E["OWNER_EMAIL"].lower()]
+print("owner accounts with the Open WebUI owner email:", len(hits))
+assert len(hits) == 1, "owner account not found exactly once"
+owner = gql(tok, "query($id: String!) { user(userId: $id) { id email groups { displayName } } }", {"id": hits[0]["id"]})["user"]
 og = sorted(g["displayName"] for g in owner["groups"])
 print("owner in admins:", "admins" in og, "owner in family groups:", [g for g in og if g in FAMILY])
 
