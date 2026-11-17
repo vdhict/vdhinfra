@@ -9,14 +9,56 @@ import contextvars
 import io
 import json
 import os
+import threading
 from pathlib import Path
+import urllib.error
 import urllib.request
 
 MAX_BYTES = 25 * 1024 * 1024
 MAX_TEXT = 200_000
+MAX_PIXELS = 50_000_000      # phone cameras (48 MP); the decompression-bomb guard stays: checked on the header, before any decode
+PHOTO_MAX_SIDE = 2400        # long side of a photo sent to the vision model; qwen3-vl sees the same 4072 image tokens at 2400 and 3200 (VALIDATION.md)
+MAX_PDF_PAGES = 40           # 40 scanned pages took 21.9 s through Vision plus 4 model pages (VALIDATION.md); pages beyond the deadline get a marker
+FILE_WAIT_S = 240            # a chat message waits this long for a family member's file to finish processing
+FILE_POLL_S = 1.0
+MAX_DECODES = 2              # image decodes at once in this process (memory, Argus C3)
+DECODE_SLOTS = threading.BoundedSemaphore(MAX_DECODES)
 GROUPS = {'owui-profiel-1', 'owui-profiel-2', 'owui-profiel-3', 'owui-profiel-4'}
 
 UPLOAD_USER = contextvars.ContextVar('attachment_upload_user', default=None)
+
+WAT_WERKT = "Een foto (JPEG of PNG) of een PDF tot %d pagina's werkt wel." % MAX_PDF_PAGES
+MELDINGEN = {
+    'heic': "Deze foto is in het iPhone-formaat HEIC en dat kan ik nog niet lezen. Maak een schermafbeelding van de foto, of kies op de iPhone bij Instellingen, Camera, Formaten 'Meest compatibel' voor nieuwe foto's.",
+    'attachment_size': 'Dit bestand is te groot (meer dan 25 MB). ' + WAT_WERKT,
+    'page_limit': "Deze PDF heeft te veel pagina's. Een PDF tot %d pagina's werkt wel." % MAX_PDF_PAGES,
+    'vision_busy': 'Het lezen van bijlagen is nu druk. Probeer het over een minuut nog eens.',
+    'vision_down': 'Het lezen van de bijlage lukt nu niet. Probeer het over een paar minuten nog eens.',
+    'unreadable': 'De tekst op deze foto of pagina is niet goed te lezen. Probeer een scherpere foto met goed licht. ' + WAT_WERKT,
+    'file_wait': 'Het bestand wordt nog gelezen. Wacht even en stuur je bericht daarna opnieuw.',
+    'file_failed': 'Het bestand kon niet worden gelezen. ' + WAT_WERKT,
+}
+STANDAARD_MELDING = 'Dit bestand kan ik niet lezen. ' + WAT_WERKT
+
+
+class Weigering(ValueError):
+    """A refusal the user can act on. args[0] is the internal code; str() and .detail are the Dutch sentence.
+
+    Open WebUI shows HTTPException.detail from the upload route and str(e) from background processing, and replaces
+    every other exception by 'Error uploading file'; this class is converted to an HTTPException where the route needs it.
+    """
+    def __init__(self, code):
+        super().__init__(code)
+        self.code = code
+        self.detail = MELDINGEN.get(code, STANDAARD_MELDING)
+
+    def __str__(self):
+        return self.detail
+
+
+def http_fout(error):
+    from fastapi import HTTPException
+    return HTTPException(status_code=400, detail=error.detail)
 
 
 async def familie(user_id, db=None):
@@ -38,34 +80,82 @@ async def scoped(user_id, db=None):
                for g in groups)
 
 
-def sanitize(data, filename=''):
+IMAGE_SUFFIXES = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic', '.heif', '.tif', '.tiff', '.bmp'}
+HEIF_BRANDS = {b'heic', b'heix', b'heim', b'heis', b'hevc', b'hevx', b'mif1', b'msf1'}
+
+
+def is_heif(data):
+    """HEIC/HEIF by its container header, never by name; only used to refuse it."""
+    return data[4:8] == b'ftyp' and data[8:12] in HEIF_BRANDS
+
+
+def looks_like_image(data):
+    from PIL import Image, UnidentifiedImageError
+    if is_heif(data):
+        return True
+    try:
+        with Image.open(io.BytesIO(data)):
+            return True
+    except UnidentifiedImageError:
+        return False
+
+
+def sanitize(data, filename='', max_side=None):
     """Decode pixels and create a fresh image; retain neither EXIF nor PNG text/XMP/ICC.
 
     storage/provider.py:65-76 writes bytes directly. Hook BEFORE this write, including
     process=false uploads and Capture's base64 -> upload_file_handler path.
+    HEIC/HEIF is refused with its own sentence (no native decoder in this process). With max_side the long side is reduced to it
+    (never enlarged); a photo from a phone camera (up to MAX_PIXELS) is accepted instead of refused.
     """
     from PIL import Image, ImageOps, UnidentifiedImageError
     if not 0 < len(data) <= MAX_BYTES:
-        raise ValueError('attachment_size')
+        raise Weigering('attachment_size')
+    if is_heif(data):
+        # Argus 17-11 (C1): no native HEIC parser inside the open-webui process; phase 2 is separate (Studio, sandboxed).
+        raise Weigering('heic')
     try:
         raw = Image.open(io.BytesIO(data))
     except UnidentifiedImageError:
-        if Path(filename).suffix.lower() in {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic', '.heif', '.tif', '.tiff', '.bmp'}:
-            raise ValueError('invalid_image')
+        if Path(filename).suffix.lower() in IMAGE_SUFFIXES:
+            raise Weigering('invalid_image')
         return data
     with raw:
-        if raw.width * raw.height > 24_000_000 or (raw.format != 'MPO' and getattr(raw, 'n_frames', 1) != 1):
-            raise ValueError('image_limit')
+        if raw.width * raw.height > MAX_PIXELS or (raw.format != 'MPO' and getattr(raw, 'n_frames', 1) != 1):
+            raise Weigering('image_limit')
         fmt = 'JPEG' if raw.format == 'MPO' else raw.format
         raw.seek(0)
         if fmt not in {'JPEG', 'PNG', 'WEBP', 'GIF', 'TIFF', 'BMP'}:
-            raise ValueError('image_format')
-        image = ImageOps.exif_transpose(raw).convert('RGB')
-        clean = Image.new('RGB', image.size)
-        clean.paste(image)
-        out = io.BytesIO()
-        clean.save(out, format=fmt)
-        return out.getvalue()
+            raise Weigering('image_format')
+        with DECODE_SLOTS:   # Argus 17-11 (C3): a 50 MP decode peaks at 590 to 760 MiB; at most MAX_DECODES at once
+            if max_side and fmt == 'JPEG':
+                raw.draft('RGB', (max_side, max_side))   # the decoder itself skips to 1/2, 1/4, 1/8: far less memory for 48 MP
+            image = ImageOps.exif_transpose(raw).convert('RGB')
+            if max_side:
+                image.thumbnail((max_side, max_side), Image.LANCZOS)
+            clean = Image.new('RGB', image.size)
+            clean.paste(image)
+            del image
+            out = io.BytesIO()
+            clean.save(out, format=fmt, **({'quality': 90} if fmt == 'JPEG' else {}))
+    return out.getvalue()
+
+
+WORKER_REASONS = {'page_limit', 'unreadable', 'invalid_image', 'image_limit', 'image_format', 'heic', 'attachment_size'}
+
+
+def worker_reason(error):
+    """The worker's refusal code. It travels in the X-Bijlage-Reden header and in the JSON body, never in the HTTP reason
+    phrase: Caddy rewrites that (Argus 17-11, C2). 503 is the busy queue. Anything else is 'vision_down'."""
+    if error.code == 503:
+        return 'vision_busy'
+    code = (error.headers.get('X-Bijlage-Reden') if error.headers else None) or ''
+    if not code:
+        try:
+            code = json.loads(error.read(2048)).get('reden', '')
+        except Exception:
+            code = ''
+    return code if isinstance(code, str) and code in WORKER_REASONS else 'vision_down'
 
 
 def vision(data):
@@ -89,8 +179,13 @@ def vision(data):
     http = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
     req = urllib.request.Request(url, data=data, headers={'Authorization': 'Bearer ' + token,
                                                         'Content-Type': 'application/octet-stream'})
-    with http.open(req, timeout=300) as response:   # Argus C3/R1: 20 pages x ~11.5 s fits, still under 600
-        result = json.loads(response.read(MAX_TEXT * 6 + 1024))
+    try:
+        with http.open(req, timeout=300) as response:   # Argus C3/R1: 20 pages x ~11.5 s fits, still under 600
+            result = json.loads(response.read(MAX_TEXT * 6 + 1024))
+    except urllib.error.HTTPError as error:
+        raise Weigering(worker_reason(error))
+    except OSError:   # connection refused, reset, timeout
+        raise Weigering('vision_down')
     text = result.get('text')
     if not isinstance(text, str) or not text.strip() or len(text) > MAX_TEXT:
         raise ValueError('vision_incomplete')
@@ -116,15 +211,14 @@ async def prepare_upload(file, user, metadata):
     if not await scoped(user.id):
         return
     data = await file.read(MAX_BYTES + 1)
-    clean = sanitize(data, file.filename or '')
-    from PIL import Image, UnidentifiedImageError
     try:
-        with Image.open(io.BytesIO(clean)):
-            pass
-    except UnidentifiedImageError:
-        await file.seek(0)
-        return
-    text = await asyncio.to_thread(vision, clean)
+        clean = await asyncio.to_thread(sanitize, data, file.filename or '', PHOTO_MAX_SIDE)
+        if not looks_like_image(clean):
+            await file.seek(0)
+            return
+        text = await asyncio.to_thread(vision, clean)
+    except Weigering as error:
+        raise http_fout(error)
     file.file = io.BytesIO(text.encode())
     file.filename = Path(file.filename or 'capture').stem + '.txt'
     # Starlette UploadFile.content_type is derived from immutable Headers.
@@ -160,7 +254,7 @@ def text_only(messages, read_image=None):
                     if len(url) > MAX_BYTES * 4 // 3 + 256:
                         raise ValueError('attachment_size')
                     data = base64.b64decode(url.split(',', 1)[1], validate=True)
-                    parts.append('Bijlage (brontekst):\n' + read_image(sanitize(data)))
+                    parts.append('Bijlage (brontekst):\n' + read_image(sanitize(data, '', PHOTO_MAX_SIDE)))
                 else:
                     raise ValueError('unsupported_attachment_part')
             message['content'] = '\n\n'.join(parts)
@@ -189,10 +283,38 @@ async def finish_payload(request, form_data, user):
     return form_data
 
 
+async def ready_file(Files, file_id, user_id, deadline=None):
+    """The file record of a family member's attachment, once its processing has finished.
+
+    The browser sends the chat message as soon as the upload call returns, while a PDF or a photo is still being read
+    (Atlas 17-11: 3 x 400 file_not_ready_or_not_owned in 4 days, status poll only 3 times). The message now waits for
+    it here, up to FILE_WAIT_S, which stays inside the worker's own queue limit; a failed file ends the wait at once.
+    """
+    loop = asyncio.get_running_loop()
+    deadline = deadline or loop.time() + FILE_WAIT_S   # one budget per chat message, shared by all its files
+
+    async def poll():
+        while True:
+            f = await Files.get_file_by_id(file_id)
+            if not f or f.user_id != user_id:
+                raise ValueError('file_not_ready_or_not_owned')
+            status = (f.data or {}).get('status')
+            if status == 'completed':
+                return f
+            if status == 'failed':
+                raise Weigering('file_failed')
+            await asyncio.sleep(FILE_POLL_S)
+    try:   # the limit covers a stalled database lookup too
+        return await asyncio.wait_for(poll(), max(deadline - loop.time(), 0.001))
+    except asyncio.TimeoutError:
+        raise Weigering('file_wait')
+
+
 async def prepare_payload(request, form_data, metadata, user):
     if not await scoped(user.id):
         return
     request.state.attachment_user_context = True
+    deadline = asyncio.get_running_loop().time() + FILE_WAIT_S
     # Force legacy per request, even if the client overrides saved model params.
     # middleware.py:2606-2628 and :2811: native only offers knowledge as tools.
     metadata.setdefault('params', {})['function_calling'] = 'legacy'
@@ -205,9 +327,7 @@ async def prepare_payload(request, form_data, metadata, user):
             if not kb or kb.user_id != user.id:
                 raise ValueError('knowledge_owner_only')
         elif item.get('type') == 'file':
-            f = await Files.get_file_by_id(item.get('id'))
-            if not f or f.user_id != user.id or (f.data or {}).get('status') != 'completed':
-                raise ValueError('file_not_ready_or_not_owned')
+            f = await ready_file(Files, item.get('id'), user.id, deadline)
             # Do not trust client-supplied file.data.content; retrieval/utils.py:1507.
             item.pop('file', None)
             item['context'] = 'full'
@@ -255,8 +375,11 @@ async def prepare_payload(request, form_data, metadata, user):
         for item in message.get('files') or []:
             if item.get('type') != 'file':
                 continue
-            saved = await Files.get_file_by_id(item.get('id'))
-            if not saved or saved.user_id != user.id or (saved.data or {}).get('status') != 'completed':
+            try:
+                saved = await ready_file(Files, item.get('id'), user.id, deadline)
+            except ValueError as error:
+                if isinstance(error, Weigering):
+                    raise
                 raise ValueError('replay_file_not_ready_or_not_owned')
             text = (saved.data or {}).get('content', '')
             if not text.strip():
@@ -291,19 +414,18 @@ def wrap_storage(storage):
         user_id = UPLOAD_USER.get()
         if user_id is None or user_id != tags.get('OpenWebUI-User-Id'):
             return original(file, filename, tags)
-        from PIL import Image, UnidentifiedImageError
         start = file.tell()
         data = file.read(MAX_BYTES + 1)
         try:
-            with Image.open(io.BytesIO(data)):
-                pass
-        except UnidentifiedImageError:
-            if Path(filename).suffix.lower() in {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic', '.heif', '.tif', '.tiff', '.bmp'}:
-                raise ValueError('invalid_image')
-            # Leave document storage/size policy unchanged.
-            file.seek(start)
-            return original(file, filename, tags)
-        return original(io.BytesIO(sanitize(data, filename)), filename, tags)
+            if not looks_like_image(data):
+                if Path(filename).suffix.lower() in IMAGE_SUFFIXES:
+                    raise Weigering('invalid_image')
+                # Leave document storage/size policy unchanged.
+                file.seek(start)
+                return original(file, filename, tags)
+            return original(io.BytesIO(sanitize(data, filename)), filename, tags)
+        except Weigering as error:
+            raise http_fout(error)
     storage.upload_file = upload
     return storage
 
@@ -330,7 +452,14 @@ async def extract_documents(request, loader_config, file, path, user, build_load
         with open(path, 'rb') as stream:
             data = stream.read(MAX_BYTES + 1)
         if not 0 < len(data) <= MAX_BYTES:
-            raise ValueError('attachment_size')
+            raise Weigering('attachment_size')
+        try:
+            from pypdf import PdfReader
+            pages = len(PdfReader(io.BytesIO(data)).pages)
+        except Exception:
+            pages = 1   # unreadable here: the worker decides
+        if pages > MAX_PDF_PAGES:
+            raise Weigering('page_limit')
         text = await asyncio.to_thread(vision, data)
         docs = [Document(page_content=text, metadata={'source': file.filename})]
     if await scoped(user.id) and (not docs or not any(doc.page_content.strip() for doc in docs)):
