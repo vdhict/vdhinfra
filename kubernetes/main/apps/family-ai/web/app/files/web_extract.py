@@ -1,3 +1,4 @@
+# Patch copy for Atlas. The source of this file is the vdhinfra repo (kubernetes/main/apps/family-ai/web/app/files/web_extract.py).
 """web-extract: minimal page fetcher for the family-ai Hermes agents (chg-2026-09-26-001).
 
 Hermes v2026.9.24 has NO local page fetcher: web_extract only talks to Firecrawl-style
@@ -10,6 +11,8 @@ Every fetch goes through the logging egress proxy (which denies all private/LAN/
 ranges); this pod has no other egress (CNP). Stdlib only. Logs counts and status codes,
 never URLs or content (the proxy log holds the host).
 """
+import base64
+import hashlib
 import html.parser
 import json
 import os
@@ -19,6 +22,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # EGRESS_PROXY_BASE = "http://egress-proxy.family-ai.svc.cluster.local"; each profile has
@@ -120,7 +124,167 @@ def fetch(url: str, prof: str):
     return code, final, title, text[:MAX_CHARS]
 
 
+RAW_MAX = 25 * 1024 * 1024
+RAW_TIMEOUT = 60
+RAW_TYPES = {"application/pdf", "text/html", "text/plain"}
+_raw_window = []
+_raw_slot = threading.Semaphore(1)
+RAW_STEP = 5   # a single socket operation never waits longer, so a worker ends within RAW_STEP s of the deadline
+
+
+class RawHold:
+    """The one /v2/raw slot is released only when every holder is done: the upstream worker (it really stopped) and
+    the request handler (the response is written). Codex review 18 Nov, point 2."""
+    def __init__(self, holders):
+        self.left, self.lock = holders, threading.Lock()
+
+    def release(self):
+        with self.lock:
+            self.left -= 1
+            last = self.left == 0
+        if last:
+            _raw_slot.release()
+
+
+class RawError(ValueError):
+    def __init__(self, key, status=400):
+        self.key, self.status = key, status
+
+
+def check_raw_url(url):
+    try:
+        parsed = urllib.parse.urlsplit(url)
+        if (len(url) <= MAX_URL and parsed.scheme == "https" and parsed.hostname
+                and parsed.username is None and parsed.password is None
+                and not any(c.isspace() or ord(c) < 32 for c in url)):
+            return
+    except (TypeError, ValueError, AttributeError):
+        pass
+    raise RawError("url")
+
+
+def raw_remaining(deadline):
+    left = deadline - time.monotonic()
+    if left <= 0:
+        raise RawError("tijd", 504)
+    return left
+
+
+def raw_step(deadline):
+    return min(raw_remaining(deadline), RAW_STEP)
+
+
+class RawRedirect(urllib.request.HTTPRedirectHandler):
+    def http_error_302(self, req, fp, code, msg, headers):
+        # Close without draining the redirect body. It has no bearing on the next request.
+        fp.close()
+        location = headers.get("Location") or headers.get("URI")
+        hops = getattr(req, "raw_hops", 0)
+        if not location or hops >= 3:
+            raise RawError("url")
+        try:
+            url = urllib.parse.urljoin(req.full_url, location)
+        except ValueError:
+            raise RawError("url") from None
+        check_raw_url(url)
+        redirect = self.redirect_request(req, fp, code, msg, headers, url)
+        redirect.raw_hops = hops + 1
+        redirect.raw_deadline = req.raw_deadline
+        return self.parent.open(redirect, timeout=raw_step(redirect.raw_deadline))
+
+    http_error_301 = http_error_303 = http_error_307 = http_error_308 = http_error_302
+
+
+class RawProxy(urllib.request.ProxyHandler):
+    def proxy_open(self, req, proxy, type):
+        # Always tunnel through the profile proxy, including hosts covered by NO_PROXY.
+        req.set_proxy(urllib.parse.urlsplit(proxy).netloc, "http")
+        return None
+
+
+RAW_OPENER = urllib.request.build_opener(RawProxy(
+    {"https": f"{PROXY_BASE}:{PROFILE_PORTS['profiel-1']}"}), RawRedirect())
+
+
+def raw_rate_ok():
+    now = time.monotonic()
+    with _lock:
+        while _raw_window and now - _raw_window[0] >= 60:
+            _raw_window.pop(0)
+        if len(_raw_window) >= 5:
+            return False
+        _raw_window.append(now)
+        return True
+
+
+def fetch_raw(url, hold=None):
+    deadline = time.monotonic() + RAW_TIMEOUT
+
+    def read():
+        req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept-Encoding": "identity"})
+        req.raw_deadline = deadline
+        with RAW_OPENER.open(req, timeout=raw_step(deadline)) as response:
+            end_url = response.geturl()
+            check_raw_url(end_url)
+            if response.status != 200:
+                raise RawError("document", 502)
+            kind = response.headers.get("Content-Type", "").partition(";")[0].strip().lower()
+            if kind not in RAW_TYPES:
+                raise RawError("type", 415)
+            if int(response.headers.get("Content-Length", "0")) > RAW_MAX:
+                raise RawError("grootte", 413)
+            body = bytearray()
+            while True:
+                raw_remaining(deadline)
+                chunk = response.read1(min(65536, RAW_MAX + 1 - len(body)))
+                raw_remaining(deadline)
+                if not chunk:
+                    break
+                body.extend(chunk)
+                if len(body) > RAW_MAX:
+                    raise RawError("grootte", 413)
+            return {"content_type": kind, "eind_url": end_url, "sha256": hashlib.sha256(body).hexdigest(),
+                    "data": base64.b64encode(body).decode("ascii"),
+                    "opgehaald_op": datetime.now(timezone.utc).isoformat()}
+
+    # urllib's socket timeout alone cannot bound DNS, redirect handling or slow headers.
+    result = []
+
+    def work():
+        try:
+            result.append(read())
+        except RawError as exc:
+            result.append(exc)
+        except TimeoutError:
+            result.append(RawError("tijd", 504))
+        except urllib.error.URLError as exc:
+            if isinstance(exc, urllib.error.HTTPError):
+                exc.close()
+            result.append(RawError("tijd", 504) if isinstance(exc.reason, TimeoutError)
+                          else RawError("document", 502))
+        except Exception:
+            result.append(RawError("document", 502))
+        finally:
+            if hold:
+                hold.release()
+
+    worker = threading.Thread(target=work, daemon=True)
+    try:
+        worker.start()
+    except BaseException:
+        if hold:
+            hold.release()
+        raise
+    worker.join(max(0, deadline - time.monotonic()))
+    if not result:
+        raise RawError("tijd", 504)
+    if isinstance(result[0], RawError):
+        raise result[0]
+    return result[0]
+
+
 class H(BaseHTTPRequestHandler):
+    timeout = 30  # socket timeout per request: a client that stalls mid-upload frees its slot
     def log_message(self, *a):  # no URLs in logs
         pass
 
@@ -134,7 +298,53 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, {"ok": True})
         return self._send(404, {"success": False, "error": "not found"})
 
+    def _raw(self):
+        def send(status, obj):
+            print(json.dumps({"event": "raw", "status": status}), flush=True)
+            return self._send(status, obj)
+
+        try:
+            prof = profile_of(self.headers)
+            if not prof:
+                raise RawError("document", 401)
+            if prof != "profiel-1":
+                raise RawError("document", 403)
+            if self.headers.get("Authorization") != "Bearer profiel-1":
+                raise RawError("document", 401)
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                if not 0 < length <= 65536:
+                    raise ValueError()
+                url = json.loads(self.rfile.read(length))["url"]
+            except (ValueError, KeyError, TypeError):
+                raise RawError("url") from None
+            check_raw_url(url)
+            # C3: one /v2/raw at a time. One 25 MiB answer peaks at ~155 MiB against a 256Mi limit. The slot is
+            # held until the response is written and the upstream worker has stopped; the rate limit is charged
+            # only to a request that got the slot.
+            if not _raw_slot.acquire(blocking=False):
+                raise RawError("document", 429)
+            hold = RawHold(2)
+            try:
+                if not raw_rate_ok():
+                    hold.release()   # the worker never starts
+                    hold.release()
+                    hold = None
+                    raise RawError("document", 429)
+                try:
+                    data = fetch_raw(url, hold)
+                except RawError as exc:
+                    return send(exc.status, {"success": False, "error": exc.key})
+                return send(200, {"success": True, "data": data})
+            finally:
+                if hold:
+                    hold.release()
+        except RawError as exc:
+            return send(exc.status, {"success": False, "error": exc.key})
+
     def do_POST(self):
+        if self.path == "/v2/raw":
+            return self._raw()
         if self.path not in ("/v2/scrape", "/v1/scrape"):
             return self._send(404, {"success": False, "error": "not found"})
         prof = profile_of(self.headers)

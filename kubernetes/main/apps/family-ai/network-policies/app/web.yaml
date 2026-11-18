@@ -82,11 +82,8 @@ spec:
   endpointSelector:
     matchExpressions:
       - {key: app.kubernetes.io/name, operator: In, values: [searxng, web-extract]}
-  ingress:
-    - fromEndpoints:
-        - matchLabels: {app.kubernetes.io/name: hermes}
-      toPorts:
-        - ports: [{port: "8080", protocol: TCP}]
+  # Ingress moved to searxng-ingress and web-extract-ingress below (kennis_toevoegen C2): CNPs are additive, so the
+  # old "every hermes pod, all of :8080" rule would keep POST /v2/raw open to every profile next to any L7 rule.
   egress:
     - toEndpoints:
         - matchLabels: {app.kubernetes.io/name: egress-proxy}
@@ -108,3 +105,50 @@ spec:
           rules:
             dns:
               - matchName: egress-proxy.family-ai.svc.cluster.local
+---
+# searxng: unchanged behaviour, every hermes pod on 8080 (was part of searxng-web-extract).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: searxng-ingress
+spec:
+  endpointSelector:
+    matchLabels: {app.kubernetes.io/name: searxng}
+  ingress:
+    - fromEndpoints:
+        - matchLabels: {app.kubernetes.io/name: hermes}
+      toPorts:
+        - ports: [{port: "8080", protocol: TCP}]
+---
+# web-extract (kennis_toevoegen C2, Argus chg-2026-11-16-001, option a): POST /v2/raw only from hermes-profiel-1.
+# Every other hermes pod keeps /health and /v1|/v2/scrape and gets no /v2/raw. Kubelet probes are host identity and
+# are not subject to this rule. The code also answers 403 on /v2/raw for other profiles, but that is no second lock:
+# the Bearer is just the env value, so Cilium is the only real check. Atlas measures: profiel-2/3/4 POST /v2/raw -> 403
+# from Cilium (not from the code), profiel-1 -> 200,
+# /v2/scrape from profiel-4 still 200, and a 60 s /v2/raw is not cut by the Envoy proxy idle timeout.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: web-extract-ingress
+spec:
+  endpointSelector:
+    matchLabels: {app.kubernetes.io/name: web-extract}
+  ingress:
+    - fromEndpoints:
+        - matchLabels: {app.kubernetes.io/name: hermes}
+      toPorts:
+        - ports: [{port: "8080", protocol: TCP}]
+          rules:
+            http:
+              - {method: GET, path: "/health"}
+              - {method: POST, path: "/v2/scrape"}
+              - {method: POST, path: "/v1/scrape"}
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: hermes
+            app.kubernetes.io/instance: hermes-profiel-1
+      toPorts:
+        - ports: [{port: "8080", protocol: TCP}]
+          rules:
+            http:
+              - {method: POST, path: "/v2/raw"}
