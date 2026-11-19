@@ -37,9 +37,12 @@ spec:
   # 2026-11-05): runner client-term fence, path fence, FQDN egress (runner-egress CNP), ES mypka-runner-client-terms
   # (item pka-chase in vault mypka-cluster), image v4-4ae7497 (index 7bff7529); runner CronJob stays suspend: true,
   # sync-only. First try 9605ae0 rolled back (fef0bc06): item absent. Rollback bbc26b1, branch teamregie/cluster-page.
+  # v13 (chg-2026-10-07-007, Argus range 83ccac6..73c860a, 2026-11-19): image v13-f230ac4 (index 3bf1cee4;
+  # pyasn1 0.6.5 + oauthlib 4.0.1), runner C4 mirror fixes (b372957, 81f7fdd, 1e8dfaa), trip-autopilot shadow without
+  # the Prague seed. Forge main = runner/2026-11-05-fence-v4 = 73c860a. Rollback: commit 83ccac6, same branch.
   ref:
     branch: runner/2026-11-05-fence-v4
-    commit: 83ccac63c0c9a9936247f9be7cdfa9d4a98c45ed
+    commit: 73c860ad758651c29efd63eb69a8dbbdb9654667
   # Fetch only what the tenant Kustomization applies (as Mack proposed).
   ignore: |
     /*
