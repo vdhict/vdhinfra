@@ -1,0 +1,7 @@
+chg-2026-11-20-040 summary (measured 2026-11-20T07:25Z before, 07:33Z after)
+usage    before cpu=18m mem=826Mi   after cpu=0m mem=0Mi   freed cpu=18m mem=826Mi
+requests before cpu=430m mem=1792Mi after cpu=0m mem=0Mi  freed cpu=430m mem=1792Mi
+PVC count and Secret count/names per namespace: identical before/after (names not written, public repo).
+CNPG pp-dotnet-pg (lab-passkey-dotnet, -maxsession): hibernated (condition cnpg.io/hibernation=True Hibernated), PVC Bound.
+VolumeSnapshot pp-dotnet-pg-1-pre-hibernate-20261120 (csi-ceph-blockpool) readyToUse=true in both .NET namespaces.
+Commits: ff017cf6 (replicas/suspend), 479c58d0 (db health check canary), 76debd8f (hibernation).

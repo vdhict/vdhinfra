@@ -1,0 +1,19 @@
+# PP measurement after at 2026-11-20T07:33:08Z
+## kubectl top pods --containers (usage)
+  ns=lab-passkey usage_cpu_m=0 usage_mem_Mi=0
+  ns=lab-passkey-dotnet usage_cpu_m=0 usage_mem_Mi=0
+  ns=lab-passkey-dotnet-maxsession usage_cpu_m=0 usage_mem_Mi=0
+  ns=passkey-point-e2e usage_cpu_m=0 usage_mem_Mi=0
+  ns=pp-ci usage_cpu_m=0 usage_mem_Mi=0
+  ns=devtenant-build usage_cpu_m=0 usage_mem_Mi=0
+  ns=devtenant-ops usage_cpu_m=0 usage_mem_Mi=0
+TOTAL usage_cpu_m=0 usage_mem_Mi=0
+## requests of Running pods (containers; initContainers excluded)
+  ns=lab-passkey req_cpu_m=0 req_mem_Mi=0
+  ns=lab-passkey-dotnet req_cpu_m=0 req_mem_Mi=0
+  ns=lab-passkey-dotnet-maxsession req_cpu_m=0 req_mem_Mi=0
+  ns=passkey-point-e2e req_cpu_m=0 req_mem_Mi=0
+  ns=pp-ci req_cpu_m=0 req_mem_Mi=0
+  ns=devtenant-build req_cpu_m=0 req_mem_Mi=0
+  ns=devtenant-ops req_cpu_m=0 req_mem_Mi=0
+TOTAL req_cpu_m=0 req_mem_Mi=0

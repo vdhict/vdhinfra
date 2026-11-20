@@ -1,0 +1,35 @@
+# PP inventory after at 2026-11-20T07:33:09Z
+ns=lab-passkey pvc_count=2 secret_count=15
+  pvcs: pp-data:Bound pp-roster:Bound 
+  deploy passkey-point-api      0     forge.bluejungle.net/palamedes/passkey-point@sha256:3ecb605f1c7bdd2811346aa014640911d6f2d078d6d4fd67c05b047711864564,forge.bluejungle.net/palamedes/passkey-point@sha256:3ecb605f1c7bdd2811346aa014640911d6f2d078d6d4fd67c05b047711864564
+  deploy passkey-point-portal   0     forge.bluejungle.net/vdhict/passkey-point:roster-d3f4de5@sha256:b9b22fcbb1fb94ec6a6137a943cadda0aed4e6fbe9bcda14b7dcb406e50d2f0b
+  deploy passkey-point-roster   0     forge.bluejungle.net/vdhict/passkey-point:roster-d3f4de5@sha256:b9b22fcbb1fb94ec6a6137a943cadda0aed4e6fbe9bcda14b7dcb406e50d2f0b
+  deploy passkey-point-web      0     forge.bluejungle.net/palamedes/passkey-point@sha256:2ca6d1e409bd494bb3213c5518283ac5b5d8b58367fa3502aacd015c128fe895
+  running_pods=0
+ns=lab-passkey-dotnet pvc_count=1 secret_count=13
+  pvcs: pp-dotnet-pg-1:Bound 
+  deploy passkey-point-api   0     forge.bluejungle.net/palamedes/passkey-point-dotnet@sha256:abfa7f25418d17e6f1b0f390841211a2c717b9eddacf1b15e91c18da15629b2f,forge.bluejungle.net/palamedes/passkey-point@sha256:3ecb605f1c7bdd2811346aa014640911d6f2d078d6d4fd67c05b047711864564
+  deploy passkey-point-web   0     forge.bluejungle.net/palamedes/passkey-point-dotnet@sha256:abfa7f25418d17e6f1b0f390841211a2c717b9eddacf1b15e91c18da15629b2f
+  cnpg pp-dotnet-pg   on    Cluster in healthy state   <none>
+  running_pods=0
+ns=lab-passkey-dotnet-maxsession pvc_count=1 secret_count=13
+  pvcs: pp-dotnet-pg-1:Bound 
+  deploy passkey-point-api   0     forge.bluejungle.net/palamedes/passkey-point-dotnet@sha256:abfa7f25418d17e6f1b0f390841211a2c717b9eddacf1b15e91c18da15629b2f,forge.bluejungle.net/palamedes/passkey-point@sha256:3ecb605f1c7bdd2811346aa014640911d6f2d078d6d4fd67c05b047711864564
+  deploy passkey-point-web   0     forge.bluejungle.net/palamedes/passkey-point-dotnet@sha256:abfa7f25418d17e6f1b0f390841211a2c717b9eddacf1b15e91c18da15629b2f
+  cnpg pp-dotnet-pg   on    Cluster in healthy state   <none>
+  running_pods=0
+ns=passkey-point-e2e pvc_count=1 secret_count=3
+  pvcs: passkey-point-e2e-out:Bound 
+  cronjob passkey-point-e2e          true
+  cronjob passkey-point-e2e-dotnet   true
+  running_pods=0
+ns=pp-ci pvc_count=0 secret_count=0
+  pvcs: 
+  running_pods=0
+ns=devtenant-build pvc_count=1 secret_count=7
+  pvcs: devtenant-out:Bound 
+  cronjob devtenant-refresh-contractor-new   true
+  running_pods=0
+ns=devtenant-ops pvc_count=1 secret_count=1
+  pvcs: devtenant-out:Bound 
+  running_pods=0
