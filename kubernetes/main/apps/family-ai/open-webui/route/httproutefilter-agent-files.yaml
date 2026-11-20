@@ -1,0 +1,18 @@
+---
+# tsk-2026-11-20-946: Open WebUI has no /api/files/ route (its files API is /api/v1/files). A link the agent writes
+# under /api/files/... (no Hermes profile has a file tool) fell through to the SPA catch-all: 200 text/html, so the
+# browser "downloaded" the app page. Answer an honest 404 instead. Remove when the real file feature lands; re-check
+# the Open WebUI route list for a real /api/files route on every Renovate bump (Argus advisory).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/gateway.envoyproxy.io/httproutefilter_v1alpha1.json
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: HTTPRouteFilter
+metadata:
+  name: open-webui-agent-files-404
+spec:
+  directResponse:
+    contentType: text/plain; charset=utf-8
+    statusCode: 404
+    body:
+      type: Inline
+      inline: |
+        Dit bestand bestaat niet. De AI kan nog geen bestanden maken om te downloaden.

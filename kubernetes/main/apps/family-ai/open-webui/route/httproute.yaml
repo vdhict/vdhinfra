@@ -41,6 +41,16 @@ spec:
     - matches:
         - path:
             type: PathPrefix
+            value: /api/files
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: gateway.envoyproxy.io
+            kind: HTTPRouteFilter
+            name: open-webui-agent-files-404
+    - matches:
+        - path:
+            type: PathPrefix
             value: /
       backendRefs:
         - name: open-webui
