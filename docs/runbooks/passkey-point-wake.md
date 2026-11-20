@@ -39,6 +39,15 @@ If a later commit touched the same lines, resolve the conflict to: `replicas: 1`
 `desk/app/{api,web}.yaml` or `passkey-point/app/{api,web}.yaml`, and for .NET also remove the annotation from that
 namespace's `db/app/cluster.yaml`. Leave the CronJobs suspended unless the nightly E2E must run again.
 
+**Also on wake (two follow-up commits of chg-2026-11-20-040 that the revert above does not cover):**
+
+- Turn the PDB back on: remove `enablePDB: false` (comment "hibernated, chg-2026-11-20-040") from
+  `kubernetes/main/apps/lab-passkey-dotnet/db/app/cluster.yaml` and
+  `kubernetes/main/apps/lab-passkey-dotnet-maxsession/db/app/cluster.yaml` (CNPG default is true).
+- Remove the Alertmanager route that sends `KubeQuotaFullyUsed` for `namespace =~ "lab-passkey.*"` to `"null"`
+  in `kubernetes/main/apps/observability/kube-prometheus-stack/app/alertmanager-secret.yaml`, so quota alerts
+  watch the running LABs again. Then reconcile `kube-prometheus-stack`.
+
 ## Reconcile
 
 ```bash

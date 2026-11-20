@@ -1,0 +1,115 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  annotations:
+    batch.kubernetes.io/cronjob-scheduled-timestamp: "2026-11-18T08:00:00+01:00"
+  creationTimestamp: "2026-11-18T07:00:00Z"
+  generation: 1
+  labels:
+    batch.kubernetes.io/controller-uid: 45e6f7d0-cd34-41c7-a11b-0a8972e021f2
+    batch.kubernetes.io/job-name: health-notify-29916420
+    controller-uid: 45e6f7d0-cd34-41c7-a11b-0a8972e021f2
+    job-name: health-notify-29916420
+  name: health-notify-29916420
+  namespace: observability
+  ownerReferences:
+  - apiVersion: batch/v1
+    blockOwnerDeletion: true
+    controller: true
+    kind: CronJob
+    name: health-notify
+    uid: 4eeeebca-ca03-47d2-b898-06ff90d654e0
+  resourceVersion: "306892324"
+  uid: 45e6f7d0-cd34-41c7-a11b-0a8972e021f2
+spec:
+  backoffLimit: 1
+  completionMode: NonIndexed
+  completions: 1
+  manualSelector: false
+  parallelism: 1
+  podReplacementPolicy: TerminatingOrFailed
+  selector:
+    matchLabels:
+      batch.kubernetes.io/controller-uid: 45e6f7d0-cd34-41c7-a11b-0a8972e021f2
+  suspend: false
+  template:
+    metadata:
+      labels:
+        batch.kubernetes.io/controller-uid: 45e6f7d0-cd34-41c7-a11b-0a8972e021f2
+        batch.kubernetes.io/job-name: health-notify-29916420
+        controller-uid: 45e6f7d0-cd34-41c7-a11b-0a8972e021f2
+        job-name: health-notify-29916420
+    spec:
+      containers:
+      - command:
+        - python3
+        - /scripts/notify.py
+        env:
+        - name: TZ
+          value: Europe/Amsterdam
+        - name: HA_URL
+          value: http://home-assistant.home-automation.svc.cluster.local:8123
+        - name: REPORT_BASE_URL
+          value: https://health.bluejungle.net
+        - name: HA_NOTIFY_TARGET
+          value: mobile_app_galaxy_s25_ultra
+        envFrom:
+        - secretRef:
+            name: cluster-health-secret
+            optional: true
+        image: ghcr.io/vdhict/cluster-health:sha-de00b79
+        imagePullPolicy: IfNotPresent
+        name: notify
+        resources:
+          limits:
+            cpu: 100m
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /data
+          name: data
+        - mountPath: /scripts
+          name: scripts
+      dnsPolicy: ClusterFirst
+      restartPolicy: Never
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      serviceAccount: cluster-health
+      serviceAccountName: cluster-health
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: cluster-health-data
+      - configMap:
+          defaultMode: 493
+          name: cluster-health-scripts
+        name: scripts
+  ttlSecondsAfterFinished: 604800
+status:
+  conditions:
+  - lastProbeTime: "2026-11-18T07:00:31Z"
+    lastTransitionTime: "2026-11-18T07:00:31Z"
+    message: Job has reached the specified backoff limit
+    reason: BackoffLimitExceeded
+    status: "True"
+    type: FailureTarget
+  - lastProbeTime: "2026-11-18T07:00:31Z"
+    lastTransitionTime: "2026-11-18T07:00:31Z"
+    message: Job has reached the specified backoff limit
+    reason: BackoffLimitExceeded
+    status: "True"
+    type: Failed
+  failed: 2
+  ready: 0
+  startTime: "2026-11-18T07:00:00Z"
+  terminating: 0
+  uncountedTerminatedPods: {}

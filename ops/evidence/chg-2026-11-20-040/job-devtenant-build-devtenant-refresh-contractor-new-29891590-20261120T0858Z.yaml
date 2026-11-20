@@ -1,0 +1,230 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  annotations:
+    batch.kubernetes.io/cronjob-scheduled-timestamp: "2026-11-01T02:10:00+01:00"
+  creationTimestamp: "2026-11-01T01:10:00Z"
+  deletionGracePeriodSeconds: 0
+  deletionTimestamp: "2026-11-02T01:11:12Z"
+  finalizers:
+  - foregroundDeletion
+  generation: 2
+  labels:
+    app.kubernetes.io/name: devtenant
+    batch.kubernetes.io/controller-uid: 3cf2f5cd-0fee-466d-96e0-729f79a21811
+    batch.kubernetes.io/job-name: devtenant-refresh-contractor-new-29891590
+    controller-uid: 3cf2f5cd-0fee-466d-96e0-729f79a21811
+    devtenant.passkey-point/connect: "true"
+    job-name: devtenant-refresh-contractor-new-29891590
+  name: devtenant-refresh-contractor-new-29891590
+  namespace: devtenant-build
+  ownerReferences:
+  - apiVersion: batch/v1
+    blockOwnerDeletion: true
+    controller: true
+    kind: CronJob
+    name: devtenant-refresh-contractor-new
+    uid: 09e88397-08e4-4a07-ada2-fb4d345e061a
+  resourceVersion: "282330749"
+  uid: 3cf2f5cd-0fee-466d-96e0-729f79a21811
+spec:
+  activeDeadlineSeconds: 1800
+  backoffLimit: 0
+  completionMode: NonIndexed
+  completions: 1
+  manualSelector: false
+  parallelism: 1
+  podReplacementPolicy: TerminatingOrFailed
+  selector:
+    matchLabels:
+      batch.kubernetes.io/controller-uid: 3cf2f5cd-0fee-466d-96e0-729f79a21811
+  suspend: false
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: devtenant
+        batch.kubernetes.io/controller-uid: 3cf2f5cd-0fee-466d-96e0-729f79a21811
+        batch.kubernetes.io/job-name: devtenant-refresh-contractor-new-29891590
+        controller-uid: 3cf2f5cd-0fee-466d-96e0-729f79a21811
+        devtenant.passkey-point/connect: "true"
+        job-name: devtenant-refresh-contractor-new-29891590
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - args:
+        - bootstrap-v01
+        - --execute
+        - --yes
+        - --baseline-sha256
+        - 31b738a4a438f2464d844779c05b60994f5728d48a7f022672327225a112268b
+        command:
+        - node
+        - infra/devtenant/leak-check.ts
+        - /app/infra/devtenant/out
+        - /tmp
+        - --ok-exit
+        - "3"
+        - --run
+        - --
+        - node
+        - infra/devtenant/devtenant.ts
+        env:
+        - name: DEVTENANT_KEY_DIR
+          value: /var/run/secrets/devtenant
+        - name: DEVTENANT_ADMIN_UPN
+          value: admsheijden@7m5b27gbc.onmicrosoft.com
+        - name: OP_CONNECT_HOST
+          value: http://onepassword-connect.security.svc.cluster.local
+        - name: OP_CONNECT_TOKEN_PASSKEY_POINT_DEV
+          valueFrom:
+            secretKeyRef:
+              key: dev
+              name: devtenant-dev-write-tokens
+        - name: OP_CONNECT_TOKEN_PASSKEY_POINT_DEV_APP
+          valueFrom:
+            secretKeyRef:
+              key: dev-app
+              name: devtenant-dev-write-tokens
+        - name: OP_CONNECT_TOKEN_DEVTENANT_OPS
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: devtenant-ops-write-token
+        image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:a79ede4fd7c6781f81f6295f745b5bba84508a8a9f97a354f9c219c984df4f82
+        imagePullPolicy: IfNotPresent
+        name: bootstrap
+        resources:
+          limits:
+            memory: 1Gi
+          requests:
+            cpu: 200m
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/run/secrets/devtenant/build
+          name: build-key
+          readOnly: true
+        - mountPath: /app/infra/devtenant/out
+          name: out
+        - mountPath: /tmp
+          name: tmp
+      dnsConfig:
+        options:
+        - name: ndots
+          value: "1"
+      dnsPolicy: ClusterFirst
+      imagePullSecrets:
+      - name: devtenant-pull
+      initContainers:
+      - command:
+        - node
+        - -e
+        - 'process.exit(/^[0-9a-f]{64}$/.test(process.env.BASELINE ?? '''') ? 0 :
+          78)'
+        env:
+        - name: BASELINE
+          value: 31b738a4a438f2464d844779c05b60994f5728d48a7f022672327225a112268b
+        image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:a79ede4fd7c6781f81f6295f745b5bba84508a8a9f97a354f9c219c984df4f82
+        imagePullPolicy: IfNotPresent
+        name: guard
+        resources: {}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      - args:
+        - renew-persona
+        - --alias
+        - tp-contractor-new
+        - --yes
+        command:
+        - node
+        - infra/devtenant/leak-check.ts
+        - /tmp
+        - --run
+        - --
+        - node
+        - infra/devtenant/devtenant.ts
+        env:
+        - name: DEVTENANT_KEY_DIR
+          value: /var/run/secrets/devtenant
+        - name: OP_CONNECT_HOST
+          value: http://onepassword-connect.security.svc.cluster.local
+        - name: OP_CONNECT_TOKEN_PASSKEY_POINT_DEV
+          valueFrom:
+            secretKeyRef:
+              key: dev
+              name: devtenant-dev-write-tokens
+        image: forge.bluejungle.net/palamedes/passkey-point-devtenant@sha256:a79ede4fd7c6781f81f6295f745b5bba84508a8a9f97a354f9c219c984df4f82
+        imagePullPolicy: IfNotPresent
+        name: renew
+        resources: {}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/run/secrets/devtenant/build
+          name: build-key
+          readOnly: true
+        - mountPath: /tmp
+          name: tmp
+      restartPolicy: Never
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 10001
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccount: devtenant
+      serviceAccountName: devtenant
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: build-key
+        secret:
+          defaultMode: 256
+          secretName: atlas-devtenant-build-key
+      - name: out
+        persistentVolumeClaim:
+          claimName: devtenant-out
+      - emptyDir:
+          sizeLimit: 128Mi
+        name: tmp
+  ttlSecondsAfterFinished: 86400
+status:
+  conditions:
+  - lastProbeTime: "2026-11-01T01:11:12Z"
+    lastTransitionTime: "2026-11-01T01:11:12Z"
+    message: Job has reached the specified backoff limit
+    reason: BackoffLimitExceeded
+    status: "True"
+    type: FailureTarget
+  - lastProbeTime: "2026-11-01T01:11:12Z"
+    lastTransitionTime: "2026-11-01T01:11:12Z"
+    message: Job has reached the specified backoff limit
+    reason: BackoffLimitExceeded
+    status: "True"
+    type: Failed
+  failed: 1
+  ready: 0
+  startTime: "2026-11-01T01:10:00Z"
+  terminating: 0
+  uncountedTerminatedPods: {}

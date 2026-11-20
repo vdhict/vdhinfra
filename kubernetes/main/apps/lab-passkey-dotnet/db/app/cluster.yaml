@@ -18,6 +18,9 @@ metadata:
   annotations:
     cnpg.io/hibernation: "on"
 spec:
+  # hibernated, chg-2026-11-20-040; revert on wake (set true or drop; runbook passkey-point-wake.md).
+  # No pods while hibernated, so the PDB would only fire KubePdbNotEnoughHealthyPods.
+  enablePDB: false
   instances: 1
   imageName: ghcr.io/cloudnative-pg/postgresql:16.9-22@sha256:cca50a94e2da46ddcaefb23260c805ed3b466763bd2a25e1617410176d5fd0ab
   primaryUpdateStrategy: unsupervised
