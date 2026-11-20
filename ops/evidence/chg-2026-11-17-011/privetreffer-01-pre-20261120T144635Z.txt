@@ -1,0 +1,27 @@
+chg-2026-11-17-011 tsk-2026-11-09-101 wq-026 pre-state + build, written 2026-11-20T14:46:35Z
+VolSync hermes-profiel-1 manual p101-144357: lastSyncTime 2026-11-20T14:44:16Z Successful
+Rollback material: origin/main 9d4a2713 profiel-1/bundle.sops.yaml sha256 71f16a61446009ef1489ee4c6b4fbae5704731ec2fb0884749857fe057cb038a (scratch copy p101/bundle.sops.yaml.pre); live bundle.tar.gz sha256 ab5a4ef7821f69507d260d03ad1b1749095251a90a765cd2cab816e4e607020b
+Deploy hermes-profiel-1 rev 32, image docker.io/nousresearch/hermes-agent:v0.22.5@sha256:9c5561579f3ffdf333401797094ac3a743738d6c25d40f4331c7bf77b694238d
+Pods before: p1 5872006b R0 start 07:31:37Z; p2 02910867 R0; p3 60eb9aff R0; p4 ac74ecdd R0 (all Ready)
+family-ai-cluster: main ff e0eed8c->15a7b63, + c5d7880 (README C4), pushed to mini; prescan hit False; gitleaks no leaks
+Build: live p1 bundle with ONE file swapped (plugins/kennis/__init__.py 40032845 -> 14512de2 = c5d7880/15a7b63); build-bundle guard ALLOW_BUNDLE_CHANGE=plugins/kennis/__init__.py: 'bundle change allowed (differs)' for that file only
+New bundle.tar.gz sha256 4be8942389dde406bc991e37cd26a0670106aa622880b21dbea53509e1cde8a5, 71266 bytes
+Delivery file hashes (sha256[:16]):
+f825d9001a159b8d  profiel-1/SOUL.md
+df792bfced13b41a  profiel-1/config.yaml
+14512de2af756c42  profiel-1/plugins/kennis/__init__.py
+e4f829850e5d5225  profiel-1/plugins/kennis/instellingen.json
+96018cc87246cae1  profiel-1/plugins/kennis/plugin.yaml
+c4f3ca034f88659d  profiel-1/plugins/model-providers/custom/__init__.py
+c51fe8e037bcaef6  profiel-1/plugins/model-providers/custom/plugin.yaml
+6fd21f14f802e683  profiel-1/plugins/webeerlijk/BRONNEN.txt
+feffcb0e441e5e68  profiel-1/plugins/webeerlijk/__init__.py
+81c998a2b271df29  profiel-1/plugins/webeerlijk/instellingen.json
+2ad23e5a02cd1d88  profiel-1/plugins/webeerlijk/plaatsen.txt
+eab6305e5c1c229f  profiel-1/plugins/webeerlijk/plugin.yaml
+aa0a75a9860b2cba  profiel-1/plugins/webeerlijk/tlds.txt
+C2 (check-bundle rules L167-172 applied to shipped p1 config.yaml df792bfc, unchanged from live): provider custom True; base_url ${FAMILY_LLM_BASE_URL} True; no fallback_providers True; no auxiliary provider True
+C2 deviation: full bin/check-bundle not run; a full render needs the private school/zeevaart data (render-bundle REFUSED: unexpected public school file set) and live p1 is pinned to an older webeerlijk line, so a main-line render is not the shipped bundle
+C3 key check: prive_voorvoegsels absent or contains STCW: True
+tests.test_kennis_route at c5d7880: 9/9 OK; kennis plugin compiles: True
+Overlay render: p1 KENNIS_MODUS=[lokaal] p2=[] p3=[] p4=[]

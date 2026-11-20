@@ -1,0 +1,25 @@
+chg-2026-11-17-011 tsk-2026-11-09-101 wq-026 post-deploy gate, written 2026-11-20T14:52:28Z
+vdhinfra main 9eb6126a pushed 14:47:51Z; Flux source + kustomization family-ai-hermes applied 9eb6126a; rollout hermes-profiel-1 complete 14:49:06Z
+p1 deploy rev 32 -> 33; image unchanged docker.io/nousresearch/hermes-agent:v0.22.5@sha256:9c5561579f3ffdf333401797094ac3a743738d6c25d40f4331c7bf77b694238d
+new p1 pod c36abb51-547e-4f25-9486-76641cd1c7d1 start 14:48:43Z R0 Ready; p2 02910867, p3 60eb9aff, p4 ac74ecdd unchanged (same uid, R0)
+Pod readback (sha256[:16]): plugins/kennis/__init__.py 14512de2 (new); SOUL.md f825d900, kennis/instellingen.json e4f82985, webeerlijk/__init__.py feffcb0e, custom provider c4f3ca03 (all = live before); memories files 0
+
+[14:49:15Z] K1/C1 GREEN: p1 KENNIS_MODUS=[lokaal]; p2=[] p3=[] p4=[]; KENNIS_MODUS lines in hermes/base on main: 0
+[14:49:15Z] C2 GREEN (live): FAMILY_LLM_BASE_URL p1 = https://api.bluejungle.net/v1, hostAlias 172.16.2.200; CNPs named profiel-1+cloud: 0; CNPs selecting hermes-profiel-1 with toFQDNs: 0
+            C2 bundle: provider custom True, base_url ${FAMILY_LLM_BASE_URL} True, no fallback_providers True, no auxiliary provider True (check-bundle rules L167-172; full check-bundle not run, see privetreffer-01)
+[14:49:25Z] K2 key names: cloud-key env names in p1 pod 0; ExternalSecret keys API_SERVER_KEY MODEL_API_KEY KENNIS_TOKEN (names only)
+[14:49:33Z] K2 GREEN egress (in-pod python TCP connect, nc absent in image): api.anthropic.com:443 FAIL(gaierror); 160.79.104.10:443 FAIL(TimeoutError); control 172.16.2.200:443 OPEN
+[14:49:46Z] K2 extra: HTTPS_PROXY CONNECT api.anthropic.com:443 / api.openai.com:443 -> no response (TimeoutError), no 200
+[14:50:31Z] K3 GREEN (deployed /opt/data/plugins/kennis, fake service, synthetic marker, -B, no kennisdienst call):
+            pod env KENNIS_MODUS==lokaal True
+            (i) pod env: marker present True, route==lokaal True
+            (ii) KENNIS_MODUS removed in-process: marker absent True, route==lokaal_vereist True
+            (iii) zoeken with Hermes dispatch kwargs, KENNIS_MODUS removed: marker absent True, MLC kept True
+            fake service called True; new __pycache__ dirs 0
+[14:50:39Z] C3 key check: prive_voorvoegsels absent or contains STCW True (shipped instellingen.json e4f82985 unchanged)
+[14:50:39Z] C3 count (kennisdienst pod, numbers only): /prive/zeevaart files 164, '## ' lines 1520, not starting with '## STCW' 0 -> GREEN
+            /prive entries other than zeevaart: 5 = 2 x huiswerk-profiel-N (1 file each), 2 x lesstof (57 files each, chg-2026-10-19-001), 1 empty lost+found
+            -> "no other collection" is FALSE as written. Pre-existing, by design, served to profiles 2/3 only; not changed by this release; Argus C3 non-blocking, not a rollback trigger. Recorded as B1 baseline, finding for Argus.
+[14:51:27Z-14:51:53Z] K4 GREEN (open-webui pod, temp account in owui-profiel-1, deleted): warm-up 200 (not acceptance, cold-start lesson chg-2026-11-20-030);
+            MLC turn 200, 400 chars, 15.3s; answer carries an MLC reference True; no answer text stored; synthetic account deleted
+K5 pending (>= 14:58:43Z), see privetreffer-03

@@ -1,0 +1,17 @@
+chg-2026-11-17-011 tsk-2026-11-09-101 wq-026 K5 + final re-check, written 2026-11-20T14:59:25Z
+2026-11-20T14:59:10Z
+K5 pod uid=c36abb51-547e-4f25-9486-76641cd1c7d1 start=2026-11-20T14:48:43Z ready=true restarts=0
+K5 pods for p1: 1
+K5 'pre_llm_call hook failed' in container log since start: 0
+K5 same in /opt/data/logs (files touched since start): 0
+K5 kennis plugin error/traceback lines since start: 0
+K1-recheck p1 [lokaal]
+K1-recheck p2 []
+K1-recheck p3 []
+K1-recheck p4 []
+cloud CNP for p1: 0
+hermes-profiel-1-5f9dd5dc9f-bqhl8          c36abb51-547e-4f25-9486-76641cd1c7d1   0     true
+hermes-profiel-2-6ff4968bbb-85mbg          02910867-1b06-4458-9e67-480a99991d7f   0     true
+hermes-profiel-3-f98cbc5dc-44982           60eb9aff-460a-4b54-b4fb-d8af20679123   0     true
+hermes-profiel-4-6bb5849cbf-pps92          ac74ecdd-8df7-4c3a-9ced-0593335aaf29   0     true
+VERDICT: K1-K5 GREEN, C1 GREEN, C2 GREEN (bundle rules + live), C3 zeevaart count GREEN (other /prive dirs: finding, non-blocking). No rollback.
