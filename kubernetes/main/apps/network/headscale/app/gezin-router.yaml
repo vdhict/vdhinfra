@@ -1,0 +1,105 @@
+---
+# chg-2026-11-20-060 (tsk-2026-11-20-118): in-cluster tailnet subnet router for the family chat.
+# Advertises exactly ONE route, 172.16.2.253/32 (Gateway envoy-gezin: chat + auth hostnames only). The route is
+# approved by hand (`headscale nodes approve-routes -i <id> -r 172.16.2.253/32`); the policy has no autoApprovers.
+# Node tag tag:gezinrouter (from the enrolment key; tagOwners empty, so no self-tagging) is never an ACL source.
+# Same hardening and enrolment as headscale-canary (B2/B5): userspace tailscaled (no TUN, no capabilities, non-root,
+# read-only root fs); state in Secret hs-gezin-router-state, ServiceAccount may get/update ONLY that Secret; the
+# enrolment key is created in-pod (`--tags tag:gezinrouter -e 30m`, single use), loaded into Secret
+# hs-gezin-router-authkey from a 0600 file (never in Git, argv or transcript) and blanked after first login.
+# Defence in depth: the CiliumNetworkPolicy gezin-router (networkpolicy.yaml) lets this pod reach ONLY the envoy-gezin
+# proxies (10443), headscale (8443/3478), kube-dns and the API server. Even a wrong ACL cannot route the tailnet to
+# anything else on the LAN through this pod.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: headscale-gezin-router
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: headscale-gezin-router-state
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["hs-gezin-router-state"]
+    verbs: ["get", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: headscale-gezin-router-state
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: headscale-gezin-router-state
+subjects:
+  - kind: ServiceAccount
+    name: headscale-gezin-router
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hs-gezin-router-state
+  annotations:
+    kustomize.toolkit.fluxcd.io/ssa: IfNotPresent
+type: Opaque
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: headscale-gezin-router
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: headscale-gezin-router
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: headscale-gezin-router
+    spec:
+      serviceAccountName: headscale-gezin-router
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: tailscale
+          image: docker.io/tailscale/tailscale:v1.104.4@sha256:ed6480b33c6eb67c9cbd203ed42b9fb57e361986725b6856def71b7a3d9e276c
+          env:
+            - {name: HOME, value: /tmp}
+            - {name: TS_USERSPACE, value: "true"}
+            - {name: TS_KUBE_SECRET, value: hs-gezin-router-state}
+            - {name: TS_AUTH_ONCE, value: "true"}
+            - {name: TS_HOSTNAME, value: gezin-router}
+            - {name: TS_ROUTES, value: "172.16.2.253/32"}
+            - {name: TS_ENABLE_HEALTH_CHECK, value: "true"}
+            - {name: TS_LOCAL_ADDR_PORT, value: "0.0.0.0:9002"}
+            - {name: TS_NO_LOGS_NO_SUPPORT, value: "true"}
+            - name: TS_EXTRA_ARGS
+              value: "--login-server=https://headscale.${SECRET_DOMAIN} --accept-dns=false --accept-routes=false"
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: hs-gezin-router-authkey
+                  key: authkey
+          readinessProbe:
+            httpGet: {path: /healthz, port: 9002}
+            periodSeconds: 30
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 192Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}

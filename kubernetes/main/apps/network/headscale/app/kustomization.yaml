@@ -9,6 +9,7 @@ resources:
   - ./networkpolicy.yaml
   - ./prometheusrule.yaml
   - ./canary.yaml
+  - ./gezin-router.yaml
 configMapGenerator:
   - name: headscale-configmap
     files:
