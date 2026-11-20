@@ -56,7 +56,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "prometheus"
       },
       "description": "Answers: has any AP rebooted recently? Seconds since each AP last booted, from unifi_ap_uptime_seconds. Red threshold: < 86400s (24h) — the 8.6.10 crash/reboot regression signal. AP01 (U7 Pro XGS on 8.6.10) with a fresh uptime while others are days old = AP01 rebooted without a planned change.",
       "fieldConfig": {
@@ -114,7 +114,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
           "expr": "unifi_ap_uptime_seconds",
           "legendFormat": "{{hostname}}",
@@ -127,7 +127,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "prometheus"
       },
       "description": "Answers: is AP01's 10G uplink healthy? Speed in Mbps reported by the unifi-exporter (unifi_ap_uplink_speed_mbps). AP01 (U7 Pro XGS) should show 10000 Mbps on its SFP+ port. Red if < 1000 Mbps — below 1 Gbps means either a cable/port issue or the 8.6.10 speed-negotiation regression. Other APs at 1000 Mbps is normal (1G copper uplinks).",
       "fieldConfig": {
@@ -181,7 +181,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
           "expr": "unifi_ap_uplink_speed_mbps",
           "legendFormat": "{{hostname}}",
@@ -194,7 +194,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "prometheus"
       },
       "description": "Answers: are clients falling off any AP over time? The 8.6.10 regression shows as a gradual slope downward on AP01 while other APs stay flat. Stacked area by radio band (2g, 5g, 6g) per AP, from unifi_ap_clients{radio}. A sudden vertical drop on AP01 while syslog is still active = clients disassociating without AP reboot (the subtle regression pattern).",
       "fieldConfig": {
@@ -239,7 +239,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
           "expr": "unifi_ap_clients",
           "legendFormat": "{{hostname}} / {{radio}}",
@@ -252,7 +252,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "prometheus"
       },
       "description": "Answers: what firmware is each AP running right now? Uses the info-metric unifi_ap_firmware_info (always=1, version label carries the string). Pulled from Prometheus — canonical and queryable, no Loki label-parsing required. AP01 on 8.6.10+18869 is the regression subject.",
       "fieldConfig": {
@@ -304,7 +304,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
           "expr": "unifi_ap_firmware_info",
           "legendFormat": "{{hostname}}",
@@ -355,7 +355,7 @@
     {
       "datasource": {
         "type": "loki",
-        "uid": "${DS_LOKI}"
+        "uid": "loki"
       },
       "description": "Answers: which APs are alive right now? A bar/line showing log lines per AP per 5 min. An AP that goes silent = no syslog = likely offline or rebooting. AP01-Trapkast on 8.6.10 highlighted. Note: syslog silence >10 min is more reliable than the 5-min window — use this as a trend signal, not a strict up/down indicator.",
       "fieldConfig": {
@@ -416,7 +416,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${DS_LOKI}"
+            "uid": "loki"
           },
           "expr": "sum by (hostname) (count_over_time({hostname=\"AP01-Trapkast\"}[$__interval]))",
           "legendFormat": "AP01-Trapkast (8.6.10)",
@@ -425,7 +425,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${DS_LOKI}"
+            "uid": "loki"
           },
           "expr": "sum by (hostname) (count_over_time({hostname=~\"AP02-Stube|AP03-Slaapkamer|AP04-Zolder|AP06-Keuken\"}[$__interval]))",
           "legendFormat": "{{hostname}}",
@@ -438,7 +438,7 @@
     {
       "datasource": {
         "type": "loki",
-        "uid": "${DS_LOKI}"
+        "uid": "loki"
       },
       "description": "Current syslog line count per AP in the last 5 minutes. Green = active. Red/orange = silent (possible reboot or network loss). AP01 (8.6.10) threshold: warn if 0 lines for >5 min during daytime.",
       "fieldConfig": {
@@ -491,7 +491,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${DS_LOKI}"
+            "uid": "loki"
           },
           "expr": "sum by (hostname) (count_over_time({hostname=~\"AP01-Trapkast|AP02-Stube|AP03-Slaapkamer|AP04-Zolder|AP06-Keuken\"}[5m]))",
           "legendFormat": "{{hostname}}",
@@ -516,7 +516,7 @@
     {
       "datasource": {
         "type": "loki",
-        "uid": "${DS_LOKI}"
+        "uid": "loki"
       },
       "description": "Answers: are clients being rejected or dropping off AP01? Rate of AP-STA-CONNECTED events from hostapd on AP01-Trapkast per 5 min. The 8.6.10 symptom: clients stop associating after a few hours. A sustained drop to zero while the AP is still sending syslog = regression suspect.",
       "fieldConfig": {
@@ -558,7 +558,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${DS_LOKI}"
+            "uid": "loki"
           },
           "expr": "sum(count_over_time({hostname=\"AP01-Trapkast\"} |= \"AP-STA-CONNECTED\" [$__interval]))",
           "legendFormat": "AP01 client connects",
@@ -567,7 +567,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${DS_LOKI}"
+            "uid": "loki"
           },
           "expr": "sum(count_over_time({hostname=\"AP01-Trapkast\"} |= \"AP-STA-DISCONNECTED\" [$__interval]))",
           "legendFormat": "AP01 client disconnects",
@@ -580,7 +580,7 @@
     {
       "datasource": {
         "type": "loki",
-        "uid": "${DS_LOKI}"
+        "uid": "loki"
       },
       "description": "Answers: is AP01 crashing? Count of error-level syslog messages per AP per interval. A spike in AP01 errors = kernel panic, hostapd crash, or driver fault. 8.6.10 reported: hostapd crashes on 6 GHz and traffic drops on 10G port. Other APs shown for baseline comparison.",
       "fieldConfig": {
@@ -644,7 +644,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${DS_LOKI}"
+            "uid": "loki"
           },
           "expr": "sum(count_over_time({hostname=\"AP01-Trapkast\", level=\"err\"} [$__interval]))",
           "legendFormat": "AP01-Trapkast (8.6.10)",
@@ -653,7 +653,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${DS_LOKI}"
+            "uid": "loki"
           },
           "expr": "sum by (hostname) (count_over_time({hostname=~\"AP02-Stube|AP03-Slaapkamer|AP04-Zolder|AP06-Keuken\", level=\"err\"} [$__interval]))",
           "legendFormat": "{{hostname}}",
@@ -678,7 +678,7 @@
     {
       "datasource": {
         "type": "loki",
-        "uid": "${DS_LOKI}"
+        "uid": "loki"
       },
       "description": "Answers: has any AP rebooted recently? Uses 'halt WUL state due to USW/UDM reboot' and crash payload messages as reboot proxies. A bar appearing = AP had an uplink reset or self-reboot event. AP01 bar in this time window without a planned change = regression suspect.",
       "fieldConfig": {
@@ -720,7 +720,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${DS_LOKI}"
+            "uid": "loki"
           },
           "expr": "sum by (hostname) (count_over_time({hostname=~\"AP01-Trapkast|AP02-Stube|AP03-Slaapkamer|AP04-Zolder|AP06-Keuken\"} |= \"halt WUL state\" [$__interval]))",
           "legendFormat": "{{hostname}} reboot proxy",
@@ -729,7 +729,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${DS_LOKI}"
+            "uid": "loki"
           },
           "expr": "sum by (hostname) (count_over_time({hostname=~\"AP01-Trapkast|AP02-Stube|AP03-Slaapkamer|AP04-Zolder|AP06-Keuken\"} |= \"crash.save_crash_payload\" [$__interval]))",
           "legendFormat": "{{hostname}} crash payload",
@@ -742,7 +742,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "prometheus"
       },
       "description": "Answers: is the internet up and the UDM healthy? WAN rx/tx throughput and UDM gateway uptime from the minimal unifi-exporter (polls /stat/health every 60s). A gateway uptime reset = UDM reboot. Context for AP anomalies: if the UDM rebooted, AP disconnects are expected.",
       "fieldConfig": {
@@ -814,7 +814,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
           "expr": "unifi_wan_rx_bytes_per_second",
           "legendFormat": "WAN RX",
@@ -823,7 +823,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "prometheus"
           },
           "expr": "unifi_wan_tx_bytes_per_second",
           "legendFormat": "WAN TX",

@@ -43,9 +43,9 @@ data:
   scan.sh: |
     #!/bin/sh
     set -eu
-    # NOTE: shell ${var} are escaped as $${var} because this ConfigMap is
+    # NOTE: shell $${var} are escaped as $${var} because this ConfigMap is
     # processed by Flux postBuild variable substitution, which would otherwise
-    # replace undefined ${rel}/${sec}/etc. with empty strings. $$ -> literal $.
+    # replace undefined $${rel}/$${sec}/etc. with empty strings. $$ -> literal $.
     NS="$${SCAN_NAMESPACE:-observability}"
     WORK="$(mktemp -d)"
     trap 'rm -rf "$WORK"' EXIT

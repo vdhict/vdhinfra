@@ -70,7 +70,7 @@
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "description": "Grid import (positive) or export (negative) — real-time trend from P1 meter",
       "fieldConfig": {
         "defaults": {
@@ -118,25 +118,25 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "house_net_grid_power_w",
           "legendFormat": "Grid (W)",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "pv_output_power_w",
           "legendFormat": "PV Output (W)",
           "refId": "B"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "house_consumption_power_w",
           "legendFormat": "House Total (W)",
           "refId": "C"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "ev_charge_power_w",
           "legendFormat": "EV Charge (W)",
           "refId": "D"
@@ -146,7 +146,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "description": "PV self-consumption: fraction of PV output consumed in-house vs exported to grid",
       "fieldConfig": {
         "defaults": {
@@ -175,7 +175,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "pv_self_consumption_ratio_pct",
           "legendFormat": "Self-consumption %",
           "refId": "A",
@@ -193,7 +193,7 @@
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "description": "Daily grid import and export over the past 7 days (increase of cumulative kWh counters).",
       "fieldConfig": {
         "defaults": {
@@ -234,19 +234,19 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "increase(hass_sensor_energy_kwh{entity=\"sensor.p1_meter_energy_import\"}[$__interval])",
           "legendFormat": "Import (kWh)",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "increase(hass_sensor_energy_kwh{entity=\"sensor.p1_meter_energy_export\"}[$__interval])",
           "legendFormat": "Export (kWh)",
           "refId": "B"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "increase(hass_sensor_energy_kwh{entity=\"sensor.growatt_4000tl_growatt_4000tl_today_generated_energy\"}[$__interval])",
           "legendFormat": "PV Generated (kWh)",
           "refId": "C"
@@ -256,7 +256,7 @@
       "type": "barchart"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "description": "Electricity tariff over time — Zonneplan dynamic pricing (€/kWh)",
       "fieldConfig": {
         "defaults": {
@@ -285,7 +285,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "hass_sensor_unit_u0x20ac_per_kwh{entity=\"sensor.zonneplan_current_electricity_tariff\"}",
           "legendFormat": "Tariff (€/kWh)",
           "refId": "A"
@@ -302,7 +302,7 @@
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "description": "Energy delivered per EV charging session (delta from cumulative session energy counter).",
       "fieldConfig": {
         "defaults": {
@@ -331,7 +331,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "increase(hass_sensor_energy_kwh{entity=\"sensor.evcc_garage_charged_energy\"}[$__interval])",
           "legendFormat": "Session Energy (kWh)",
           "refId": "A"
@@ -341,7 +341,7 @@
       "type": "barchart"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "description": "Current EV charge power and vehicle SoC",
       "fieldConfig": {
         "defaults": {
@@ -379,13 +379,13 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "ev_charge_power_w",
           "legendFormat": "Charge Power (W)",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "hass_sensor_unit_percent{entity=\"sensor.evcc_garage_vehicle_soc\"}",
           "legendFormat": "Vehicle SoC (%)",
           "refId": "B"

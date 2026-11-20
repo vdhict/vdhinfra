@@ -134,12 +134,3 @@ spec:
             target:
               kind: Deployment
               name: kustomize-controller
-          - # Keep Flux 2.8 post-build substitution (2.9 makes strict the default). grafana and
-            # monitoring-orphan-scan reference unset vars; remove once fixed (chg-2026-11-20-080).
-            patch: |-
-              - op: add
-                path: /spec/template/spec/containers/0/args/-
-                value: --feature-gates=StrictPostBuildSubstitutions=false
-            target:
-              kind: Deployment
-              name: kustomize-controller

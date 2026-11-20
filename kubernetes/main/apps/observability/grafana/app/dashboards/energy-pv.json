@@ -33,7 +33,7 @@
       "type": "row"
     },
     {
-      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
       "description": "Net grid power — positive = importing from grid, negative = exporting surplus",
       "fieldConfig": {
         "defaults": {
@@ -66,7 +66,7 @@
       "type": "gauge",
       "targets": [
         {
-          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
           "refId": "A",
           "type": "json",
           "source": "url",
@@ -81,7 +81,7 @@
       ]
     },
     {
-      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
       "description": "Growatt 4000TL inverter AC output — 0 W at night, up to 4000 W peak",
       "fieldConfig": {
         "defaults": {
@@ -114,7 +114,7 @@
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
           "refId": "A",
           "type": "json",
           "source": "url",
@@ -129,7 +129,7 @@
       ]
     },
     {
-      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
       "description": "Zonneplan dynamic tariff — red = peak price, amber = mid, green = cheap",
       "fieldConfig": {
         "defaults": {
@@ -163,7 +163,7 @@
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
           "refId": "A",
           "type": "json",
           "source": "url",
@@ -178,7 +178,7 @@
       ]
     },
     {
-      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
       "description": "L1 / L2 / L3 power draw from the P1 meter",
       "fieldConfig": {
         "defaults": {
@@ -225,7 +225,7 @@
       "type": "bargauge",
       "targets": [
         {
-          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
           "refId": "A",
           "type": "json",
           "source": "url",
@@ -239,7 +239,7 @@
           "alias": "L1"
         },
         {
-          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
           "refId": "B",
           "type": "json",
           "source": "url",
@@ -253,7 +253,7 @@
           "alias": "L2"
         },
         {
-          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
           "refId": "C",
           "type": "json",
           "source": "url",
@@ -276,7 +276,7 @@
       "type": "row"
     },
     {
-      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
       "description": "kWh generated today by the Growatt 4000TL inverter",
       "fieldConfig": {
         "defaults": {
@@ -310,7 +310,7 @@
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
           "refId": "A",
           "type": "json",
           "source": "url",
@@ -325,7 +325,7 @@
       ]
     },
     {
-      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
       "description": "Energy charged in last/current session and solar fraction via HA evcc integration",
       "fieldConfig": {
         "defaults": {
@@ -376,7 +376,7 @@
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
           "refId": "A",
           "type": "json",
           "source": "url",
@@ -389,7 +389,7 @@
           "filters": []
         },
         {
-          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
           "refId": "B",
           "type": "json",
           "source": "url",
@@ -404,7 +404,7 @@
       ]
     },
     {
-      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
       "description": "All-time average cost per kWh and solar fraction across all charging sessions",
       "fieldConfig": {
         "defaults": {
@@ -456,7 +456,7 @@
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
           "refId": "A",
           "type": "json",
           "source": "url",
@@ -469,7 +469,7 @@
           "filters": []
         },
         {
-          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
           "refId": "B",
           "type": "json",
           "source": "url",
@@ -484,7 +484,7 @@
       ]
     },
     {
-      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
       "description": "Total energy imported from and exported to the grid (all-time P1 meter totals)",
       "fieldConfig": {
         "defaults": {
@@ -531,7 +531,7 @@
       "type": "bargauge",
       "targets": [
         {
-          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
           "refId": "A",
           "type": "json",
           "source": "url",
@@ -545,7 +545,7 @@
           "alias": "Import"
         },
         {
-          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}" },
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
           "refId": "B",
           "type": "json",
           "source": "url",
