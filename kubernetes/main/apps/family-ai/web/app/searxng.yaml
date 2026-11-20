@@ -59,7 +59,7 @@ spec:
       engineVersion: v2
       data:
         BRAVE_SEARCH_API_KEY: >-
-          {{- if not (regexMatch "^[A-Za-z0-9_-]{20,64}$" .BRAVE_SEARCH_API_KEY) -}}{{- fail "family-ai-searxng-brave: BRAVE_SEARCH_API_KEY empty or not 20..64 [A-Za-z0-9_-]" -}}{{- end -}}
+          {{- if not (regexMatch "^[A-Za-z0-9_-]{20,64}$" .BRAVE_SEARCH_API_KEY) -}}{{- /* guard: family-ai-searxng-brave: BRAVE_SEARCH_API_KEY empty or not 20..64 [A-Za-z0-9_-] */ -}}{{- $.ESO_GUARD_REFUSED_TO_RENDER -}}{{- end -}}
           {{ .BRAVE_SEARCH_API_KEY }}
   data:
     - secretKey: BRAVE_SEARCH_API_KEY

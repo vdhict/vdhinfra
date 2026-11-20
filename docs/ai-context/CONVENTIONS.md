@@ -326,6 +326,12 @@ spec:
 - Store: Always use ClusterSecretStore named `onepassword-connect`
 - Template: Use template section to compose values from 1Password fields
 - Refresh: Default 12h refresh interval
+- Guards (refuse to render a bad secret): ESO 2.12 removed the `fail` template function (upstream #7019).
+  Write `{{- if <bad> -}}{{- /* guard: <why> */ -}}{{- $.ESO_GUARD_REFUSED_TO_RENDER -}}{{- end -}}`.
+  ESO runs templates with `missingkey=error`, so reading that absent key aborts the render: the Secret is not written
+  and the ExternalSecret goes `SecretSyncedError` (same effect as `fail`, works on 2.8 and 2.12+; tested live with a
+  fake store, chg-2026-11-20-080). Use `$.` so it also works inside `range`. Never name a 1Password field
+  `ESO_GUARD_REFUSED_TO_RENDER`.
 - Trade-off: More indirection but repo stays public safely
 - SeeAlso: `ExternalSecretSync` in ARCHITECTURE.md
 
