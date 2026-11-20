@@ -240,6 +240,8 @@ metadata:
   name: health-notify
   namespace: observability
 spec:
+  # Suspended (chg-2026-11-20-021, tsk-2026-11-20-112): targets a phone no longer in HA; team chose suspend, not repair.
+  suspend: true
   schedule: "0 8 * * *"
   timeZone: Europe/Amsterdam
   concurrencyPolicy: Forbid
