@@ -13,6 +13,10 @@ apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
   name: pp-dotnet-pg
+  # chg-2026-11-20-040 PP asleep: CNPG declarative hibernation (pod stops, PVC + data stay). Wake: git revert
+  # the hibernation commit (Flux drops the annotation); runbook docs/runbooks/passkey-point-wake.md.
+  annotations:
+    cnpg.io/hibernation: "on"
 spec:
   instances: 1
   imageName: ghcr.io/cloudnative-pg/postgresql:16.9-22@sha256:cca50a94e2da46ddcaefb23260c805ed3b466763bd2a25e1617410176d5fd0ab
