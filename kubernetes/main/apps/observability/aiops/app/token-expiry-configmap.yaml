@@ -11,8 +11,8 @@
 # Seeded 2026-10-12 from metadata readable without exposing values:
 #   - Cloudflare: GET /user/tokens/verify -> result.expires_on
 #   - Home Assistant long-lived tokens: JWT "exp" claim
-#   - mack-dev forge token: schedule of devtools/cronjob mack-dev-revoke-backstop
-#     (0 14 11 11 *, Etc/UTC)
+#   - mack-dev forge token: revoked 2026-11-20 by chg-2026-11-20-001 (the
+#     2026-11-11 backstop failed with HTTP 401); entry removed
 # Checked but NOT listed because they carry no expiry: the 1Password Connect
 # tokens (security/onepassword-connect-secret, security/onepassword-mypka-token,
 # lab-passkey/onepassword-connect-lab-passkey, lab-passkey/onepassword-connect-
@@ -39,8 +39,6 @@ data:
   tokens.json: |
     {
       "tokens": [
-        {"name": "forgejo/mack-dev-package (revoke backstop)", "kind": "forge", "owner": "k8s-engineer",
-         "expires": "2026-11-11T14:00:00Z"},
         {"name": "1password-connect/devtenant-ops-write-token (rotate-by, standing since 2026-10-13)", "kind": "1password-connect",
          "owner": "atlas", "expires": "2027-01-11T09:00:00Z"},
         {"name": "forgejo/docs-bot DOCS_PUSH_TOKEN (rotate-by, issued 2026-10-13)", "kind": "forge",
