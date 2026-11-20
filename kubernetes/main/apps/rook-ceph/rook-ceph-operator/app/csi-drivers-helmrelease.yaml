@@ -1,0 +1,144 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/helm.toolkit.fluxcd.io/helmrelease_v2.json
+# Rook v1.20+ no longer deploys the CSI drivers; this chart does (Rook upgrade
+# guide, order: rook-ceph -> ceph-csi-drivers -> rook-ceph-cluster).
+# The release name MUST stay ceph-csi-drivers in rook-ceph: Rook v1.19.5+
+# stamped the existing Driver/OperatorConfig CRs with that Helm owner.
+# Values: Rook-recommended (deploy/charts/ceph-csi-drivers/values.yaml) plus
+# the settings Rook v1.18/v1.19 generated from our operator values
+# (chg-2026-11-20-080, Argus C7.3 carry-over diff in ops/evidence).
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ceph-csi-drivers
+spec:
+  interval: 1h
+  timeout: 15m
+  upgrade:
+    disableWait: true
+    disableWaitForJobs: true
+  dependsOn:
+    - name: rook-ceph-operator
+  chart:
+    spec:
+      chart: ceph-csi-drivers
+      version: 1.0.4
+      sourceRef:
+        kind: HelmRepository
+        name: ceph-csi-operator
+        namespace: flux-system
+  values:
+    operatorConfig:
+      namespace: rook-ceph
+      driverSpecDefaults:
+        imageSet:
+          name: rook-csi-operator-image-set-configmap
+        clusterName: rook-ceph
+        log:
+          verbosity: 0
+          rotation:
+            enabled: false
+        nodePlugin:
+          priorityClassName: system-node-critical
+        controllerPlugin:
+          priorityClassName: system-cluster-critical
+          replicas: 2
+          deploymentStrategy:
+            type: Recreate
+        grpcTimeout: 150
+        snapshotPolicy: volumeSnapshot
+    drivers:
+      rbd:
+        enabled: true
+        name: rook-ceph.rbd.csi.ceph.com
+        clusterName: rook-ceph
+        imageSet:
+          name: rook-csi-operator-image-set-configmap
+        log:
+          verbosity: 0
+          rotation:
+            enabled: false
+        # VolSync uses copyMethod Snapshot: the csi-snapshotter sidecar must stay.
+        snapshotPolicy: volumeSnapshot
+        nodePlugin:
+          priorityClassName: system-node-critical
+          updateStrategy:
+            type: RollingUpdate
+          resources:
+            plugin:
+              requests: {cpu: 250m, memory: 512Mi}
+              limits: {memory: 1Gi}
+            registrar:
+              requests: {cpu: 50m, memory: 128Mi}
+              limits: {memory: 256Mi}
+        controllerPlugin:
+          priorityClassName: system-cluster-critical
+          replicas: 2
+          resources:
+            attacher:
+              requests: {cpu: 100m, memory: 128Mi}
+              limits: {memory: 256Mi}
+            omapGenerator:
+              requests: {cpu: 250m, memory: 512Mi}
+              limits: {memory: 1Gi}
+            plugin:
+              requests: {memory: 512Mi}
+              limits: {memory: 1Gi}
+            provisioner:
+              requests: {cpu: 100m, memory: 128Mi}
+              limits: {memory: 256Mi}
+            resizer:
+              requests: {cpu: 100m, memory: 128Mi}
+              limits: {memory: 256Mi}
+            snapshotter:
+              requests: {cpu: 100m, memory: 128Mi}
+              limits: {memory: 256Mi}
+        grpcTimeout: 150
+      cephfs:
+        enabled: true
+        name: rook-ceph.cephfs.csi.ceph.com
+        clusterName: rook-ceph
+        imageSet:
+          name: rook-csi-operator-image-set-configmap
+        log:
+          verbosity: 0
+          rotation:
+            enabled: false
+        snapshotPolicy: volumeSnapshot
+        nodePlugin:
+          priorityClassName: system-node-critical
+          updateStrategy:
+            type: RollingUpdate
+          resources:
+            plugin:
+              requests: {cpu: 250m, memory: 512Mi}
+              limits: {memory: 1Gi}
+            registrar:
+              requests: {cpu: 50m, memory: 128Mi}
+              limits: {memory: 256Mi}
+        controllerPlugin:
+          priorityClassName: system-cluster-critical
+          replicas: 2
+          resources:
+            attacher:
+              requests: {cpu: 100m, memory: 128Mi}
+              limits: {memory: 256Mi}
+            plugin:
+              requests: {cpu: 250m, memory: 512Mi}
+              limits: {memory: 1Gi}
+            provisioner:
+              requests: {cpu: 100m, memory: 128Mi}
+              limits: {memory: 256Mi}
+            resizer:
+              requests: {cpu: 100m, memory: 128Mi}
+              limits: {memory: 256Mi}
+            snapshotter:
+              requests: {cpu: 100m, memory: 128Mi}
+              limits: {memory: 256Mi}
+        grpcTimeout: 150
+      nfs:
+        enabled: false
+        name: rook-ceph.nfs.csi.ceph.com
+      nvmeof:
+        enabled: false
+        name: rook-ceph.nvmeof.csi.ceph.com
