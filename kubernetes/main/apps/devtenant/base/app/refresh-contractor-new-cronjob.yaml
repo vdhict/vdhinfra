@@ -25,7 +25,7 @@ metadata: {name: devtenant-refresh-contractor-new, namespace: devtenant-build}
 spec:
   schedule: "10 2 * * *"
   timeZone: Europe/Amsterdam
-  suspend: false
+  suspend: true  # chg-2026-11-20-040 PP asleep (was false); wake = docs/runbooks/passkey-point-wake.md
   concurrencyPolicy: Forbid
   jobTemplate:
     spec:

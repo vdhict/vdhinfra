@@ -1,0 +1,38 @@
+# PP measurement before at 2026-11-20T07:25:10Z
+## kubectl top pods --containers (usage)
+lab-passkey passkey-point-api-58b89f9857-r7trw   1m    104Mi   
+lab-passkey passkey-point-web-79cdccc564-5f28n   1m    64Mi    
+  ns=lab-passkey usage_cpu_m=2 usage_mem_Mi=168
+lab-passkey-dotnet passkey-point-api-74dfb6db4c-2l42x   2m    151Mi   
+lab-passkey-dotnet passkey-point-web-764c966f5c-r64m9   1m    86Mi    
+lab-passkey-dotnet pp-dotnet-pg-1                       5m    106Mi   
+  ns=lab-passkey-dotnet usage_cpu_m=8 usage_mem_Mi=343
+lab-passkey-dotnet-maxsession passkey-point-api-74dfb6db4c-grxlj   2m    147Mi   
+lab-passkey-dotnet-maxsession passkey-point-web-8699f84bb-6wvdp    1m    95Mi    
+lab-passkey-dotnet-maxsession pp-dotnet-pg-1                       5m    73Mi    
+  ns=lab-passkey-dotnet-maxsession usage_cpu_m=8 usage_mem_Mi=315
+  ns=passkey-point-e2e usage_cpu_m=0 usage_mem_Mi=0
+  ns=pp-ci usage_cpu_m=0 usage_mem_Mi=0
+  ns=devtenant-build usage_cpu_m=0 usage_mem_Mi=0
+  ns=devtenant-ops usage_cpu_m=0 usage_mem_Mi=0
+TOTAL usage_cpu_m=18 usage_mem_Mi=826
+## requests of Running pods (containers; initContainers excluded)
+lab-passkey passkey-point-api-58b89f9857-r7trw api req_cpu_m=20 req_mem_Mi=128
+lab-passkey passkey-point-api-58b89f9857-r7trw tap-sim req_cpu_m=50 req_mem_Mi=128
+lab-passkey passkey-point-web-79cdccc564-5f28n web req_cpu_m=20 req_mem_Mi=128
+  ns=lab-passkey req_cpu_m=90 req_mem_Mi=384
+lab-passkey-dotnet passkey-point-api-74dfb6db4c-2l42x api req_cpu_m=50 req_mem_Mi=192
+lab-passkey-dotnet passkey-point-api-74dfb6db4c-2l42x tap-sim req_cpu_m=20 req_mem_Mi=96
+lab-passkey-dotnet passkey-point-web-764c966f5c-r64m9 web req_cpu_m=50 req_mem_Mi=160
+lab-passkey-dotnet pp-dotnet-pg-1 postgres req_cpu_m=50 req_mem_Mi=256
+  ns=lab-passkey-dotnet req_cpu_m=170 req_mem_Mi=704
+lab-passkey-dotnet-maxsession passkey-point-api-74dfb6db4c-grxlj api req_cpu_m=50 req_mem_Mi=192
+lab-passkey-dotnet-maxsession passkey-point-api-74dfb6db4c-grxlj tap-sim req_cpu_m=20 req_mem_Mi=96
+lab-passkey-dotnet-maxsession passkey-point-web-8699f84bb-6wvdp web req_cpu_m=50 req_mem_Mi=160
+lab-passkey-dotnet-maxsession pp-dotnet-pg-1 postgres req_cpu_m=50 req_mem_Mi=256
+  ns=lab-passkey-dotnet-maxsession req_cpu_m=170 req_mem_Mi=704
+  ns=passkey-point-e2e req_cpu_m=0 req_mem_Mi=0
+  ns=pp-ci req_cpu_m=0 req_mem_Mi=0
+  ns=devtenant-build req_cpu_m=0 req_mem_Mi=0
+  ns=devtenant-ops req_cpu_m=0 req_mem_Mi=0
+TOTAL req_cpu_m=430 req_mem_Mi=1792

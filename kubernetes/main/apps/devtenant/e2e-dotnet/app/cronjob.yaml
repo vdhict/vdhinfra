@@ -59,7 +59,7 @@ spec:
   schedule: "50 3 * * *"
   timeZone: Europe/Amsterdam
   startingDeadlineSeconds: 300  # Argus C12: start by 03:55 or skip; the persona-gate cutoff is 04:00
-  suspend: false  # Argus C12: serialised by the persona-gate initContainer, fail closed at 04:00 (chg-2026-10-20-001)
+  suspend: true  # chg-2026-11-20-040 PP asleep (was false); wake = docs/runbooks/passkey-point-wake.md. Argus C12: serialised by the persona-gate initContainer, fail closed at 04:00 (chg-2026-10-20-001)
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 7
   failedJobsHistoryLimit: 7

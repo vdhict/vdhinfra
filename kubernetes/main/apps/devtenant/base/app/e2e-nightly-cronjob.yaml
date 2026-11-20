@@ -24,7 +24,7 @@ metadata:
 spec:
   schedule: "40 2 * * *"
   timeZone: Europe/Amsterdam
-  suspend: false
+  suspend: true  # chg-2026-11-20-040 PP asleep (was false); wake = docs/runbooks/passkey-point-wake.md
   concurrencyPolicy: Forbid  # personas are shared; Entra allows one TAP per user
   successfulJobsHistoryLimit: 7
   failedJobsHistoryLimit: 7

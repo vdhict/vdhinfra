@@ -21,7 +21,7 @@ kind: Deployment
 metadata:
   name: passkey-point-api
 spec:
-  replicas: 1
+  replicas: 0  # chg-2026-11-20-040 PP asleep (team decision 20-11): was 1; wake = docs/runbooks/passkey-point-wake.md
   strategy:
     type: Recreate
   selector:
