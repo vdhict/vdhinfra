@@ -8,7 +8,9 @@
 #   trim    M5: storedVersions -> ["v1"]; read back. Only after the R6 gate (incl. negative) is green.
 set -u
 P=${1:?}; fail=0; ok(){ echo "PASS $*"; }; bad(){ echo "FAIL $*"; fail=1; }
-CRD=backendtlspolicies.gateway.networking.k8s.io; OBJ="studio-ai synology-nas"
+CRD=backendtlspolicies.gateway.networking.k8s.io
+OBJ=$(kubectl get backendtlspolicy -n network -o jsonpath="{.items[*].metadata.name}")   # all objects must be re-encoded before M5
+[[ $(kubectl get backendtlspolicy -A --no-headers | grep -v -c "^network ") == 0 ]] || { echo "FAIL BTLS outside network"; exit 1; }
 crdline(){ kubectl get crd $CRD -o json | jq -c '{served:[.spec.versions[]|select(.served).name],storage:[.spec.versions[]|select(.storage).name],stored:.status.storedVersions}'; }
 case $P in
 pre)
