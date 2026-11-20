@@ -65,6 +65,10 @@ spec:
             sectionName: https
         hostnames:
           - "{{ .Release.Name }}.${SECRET_DOMAIN}"
+        rules:
+          - backendRefs:
+              - name: pgadmin
+                port: 80
     persistence:
       config:
         enabled: true
