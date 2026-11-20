@@ -1,0 +1,59 @@
+measured 2026-11-20T10:47:41Z
+NAME                                                       READY   UP-TO-DATE   AVAILABLE   AGE    CONTAINERS                                                                  IMAGES                                                                                                                                                                                                                                  SELECTOR
+deployment.apps/ceph-csi-controller-manager                1/1     1            1           45m    manager                                                                     quay.io/cephcsi/ceph-csi-operator:v0.6.0                                                                                                                                                                                                app.kubernetes.io/instance=rook-ceph-operator,app.kubernetes.io/name=ceph-csi,control-plane=ceph-csi-op-controller-manager
+deployment.apps/rook-ceph.cephfs.csi.ceph.com-ctrlplugin   2/2     2            2           44m    csi-cephfsplugin,csi-provisioner,csi-resizer,csi-attacher,csi-snapshotter   quay.io/cephcsi/cephcsi:v3.16.3,registry.k8s.io/sig-storage/csi-provisioner:v6.1.1,registry.k8s.io/sig-storage/csi-resizer:v2.1.0,registry.k8s.io/sig-storage/csi-attacher:v4.11.0,registry.k8s.io/sig-storage/csi-snapshotter:v8.5.0   app=rook-ceph.cephfs.csi.ceph.com-ctrlplugin
+deployment.apps/rook-ceph.rbd.csi.ceph.com-ctrlplugin      2/2     2            2           44m    csi-rbdplugin,csi-provisioner,csi-resizer,csi-attacher,csi-snapshotter      quay.io/cephcsi/cephcsi:v3.16.3,registry.k8s.io/sig-storage/csi-provisioner:v6.1.1,registry.k8s.io/sig-storage/csi-resizer:v2.1.0,registry.k8s.io/sig-storage/csi-attacher:v4.11.0,registry.k8s.io/sig-storage/csi-snapshotter:v8.5.0   app=rook-ceph.rbd.csi.ceph.com-ctrlplugin
+NAME                                                      DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS                          IMAGES                                                                                          SELECTOR
+daemonset.apps/rook-ceph.cephfs.csi.ceph.com-nodeplugin   3         3         3       3            3           <none>          44m   csi-cephfsplugin,driver-registrar   quay.io/cephcsi/cephcsi:v3.16.3,registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.16.0   app=rook-ceph.cephfs.csi.ceph.com-nodeplugin
+daemonset.apps/rook-ceph.rbd.csi.ceph.com-nodeplugin      3         3         3       3            3           <none>          44m   csi-rbdplugin,driver-registrar      quay.io/cephcsi/cephcsi:v3.16.3,registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.16.0   app=rook-ceph.rbd.csi.ceph.com-nodeplugin
+NAME                                            AGE
+serviceaccount/ceph-csi-cephfs-ctrlplugin-sa    45m
+serviceaccount/ceph-csi-cephfs-nodeplugin-sa    45m
+serviceaccount/ceph-csi-controller-manager      45m
+serviceaccount/ceph-csi-nfs-ctrlplugin-sa       45m
+serviceaccount/ceph-csi-nfs-nodeplugin-sa       45m
+serviceaccount/ceph-csi-nvmeof-ctrlplugin-sa    27m
+serviceaccount/ceph-csi-nvmeof-nodeplugin-sa    27m
+serviceaccount/ceph-csi-rbd-ctrlplugin-sa       45m
+serviceaccount/ceph-csi-rbd-nodeplugin-sa       45m
+serviceaccount/rook-csi-cephfs-plugin-sa        229d
+serviceaccount/rook-csi-cephfs-provisioner-sa   229d
+serviceaccount/rook-csi-rbd-plugin-sa           229d
+serviceaccount/rook-csi-rbd-provisioner-sa      229d
+NAME                                                        READY   STATUS      RESTARTS   AGE    IP            NODE             NOMINATED NODE   READINESS GATES
+ceph-csi-controller-manager-cdbc68f4-c4hvf                  1/1     Running     0          27m    10.42.5.38    vdhclu01node02   <none>           <none>
+rook-ceph.cephfs.csi.ceph.com-ctrlplugin-85458656dc-gfjrk   5/5     Running     0          26m    10.42.4.203   vdhclu01node01   <none>           <none>
+rook-ceph.cephfs.csi.ceph.com-ctrlplugin-85458656dc-s45vx   5/5     Running     0          26m    10.42.2.240   vdhclu01node03   <none>           <none>
+rook-ceph.cephfs.csi.ceph.com-nodeplugin-5hbqj              2/2     Running     0          26m    172.16.2.81   vdhclu01node01   <none>           <none>
+rook-ceph.cephfs.csi.ceph.com-nodeplugin-h7jjz              2/2     Running     0          26m    172.16.2.82   vdhclu01node02   <none>           <none>
+rook-ceph.cephfs.csi.ceph.com-nodeplugin-ph5z2              2/2     Running     0          26m    172.16.2.83   vdhclu01node03   <none>           <none>
+rook-ceph.rbd.csi.ceph.com-ctrlplugin-544fb58679-555kf      5/5     Running     0          26m    10.42.5.222   vdhclu01node02   <none>           <none>
+rook-ceph.rbd.csi.ceph.com-ctrlplugin-544fb58679-6q5dr      5/5     Running     0          26m    10.42.2.166   vdhclu01node03   <none>           <none>
+rook-ceph.rbd.csi.ceph.com-nodeplugin-7tvsp                 2/2     Running     0          26m    172.16.2.81   vdhclu01node01   <none>           <none>
+rook-ceph.rbd.csi.ceph.com-nodeplugin-phkxj                 2/2     Running     0          26m    172.16.2.82   vdhclu01node02   <none>           <none>
+rook-ceph.rbd.csi.ceph.com-nodeplugin-vj6mw                 2/2     Running     0          26m    172.16.2.83   vdhclu01node03   <none>           <none>
+apiVersion: v1
+data:
+  addons: quay.io/csiaddons/k8s-sidecar:v0.14.0
+  attacher: registry.k8s.io/sig-storage/csi-attacher:v4.11.0
+  plugin: quay.io/cephcsi/cephcsi:v3.16.3
+  provisioner: registry.k8s.io/sig-storage/csi-provisioner:v6.1.1
+  registrar: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.16.0
+  resizer: registry.k8s.io/sig-storage/csi-resizer:v2.1.0
+  snapshotter: registry.k8s.io/sig-storage/csi-snapshotter:v8.5.0
+kind: ConfigMap
+metadata:
+  annotations:
+    meta.helm.sh/release-name: rook-ceph
+    meta.helm.sh/release-namespace: rook-ceph
+  creationTimestamp: "2026-11-20T10:03:38Z"
+  labels:
+    app.kubernetes.io/managed-by: Helm
+  name: rook-csi-operator-image-set-configmap
+  namespace: rook-ceph
+  resourceVersion: "310220047"
+  uid: 310539b4-addb-4f8a-a461-2307400e64b8
+NAME                            ATTACHREQUIRED   PODINFOONMOUNT   STORAGECAPACITY   TOKENREQUESTS   REQUIRESREPUBLISH   MODES        AGE
+rook-ceph.cephfs.csi.ceph.com   true             false            false             <unset>         false               Persistent   229d
+rook-ceph.rbd.csi.ceph.com      true             false            false             <unset>         false               Persistent   229d
+      50

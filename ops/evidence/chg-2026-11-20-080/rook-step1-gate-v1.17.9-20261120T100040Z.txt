@@ -1,0 +1,195 @@
+######## GATE v1.17.9 2026-11-20T10:00:40Z
+measured: 2026-11-20T10:00:40Z
+== flux hr
+NAME              	REVISION	SUSPENDED	READY	MESSAGE                                                                                                
+rook-ceph-cluster 	v1.17.9 	False    	True 	Helm upgrade succeeded for release rook-ceph/rook-ceph-cluster.v7 with chart rook-ceph-cluster@v1.17.9	
+rook-ceph-operator	v1.17.9 	False    	True 	Helm upgrade succeeded for release rook-ceph/rook-ceph-operator.v3 with chart rook-ceph@v1.17.9       	
+== cephcluster
+quay.io/ceph/ceph:v19.2.1 phase=Progressing health=HEALTH_OK version=19.2.1-0
+== ceph status
+  cluster:
+    id:     423f1a4f-b5ef-4290-884a-80618bc553e2
+    health: HEALTH_OK
+ 
+  services:
+    mon: 3 daemons, quorum a,b,c (age 12m)
+    mgr: b(active, since 12m), standbys: c, a
+    mds: 1/1 daemons up, 1 hot standby
+    osd: 3 osds: 3 up (since 6w), 3 in (since 5M)
+ 
+  data:
+    volumes: 1/1 healthy
+    pools:   4 pools, 81 pgs
+    objects: 37.78k objects, 129 GiB
+    usage:   368 GiB used, 2.4 TiB / 2.7 TiB avail
+    pgs:     81 active+clean
+ 
+  io:
+    client:   17 MiB/s rd, 6.0 MiB/s wr, 2.51k op/s rd, 67 op/s wr
+ 
+  progress:
+ 
+== ceph health detail
+HEALTH_OK
+== ceph versions
+{
+    "mon": {
+        "ceph version 19.2.1 (58a7fab8be0a062d730ad7da874972fd3fba59fb) squid (stable)": 3
+    },
+    "mgr": {
+        "ceph version 19.2.1 (58a7fab8be0a062d730ad7da874972fd3fba59fb) squid (stable)": 3
+    },
+    "osd": {
+        "ceph version 19.2.1 (58a7fab8be0a062d730ad7da874972fd3fba59fb) squid (stable)": 3
+    },
+    "mds": {
+        "ceph version 19.2.1 (58a7fab8be0a062d730ad7da874972fd3fba59fb) squid (stable)": 2
+    },
+    "overall": {
+        "ceph version 19.2.1 (58a7fab8be0a062d730ad7da874972fd3fba59fb) squid (stable)": 11
+    }
+}
+== osd tree
+ID  CLASS  WEIGHT   TYPE NAME                STATUS  REWEIGHT  PRI-AFF
+-1         2.72910  root default                                      
+-3         0.90970      host vdhclu01node01                           
+ 1    ssd  0.90970          osd.1                up   1.00000  1.00000
+-5         0.90970      host vdhclu01node02                           
+ 0    ssd  0.90970          osd.0                up   1.00000  1.00000
+-7         0.90970      host vdhclu01node03                           
+ 2    ssd  0.90970          osd.2                up   1.00000  1.00000
+== osd stat
+3 osds: 3 up (since 6w), 3 in (since 5M); epoch: e191344
+== pg stat
+81 pgs: 81 active+clean; 129 GiB data, 367 GiB used, 2.4 TiB / 2.7 TiB avail; 11 MiB/s rd, 7.4 MiB/s wr, 879 op/s
+== df
+--- RAW STORAGE ---
+CLASS     SIZE    AVAIL     USED  RAW USED  %RAW USED
+ssd    2.7 TiB  2.4 TiB  367 GiB   367 GiB      13.14
+TOTAL  2.7 TiB  2.4 TiB  367 GiB   367 GiB      13.14
+ 
+--- POOLS ---
+POOL                      ID  PGS   STORED  OBJECTS     USED  %USED  MAX AVAIL
+ceph-blockpool             1   32  121 GiB   37.34k  360 GiB  13.59    762 GiB
+ceph-filesystem-metadata   2   16  508 MiB      173  1.5 GiB   0.07    762 GiB
+ceph-filesystem-data0      3   32   28 MiB      209   85 MiB      0    762 GiB
+.mgr                       4    1   26 MiB        8   77 MiB      0    762 GiB
+== mon
+e3: 3 mons at {a=v2:172.16.2.81:3300/0,b=v2:172.16.2.82:3300/0,c=v2:172.16.2.83:3300/0} removed_ranks: {} disallowed_leaders: {}, election epoch 230, leader 0 a, quorum 0,1,2 a,b,c
+== mgr
+{
+    "epoch": 76282,
+    "available": true,
+    "active_name": "b",
+    "num_standby": 2
+}
+== fs
+ceph-filesystem - 4 clients
+===============
+RANK      STATE              MDS            ACTIVITY     DNS    INOS   DIRS   CAPS  
+ [1m0[0m        [1;32mactive[0m      ceph-filesystem-a  Reqs:    0 /s  1216    236     29    197   
+0-s   standby-replay  ceph-filesystem-b  Evts:    1 /s  2089     82     29      0   
+          POOL              TYPE     USED  AVAIL  
+ceph-filesystem-metadata  metadata  1524M   762G  
+ ceph-filesystem-data0      data    84.6M   762G  
+MDS version: ceph version 19.2.1 (58a7fab8be0a062d730ad7da874972fd3fba59fb) squid (stable)
+== rook deployments (name ready/replicas rook-version image)
+csi-cephfsplugin-provisioner 2/2 rook-version= registry.k8s.io/sig-storage/csi-attacher:v4.8.1
+csi-rbdplugin-provisioner 2/2 rook-version= registry.k8s.io/sig-storage/csi-provisioner:v5.2.0
+rook-ceph-crashcollector-vdhclu01node01 1/1 rook-version=v1.17.9 quay.io/ceph/ceph:v19.2.1
+rook-ceph-crashcollector-vdhclu01node02 1/1 rook-version=v1.17.9 quay.io/ceph/ceph:v19.2.1
+rook-ceph-crashcollector-vdhclu01node03 1/1 rook-version=v1.17.9 quay.io/ceph/ceph:v19.2.1
+rook-ceph-exporter-vdhclu01node01 1/1 rook-version=v1.17.9 quay.io/ceph/ceph:v19.2.1
+rook-ceph-exporter-vdhclu01node02 1/1 rook-version=v1.17.9 quay.io/ceph/ceph:v19.2.1
+rook-ceph-exporter-vdhclu01node03 1/1 rook-version=v1.17.9 quay.io/ceph/ceph:v19.2.1
+rook-ceph-mds-ceph-filesystem-a 1/1 rook-version=v1.17.9 quay.io/ceph/ceph:v19.2.1
+rook-ceph-mds-ceph-filesystem-b 1/1 rook-version=v1.17.9 quay.io/ceph/ceph:v19.2.1
+rook-ceph-mgr-a 1/1 rook-version=v1.17.9 quay.io/ceph/ceph:v19.2.1
+rook-ceph-mgr-b 1/1 rook-version=v1.17.9 quay.io/ceph/ceph:v19.2.1
+rook-ceph-mgr-c 1/1 rook-version=v1.17.9 quay.io/ceph/ceph:v19.2.1
+rook-ceph-mon-a 1/1 rook-version=v1.17.9 quay.io/ceph/ceph:v19.2.1
+rook-ceph-mon-b 1/1 rook-version=v1.17.9 quay.io/ceph/ceph:v19.2.1
+rook-ceph-mon-c 1/1 rook-version=v1.17.9 quay.io/ceph/ceph:v19.2.1
+rook-ceph-operator 1/1 rook-version= docker.io/rook/ceph:v1.17.9
+rook-ceph-osd-0 1/1 rook-version=v1.17.9 quay.io/ceph/ceph:v19.2.1
+rook-ceph-osd-1 1/1 rook-version=v1.17.9 quay.io/ceph/ceph:v19.2.1
+rook-ceph-osd-2 1/1 rook-version=v1.17.9 quay.io/ceph/ceph:v19.2.1
+rook-ceph-tools 1/1 rook-version= quay.io/ceph/ceph:v19.2.1
+== rook-version distinct (rook_cluster deployments)
+  17 v1.17.9
+== daemonsets
+csi-cephfsplugin 3/3 upd=3 registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.13.0 quay.io/cephcsi/cephcsi:v3.14.2 quay.io/cephcsi/cephcsi:v3.14.2 quay.io/cephcsi/cephcsi:v3.14.2
+csi-rbdplugin 3/3 upd=3 registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.13.0 quay.io/cephcsi/cephcsi:v3.14.2 quay.io/cephcsi/cephcsi:v3.14.2 quay.io/cephcsi/cephcsi:v3.14.2
+== csi pods not Running/Ready
+(none)
+== csi pod count
+10
+== csidrivers
+csidriver.storage.k8s.io/rook-ceph.cephfs.csi.ceph.com
+csidriver.storage.k8s.io/rook-ceph.rbd.csi.ceph.com
+== storageclasses
+rook-ceph-block rook-ceph.rbd.csi.ceph.com {"clusterID":"rook-ceph","csi.storage.k8s.io/controller-expand-secret-name":"rook-csi-rbd-provisioner","csi.storage.k8s.io/controller-expand-secret-namespace":"rook-ceph","csi.storage.k8s.io/fstype":"ext4","csi.storage.k8s.io/node-stage-secret-name":"rook-csi-rbd-node","csi.storage.k8s.io/node-stage-secret-namespace":"rook-ceph","csi.storage.k8s.io/provisioner-secret-name":"rook-csi-rbd-provisioner","csi.storage.k8s.io/provisioner-secret-namespace":"rook-ceph","imageFeatures":"layering,fast-diff,object-map,deep-flatten,exclusive-lock","imageFormat":"2","pool":"ceph-blockpool"}
+rook-ceph-filesystem rook-ceph.cephfs.csi.ceph.com {"clusterID":"rook-ceph","csi.storage.k8s.io/controller-expand-secret-name":"rook-csi-cephfs-provisioner","csi.storage.k8s.io/controller-expand-secret-namespace":"rook-ceph","csi.storage.k8s.io/fstype":"ext4","csi.storage.k8s.io/node-stage-secret-name":"rook-csi-cephfs-node","csi.storage.k8s.io/node-stage-secret-namespace":"rook-ceph","csi.storage.k8s.io/provisioner-secret-name":"rook-csi-cephfs-provisioner","csi.storage.k8s.io/provisioner-secret-namespace":"rook-ceph","fsName":"ceph-filesystem","pool":"ceph-filesystem-data0"}
+== csi.ceph.io CRs
+error: the server doesn't have a resource type "operatorconfigs"
+== PVC Bound count by SC
+   1  Bound
+  17 openebs-hostpath Bound
+  65 rook-ceph-block Bound
+   2 rook-ceph-filesystem Bound
+== PVC not Bound
+(none)
+== pods using ceph PVCs not Running
+pods with ceph PVCs: 79
+not Running: ['mypka/ortho-29917825-f5kbc Failed', 'mypka/ortho-29919265-54vnp Failed']
+== key DB/app pods
+database cloudnative-pg-5d585fdbb4-zjjch 1/1 Running
+database dragonfly-0 1/1 Running
+database dragonfly-1 1/1 Running
+database dragonfly-2 1/1 Running
+database dragonfly-operator-5496d6b46-vg9rs 1/1 Running
+database influxdb-influxdb2-0 1/1 Running
+database pgadmin-bf78dbf75-5lswl 1/1 Running
+database postgres16-1 1/1 Running
+database postgres16-2 1/1 Running
+database postgres16-3 1/1 Running
+devtools forge-pg-1 1/1 Running
+devtools forge-pg-2 1/1 Running
+home-automation home-assistant-6987b86877-vncjx 2/2 Running
+== volumeattachments not attached
+(none)
+== volumeattachment count
+      50
+######## checks
+health=HEALTH_OK
+pg=81 pgs: 81 active+clean
+osd=3 osds: 3 up (since 6w), 3 in (since 5M)
+ceph overall=19.2.1x11
+csi pods all Ready
+pvc not Bound=0
+ceph pvc Bound=67 (baseline 67)
+######## databases / apps
+database/postgres16-1: true 2026-11-20 10:00:51.192456+00
+database/postgres16-2: false 2026-11-20 10:00:51.387622+00
+database/postgres16-3: true 2026-11-20 10:00:51.608705+00
+devtools/forge-pg-1: false 2026-11-20 10:00:51.828548+00
+devtools/forge-pg-2: true 2026-11-20 10:00:52.115792+00
+postgres16 phase=Cluster in healthy state ready=3
+forge-pg phase=Cluster in healthy state ready=2
+database/influxdb-influxdb2-0: Running true restarts=0
+database/dragonfly-0: Running true restarts=0
+home-automation/home-assistant-6987b86877-vncjx: Running true true restarts=2 0
+home-assistant http manifest=200
+######## pvc functional test
+pvctest v1.17.9 ns=chg080-pvctest-v1-17-9 start 2026-11-20T10:00:52Z
+PASS bind rook-ceph-block
+PASS bind rook-ceph-filesystem
+PASS write+attach rook-ceph-block sha=2e057518e3a0e9db
+PASS write+attach rook-ceph-filesystem sha=6cebbb12baa2d9a0
+PASS remount+read rook-ceph-block
+PASS remount+read rook-ceph-filesystem
+ns deleted
+PASS delete pv pvc-c8e94310-a704-42ed-a7d3-6d3e92ab2e25
+PASS delete pv pvc-b73dc955-0edf-46e7-8935-004be27fc0d5
+pvctest v1.17.9 RESULT=PASS end 2026-11-20T10:01:25Z
+######## GATE v1.17.9 RESULT=PASS 2026-11-20T10:01:25Z

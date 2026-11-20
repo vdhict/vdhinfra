@@ -1,0 +1,252 @@
+apiVersion: v1
+items:
+  - apiVersion: csi.ceph.io/v1
+    kind: OperatorConfig
+    metadata:
+      name: ceph-csi-operator-config
+      namespace: rook-ceph
+    spec:
+      driverSpecDefaults:
+        cephFsClientType: kernel
+        clusterName: rook-ceph
+        controllerPlugin:
+          affinity:
+            nodeAffinity: {}
+          deploymentStrategy:
+            type: Recreate
+          imagePullPolicy: ""
+          priorityClassName: system-cluster-critical
+          replicas: 2
+          resources: {}
+        deployCsiAddons: false
+        enableMetadata: false
+        fsGroupPolicy: File
+        generateOMapInfo: false
+        imageSet:
+          name: rook-csi-operator-image-set-configmap
+        log: {}
+        nodePlugin:
+          affinity:
+            nodeAffinity: {}
+          enableSeLinuxHostMount: false
+          imagePullPolicy: ""
+          kubeletDirPath: /var/lib/kubelet
+          priorityClassName: system-node-critical
+          resources: {}
+  - apiVersion: csi.ceph.io/v1
+    kind: Driver
+    metadata:
+      name: rook-ceph.cephfs.csi.ceph.com
+      namespace: rook-ceph
+    spec:
+      cephFsClientType: kernel
+      clusterName: rook-ceph
+      controllerPlugin:
+        affinity:
+          nodeAffinity: {}
+        hostNetwork: false
+        imagePullPolicy: ""
+        priorityClassName: system-cluster-critical
+        replicas: 2
+        resources:
+          attacher:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          plugin:
+            limits:
+              memory: 1Gi
+            requests:
+              cpu: 250m
+              memory: 512Mi
+          provisioner:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          resizer:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          snapshotter:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+      deployCsiAddons: false
+      enableMetadata: false
+      fsGroupPolicy: File
+      generateOMapInfo: false
+      imageSet:
+        name: rook-csi-operator-image-set-configmap
+      log: {}
+      nodePlugin:
+        affinity:
+          nodeAffinity: {}
+        enableSeLinuxHostMount: false
+        imagePullPolicy: ""
+        kubeletDirPath: /var/lib/kubelet
+        priorityClassName: system-node-critical
+        resources:
+          plugin:
+            limits:
+              memory: 1Gi
+            requests:
+              cpu: 250m
+              memory: 512Mi
+          registrar:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+        updateStrategy:
+          type: RollingUpdate
+  - apiVersion: csi.ceph.io/v1
+    kind: Driver
+    metadata:
+      name: rook-ceph.rbd.csi.ceph.com
+      namespace: rook-ceph
+    spec:
+      cephFsClientType: kernel
+      clusterName: rook-ceph
+      controllerPlugin:
+        affinity:
+          nodeAffinity: {}
+        hostNetwork: false
+        imagePullPolicy: ""
+        priorityClassName: system-cluster-critical
+        replicas: 2
+        resources:
+          attacher:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          omapGenerator:
+            limits:
+              memory: 1Gi
+            requests:
+              cpu: 250m
+              memory: 512Mi
+          plugin:
+            limits:
+              memory: 1Gi
+            requests:
+              memory: 512Mi
+          provisioner:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          resizer:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          snapshotter:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+      deployCsiAddons: false
+      enableMetadata: false
+      fsGroupPolicy: File
+      generateOMapInfo: false
+      imageSet:
+        name: rook-csi-operator-image-set-configmap
+      log: {}
+      nodePlugin:
+        affinity:
+          nodeAffinity: {}
+        enableSeLinuxHostMount: false
+        imagePullPolicy: ""
+        kubeletDirPath: /var/lib/kubelet
+        priorityClassName: system-node-critical
+        resources:
+          plugin:
+            limits:
+              memory: 1Gi
+            requests:
+              cpu: 250m
+              memory: 512Mi
+          registrar:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+        updateStrategy:
+          type: RollingUpdate
+  - apiVersion: csi.ceph.io/v1
+    kind: ClientProfile
+    metadata:
+      finalizers:
+        - csi.ceph.com/cleanup
+      name: 6ce7824f6ae653f41176f58ec8768ad6
+      namespace: rook-ceph
+    spec:
+      cephConnectionRef:
+        name: rook-ceph
+      cephFs:
+        cephCsiSecrets:
+          controllerPublishSecret:
+            name: rook-csi-cephfs-provisioner
+            namespace: rook-ceph
+        kernelMountOptions:
+          ms_mode: prefer-crc
+        subVolumeGroup: csi
+  - apiVersion: csi.ceph.io/v1
+    kind: ClientProfile
+    metadata:
+      finalizers:
+        - csi.ceph.com/cleanup
+      name: rook-ceph
+      namespace: rook-ceph
+    spec:
+      cephConnectionRef:
+        name: rook-ceph
+      cephFs:
+        cephCsiSecrets:
+          controllerPublishSecret:
+            name: rook-csi-cephfs-provisioner
+            namespace: rook-ceph
+        kernelMountOptions:
+          ms_mode: prefer-crc
+      rbd:
+        cephCsiSecrets:
+          controllerPublishSecret:
+            name: rook-csi-rbd-provisioner
+            namespace: rook-ceph
+  - apiVersion: csi.ceph.io/v1
+    kind: CephConnection
+    metadata:
+      name: rook-ceph
+      namespace: rook-ceph
+      ownerReferences:
+        - apiVersion: csi.ceph.io/v1
+          kind: ClientProfile
+          name: rook-ceph
+          uid: 11b7827f-974b-4959-a4c0-30d362a03c62
+        - apiVersion: csi.ceph.io/v1
+          kind: ClientProfile
+          name: 6ce7824f6ae653f41176f58ec8768ad6
+          uid: 0d5f18ba-e15e-4dc3-a462-ce1b74b424d2
+    spec:
+      monitors:
+        - 172.16.2.83:3300
+        - 172.16.2.81:3300
+        - 172.16.2.82:3300
+kind: List
+metadata:
+  resourceVersion: ""

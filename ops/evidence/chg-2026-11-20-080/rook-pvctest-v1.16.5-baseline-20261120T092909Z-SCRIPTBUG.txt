@@ -1,0 +1,15 @@
+pvctest v1.16.5-baseline ns=chg080-pvctest-v1-16-5-baseline start 2026-11-20T09:29:09Z
+PASS bind rook-ceph-block
+PASS bind rook-ceph-filesystem
+PASS write+attach rook-ceph-block sha=e144dcf68bb9a369
+error: error parsing STDIN: error converting YAML to JSON: yaml: line 9: did not find expected ',' or ']'
+PASS write+attach rook-ceph-filesystem sha=34d031920df5e5a3
+error: error parsing STDIN: error converting YAML to JSON: yaml: line 9: did not find expected ',' or ']'
+Error from server (NotFound): pods "r-block" not found
+FAIL read rook-ceph-block error: error from server (NotFound): pods "r-block" not found in namespace "chg080-pvctest-v1-16-5-baseline"
+Error from server (NotFound): pods "r-filesystem" not found
+FAIL read rook-ceph-filesystem error: error from server (NotFound): pods "r-filesystem" not found in namespace "chg080-pvctest-v1-16-5-baseline"
+ns deleted
+PASS delete pv pvc-2d41d4f1-d9d7-4e4c-998b-18a12dc8562b
+PASS delete pv pvc-7842e6f6-bf67-4f66-94fa-d3c0fcb3c40b
+pvctest v1.16.5-baseline RESULT=FAIL end 2026-11-20T09:29:37Z

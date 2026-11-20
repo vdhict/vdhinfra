@@ -1,0 +1,12 @@
+chg-2026-11-20-080 gate 3 (Argus C7.2): real VolSync restore test
+measured: 2026-11-20T09:32:10Z
+source: home-automation/esphome RS (restic, repo in MinIO), PVC esphome-config 1Gi rook-ceph-block
+scratch ns chg080-restore: PVC esphome-restore 1Gi rook-ceph-block, ReplicationDestination manual=restore-once copyMethod Direct; repo secret copied in-cluster (values never printed)
+RD result=Successful lastSyncTime=2026-11-20T09:31:36Z duration=14.773953011s
+restoring snapshot 5b54e1b0 of [/data] at 2026-11-20 09:29:10.109457698 +0000 UTC by @volsync to .
+Restic completed in 3s
+data check: sha256 of every file under the volume (excl .esphome cache mount), restored vs live /config:
+restored files=34 live files=34 identical=34 differ=0 only_restored=0 only_live=0 (2 yaml device configs identical)
+restored size: 232K
+scratch ns deleted 2026-11-20T09:32:55Z; PVs left referencing chg080-restore: see count above
+readback 2026-11-20T09:33:22Z: 0 PVs with claimRef ns chg080-restore (openebs cache PV released after ~20s)

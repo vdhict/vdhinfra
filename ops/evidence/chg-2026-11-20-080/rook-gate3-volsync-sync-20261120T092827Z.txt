@@ -1,0 +1,79 @@
+trigger id: chg080-20261120T092827Z  start: 2026-11-20T09:28:27Z
+patched devtools/forgejo
+patched dispatcharr/dispatcharr
+patched family-ai/hermes-profiel-1
+patched family-ai/hermes-profiel-2
+patched family-ai/hermes-profiel-3
+patched family-ai/open-webui
+patched home-automation/esphome
+patched home-automation/home-assistant
+patched home-automation/mealie
+patched home-automation/node-red
+patched home-automation/zigbee2mqtt
+patched home-automation/zwave-js-ui
+patched jellyfin/jellyfin
+patched media/plex
+patched media/radarr
+patched ntfy/ntfy
+patched vikunja/vikunja
+09:28:30 pending=17
+09:29:01 pending=17
+09:29:32 pending=3
+09:30:02 pending=2
+09:30:33 pending=2
+09:31:04 pending=0
+== results
+devtools/forgejo lastManualSync=chg080-20261120T092827Z lastSyncTime=2026-11-20T09:30:50Z result=Successful dur=2m23.556260292s
+dispatcharr/dispatcharr lastManualSync=chg080-20261120T092827Z lastSyncTime=2026-11-20T09:29:05Z result=Successful dur=38.762180959s
+family-ai/hermes-profiel-1 lastManualSync=chg080-20261120T092827Z lastSyncTime=2026-11-20T09:29:15Z result=Successful dur=48.159628293s
+family-ai/hermes-profiel-2 lastManualSync=chg080-20261120T092827Z lastSyncTime=2026-11-20T09:29:08Z result=Successful dur=40.093715642s
+family-ai/hermes-profiel-3 lastManualSync=chg080-20261120T092827Z lastSyncTime=2026-11-20T09:29:14Z result=Successful dur=46.107171374s
+family-ai/open-webui lastManualSync=chg080-20261120T092827Z lastSyncTime=2026-11-20T09:29:17Z result=Successful dur=49.999724819s
+home-automation/esphome lastManualSync=chg080-20261120T092827Z lastSyncTime=2026-11-20T09:29:15Z result=Successful dur=47.192522211s
+home-automation/home-assistant lastManualSync=chg080-20261120T092827Z lastSyncTime=2026-11-20T09:29:35Z result=Successful dur=1m7.973618481s
+home-automation/mealie lastManualSync=chg080-20261120T092827Z lastSyncTime=2026-11-20T09:29:15Z result=Successful dur=47.114851642s
+home-automation/node-red lastManualSync=chg080-20261120T092827Z lastSyncTime=2026-11-20T09:29:15Z result=Successful dur=47.192449612s
+home-automation/zigbee2mqtt lastManualSync=chg080-20261120T092827Z lastSyncTime=2026-11-20T09:29:15Z result=Successful dur=47.155831989s
+home-automation/zwave-js-ui lastManualSync=chg080-20261120T092827Z lastSyncTime=2026-11-20T09:29:18Z result=Successful dur=50.102642935s
+jellyfin/jellyfin lastManualSync=chg080-20261120T092827Z lastSyncTime=2026-11-20T09:29:19Z result=Successful dur=51.91405276s
+media/plex lastManualSync=chg080-20261120T092827Z lastSyncTime=2026-11-20T09:31:01Z result=Successful dur=2m33.625622025s
+media/radarr lastManualSync=chg080-20261120T092827Z lastSyncTime=2026-11-20T09:29:25Z result=Successful dur=57.9432226s
+ntfy/ntfy lastManualSync=chg080-20261120T092827Z lastSyncTime=2026-11-20T09:29:17Z result=Successful dur=48.899787386s
+vikunja/vikunja lastManualSync=chg080-20261120T092827Z lastSyncTime=2026-11-20T09:29:12Z result=Successful dur=43.282457307s
+== removing manual trigger
+unpatched devtools/forgejo
+unpatched dispatcharr/dispatcharr
+unpatched family-ai/hermes-profiel-1
+unpatched family-ai/hermes-profiel-2
+unpatched family-ai/hermes-profiel-3
+unpatched family-ai/open-webui
+unpatched home-automation/esphome
+unpatched home-automation/home-assistant
+unpatched home-automation/mealie
+unpatched home-automation/node-red
+unpatched home-automation/zigbee2mqtt
+unpatched home-automation/zwave-js-ui
+unpatched jellyfin/jellyfin
+unpatched media/plex
+unpatched media/radarr
+unpatched ntfy/ntfy
+unpatched vikunja/vikunja
+== trigger readback
+devtools/forgejo {"schedule":"15 * * * *"}
+dispatcharr/dispatcharr {"schedule":"30 * * * *"}
+family-ai/hermes-profiel-1 {"schedule":"25 * * * *"}
+family-ai/hermes-profiel-2 {"schedule":"30 * * * *"}
+family-ai/hermes-profiel-3 {"schedule":"35 * * * *"}
+family-ai/open-webui {"schedule":"20 * * * *"}
+home-automation/esphome {"schedule":"0 * * * *"}
+home-automation/home-assistant {"schedule":"0 * * * *"}
+home-automation/mealie {"schedule":"0 * * * *"}
+home-automation/node-red {"schedule":"0 * * * *"}
+home-automation/zigbee2mqtt {"schedule":"0 * * * *"}
+home-automation/zwave-js-ui {"schedule":"0 * * * *"}
+jellyfin/jellyfin {"schedule":"20 * * * *"}
+media/plex {"schedule":"45 * * * *"}
+media/radarr {"schedule":"0 * * * *"}
+ntfy/ntfy {"schedule":"50 * * * *"}
+vikunja/vikunja {"schedule":"40 * * * *"}
+end: 2026-11-20T09:31:05Z

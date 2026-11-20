@@ -1,0 +1,11 @@
+pvctest v1.16.5-baseline ns=chg080-pvctest-v1-16-5-baseline start 2026-11-20T09:29:47Z
+PASS bind rook-ceph-block
+PASS bind rook-ceph-filesystem
+PASS write+attach rook-ceph-block sha=ed14f71741068272
+PASS write+attach rook-ceph-filesystem sha=f3fe6ddf5925b481
+PASS remount+read rook-ceph-block
+PASS remount+read rook-ceph-filesystem
+ns deleted
+PASS delete pv pvc-895cf9d0-d807-46b9-a7f5-2c748af5a6d6
+PASS delete pv pvc-d3652e9b-c4ff-4d44-86d1-36b00b82dace
+pvctest v1.16.5-baseline RESULT=PASS end 2026-11-20T09:30:15Z

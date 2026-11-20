@@ -1,0 +1,27 @@
+waitroll v1.17.9 start 2026-11-20T09:46:30Z
+09:46:32 op=[docker.io/rook/ceph:v1.17.9 1/] vers=[  17 v1.16.5 ] notavail=[] health=[HEALTH_OK] pg=[81 pgs: 81 active+clean] osd=[3 osds: 3 up (since 6w), 3 in (since 5M)] stable=0
+09:47:05 op=[docker.io/rook/ceph:v1.17.9 1/1] vers=[  11 v1.16.5    6 v1.17.9 ] notavail=[rook-ceph-exporter-vdhclu01node01 rook-ceph-exporter-vdhclu01node02 ] health=[HEALTH_OK] pg=[81 pgs: 81 active+clean] osd=[3 osds: 3 up (since 6w), 3 in (since 5M)] stable=0
+09:47:37 op=[docker.io/rook/ceph:v1.17.9 1/1] vers=[   6 v1.16.5   11 v1.17.9 ] notavail=[rook-ceph-mds-ceph-filesystem-b ] health=[HEALTH_WARN insufficient standby MDS daemons available] pg=[81 pgs: 81 active+clean] osd=[3 osds: 3 up (since 6w), 3 in (since 5M)] stable=0
+09:48:18 op=[docker.io/rook/ceph:v1.17.9 1/1] vers=[   4 v1.16.5   13 v1.17.9 ] notavail=[rook-ceph-mgr-b ] health=[HEALTH_OK] pg=[81 pgs: 81 unknown] osd=[3 osds: 3 up (since 6w), 3 in (since 5M)] stable=0
+09:48:50 op=[docker.io/rook/ceph:v1.17.9 1/1] vers=[   3 v1.16.5   14 v1.17.9 ] notavail=[] health=[HEALTH_OK] pg=[81 pgs: 81 active+clean] osd=[3 osds: 3 up (since 6w), 3 in (since 5M)] stable=0
+09:49:23 op=[docker.io/rook/ceph:v1.17.9 1/1] vers=[  17 v1.17.9 ] notavail=[] health=[HEALTH_OK] pg=[81 pgs: 81 active+clean] osd=[3 osds: 3 up (since 6w), 3 in (since 5M)] stable=0s
+09:49:55 op=[docker.io/rook/ceph:v1.17.9 1/1] vers=[  17 v1.17.9 ] notavail=[] health=[HEALTH_OK] pg=[81 pgs: 81 active+clean] osd=[3 osds: 3 up (since 6w), 3 in (since 5M)] stable=33s
+09:50:27 op=[docker.io/rook/ceph:v1.17.9 1/1] vers=[  17 v1.17.9 ] notavail=[] health=[HEALTH_OK] pg=[81 pgs: 81 active+clean] osd=[3 osds: 3 up (since 6w), 3 in (since 5M)] stable=65s
+09:50:59 op=[docker.io/rook/ceph:v1.17.9 1/1] vers=[  17 v1.17.9 ] notavail=[] health=[HEALTH_OK] pg=[81 pgs: 81 active+clean] osd=[3 osds: 3 up (since 6w), 3 in (since 5M)] stable=97s
+09:51:31 op=[docker.io/rook/ceph:v1.17.9 1/1] vers=[  17 v1.17.9 ] notavail=[] health=[HEALTH_OK] pg=[81 pgs: 81 active+clean] osd=[3 osds: 3 up (since 6w), 3 in (since 5M)] stable=129s
+09:52:03 op=[docker.io/rook/ceph:v1.17.9 1/1] vers=[  17 v1.17.9 ] notavail=[] health=[HEALTH_OK] pg=[81 pgs: 81 active+clean] osd=[3 osds: 3 up (since 6w), 3 in (since 5M)] stable=161s
+09:52:35 op=[docker.io/rook/ceph:v1.17.9 1/1] vers=[  17 v1.17.9 ] notavail=[] health=[HEALTH_OK] pg=[81 pgs: 81 active+clean] osd=[3 osds: 3 up (since 6w), 3 in (since 5M)] stable=193s
+09:53:07 op=[docker.io/rook/ceph:v1.17.9 1/1] vers=[  17 v1.17.9 ] notavail=[] health=[HEALTH_OK] pg=[81 pgs: 81 active+clean] osd=[3 osds: 3 up (since 6w), 3 in (since 5M)] stable=225s
+09:53:39 op=[docker.io/rook/ceph:v1.17.9 1/1] vers=[  17 v1.17.9 ] notavail=[] health=[HEALTH_OK] pg=[81 pgs: 81 active+clean] osd=[3 osds: 3 up (since 6w), 3 in (since 5M)] stable=257s
+09:54:11 op=[docker.io/rook/ceph:v1.17.9 1/1] vers=[  17 v1.17.9 ] notavail=[] health=[HEALTH_OK] pg=[81 pgs: 81 active+clean] osd=[3 osds: 3 up (since 6w), 3 in (since 5M)] stable=289s
+09:54:43 op=[docker.io/rook/ceph:v1.17.9 1/1] vers=[  17 v1.17.9 ] notavail=[] health=[HEALTH_OK] pg=[81 pgs: 81 active+clean] osd=[3 osds: 3 up (since 6w), 3 in (since 5M)] stable=321s
+09:55:15 op=[docker.io/rook/ceph:v1.17.9 1/1] vers=[  17 v1.17.9 ] notavail=[] health=[HEALTH_OK] pg=[81 pgs: 81 active+clean] osd=[3 osds: 3 up (since 6w), 3 in (since 5M)] stable=353s
+09:55:48 op=[docker.io/rook/ceph:v1.17.9 1/1] vers=[  17 v1.17.9 ] notavail=[] health=[HEALTH_OK] pg=[81 pgs: 81 active+clean] osd=[3 osds: 3 up (since 6w), 3 in (since 5M)] stable=385s
+09:56:20 op=[docker.io/rook/ceph:v1.17.9 1/1] vers=[  17 v1.17.9 ] notavail=[] health=[HEALTH_OK] pg=[81 pgs: 81 active+clean] osd=[3 osds: 3 up (since 6w), 3 in (since 5M)] stable=418s
+09:56:52 op=[docker.io/rook/ceph:v1.17.9 1/1] vers=[  17 v1.17.9 ] notavail=[] health=[HEALTH_OK] pg=[81 pgs: 81 active+clean] osd=[3 osds: 3 up (since 6w), 3 in (since 5M)] stable=450s
+09:57:24 op=[docker.io/rook/ceph:v1.17.9 1/1] vers=[  17 v1.17.9 ] notavail=[] health=[HEALTH_OK] pg=[81 pgs: 81 active+clean] osd=[3 osds: 3 up (since 6w), 3 in (since 5M)] stable=482s
+09:57:56 op=[docker.io/rook/ceph:v1.17.9 1/1] vers=[  17 v1.17.9 ] notavail=[] health=[HEALTH_OK] pg=[81 pgs: 81 active+clean] osd=[3 osds: 3 up (since 6w), 3 in (since 5M)] stable=514s
+09:58:28 op=[docker.io/rook/ceph:v1.17.9 1/1] vers=[  17 v1.17.9 ] notavail=[] health=[HEALTH_OK] pg=[81 pgs: 81 active+clean] osd=[3 osds: 3 up (since 6w), 3 in (since 5M)] stable=546s
+09:59:00 op=[docker.io/rook/ceph:v1.17.9 1/1] vers=[  17 v1.17.9 ] notavail=[] health=[HEALTH_OK] pg=[81 pgs: 81 active+clean] osd=[3 osds: 3 up (since 6w), 3 in (since 5M)] stable=578s
+09:59:33 op=[docker.io/rook/ceph:v1.17.9 1/1] vers=[  17 v1.17.9 ] notavail=[] health=[HEALTH_OK] pg=[81 pgs: 81 active+clean] osd=[3 osds: 3 up (since 6w), 3 in (since 5M)] stable=610s
+ROLLED+STABLE v1.17.9 2026-11-20T09:59:33Z
