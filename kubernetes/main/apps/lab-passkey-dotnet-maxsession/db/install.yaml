@@ -25,11 +25,13 @@ spec:
   wait: true
   # inc-2026-10-20-002: the generic (kstatus) check counted the new Cluster Current at "Setting up primary", so
   # migrate/ ran before PostgreSQL accepted connections. Ready now means: every instance ready AND healthy phase.
+  # chg-2026-11-20-040: a Cluster annotated cnpg.io/hibernation=on counts as Current (readyInstances is 0 by design),
+  # otherwise migrate/grants/desk and devtenant-e2e-dotnet would stay blocked behind this Kustomization.
   healthCheckExprs:
     - apiVersion: postgresql.cnpg.io/v1
       kind: Cluster
-      current: has(status.readyInstances) && status.readyInstances == spec.instances && status.phase == 'Cluster in healthy state'
-      inProgress: "!has(status.readyInstances) || status.readyInstances < spec.instances || status.phase != 'Cluster in healthy state'"
+      current: "(has(metadata.annotations) && 'cnpg.io/hibernation' in metadata.annotations && metadata.annotations['cnpg.io/hibernation'] == 'on') || (has(status.readyInstances) && status.readyInstances == spec.instances && status.phase == 'Cluster in healthy state')"
+      inProgress: "!(has(metadata.annotations) && 'cnpg.io/hibernation' in metadata.annotations && metadata.annotations['cnpg.io/hibernation'] == 'on') && (!has(status.readyInstances) || status.readyInstances < spec.instances || status.phase != 'Cluster in healthy state')"
   interval: 30m
   retryInterval: 2m
   timeout: 10m
