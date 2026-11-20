@@ -1,0 +1,45 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/prometheusrule_v1.json
+#
+# CronJob staleness (tsk-2026-11-20-116). KubeJobFailed only sees Jobs that
+# fail; a CronJob that silently stops succeeding (suspended-by-accident, never
+# scheduled, Jobs deleted) stays invisible. Example: health-notify had no
+# success from 02-11 to 20-11 and nobody noticed.
+#
+# Choice: the schedule period cannot be derived from kube-state-metrics, so a
+# fixed threshold is used: no success for > 26h (daily schedule + 2h grace).
+# Scope is limited with the schedule label of kube_cronjob_info:
+#   - only schedules whose day-of-month, month and weekday are all "*", i.e.
+#     daily or more frequent. That automatically excludes one-shot dated
+#     CronJobs (e.g. devtools/*-revoke-backstop, "0 14 11 11 *") and weekly
+#     ones (voetbal-saturday), without a name list that can rot.
+#   - only non-suspended CronJobs (kube_cronjob_spec_suspend == 0).
+# Never succeeded (last_successful_time absent): falls back to
+# kube_cronjob_created, so a CronJob that never worked fires 26h after creation.
+# No `$` in the expression on purpose (Flux postBuild substitution).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cronjob-staleness
+  labels:
+    app.kubernetes.io/name: cronjob-staleness
+spec:
+  groups:
+    - name: cronjob-staleness
+      rules:
+        - alert: CronJobNoRecentSuccess
+          expr: |
+            (
+              time() - (
+                kube_cronjob_status_last_successful_time
+                or on (namespace, cronjob) kube_cronjob_created
+              ) > 26 * 3600
+            )
+            and on (namespace, cronjob) kube_cronjob_spec_suspend == 0
+            and on (namespace, cronjob) kube_cronjob_info{schedule=~"\\S+ \\S+ \\* \\* \\*"}
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "CronJob {{ $labels.namespace }}/{{ $labels.cronjob }} has had no successful run for over 26h"
+            description: "Non-suspended daily-or-faster CronJob {{ $labels.namespace }}/{{ $labels.cronjob }}: last success (or creation if it never succeeded) is more than 26h ago. Check its Jobs/pods, or suspend it if intentional."

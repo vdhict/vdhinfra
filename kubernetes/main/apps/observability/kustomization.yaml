@@ -23,4 +23,5 @@ resources:
   - ./monitoring-orphan-scan/install.yaml
   - ./aiops/install.yaml
   - ./cilium-l2-rules/install.yaml
+  - ./cronjob-staleness/install.yaml
   - ./mypka-wires-alerts/install.yaml
