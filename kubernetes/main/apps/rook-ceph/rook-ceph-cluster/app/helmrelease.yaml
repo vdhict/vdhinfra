@@ -6,6 +6,13 @@ metadata:
   name: rook-ceph-cluster
 spec:
   interval: 1h
+  # chg-2026-11-20-080: Rook cannot be downgraded once daemons roll. The
+  # cluster-apps default remediation is a helm rollback, so do not let a slow
+  # rollout count as a failed upgrade: no helm wait, health is gated by hand.
+  timeout: 15m
+  upgrade:
+    disableWait: true
+    disableWaitForJobs: true
   chart:
     spec:
       chart: rook-ceph-cluster
@@ -26,6 +33,11 @@ spec:
       createPrometheusRules: false
 
     cephClusterSpec:
+      # Pin Ceph so chart bumps never move it (v1.20 chart default is v20 Tentacle).
+      # From rook-ceph-cluster v1.19 this moves to top-level cephImage.
+      cephVersion:
+        image: quay.io/ceph/ceph:v19.2.1
+        allowUnsupported: false
       cephConfig:
         global:
           bdev_enable_discard: "true"

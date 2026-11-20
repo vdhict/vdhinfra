@@ -6,6 +6,13 @@ metadata:
   name: rook-ceph-operator
 spec:
   interval: 1h
+  # chg-2026-11-20-080: Rook cannot be downgraded once daemons roll. The
+  # cluster-apps default remediation is a helm rollback, so do not let a slow
+  # rollout count as a failed upgrade: no helm wait, health is gated by hand.
+  timeout: 15m
+  upgrade:
+    disableWait: true
+    disableWaitForJobs: true
   chart:
     spec:
       chart: rook-ceph
