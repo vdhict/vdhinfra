@@ -64,3 +64,11 @@ risks:
       CVE on this base digest only; -102870 and -111497 are not covered by this entry. The release
       still needs the full pre-client review (AGR-087/AGR-100). Closes when the re-pin to a 10.0.14 base
       lands (cron 390fc807 watches for it), at the latest on review_by.
+  - id: ar-020
+    adr: "ops change chg-2026-11-20-090 (Argus qa_failed C2 on recheck 2026-11-20T08:49:40Z; team choice (b), Larry 095719)"
+    finding_title: "^.*(workqueue|tick).*(integrity|uid 501|tamper).*$"
+    target: "^host\\.vdhmini01\\.workqueue-tick$"
+    accepted_by: team
+    accepted_at: 2026-11-20
+    review_by: 2026-12-20
+    rationale: "Atlas work-queue tick (hack/ops/workqueue.py, launchd com.sheijden.workqueue-tick, queue ~/.local/state/workqueue/) runs as uid 501, which myPKA shares, so the copy, plist and queue can be replaced or the sha check removed without an outside alert. Same pattern as the approval verifier. Bound: the wake file is DATA only (fixed header AUTOMATISCHE TICK, one json-quoted line per item, Argus C1 PASS 36/36 forgery variants), it reaches Atlas only via atlas-say --tick which refuses files without that header, and a tick can never approve or order anything; the off-switch WORKQUEUE_INTEGRITY was removed (c702257e); in-copy sha check against origin/main catches accidental drift. Lapses if a tick is ever treated as an instruction, if the wake route stops enforcing the header, or if uid separation between Atlas and myPKA becomes available (then add an outside checker)."
