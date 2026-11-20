@@ -38,3 +38,8 @@ patches:
       - op: add
         path: /spec/template/spec/containers/0/env/-
         value: {name: KENNIS_URL, value: "http://kennisdienst.family-ai.svc.cluster.local:8088"}
+      # tsk-2026-11-09-101 (chg-2026-11-17-011, Argus C1): kennis plugin runs in local mode, so a private hit
+      # stays in this profile's prompt. ONLY here, never in ../base: profiel-1 has no cloud path (Studio only).
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: KENNIS_MODUS, value: lokaal}
