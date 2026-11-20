@@ -52,12 +52,17 @@ rollback(){
     local prev; prev=$(helm -n network history envoy-gateway -o json | jq -r --arg v "$PRX" '[.[]|select(.chart|test($v))][-1].revision')
     echo "controller-only rollback to helm rev $prev ($PTAG)"
     flux -n network suspend hr envoy-gateway
-    helm -n network rollback envoy-gateway "$prev" --force-conflicts --wait --timeout 8m
+    [[ $prev =~ ^[0-9]+$ ]] || { echo "ROLLBACK REFUSED: no previous helm revision for $PTAG; HR stays suspended, open an incident (Argus R3)"; log rolled_back "{\"wq\":\"wq-017\",\"step\":\"envoy $HOP\",\"mode\":\"ctrl\",\"result\":\"FAILED: no previous revision; HR suspended; incident\"}"; exit 6; }
+    if ! helm -n network rollback envoy-gateway "$prev" --force-conflicts --wait --timeout 8m; then # Argus R3 (20261120T130156Z)
+      echo "ROLLBACK FAILED: helm rollback exit non-zero; HR stays suspended, open an incident (Argus R3)"
+      log rolled_back "{\"wq\":\"wq-017\",\"step\":\"envoy $HOP\",\"mode\":\"ctrl\",\"result\":\"FAILED: helm rollback non-zero; HR suspended; incident\"}"
+      exit 6
+    fi
     for d in $(kubectl -n network get deploy -l app.kubernetes.io/managed-by=envoy-gateway -o name); do kubectl -n network rollout status "$d" --timeout=10m >/dev/null 2>&1; done
     drained
   fi
   sleep 60
-  { echo "chg-2026-11-20-080 wq-017 $HOP ROLLBACK readback ($RB) at $t"; "$G" gate "$HOP-rollback" "$PTAG" "$PBUNDLE"; echo "exit=$?"; } 2>&1 | wout "$E/envoy-$HOP-$t-rollback-readback.txt"
+  { echo "chg-2026-11-20-080 wq-017 $HOP ROLLBACK readback ($RB) $t"; "$G" gate "$HOP-rollback" "$PTAG" "$PBUNDLE"; echo "exit=$?"; } 2>&1 | wout "$E/envoy-$HOP-$t-rollback-readback.txt"
   grep -E 'GATE|exit=' "$E/envoy-$HOP-$t-rollback-readback.txt"
   log rolled_back "{\"wq\":\"wq-017\",\"step\":\"envoy $HOP\",\"mode\":\"$RB\",\"evidence\":\"ops/evidence/chg-2026-11-20-080/envoy-$HOP-$t-rollback-readback.txt\",\"summary\":\"gate failed, automatic rollback ($RB); readback $(grep -o 'GATE [A-Z]*' "$E/envoy-$HOP-$t-rollback-readback.txt")\",\"decision\":\"AGR-109: tests are the gate\"}"
 }
