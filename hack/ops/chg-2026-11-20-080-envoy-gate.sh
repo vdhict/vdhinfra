@@ -158,7 +158,7 @@ r_all(){
   cleanup; PFS=""
   # R7 labels, selectors, hubble
   for g in envoy-internal envoy-external envoy-forge envoy-gezin; do
-    n=$(kubectl -n network get pod -l "gateway.envoyproxy.io/owning-gateway-name=$g,gateway.envoyproxy.io/owning-gateway-namespace=network,app.kubernetes.io/name=envoy,app.kubernetes.io/component=proxy" --field-selector=status.phase=Running --no-headers | wc -l | tr -d ' ')
+    n=$(kubectl -n network get pod -l "gateway.envoyproxy.io/owning-gateway-name=$g,gateway.envoyproxy.io/owning-gateway-namespace=network,app.kubernetes.io/name=envoy,app.kubernetes.io/component=proxy" --field-selector=status.phase=Running -o json | jq '[.items[]|select(.metadata.deletionTimestamp==null)]|length')
     [[ $n == 2 ]] && ok "R7 selector owning-gateway-name=$g (+namespace, name=envoy) -> 2 pods" || bad "R7 $g selector -> $n pods"; done
   ns=$(kubectl get cnp -A -o json | jq '[.items[] | select(tostring|test("owning-gateway-name"))] | length'); nc=$(kubectl get ccnp -o json | jq '[.items[] | select(tostring|test("owning-gateway-name"))] | length')
   [[ "$ns $nc" == "$(cat "$STATE/cnp-base")" ]] && ok "R7 envoy-label policies present: $ns CNP + $nc CCNP (baseline)" || bad "R7 policies $ns/$nc base $(cat "$STATE/cnp-base")"
@@ -217,8 +217,11 @@ EOF
   le=$( { awk -F'\t' '$2=="ERROR"' "$STATE/ctl-log" | grep -i -E 'translat|xds|snapshot'; grep -i -E 'skipp?ing[^\t]*(xds|snapshot)' "$STATE/ctl-log"; } | grep -v -c 'ServiceImport')
   [[ $le == 0 ]] && ok "R12 controller log: 0 translation/xDS/snapshot ERROR or skipped-snapshot lines since hop start" || bad "R12 controller translation/xds error lines: $le"
   info "R12 controller ERROR lines since hop start: $(awk -F'\t' '$2=="ERROR"' "$STATE/ctl-log" | wc -l | tr -d ' ') (loggers: $(awk -F'\t' '$2=="ERROR"{print $3}' "$STATE/ctl-log" | sort | uniq -c | awk '{print $2"="$1}' | tr '\n' ' '))"
-  up=$(kubectl get --raw "/api/v1/namespaces/observability/services/prometheus-operated:9090/proxy/api/v1/query?query=count(up%7Bnamespace%3D%22network%22%2Cpod%3D~%22envoy-network-.*%22%7D%3D%3D1)" | jq -r '.data.result[0].value[1] // "0"')
-  [[ $up == 8 ]] && ok "R12 Prometheus: 8/8 envoy proxy targets up" || bad "R12 envoy targets up=$up"
+  # only the current (non-terminating) proxy pods; draining pods stay scrapeable for drainTimeout (hop1 lesson)
+  cur=$(kubectl -n network get pod -l app.kubernetes.io/component=proxy -o json | jq -r '.items[]|select(.metadata.deletionTimestamp==null)|.metadata.name' | sort)
+  upl=$(kubectl get --raw "/api/v1/namespaces/observability/services/prometheus-operated:9090/proxy/api/v1/query?query=up%7Bnamespace%3D%22network%22%2Cpod%3D~%22envoy-network-.*%22%7D%3D%3D1" | jq -r '.data.result[].metric.pod' | sort -u)
+  up=$(comm -12 <(echo "$cur") <(echo "$upl") | grep -c .); nc=$(echo "$cur" | grep -c .)
+  [[ $up == 8 && $nc == 8 ]] && ok "R12 Prometheus: 8/8 current envoy proxy pods up" || bad "R12 envoy targets up=$up of current $nc"
   lq=$(kubectl get --raw "/api/v1/namespaces/observability/services/loki:3100/proxy/loki/api/v1/query?query=sum(count_over_time(%7Bnamespace%3D%22network%22%2Ccontainer%3D%22envoy%22%7D%5B5m%5D))" 2>/dev/null | jq -r '.data.result[0].value[1] // "0"')
   [[ ${lq:-0} -gt 0 ]] && ok "R12 Loki: $lq envoy log lines in last 5m" || bad "R12 Loki envoy lines $lq"
   tg=$(kubectl get --raw "/api/v1/namespaces/observability/services/loki:3100/proxy/loki/api/v1/query?query=sum(count_over_time(%7Bnamespace%3D%22network%22%2Ccontainer%3D%22envoy%22%7D%20%7C~%20%60httproute%2Fmypka%2Fteamregie%60%20%7C~%20%60%22response_code%22%3A%5Cs%2A2%60%20%5B30m%5D))" 2>/dev/null | jq -r '.data.result[0].value[1] // "0"')

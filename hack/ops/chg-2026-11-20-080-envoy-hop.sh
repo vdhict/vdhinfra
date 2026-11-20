@@ -35,7 +35,12 @@ wait_flux(){ # $1 sha ; waits for source + envoy kustomizations + HR new helm re
   flux -n flux-system reconcile ks envoy-gateway-gateways >/dev/null 2>&1
   kubectl -n flux-system get ks envoy-gateway-canary >/dev/null 2>&1 && flux -n flux-system reconcile ks envoy-gateway-canary >/dev/null 2>&1
   for d in $(kubectl -n network get deploy -l app.kubernetes.io/managed-by=envoy-gateway -o name); do kubectl -n network rollout status "$d" --timeout=10m >/dev/null 2>&1 || echo "rollout not complete: $d"; done
+  drained
 }
+drained(){ # old proxy pods drain for drainTimeout 180s; gate only steady state (hop1 lesson)
+  local i n; for i in $(seq 1 96); do
+    n=$(kubectl -n network get pod -l app.kubernetes.io/component=proxy -o json | jq '[.items[]|select(.metadata.deletionTimestamp!=null)]|length')
+    [[ $n == 0 ]] && { echo "proxies drained $(date -u +%FT%TZ)"; return 0; }; sleep 5; done; echo "proxies still terminating: $n"; }
 
 rollback(){
   local t; t=$(ts)
@@ -49,6 +54,7 @@ rollback(){
     flux -n network suspend hr envoy-gateway
     helm -n network rollback envoy-gateway "$prev" --force-conflicts --wait --timeout 8m
     for d in $(kubectl -n network get deploy -l app.kubernetes.io/managed-by=envoy-gateway -o name); do kubectl -n network rollout status "$d" --timeout=10m >/dev/null 2>&1; done
+    drained
   fi
   sleep 60
   { echo "chg-2026-11-20-080 wq-017 $HOP ROLLBACK readback ($RB) at $t"; "$G" gate "$HOP-rollback" "$PTAG" "$PBUNDLE"; echo "exit=$?"; } 2>&1 | wout "$E/envoy-$HOP-$t-rollback-readback.txt"
@@ -68,7 +74,7 @@ push || { echo "PUSH FAILED"; exit 3; }
 sha=$(git -C "$WT" rev-parse HEAD); echo "pushed $sha $(date -u +%FT%TZ)"
 log executed "{\"wq\":\"wq-017\",\"step\":\"envoy $HOP\",\"commit\":\"${sha:0:8}\",\"summary\":\"pushed hop $HOP -> $WANT (bundle $BUNDLE); rollback mode $RB\",\"decision\":\"AGR-109: tests are the gate\"}"
 wait_flux "$sha" "$rev0"
-sleep 120   # soak: proxies drain (180s drainTimeout runs in the old pods) and xDS settles
+sleep 90    # soak after drain: xDS settles, scrape + access logs land
 t1=$(ts)
 { echo "chg-2026-11-20-080 wq-017 $HOP gate, main ${sha:0:8}"; "$G" gate "$HOP" "$WANT" "$BUNDLE"; echo "exit=$?"; } 2>&1 | wout "$E/envoy-$HOP-$t1-gate.txt"
 if grep -q '^exit=0' "$E/envoy-$HOP-$t1-gate.txt"; then
