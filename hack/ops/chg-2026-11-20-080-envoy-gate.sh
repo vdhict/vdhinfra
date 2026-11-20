@@ -213,6 +213,10 @@ EOF
   info "R11 CRDs: $(tr '\n' ';' < "$STATE/crd-now")"
   vap=$(kubectl get validatingadmissionpolicy -o json | jq -r '.items[] | select(.metadata.name|test("safe-upgrades")) | "\(.metadata.name) owner=\(.metadata.annotations["meta.helm.sh/release-namespace"])/\(.metadata.annotations["meta.helm.sh/release-name"])"')
   info "R11 safe-upgrades VAP: [${vap:-none}]"
+  if [[ $BUNDLE == v1.5.1 || $BUNDLE == v1.6.1 ]]; then # from envoy-gateway 1.8 (plan R11, Argus V4)
+    vb=$(kubectl get validatingadmissionpolicybinding safe-upgrades.gateway.networking.k8s.io -o jsonpath='{.metadata.annotations.meta\.helm\.sh/release-namespace}/{.metadata.annotations.meta\.helm\.sh/release-name}' 2>/dev/null)
+    [[ $vap == *"owner=network/envoy-gateway"* && $vb == network/envoy-gateway ]] && ok "R11 safe-upgrades VAP + binding present, Helm-owned by network/envoy-gateway" || bad "R11 safe-upgrades VAP [$vap] binding [$vb]"
+  fi
   # R12
   # console format: <ts>\t<LEVEL>\t<logger>\t... ; the INFO "ServiceImport CRD not found, skipping ServiceImport
   # watch" startup line is benign (false positive on hop0, 2026-11-20T11:59Z).
