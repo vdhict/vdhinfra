@@ -48,17 +48,6 @@ spec:
               protocol: TCP
             - port: "3478"
               protocol: UDP
-    # chg-2026-11-20-060 TEMPORARY: the throwaway test node in namespace hs-gezin-test. Removed in the cleanup commit.
-    - fromEndpoints:
-        - matchLabels:
-            k8s:io.kubernetes.pod.namespace: hs-gezin-test
-            app.kubernetes.io/name: hs-gezin-testnode
-      toPorts:
-        - ports:
-            - port: "8443"
-              protocol: TCP
-            - port: "3478"
-              protocol: UDP
     - fromEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: observability
