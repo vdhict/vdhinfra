@@ -3,6 +3,7 @@
 # dns.base_domain, dns.override_local_dns. LAN-only (LoadBalancer + UniFi DNS, no Cloudflare record). See install.yaml.
 # Stage 2 commit B (Argus verdict 2026-11-03): derp.server.enabled, derp.server.ipv4/ipv6 (Q2), derp.urls (Q1),
 # derp.auto_update_enabled, node.expiry 180d (Q7), taildrop.enabled false + tuning.register_cache_max_entries 64 (D7).
+# chg-2026-11-20-060: dns.extra_records chat/auth -> 172.16.2.253 (family chat over the tailnet).
 ---
 # headscale will look for a configuration file named `config.yaml` (or `config.json`) in the following order:
 #
@@ -368,7 +369,12 @@ dns:
   # Extra DNS records
   # so far only A and AAAA records are supported (on the tailscale side)
   # See: https://headscale.net/stable/ref/dns/
-  extra_records: []
+  # chg-2026-11-20-060: split horizon for the family tailnet. Inside the tailnet chat + auth resolve to the chat-only
+  # Gateway envoy-gezin (172.16.2.253, reached via the gezinrouter subnet route). Outside the tailnet nothing changes
+  # (the LAN keeps the external-dns-unifi records -> .241; there is no public record). A only: no AAAA (the LB has none).
+  extra_records:
+    - {name: "chat.bluejungle.net", type: "A", value: "172.16.2.253"}
+    - {name: "auth.bluejungle.net", type: "A", value: "172.16.2.253"}
   #   - name: "grafana.myvpn.example.com"
   #     type: "A"
   #     value: "100.64.0.3"
