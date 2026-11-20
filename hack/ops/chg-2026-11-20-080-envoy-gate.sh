@@ -58,6 +58,8 @@ r_all(){
   echo "== gate $LABEL $(date -u +%FT%TZ) want=$WANT bundle=$BUNDLE since=$SINCE"
   # R1
   hr=$(kubectl -n network get hr envoy-gateway -o jsonpath='{.status.conditions[?(@.type=="Ready")].status} {.status.lastAttemptedRevision}')
+  if [[ $(kubectl -n network get hr envoy-gateway -o jsonpath='{.spec.suspend}') == true ]]; then # controller-only rollback state
+    hr="True $(helm -n network history envoy-gateway -o json | jq -r '.[-1] | select(.status=="deployed") | .app_version') (HR suspended, helm release)"; fi
   [[ "$(echo "$hr" | sed "s/ v/ /")" == "True ${WANT#v}"* ]] && ok "R1 HR $hr" || bad "R1 HR [$hr] want ${WANT#v}"
   img=$(kubectl -n network get deploy envoy-gateway -o jsonpath='{.spec.template.spec.containers[0].image}')
   rd=$(kubectl -n network get deploy envoy-gateway -o jsonpath='{.status.readyReplicas}/{.spec.replicas}')
@@ -89,11 +91,12 @@ r_all(){
   info "R3 stale status parents (not in spec, reported only): $stale"
   ow=$(host_of family-ai open-webui-gezin); c=$(code "$ow" 172.16.2.253 /api/v1/auths/signin); [[ $c == 403 ]] && ok "R3 filter family-ai/open-webui-gezin-local-auth-403 -> 403" || bad "R3 gezin filter $c"
   nt=$(host_of ntfy ntfy); c=$(code "$nt" $ip241 /v1/account); [[ $c == 404 ]] && ok "R3 filter ntfy/ntfy-account-404 -> 404" || bad "R3 ntfy filter $c"
-  # route code map (R4d, R7 functional, R10)
+  # route code map (R4d, R7 functional, R10). 500 and 503 compare equal: EG v1.6.0 answers 503 instead of
+  # 500 when a backend has no endpoints (release notes; hop3 2026-11-20, sleeping Passkey labs)
   route_codes > "$STATE/codes-now"
-  mm=$(join -j1 <(awk '{print $1"|"$2, $3}' "$STATE/codes-base" | sort) <(awk '{print $1"|"$2, $3}' "$STATE/codes-now" | sort) | awk '$2!=$3')
+  mm=$(join -j1 <(awk '{c=$3; if(c==500||c==503)c="5xxU"; print $1"|"$2, c}' "$STATE/codes-base" | sort) <(awk '{c=$3; if(c==500||c==503)c="5xxU"; print $1"|"$2, c}' "$STATE/codes-now" | sort) | awk '$2!=$3')
   if [[ -n $mm ]]; then sleep 5; route_codes > "$STATE/codes-now"
-    mm=$(join -j1 <(awk '{print $1"|"$2, $3}' "$STATE/codes-base" | sort) <(awk '{print $1"|"$2, $3}' "$STATE/codes-now" | sort) | awk '$2!=$3'); fi
+    mm=$(join -j1 <(awk '{c=$3; if(c==500||c==503)c="5xxU"; print $1"|"$2, c}' "$STATE/codes-base" | sort) <(awk '{c=$3; if(c==500||c==503)c="5xxU"; print $1"|"$2, c}' "$STATE/codes-now" | sort) | awk '$2!=$3'); fi
   nn=$(wc -l < "$STATE/codes-now" | tr -d ' '); nb=$(wc -l < "$STATE/codes-base" | tr -d ' ')
   [[ -z $mm && $nn == $nb ]] && ok "R4d/R7/R10 $nn route probes on their gateway = baseline code" || bad "route codes n=$nn base=$nb delta: $(echo "$mm" | tr '\n' ';')"
   # R4 auth

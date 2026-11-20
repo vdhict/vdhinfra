@@ -70,7 +70,12 @@ t0=$(ts); git -C "$WT" fetch -q origin
 rev0=$(helm -n network history envoy-gateway -o json | jq -r '.[-1].revision')
 date -u +%FT%TZ > "$STATE/hop-start-iso"
 # ---- execute
-push || { echo "PUSH FAILED"; exit 3; }
+if [[ ${RESUME:-0} == 1 ]]; then # fix-forward after a controller-only rollback: Git already holds the hop
+  push || { echo "PUSH FAILED"; exit 3; }   # pushes only non-hop commits (e.g. gate fixes)
+  flux -n network resume hr envoy-gateway --timeout 1s >/dev/null 2>&1; echo "resumed HR $(date -u +%FT%TZ)"
+else
+  push || { echo "PUSH FAILED"; exit 3; }
+fi
 sha=$(git -C "$WT" rev-parse HEAD); echo "pushed $sha $(date -u +%FT%TZ)"
 log executed "{\"wq\":\"wq-017\",\"step\":\"envoy $HOP\",\"commit\":\"${sha:0:8}\",\"summary\":\"pushed hop $HOP -> $WANT (bundle $BUNDLE); rollback mode $RB\",\"decision\":\"AGR-109: tests are the gate\"}"
 wait_flux "$sha" "$rev0"
