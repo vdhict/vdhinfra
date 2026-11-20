@@ -1,0 +1,29 @@
+# P3 20261120T124119Z helm history + CRDs + proxy names/UIDs/LB IPs
+REVISION	UPDATED                 	STATUS    	CHART              	APP VERSION	DESCRIPTION     
+17      	Fri Nov 20 12:20:06 2026	superseded	gateway-helm-v1.5.9	v1.5.9     	Upgrade complete
+18      	Fri Nov 20 12:23:33 2026	superseded	gateway-helm-v1.6.7	v1.6.7     	Upgrade complete
+19      	Fri Nov 20 13:26:14 2026	superseded	gateway-helm-v1.5.9	v1.5.9     	Rollback to 17  
+20      	Fri Nov 20 12:29:43 2026	superseded	gateway-helm-v1.6.7	v1.6.7     	Upgrade complete
+21      	Fri Nov 20 12:38:15 2026	deployed  	gateway-helm-v1.7.5	v1.7.5     	Upgrade complete
+envoy-network-envoy-external-27f017ad fb0337a0-dc0d-4ce0-a25f-ee7b1f8c8013 LoadBalancer 172.16.2.243 envoy-external
+envoy-network-envoy-forge-77b8806d d68eee18-0d75-4088-8427-3fb3ced39147 LoadBalancer 172.16.2.251 envoy-forge
+envoy-network-envoy-gezin-4ad0216c 9e1a325a-c64a-4ce6-8f03-a90bde1cc05f LoadBalancer 172.16.2.253 envoy-gezin
+envoy-network-envoy-internal-1102ed95 583d85e8-d99a-4f21-8018-0671aa71b7fa LoadBalancer 172.16.2.241 envoy-internal
+backendlbpolicies.gateway.networking.k8s.io v1.2.1 v1alpha2
+backends.gateway.envoyproxy.io - v1alpha1
+backendtlspolicies.gateway.networking.k8s.io v1.4.1 v1
+backendtrafficpolicies.gateway.envoyproxy.io - v1alpha1
+clienttrafficpolicies.gateway.envoyproxy.io - v1alpha1
+envoyextensionpolicies.gateway.envoyproxy.io - v1alpha1
+envoypatchpolicies.gateway.envoyproxy.io - v1alpha1
+envoyproxies.gateway.envoyproxy.io - v1alpha1
+gatewayclasses.gateway.networking.k8s.io v1.4.1 v1
+gateways.gateway.networking.k8s.io v1.4.1 v1
+grpcroutes.gateway.networking.k8s.io v1.4.1 v1
+httproutefilters.gateway.envoyproxy.io - v1alpha1
+httproutes.gateway.networking.k8s.io v1.4.1 v1
+referencegrants.gateway.networking.k8s.io v1.4.1 v1beta1
+securitypolicies.gateway.envoyproxy.io - v1alpha1
+tcproutes.gateway.networking.k8s.io v1.4.1 v1alpha2
+tlsroutes.gateway.networking.k8s.io v1.4.1 v1alpha2,v1alpha3
+udproutes.gateway.networking.k8s.io v1.4.1 v1alpha2

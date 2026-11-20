@@ -1,0 +1,10 @@
+M3 20261120T123701Z crd {"served":["v1","v1alpha3"],"storage":["v1"],"stored":["v1alpha3","v1"]}
+PASS M4 chg080-canary-btls resourceVersion 310401772 -> 310411849
+PASS M4 chg080-canary-btls GET via /v1 ok, managedFields apiVersions [gateway.networking.k8s.io/v1,gateway.networking.k8s.io/v1alpha3]
+PASS M4 chg080-canary-btls Accepted
+PASS M4 studio-ai resourceVersion 310401779 -> 310411866
+PASS M4 studio-ai GET via /v1 ok, managedFields apiVersions [gateway.networking.k8s.io/v1,gateway.networking.k8s.io/v1alpha3]
+PASS M4 studio-ai Accepted
+PASS M4 synology-nas resourceVersion 310401777 -> 310411867
+PASS M4 synology-nas GET via /v1 ok, managedFields apiVersions [gateway.networking.k8s.io/v1,gateway.networking.k8s.io/v1alpha3]
+PASS M4 synology-nas Accepted

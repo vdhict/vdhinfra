@@ -1,0 +1,2 @@
+M5 2026-11-20T12:37:41Z crd {"served":["v1","v1alpha3"],"storage":["v1"],"stored":["v1"]}
+PASS M5 storedVersions [v1]

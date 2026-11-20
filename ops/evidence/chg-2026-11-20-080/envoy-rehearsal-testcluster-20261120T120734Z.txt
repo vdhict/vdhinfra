@@ -1,0 +1,140 @@
+chg-2026-11-20-080 wq-017 envoy-gateway test-cluster rehearsal (plan "Before prod", Argus G2)
+Test cluster: single-node Talos v1.12.6 / k8s 1.35.3 in QEMU (aarch64, hvf) on vdhmini01 with USER-MODE networking
+(no sudo, no vmnet; ports 127.0.0.1:25000/26443 only). Docker absent on the Mini, unattended sudo unavailable,
+so `just test up` / up-qemu could not run. Flux installed with CLI v2.8.8 (prod: 2.9.x).
+HelmRelease = prod spec incl. the cluster-apps defaults (crds CreateReplace, RemediateOnFailure, retries 2).
+Fixtures mirror prod: deploy.type GatewayNamespace, ExternalName aliases envoy-internal/envoy-external (N1),
+gateways envoy-internal/envoy-external (ClusterIP Service: no LB in test), https-redirect, HTTPRouteFilter
+directResponse 403, SecurityPolicy extAuth (prod field layout) to a Service without endpoints across a
+ReferenceGrant, EnvoyPatchPolicy Alt-Svc on network/envoy-internal/https, BackendTLSPolicy v1alpha3 positive
+(API server, CA ConfigMap; 401 = TLS ok) and negative (wrong hostname, 503).
+Gate per step: controller image, proxy names unchanged (hashed), aliases ExternalName, gateways Programmed,
+6/6 route parents Accepted+ResolvedRefs current, policies Accepted, EPP Programmed, app 200, alt-svc clear,
+filter 403, authz fail-closed, btls ok 401 / wrong 503, http 301, CRD bundle + storedVersions.
+
+Findings that change the prod procedure:
+F1 G2 as written cannot work: the cluster-apps patch sets upgrade.crds CreateReplace on every HelmRelease
+   (live 70/70; loki and kube-prometheus-stack set Skip in Git and still run CreateReplace). A
+   "previous chart + crds: Skip" commit would be overridden. A plain revert at a CRD hop FAILS at the CRD
+   apply (below, 11:45Z): backendtlspolicies v1 cannot be removed, the 1.6.7 controller stays.
+   Substitute (keeps G2's intent: controller only, CRDs untouched, never a plain revert, proven here):
+   flux suspend hr + helm rollback <previous chart revision> --force-conflicts --wait. Fix-forward = flux resume.
+F2 helm rollback without --force-conflicts FAILS (Helm 4 server-side apply conflicts with field manager
+   helm-controller); with it, it succeeds (hop 3, 5, 6 below).
+F3 From 1.6 a SecurityPolicy whose extAuth Service has no ready endpoints is Accepted=False ("no ready
+   endpoints") and the route answers 500 instead of 403: still fail-closed. Applies to the prod canary from
+   hop 3 and to teamregie if authelia ever has 0 ready pods.
+F4 Cosmetic: controller image tag is v1.10.0 while the OCI tag is 1.10.0 (hop 7 "FAIL" below is only that
+   string compare; all functional checks passed).
+
+Log (measured timestamps):
+START 2026-11-20T11:36:54Z -> v1.4.6
+HR True 1.4.6+398ec3e6decf
+PASS proxies envoy-network-envoy-external-27f017ad=1 envoy-network-envoy-internal-1102ed95=1 
+INFO crd gateways bundle=v1.3.0 btls stored=["v1alpha3"] served=v1alpha3:true/true 
+INFO helm rev=3 gateway-helm-1.4.6+398ec3e6decf deployed
+TGATE PASS v1.4.6
+START 2026-11-20T11:38:08Z -> v1.5.9
+HR True 1.5.9+70e7c2a95dda
+PASS proxies envoy-network-envoy-external-27f017ad=1 envoy-network-envoy-internal-1102ed95=1 
+INFO crd gateways bundle=v1.3.0 btls stored=["v1alpha3"] served=v1alpha3:true/true 
+INFO helm rev=4 gateway-helm-1.5.9+70e7c2a95dda deployed
+TGATE PASS v1.5.9
+START 2026-11-20T11:39:34Z -> v1.6.7
+HR True 1.6.7+341ac597643f
+PASS proxies envoy-network-envoy-external-27f017ad=1 envoy-network-envoy-internal-1102ed95=1 
+FAIL securitypolicy [authz=False ]
+INFO crd gateways bundle=v1.4.1 btls stored=["v1alpha3","v1"] served=v1:true/true v1alpha3:true/false 
+INFO helm rev=5 gateway-helm-1.6.7+341ac597643f deployed
+TGATE FAIL v1.6.7
+== G2 rehearsal hop3 controller-only rollback 2026-11-20T11:41:37Z
+rev=4 gateway-helm-1.5.9+70e7c2a95dda superseded
+rev=5 gateway-helm-1.6.7+341ac597643f deployed
+✔ helmrelease suspended
+- .spec.template.spec.containers[name="envoy-gateway"].resources.limits.memory
+FAIL controller docker.io/envoyproxy/gateway:v1.6.7 1/1 want v1.5.9
+INFO crd gateways bundle=v1.4.1 btls stored=["v1"] served=v1:true/true v1alpha3:true/false 
+INFO helm rev=6 gateway-helm-1.5.9+70e7c2a95dda failed
+TGATE FAIL v1.5.9
+== resume (fix-forward to Git=v1.6.7) 2026-11-20T11:42:09Z
+✔ applied revision 1.6.7+341ac597643f
+PASS controller docker.io/envoyproxy/gateway:v1.6.7 1/1
+INFO crd gateways bundle=v1.4.1 btls stored=["v1"] served=v1:true/true v1alpha3:true/false 
+INFO helm rev=7 gateway-helm-1.6.7+341ac597643f deployed
+TGATE PASS v1.6.7
+== G2 rehearsal hop3 retry with --force-conflicts 2026-11-20T11:43:17Z
+prev=6
+✔ helmrelease suspended
+Rollback was a success! Happy Helming!
+PASS controller docker.io/envoyproxy/gateway:v1.5.9 1/1
+PASS canary sp authz [True|Policy has been accepted.]
+PASS btls-ok 401 (TLS ok, upstream auth)
+PASS btls-wrong 503
+INFO crd gateways bundle=v1.4.1 btls stored=["v1"] served=v1:true/true v1alpha3:true/false 
+INFO helm rev=8 gateway-helm-1.5.9+70e7c2a95dda deployed
+TGATE PASS v1.5.9
+== resume (fix-forward) 2026-11-20T11:44:01Z
+✔ applied revision 1.6.7+341ac597643f
+PASS controller docker.io/envoyproxy/gateway:v1.6.7 1/1
+INFO crd gateways bundle=v1.4.1 btls stored=["v1"] served=v1:true/true v1alpha3:true/false 
+INFO helm rev=9 gateway-helm-1.6.7+341ac597643f deployed
+TGATE PASS v1.6.7
+== G2 negative: plain revert (tag v1.5.9, CreateReplace) 2026-11-20T11:45:18Z
+✗ context deadline exceeded
+Reconciling=True Progressing: Running 'upgrade' action with timeout of 5m0s
+Ready=False UpgradeFailed: Helm upgrade failed for release network/envoy-gateway with chart gateway-helm@1.5.9+70e7c2a95dda: failed to apply CustomResourceDefinitions: failed to update CustomResourceDefinition(s): server-side apply failed for object /backendtlspolicies.gateway.networking.k8s.io apiextensions.k8s.io/v1, Kind=CustomResourceDefinition: CustomResourceDefinition.apiextensions.k8s.io "b
+Released=False UpgradeFailed: Helm upgrade failed for release network/envoy-gateway with chart gateway-helm@1.5.9+70e7c2a95dda: failed to apply CustomResourceDefinitions: failed to update CustomResourceDefinition(s): server-side apply failed for object /backendtlspolicies.gateway.networking.k8s.io apiextensions.k8s.io/v1, Kind=CustomResourceDefinition: CustomResourceDefinition.apiextensions.k8s.io
+controller=docker.io/envoyproxy/gateway:v1.6.7
+== restore tag v1.6.7 2026-11-20T11:48:43Z
+✔ applied revision 1.6.7+341ac597643f
+INFO crd gateways bundle=v1.4.1 btls stored=["v1"] served=v1:true/true v1alpha3:true/false 
+INFO helm rev=10 gateway-helm-1.6.7+341ac597643f deployed
+TGATE PASS v1.6.7
+START 2026-11-20T11:49:57Z -> v1.7.5
+HR True 1.7.5+94a3efa254e1
+PASS controller docker.io/envoyproxy/gateway:v1.7.5 1/1
+INFO crd gateways bundle=v1.4.1 btls stored=["v1"] served=v1:true/true v1alpha3:true/false 
+INFO helm rev=11 gateway-helm-1.7.5+94a3efa254e1 deployed
+TGATE PASS v1.7.5
+START 2026-11-20T11:51:11Z -> v1.8.6
+HR True 1.8.6+e2dd238c4a42
+PASS controller docker.io/envoyproxy/gateway:v1.8.6 1/1
+INFO crd gateways bundle=v1.5.1 btls stored=["v1"] served=v1:true/true v1alpha3:true/false 
+INFO helm rev=12 gateway-helm-1.8.6+e2dd238c4a42 deployed
+TGATE PASS v1.8.6
+== controller-only rollback to v1.7.5 2026-11-20T11:52:25Z
+prev=11
+Rollback was a success! Happy Helming!
+PASS controller docker.io/envoyproxy/gateway:v1.7.5 1/1
+INFO crd gateways bundle=v1.5.1 btls stored=["v1"] served=v1:true/true v1alpha3:true/false 
+INFO helm rev=13 gateway-helm-1.7.5+94a3efa254e1 deployed
+TGATE PASS v1.7.5
+== resume fix-forward to v1.8.6 2026-11-20T11:53:09Z
+PASS controller docker.io/envoyproxy/gateway:v1.8.6 1/1
+INFO crd gateways bundle=v1.5.1 btls stored=["v1"] served=v1:true/true v1alpha3:true/false 
+INFO helm rev=14 gateway-helm-1.8.6+e2dd238c4a42 deployed
+TGATE PASS v1.8.6
+START 2026-11-20T11:54:14Z -> v1.9.4
+HR True 1.9.4+34ea35e4e799
+PASS controller docker.io/envoyproxy/gateway:v1.9.4 1/1
+INFO crd gateways bundle=v1.6.1 btls stored=["v1"] served=v1:true/true v1alpha3:true/false 
+INFO helm rev=15 gateway-helm-1.9.4+34ea35e4e799 deployed
+TGATE PASS v1.9.4
+== controller-only rollback to v1.8.6 2026-11-20T11:55:26Z
+prev=14
+Rollback was a success! Happy Helming!
+PASS controller docker.io/envoyproxy/gateway:v1.8.6 1/1
+INFO crd gateways bundle=v1.6.1 btls stored=["v1"] served=v1:true/true v1alpha3:true/false 
+INFO helm rev=16 gateway-helm-1.8.6+e2dd238c4a42 deployed
+TGATE PASS v1.8.6
+== resume fix-forward to v1.9.4 2026-11-20T11:56:12Z
+PASS controller docker.io/envoyproxy/gateway:v1.9.4 1/1
+INFO crd gateways bundle=v1.6.1 btls stored=["v1"] served=v1:true/true v1alpha3:true/false 
+INFO helm rev=17 gateway-helm-1.9.4+34ea35e4e799 deployed
+TGATE PASS v1.9.4
+START 2026-11-20T11:57:17Z -> 1.10.0
+HR True 1.10.0+62fe8cca72a8
+FAIL controller docker.io/envoyproxy/gateway:v1.10.0 1/1 want 1.10.0
+INFO crd gateways bundle=v1.6.1 btls stored=["v1"] served=v1:true/true v1alpha3:true/false 
+INFO helm rev=18 gateway-helm-1.10.0+62fe8cca72a8 deployed
+TGATE FAIL 1.10.0

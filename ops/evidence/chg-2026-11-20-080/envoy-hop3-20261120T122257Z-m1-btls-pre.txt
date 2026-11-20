@@ -1,0 +1,87 @@
+M1 2026-11-20T12:22:57Z crd {"served":["v1alpha3"],"storage":["v1alpha3"],"stored":["v1alpha3"]}
+apiVersion: v1
+items:
+- apiVersion: gateway.networking.k8s.io/v1alpha3
+  kind: BackendTLSPolicy
+  metadata:
+    creationTimestamp: "2026-09-21T13:25:41Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/name: studio-ai
+      kustomize.toolkit.fluxcd.io/name: studio-ai
+      kustomize.toolkit.fluxcd.io/namespace: flux-system
+    name: studio-ai
+    namespace: network
+    resourceVersion: "310386914"
+    uid: cc115ccf-f891-479c-894e-7a493d0d251a
+  spec:
+    targetRefs:
+    - group: ""
+      kind: Service
+      name: studio-ai
+      sectionName: https
+    validation:
+      caCertificateRefs:
+      - group: ""
+        kind: ConfigMap
+        name: caddy-studio-ca
+      hostname: studio.bluejungle.net
+  status:
+    ancestors:
+    - ancestorRef:
+        group: gateway.networking.k8s.io
+        kind: Gateway
+        name: envoy-internal
+        namespace: network
+        sectionName: https
+      conditions:
+      - lastTransitionTime: "2026-11-20T12:20:37Z"
+        message: Policy has been accepted.
+        observedGeneration: 1
+        reason: Accepted
+        status: "True"
+        type: Accepted
+      controllerName: gateway.envoyproxy.io/gatewayclass-controller
+- apiVersion: gateway.networking.k8s.io/v1alpha3
+  kind: BackendTLSPolicy
+  metadata:
+    creationTimestamp: "2026-06-16T15:57:33Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/name: synology-nas
+      kustomize.toolkit.fluxcd.io/name: synology-nas
+      kustomize.toolkit.fluxcd.io/namespace: flux-system
+    name: synology-nas
+    namespace: network
+    resourceVersion: "310386910"
+    uid: 1d853ecf-dc0c-48d6-b416-ca1d35a89e3b
+  spec:
+    targetRefs:
+    - group: ""
+      kind: Service
+      name: synology-nas
+      sectionName: https
+    validation:
+      hostname: cloudnas.vdh-ict.nl
+      wellKnownCACertificates: System
+  status:
+    ancestors:
+    - ancestorRef:
+        group: gateway.networking.k8s.io
+        kind: Gateway
+        name: envoy-internal
+        namespace: network
+        sectionName: https
+      conditions:
+      - lastTransitionTime: "2026-11-20T12:20:37Z"
+        message: Policy has been accepted.
+        observedGeneration: 1
+        reason: Accepted
+        status: "True"
+        type: Accepted
+      controllerName: gateway.envoyproxy.io/gatewayclass-controller
+kind: List
+metadata:
+  resourceVersion: ""
+rv studio-ai 310386914
+rv synology-nas 310386910

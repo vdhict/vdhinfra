@@ -1,0 +1,75 @@
+chg-2026-11-20-080 wq-017 hop3 gate, main b3f34800
+== P1 authelia guard 2026-11-20T12:35:01Z since=2026-11-20T12:29:37Z
+PASS P1 no authelia/lldap commit on main since hop start
+PASS P1 authelia HR+deploy unchanged (3.7.3 gen=24 ready=2/2)
+PASS P1 no open authelia PR with automerge
+== gate hop3 2026-11-20T12:35:03Z want=v1.6.7 bundle=v1.4.1 since=2026-11-20T12:29:37Z
+PASS R1 HR True v1.6.7
+PASS R1 controller docker.io/envoyproxy/gateway:v1.6.7 1/1
+INFO R1 controller mem 147Mi
+PASS R1 proxy deploy names unchanged (4)
+PASS R1 8/8 proxy pods ready+updated
+INFO R1 proxy image docker.io/envoyproxy/envoy:distroless-v1.36.6
+PASS R1 proxy Service names+UIDs+LB IPs unchanged (.241 .243 .251 .253)
+PASS R1 one LB Service per gateway
+PASS R1 ExternalName aliases intact
+PASS R2 envoy-internal Programmed addr ok
+PASS R2 envoy-external Programmed addr ok
+PASS R2 envoy-forge Programmed addr ok
+PASS R2 envoy-gezin Programmed addr ok
+PASS R2 external-dns-unifi: 0 delete lines since hop start
+PASS R3 44/44 spec parentRefs Accepted+ResolvedRefs current
+INFO R3 stale status parents (not in spec, reported only): 0
+PASS R3 filter family-ai/open-webui-gezin-local-auth-403 -> 403
+PASS R3 filter ntfy/ntfy-account-404 -> 404
+PASS R4d/R7/R10 42 route probes on their gateway = baseline code
+PASS R4a teamregie no cookie -> 302 to auth host
+PASS R4b canary extAuth fail-closed 500
+INFO R4b canary SP Accepted=False (False 'no ready endpoints' is expected from 1.6)
+PASS R4c probe user (no groups) session -> teamregie 403 (cookie + ext-authz transport ok)
+PASS R4d grafana 302
+PASS R4d open-webui OIDC start 302 to authorization
+PASS R4 SecurityPolicy mypka/teamregie-authelia Accepted
+INFO R4 positive path: passive count in R12 access-log check (teamregie route 2xx)
+PASS R5 envoy-external RouteConfiguration network/envoy-external/https Alt-Svc=clear
+PASS R5 envoy-internal response alt-svc: clear (grafana)
+PASS R5 altsvc-clear-internal Accepted/Programmed
+PASS R5 altsvc-clear-external Accepted/Programmed
+PASS R6 synology-nas 200 (baseline)
+PASS R6 studio-ai 401 from upstream
+PASS R6 canary wrong-hostname BackendTLS -> 503
+PASS R6 synology-nas ssl fail_verify/connection_error +0 during probe (handshake +1)
+PASS R6 studio-ai ssl fail_verify/connection_error +0 during probe (handshake +1)
+PASS R6 canary ssl verify failures +1
+INFO R6 ssl counters (sum of 2 internal pods): chg080-canary-btls connection_error 0;chg080-canary-btls fail_verify_error 0;chg080-canary-btls fail_verify_san 1;chg080-canary-btls handshake 0;studio-ai connection_error 0;studio-ai fail_verify_error 0;studio-ai fail_verify_san 0;studio-ai handshake 2;synology-nas connection_error 0;synology-nas fail_verify_error 0;synology-nas fail_verify_san 0;synology-nas handshake 2;
+Warning: The v1alpha3 version of BackendTLSPolicy has been deprecated and will be removed in a future release of the API. Please upgrade to v1.
+PASS R6 BackendTLSPolicy studio-ai Accepted
+Warning: The v1alpha3 version of BackendTLSPolicy has been deprecated and will be removed in a future release of the API. Please upgrade to v1.
+PASS R6 BackendTLSPolicy synology-nas Accepted
+PASS R7 selector owning-gateway-name=envoy-internal (+namespace, name=envoy) -> 2 pods
+PASS R7 selector owning-gateway-name=envoy-external (+namespace, name=envoy) -> 2 pods
+PASS R7 selector owning-gateway-name=envoy-forge (+namespace, name=envoy) -> 2 pods
+PASS R7 selector owning-gateway-name=envoy-gezin (+namespace, name=envoy) -> 2 pods
+PASS R7 envoy-label policies present: 14 CNP + 1 CCNP (baseline)
+PASS R7 hubble: no DROPPED flows to/from envoy in a namespace without baseline drops [world=7 to-envoy-from-world=9 ]
+INFO R7 headscale-gezin-router -> envoy-gezin FORWARDED flows since hop start: 0 (0 = unobserved, no traffic)
+PASS R8 VAP denies mypka route with filter
+PASS R8 VAP admits valid mypka shape (dry-run)
+PASS R9 envoy-external http -> 301
+PASS R9 envoy-internal http -> 301
+PASS R9 envoy-external https -> 404 (no https routes)
+PASS G1 public DoH A answers for home-automation/home-assistant-main = 0
+PASS G1 public DoH A answers for tools/it-tools = 0
+PASS G1 external-dns-cloudflare-external: 0 CREATE/UPDATE since hop start
+PASS R9 cloudflared 2/2 (tunnel bypasses Envoy, control)
+PASS R10 forge git smart-HTTP info/refs via .251 = baseline 401
+PASS R11 all bundled gateway.networking.k8s.io CRDs at v1.4.1 experimental
+INFO R11 CRDs: backendlbpolicies.gateway.networking.k8s.io v1.2.1 experimental v1alpha2;backendtlspolicies.gateway.networking.k8s.io v1.4.1 experimental v1alpha3,v1;gatewayclasses.gateway.networking.k8s.io v1.4.1 experimental v1;gateways.gateway.networking.k8s.io v1.4.1 experimental v1;grpcroutes.gateway.networking.k8s.io v1.4.1 experimental v1;httproutes.gateway.networking.k8s.io v1.4.1 experimental v1;referencegrants.gateway.networking.k8s.io v1.4.1 experimental v1beta1;tcproutes.gateway.networking.k8s.io v1.4.1 experimental v1alpha2;tlsroutes.gateway.networking.k8s.io v1.4.1 experimental v1alpha2,v1alpha3;udproutes.gateway.networking.k8s.io v1.4.1 experimental v1alpha2;
+INFO R11 safe-upgrades VAP: [none]
+PASS R12 controller log: 0 translation/xDS/snapshot ERROR or skipped-snapshot lines since hop start
+INFO R12 controller ERROR lines since hop start: 0 (loggers: )
+PASS R12 Prometheus: 8/8 current envoy proxy pods up
+PASS R12 Loki: 606 envoy log lines in last 5m
+INFO R4/G5 passive positive path: teamregie 2xx access-log lines last 30m = 0 (0 = unobserved)
+GATE PASS hop3
+exit=0
