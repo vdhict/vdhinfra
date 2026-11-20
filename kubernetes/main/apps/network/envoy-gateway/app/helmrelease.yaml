@@ -19,5 +19,11 @@ spec:
         provider:
           type: Kubernetes
           kubernetes:
+            # ControllerNamespace (the default) on purpose, chg-2026-11-20-080 step 0.
+            # GatewayNamespace was dormant up to v1.3.0; from v1.5 it names the
+            # proxy Deployment/Service after the Gateway ("envoy-internal"), which
+            # collides with the ExternalName aliases in gateway/service-aliases.yaml
+            # and moves the LB IPs. Controller and Gateways share namespace network,
+            # so on v1.3.0 this is a one-line ConfigMap change and nothing rolls.
             deploy:
-              type: GatewayNamespace
+              type: ControllerNamespace
