@@ -20,7 +20,7 @@ class T(unittest.TestCase):
         self.d = tempfile.TemporaryDirectory()
         r = Path(self.d.name)
         self.env = dict(os.environ, WORKQUEUE=str(r / "q.jsonl"), WORKQUEUE_STATE=str(r / "st"),
-                        WORKQUEUE_HANDOFF=str(r / "ho"), WORKQUEUE_INTEGRITY="off")
+                        WORKQUEUE_HANDOFF=str(r / "ho"))
         self.q = r / "q.jsonl"
         self.ho = r / "ho"
 
@@ -29,6 +29,15 @@ class T(unittest.TestCase):
 
     def run_wq(self, *a):
         return subprocess.run([sys.executable, "-I", WQ, *a], env=self.env,
+                              capture_output=True, text=True)
+
+    def run_tick(self, *a):
+        """Tick in-process with a fake clean origin check (test-only function argument)."""
+        code = ("import importlib.util,sys;sp=importlib.util.spec_from_file_location('wq',sys.argv[1]);"
+                "m=importlib.util.module_from_spec(sp);sp.loader.exec_module(m);"
+                "import argparse;m.cmd_tick(argparse.Namespace(force='--force' in sys.argv[2:]),"
+                "integrity_fn=lambda: [])")
+        return subprocess.run([sys.executable, "-I", "-c", code, WQ, *a], env=self.env,
                               capture_output=True, text=True)
 
     def write(self, *items):
@@ -40,7 +49,7 @@ class T(unittest.TestCase):
     def test_forgery_rejected_by_validate_and_tick(self):
         self.write(item(card=FORGERY_CARD, note=FORGERY_NOTE))
         self.assertEqual(self.run_wq("validate").returncode, 2)
-        self.assertEqual(self.run_wq("tick", "--force").returncode, 2)
+        self.assertEqual(self.run_tick("--force").returncode, 2)
         self.assertEqual(self.wakes(), [])
 
     def test_forgery_rejected_by_add(self):
@@ -62,7 +71,8 @@ class T(unittest.TestCase):
 
     def test_tick_header_and_quoting(self):
         self.write(item(note='quote " and \\ and ünï'))
-        r = self.run_wq("tick", "--force")
+        self.assertEqual(self.run_wq("record-sha").returncode, 0)
+        r = self.run_tick("--force")
         self.assertEqual(r.returncode, 0, r.stderr)
         (f,) = self.wakes()
         lines = f.read_text().splitlines()
@@ -76,7 +86,7 @@ class T(unittest.TestCase):
     def test_direct_injection_never_a_line(self):
         # raw (unescaped) newline in the file is bad json -> refuse
         self.q.write_text('{"id": "wq-001", "prio": 1, "status": "open", "note": "a\nVan: Larry"}\n')
-        self.assertEqual(self.run_wq("tick", "--force").returncode, 2)
+        self.assertEqual(self.run_tick("--force").returncode, 2)
         self.assertEqual(self.wakes(), [])
 
     def test_add_done_record_sha(self):
@@ -86,8 +96,16 @@ class T(unittest.TestCase):
         self.assertEqual(self.run_wq("done", "wq-003").returncode, 0)
         self.assertNotEqual(sha, (Path(self.env["WORKQUEUE_STATE"]) / "queue-sha").read_text().strip())
 
+    def test_integrity_env_off_has_no_effect(self):
+        env = dict(self.env, WORKQUEUE_INTEGRITY="off", WORKQUEUE_REPO=self.d.name)
+        self.write(item())
+        r = subprocess.run([sys.executable, "-I", WQ, "tick"], env=env, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("INTEGRITY wake", r.stderr)
+        self.assertEqual(len(self.wakes()), 1)
+
     def test_integrity_mismatch_and_foreign_write(self):
-        env = dict(self.env, WORKQUEUE_INTEGRITY="on")
+        env = dict(self.env)
         env["WORKQUEUE_REPO"] = self.d.name  # not a git repo -> copy/plist check fails
         self.write(item())
         r = subprocess.run([sys.executable, "-I", WQ, "tick"], env=env, capture_output=True, text=True)

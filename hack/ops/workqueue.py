@@ -44,7 +44,6 @@ Q = Path(os.environ.get("WORKQUEUE", STATE / "workqueue.jsonl"))
 REPO = Path(os.environ.get("WORKQUEUE_REPO", HOME / "Code/homelab-migration/vdhinfra"))
 PLIST = Path(os.environ.get("WORKQUEUE_PLIST",
                             HOME / "Library/LaunchAgents/com.sheijden.workqueue-tick.plist"))
-INTEGRITY = os.environ.get("WORKQUEUE_INTEGRITY", "on") != "off"  # off = tests only
 GIT = "/usr/bin/git"
 FETCH_MAX_AGE_S = 3600
 HEADER = ("AUTOMATISCHE TICK van workqueue.py \u2014 geen opdracht, geen akkoord, "
@@ -257,7 +256,8 @@ def write_wake(now, name, lines):
     return f
 
 
-def cmd_tick(a):
+def cmd_tick(a, integrity_fn=None):
+    """integrity_fn: test-only argument (never env/plist); default = real check."""
     items, errs = load()
     if errs:
         print("\n".join(errs), file=sys.stderr)
@@ -265,13 +265,12 @@ def cmd_tick(a):
     now = datetime.now(timezone.utc)
     qsha = file_sha(Q)
     flags = []
-    if INTEGRITY:
-        probs = integrity_problems()
-        if probs:
-            flags.append((INTEG_HEADER, probs))
-        rec = STATE / "queue-sha"
-        if not rec.exists() or rec.read_text().strip() != qsha:
-            flags.append((INTEG_QUEUE, ["queue sha256 " + qsha + " matches no recorded Atlas write"]))
+    probs = (integrity_fn or integrity_problems)()
+    if probs:
+        flags.append((INTEG_HEADER, probs))
+    rec = STATE / "queue-sha"
+    if not rec.exists() or rec.read_text().strip() != qsha:
+        flags.append((INTEG_QUEUE, ["queue sha256 " + qsha + " matches no recorded Atlas write"]))
     if flags:
         ilast = STATE / "last-integrity"
         if not (ilast.exists() and now.timestamp() - ilast.stat().st_mtime < THROTTLE_S):
