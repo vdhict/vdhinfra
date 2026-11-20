@@ -211,9 +211,12 @@ EOF
   vap=$(kubectl get validatingadmissionpolicy -o json | jq -r '.items[] | select(.metadata.name|test("safe-upgrades")) | "\(.metadata.name) owner=\(.metadata.annotations["meta.helm.sh/release-namespace"])/\(.metadata.annotations["meta.helm.sh/release-name"])"')
   info "R11 safe-upgrades VAP: [${vap:-none}]"
   # R12
-  le=$(kubectl -n network logs deploy/envoy-gateway --since-time="$SINCE" 2>/dev/null | grep -i -E 'translat|skip|xds' | grep -i -c -E 'error|fail|skip')
-  [[ $le == 0 ]] && ok "R12 controller log: 0 translation-error/skipped-xDS lines since hop start" || bad "R12 controller translation/xds error lines: $le"
-  info "R12 controller error-level lines since hop start: $(kubectl -n network logs deploy/envoy-gateway --since-time="$SINCE" 2>/dev/null | grep -c '"level":"error"')"
+  # console format: <ts>\t<LEVEL>\t<logger>\t... ; the INFO "ServiceImport CRD not found, skipping ServiceImport
+  # watch" startup line is benign (false positive on hop0, 2026-11-20T11:59Z).
+  kubectl -n network logs deploy/envoy-gateway --since-time="$SINCE" 2>/dev/null > "$STATE/ctl-log"
+  le=$( { awk -F'\t' '$2=="ERROR"' "$STATE/ctl-log" | grep -i -E 'translat|xds|snapshot'; grep -i -E 'skipp?ing[^\t]*(xds|snapshot)' "$STATE/ctl-log"; } | grep -v -c 'ServiceImport')
+  [[ $le == 0 ]] && ok "R12 controller log: 0 translation/xDS/snapshot ERROR or skipped-snapshot lines since hop start" || bad "R12 controller translation/xds error lines: $le"
+  info "R12 controller ERROR lines since hop start: $(awk -F'\t' '$2=="ERROR"' "$STATE/ctl-log" | wc -l | tr -d ' ') (loggers: $(awk -F'\t' '$2=="ERROR"{print $3}' "$STATE/ctl-log" | sort | uniq -c | awk '{print $2"="$1}' | tr '\n' ' '))"
   up=$(kubectl get --raw "/api/v1/namespaces/observability/services/prometheus-operated:9090/proxy/api/v1/query?query=count(up%7Bnamespace%3D%22network%22%2Cpod%3D~%22envoy-network-.*%22%7D%3D%3D1)" | jq -r '.data.result[0].value[1] // "0"')
   [[ $up == 8 ]] && ok "R12 Prometheus: 8/8 envoy proxy targets up" || bad "R12 envoy targets up=$up"
   lq=$(kubectl get --raw "/api/v1/namespaces/observability/services/loki:3100/proxy/loki/api/v1/query?query=sum(count_over_time(%7Bnamespace%3D%22network%22%2Ccontainer%3D%22envoy%22%7D%5B5m%5D))" 2>/dev/null | jq -r '.data.result[0].value[1] // "0"')
