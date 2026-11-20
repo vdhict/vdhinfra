@@ -39,10 +39,10 @@ def parse_due(s):
     return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
 
 
-def load():
+def load(missing_ok=False):
     items, errs, seen = [], [], set()
     if not Q.exists():
-        return items, [f"{Q}: missing"]
+        return items, ([] if missing_ok else [f"{Q}: missing"])
     for n, line in enumerate(Q.read_text().splitlines(), 1):
         if not line.strip():
             continue
@@ -83,8 +83,8 @@ def save(items):
     os.replace(tmp, Q)
 
 
-def need_valid():
-    items, errs = load()
+def need_valid(missing_ok=False):
+    items, errs = load(missing_ok)
     if errs:
         print("\n".join(errs), file=sys.stderr)
         sys.exit(2)
@@ -92,7 +92,7 @@ def need_valid():
 
 
 def cmd_add(a):
-    items = need_valid()
+    items = need_valid(True)
     o = dict(id=a.id, prio=a.prio, due=a.due, reason=a.reason, owner=a.owner,
              card=a.card, status="open", note=a.note)
     if any(x["id"] == a.id for x in items):
