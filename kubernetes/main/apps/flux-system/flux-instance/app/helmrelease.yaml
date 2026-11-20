@@ -12,7 +12,9 @@ spec:
   values:
     instance:
       distribution:
-        artifact: oci://ghcr.io/controlplaneio-fluxcd/flux-operator-manifests:v0.48.0
+        artifact: oci://ghcr.io/controlplaneio-fluxcd/flux-operator-manifests:v0.62.1
+        # Pinned to one minor per step (chg-2026-11-20-080). The v0.62.1 artifact also ships 2.10.0.
+        version: "2.9.x"
       cluster:
         networkPolicy: false
       components:
@@ -129,6 +131,15 @@ spec:
               - op: add
                 path: /spec/template/spec/containers/0/args/-
                 value: --feature-gates=CancelHealthCheckOnNewRevision=true
+            target:
+              kind: Deployment
+              name: kustomize-controller
+          - # Keep Flux 2.8 post-build substitution (2.9 makes strict the default). grafana and
+            # monitoring-orphan-scan reference unset vars; remove once fixed (chg-2026-11-20-080).
+            patch: |-
+              - op: add
+                path: /spec/template/spec/containers/0/args/-
+                value: --feature-gates=StrictPostBuildSubstitutions=false
             target:
               kind: Deployment
               name: kustomize-controller
