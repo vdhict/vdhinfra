@@ -1,0 +1,9 @@
+{"id": "wq-001", "prio": 2, "due": null, "reason": null, "owner": "atlas", "card": "tsk-2026-10-17-005", "status": "open", "note": "Cloud cut-over go-live; wacht op Mack G9/G3/test (afhankelijkheid)."}
+{"id": "wq-002", "prio": 2, "due": null, "reason": null, "owner": "atlas", "card": "tsk-2026-11-20-117", "status": "open", "note": "Lokaal-eerst landing na de cut-over; eerst Argus H-1 fix van Mack."}
+{"id": "wq-003", "prio": 2, "due": null, "reason": null, "owner": "atlas", "card": "tsk-2026-11-20-107", "status": "open", "note": "Appraisal p1 opnieuw landen nadat Mack het label versterkt."}
+{"id": "wq-004", "prio": 2, "due": "2026-11-23T08:00:00Z", "reason": "MacBook push needed (P1 branch protection)", "owner": "atlas", "card": "tsk-2026-10-21-009", "status": "open", "note": "Bundle: runner image e8e04a0 + ortho a9b0601 + print3d pin cf15f35."}
+{"id": "wq-005", "prio": 2, "due": null, "reason": null, "owner": "atlas", "card": "chg-2026-11-20-080", "status": "open", "note": "Renovate-keten: CNPG draait, dan external-secrets, flux-operator, rook-ceph; Envoy herplannen."}
+{"id": "wq-006", "prio": 3, "due": "2026-11-21T00:17:00Z", "reason": "team night window for HA change (Larry 080449)", "owner": "atlas", "card": "tsk-2026-11-18-132", "status": "open", "note": "Kantoorlicht avondtak-fix + vdhws01."}
+{"id": "wq-007", "prio": 3, "due": null, "reason": null, "owner": "atlas", "card": "tsk-2026-11-20-114", "status": "open", "note": "claude-backup heeft rclone Local Network grant nodig op het Mini-scherm (Sander-stap)."}
+{"id": "wq-008", "prio": 3, "due": null, "reason": null, "owner": "atlas", "card": "chg-2026-11-16-001", "status": "open", "note": "Kennis canary1: open 60s slow-raw check; wacht op Mack."}
+{"id": "wq-009", "prio": 3, "due": null, "reason": null, "owner": "atlas", "card": "tsk-2026-11-20-112", "status": "open", "note": "pgadmin HTTPRoute heeft sinds april geen backend; kleine fix."}
