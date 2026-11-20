@@ -16,7 +16,7 @@ spec:
   chart:
     spec:
       chart: rook-ceph-cluster
-      version: v1.18.11
+      version: v1.19.12
       sourceRef:
         kind: HelmRepository
         name: rook-ceph
@@ -32,12 +32,14 @@ spec:
       # ./prometheusrule.yaml (chg-2026-10-20-011).
       createPrometheusRules: false
 
+    # Pin Ceph so chart bumps never move it (v1.20 chart default is v20 Tentacle).
+    # rook-ceph-cluster v1.19+ renders spec.cephVersion from cephImage only.
+    cephImage:
+      repository: quay.io/ceph/ceph
+      tag: v19.2.1
+      allowUnsupported: false
+
     cephClusterSpec:
-      # Pin Ceph so chart bumps never move it (v1.20 chart default is v20 Tentacle).
-      # From rook-ceph-cluster v1.19 this moves to top-level cephImage.
-      cephVersion:
-        image: quay.io/ceph/ceph:v19.2.1
-        allowUnsupported: false
       cephConfig:
         global:
           bdev_enable_discard: "true"
@@ -45,6 +47,12 @@ spec:
           osd_class_update_on_start: "false"
       crashCollector:
         disable: false
+      csi:
+        cephfs:
+          # From Rook v1.20 the operator chart no longer sets
+          # CSI_CEPHFS_KERNEL_MOUNT_OPTIONS; Rook then reads this field. msgr2 is
+          # required, so CephFS kernel mounts need ms_mode (chg-2026-11-20-080).
+          kernelMountOptions: ms_mode=prefer-crc
       dashboard:
         enabled: true
         urlPrefix: /
