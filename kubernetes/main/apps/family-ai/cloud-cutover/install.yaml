@@ -1,0 +1,46 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# chg-2026-11-17-011 (tsk-2026-10-17-005): family-cloud cut-over jobs (G5 lock, G6+C4 alerts, G7 probe).
+# The policy (cluster-scoped VAP) lands first, so the lock SA can never write anything but deny-only CNPs.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app family-ai-cloud-cutover-policy
+  namespace: flux-system
+spec:
+  path: ./kubernetes/main/apps/family-ai/cloud-cutover/policy
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: true
+  interval: 30m
+  retryInterval: 1m
+  timeout: 5m
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app family-ai-cloud-cutover
+  namespace: flux-system
+spec:
+  targetNamespace: family-ai
+  commonMetadata:
+    labels:
+      app.kubernetes.io/part-of: family-ai
+  dependsOn:
+    - name: family-ai-network-policies
+    - name: family-ai-hermes
+    - name: family-ai-cloud-cutover-policy
+  path: ./kubernetes/main/apps/family-ai/cloud-cutover/app
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: false
+  interval: 30m
+  retryInterval: 1m
+  timeout: 5m

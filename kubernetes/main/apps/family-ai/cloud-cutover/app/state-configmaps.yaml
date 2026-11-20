@@ -1,0 +1,41 @@
+---
+# chg-2026-11-17-011: job state (cursor, dedupe keys, ledger baseline, latch). Flux creates them once and never
+# overwrites them (ssa: IfNotPresent), so a reconcile cannot reset a latched lock or re-alert old lines.
+# Reopen after a G5 lock (a logged manual step, after the cause is understood):
+#   kubectl -n family-ai patch cm family-cloud-lock-state --type merge -p "{\"data\":{\"reopen_ack_ts\":\"$(date +%s)\"}}"
+# The next lock run (<= 2 min) removes family-cloud-lock if no trigger is newer than the ack.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: family-cloud-lock-state
+  annotations:
+    kustomize.toolkit.fluxcd.io/ssa: IfNotPresent
+data:
+  state.json: "{}"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: family-cloud-lock-drill-state
+  annotations:
+    kustomize.toolkit.fluxcd.io/ssa: IfNotPresent
+data:
+  state.json: "{}"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: family-cloud-alert-state
+  annotations:
+    kustomize.toolkit.fluxcd.io/ssa: IfNotPresent
+data:
+  state.json: "{}"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: family-cloud-alert-drill-state
+  annotations:
+    kustomize.toolkit.fluxcd.io/ssa: IfNotPresent
+data:
+  state.json: "{}"

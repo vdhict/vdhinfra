@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+"""Daily cloud probe (a cluster job Atlas schedules). Does nothing unless the cloud is switched off by the family-cloud
+plugin (the file cloud-off.json next to the ledger). Then it makes ONE synthetic call (user text "ping", max_tokens 1, no
+profile data) and clears the off state only on HTTP 200 with budget left AND only when the off state
+is from an EARLIER calendar month (UTC). A 200 in the same month stays off and writes a same_month_200 transition (money has appeared); its usage is added to the shared ledger.
+
+  cloud-probe --plugin-dir DIR --state /cloud-spend/month.json      (env: CLOUD_API_KEY)
+
+DIR is a rendered family-cloud plugin directory (its __init__.py and settings.json: workspace id, prices, budget).
+One JSON line on stdout: {"result": ...}. Exit codes: 0 not_off or cleared, 3 refused / no_budget (still off),
+4 error or ledger_unreadable (still off, retry tomorrow). Cost when off: about USD 0.000026 per call; when not off: 0.
+Transitions (off and on) are appended to cloud-transitions.jsonl next to the ledger for the alert job (no text in them).
+"""
+import argparse
+import importlib.util
+import json
+import sys
+import types
+from pathlib import Path
+
+
+def load(plugin_dir):
+    try:
+        import providers  # noqa: F401  (inside the Hermes image)
+        stubs = {}
+    except ImportError:
+        providers = types.ModuleType('providers')
+        providers.register_provider = lambda profile: None
+        base = types.ModuleType('providers.base')
+        base.ProviderProfile = type('ProviderProfile', (), {'__init__': lambda self, **kw: self.__dict__.update(kw)})
+        stubs = {'providers': providers, 'providers.base': base}
+    sys.modules.update({k: v for k, v in stubs.items() if k not in sys.modules})
+    spec = importlib.util.spec_from_file_location('family_cloud_probe', Path(plugin_dir) / '__init__.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
+    ap.add_argument('--plugin-dir', required=True)
+    ap.add_argument('--state', required=True, help='the shared ledger file, e.g. /cloud-spend/month.json')
+    args = ap.parse_args(argv)
+    module = load(args.plugin_dir)
+    settings = json.loads((Path(args.plugin_dir) / 'settings.json').read_text())
+    result = module.run_probe(settings, args.state)
+    print(json.dumps(result, sort_keys=True))
+    return {'not_off': 0, 'cleared': 0, 'refused': 3, 'no_budget': 3, 'same_month_200': 3}.get(result['result'], 4)
+
+
+if __name__ == '__main__':
+    sys.exit(main())

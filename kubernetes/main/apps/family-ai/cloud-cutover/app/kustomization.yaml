@@ -1,0 +1,26 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+# chg-2026-11-17-011 (tsk-2026-10-17-005): cluster side of the family-cloud signal cut-off. Build + drill only:
+# nothing here switches a profile to the cloud. profiel-1 is never selected by anything in this directory.
+#   G7 probe CronJob (suspended until go-live), G5 lock CronJob, G6+C4 alert CronJob, their CNPs, RBAC, state.
+# files/cloud-probe is the wire's bin/cloud-probe, byte-for-byte (family-ai-cluster b7b3a96, blob bdc37976,
+# sha256 f1d9aed6..); the probe wrapper refuses to run if it differs.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./rbac.yaml
+  - ./state-configmaps.yaml
+  - ./networkpolicy.yaml
+  - ./probe-cronjob.yaml
+  - ./lock-cronjob.yaml
+  - ./alert-cronjob.yaml
+configMapGenerator:
+  - name: family-cloud-cutover-scripts
+    files:
+      - ./files/cloud-probe
+      - ./files/probe_run.py
+      - ./files/cloud_lock.py
+      - ./files/cloud_alert.py
+generatorOptions:
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled

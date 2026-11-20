@@ -1,0 +1,77 @@
+---
+# chg-2026-11-17-011: egress of the three family-cloud jobs (family-ai is default-deny).
+# Probe: ONLY api.anthropic.com:443 (+ DNS for that one name), as hermes-profiel-N-cloud; not selected by the
+# offgate (so it can clear a monthly trip), selected by the latched lock.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: family-cloud-probe-job
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: family-cloud-probe
+  egress:
+    - toFQDNs:
+        - matchName: api.anthropic.com
+      toPorts:
+        - ports: [{port: "443", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              - matchName: api.anthropic.com
+---
+# Lock: the API server only (by service IP, no DNS).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: family-cloud-lock-job   # NOT family-cloud-lock: that name is the deny lock the job manages
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: family-cloud-lock
+  egress:
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports: [{port: "6443", protocol: TCP}]
+---
+# Alert: the API server (its state ConfigMap) and Alertmanager (both replicas, alerts are not gossiped) + DNS for the
+# headless service name only.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: family-cloud-alert-job
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: family-cloud-alert
+  egress:
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports: [{port: "6443", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: observability
+            app.kubernetes.io/name: alertmanager
+      toPorts:
+        - ports: [{port: "9093", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              - matchName: alertmanager-operated.observability.svc.cluster.local

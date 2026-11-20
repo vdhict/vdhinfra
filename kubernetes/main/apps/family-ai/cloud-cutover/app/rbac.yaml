@@ -1,0 +1,70 @@
+---
+# chg-2026-11-17-011 (Argus G5/G6): minimal RBAC for the two jobs that need the API. The probe job has NO token.
+# family-cloud-lock: create deny CNPs (shape pinned by ../policy, VAP family-cloud-lock-deny-only), get/delete only the
+# four named ones, its own state ConfigMaps, and list Jobs (counts probe runs, D-L2).
+# family-cloud-alert: its own state ConfigMaps only. Neither can read Secrets or pods.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: family-cloud-lock
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: family-cloud-alert
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: family-cloud-lock
+rules:
+  - apiGroups: ["cilium.io"]
+    resources: ["ciliumnetworkpolicies"]
+    verbs: ["create"]
+  - apiGroups: ["cilium.io"]
+    resources: ["ciliumnetworkpolicies"]
+    resourceNames: ["family-cloud-offgate", "family-cloud-lock", "family-cloud-offgate-drill", "family-cloud-lock-drill"]
+    verbs: ["get", "delete"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["family-cloud-lock-state", "family-cloud-lock-drill-state"]
+    verbs: ["get", "patch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: family-cloud-lock
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: family-cloud-lock
+subjects:
+  - kind: ServiceAccount
+    name: family-cloud-lock
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: family-cloud-alert
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["family-cloud-alert-state", "family-cloud-alert-drill-state"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: family-cloud-alert
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: family-cloud-alert
+subjects:
+  - kind: ServiceAccount
+    name: family-cloud-alert

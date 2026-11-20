@@ -25,3 +25,4 @@ resources:
   - ./web/install.yaml
   - ./kennisdienst/install.yaml
   - ./huiswerk-refresh/install.yaml   # chg-2026-10-15-001
+  - ./cloud-cutover/install.yaml   # chg-2026-11-17-011 (G5 lock, G6 alerts, G7 probe; build + drill)

@@ -1,0 +1,70 @@
+---
+# G6 + C4 (chg-2026-11-17-011, Argus G6/C4/D-F1/S-F5): transition alerts via Alertmanager labels, every 5 minutes.
+# See files/cloud_alert.py. Mounts the shared ledger READ-ONLY. MONEY_TO_OWNER stays "false" until Atlas has checked
+# the first real same_month_200 against the grant renewal day (Argus D-F1); flipping it is its own commit.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/batch/cronjob_v1.json
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: family-cloud-alert
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 120
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    metadata:
+      labels:
+        app.kubernetes.io/name: family-cloud-alert
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 90
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: family-cloud-alert
+            app.kubernetes.io/part-of: family-ai
+        spec:
+          restartPolicy: Never
+          serviceAccountName: family-cloud-alert
+          automountServiceAccountToken: true
+          enableServiceLinks: false
+          dnsConfig:
+            options:
+              - {name: ndots, value: "1"}
+          securityContext:
+            seccompProfile: {type: RuntimeDefault}
+            runAsUser: 10000
+            runAsGroup: 10000
+            runAsNonRoot: true
+          containers:
+            - name: alert
+              image: docker.io/library/python:3.13.15-bookworm@sha256:227b6570d6ee07061ae6ca2eb04dedfb6d2b34045835f343065b9869e4d427ea
+              command: ["python3", "-I", "/scripts/cloud_alert.py"]
+              env:
+                - {name: HOME, value: /tmp}
+                - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef: {fieldPath: metadata.namespace}
+                - {name: MONEY_TO_OWNER, value: "false"}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: {drop: ["ALL"]}
+              resources:
+                requests: {cpu: 10m, memory: 32Mi}
+                limits: {memory: 128Mi}
+              volumeMounts:
+                - {name: cloud-spend, mountPath: /cloud-spend, readOnly: true}
+                - {name: scripts, mountPath: /scripts, readOnly: true}
+                - {name: tmp, mountPath: /tmp}
+          volumes:
+            - name: cloud-spend
+              persistentVolumeClaim: {claimName: hermes-cloud-spend-shared, readOnly: true}
+            - name: scripts
+              configMap: {name: family-cloud-cutover-scripts, defaultMode: 0444}
+            - name: tmp
+              emptyDir: {sizeLimit: 8Mi}
