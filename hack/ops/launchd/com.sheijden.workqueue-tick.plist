@@ -19,8 +19,6 @@
         <string>/Users/sheijden</string>
         <key>WORKQUEUE</key>
         <string>/Users/sheijden/.local/state/workqueue/workqueue.jsonl</string>
-        <key>WORKQUEUE_REPO</key>
-        <string>/Users/sheijden/Code/homelab-migration/vdhinfra</string>
     </dict>
     <key>StartInterval</key>
     <integer>600</integer>
