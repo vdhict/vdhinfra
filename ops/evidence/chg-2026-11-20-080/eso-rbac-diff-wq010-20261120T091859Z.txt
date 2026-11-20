@@ -1,0 +1,8 @@
+chg-2026-11-20-080 wq-010 ESO RBAC diff, written 20261120T091859Z; CMD: helm template external-secrets --version {2.8.0,2.12.0,2.15.0} -f HR values | yq Roles/ClusterRoles
+## secrets rules 2.8.0
+{"n":"external-secrets-cert-controller","r":[{"g":[""],"res":["secrets"],"v":["get","list","watch"]},{"g":[""],"res":["secrets"],"v":["update","patch"]}]}
+{"n":"external-secrets-controller","r":[{"g":[""],"res":["secrets"],"v":["get","list","watch","create","update","delete","patch"]}]}
+## secrets rules diff 2.8.0->2.12.0: NONE
+## secrets rules diff 2.12.0->2.15.0: NONE
+## all role rules diff 2.8.0->2.12.0
+## all role rules diff 2.12.0->2.15.0

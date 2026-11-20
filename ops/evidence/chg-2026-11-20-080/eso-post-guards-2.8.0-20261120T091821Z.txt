@@ -1,0 +1,45 @@
+chg-2026-11-20-080 wq-010 ESO snapshot label=post-guards-2.8.0 taken=20261120T091821Z (date -u)
+## HR
+True rev=2.8.0
+## controller images
+external-secrets 3/3 ghcr.io/external-secrets/external-secrets:v2.8.0
+external-secrets-cert-controller 1/1 ghcr.io/external-secrets/external-secrets:v2.8.0
+external-secrets-webhook 1/1 ghcr.io/external-secrets/external-secrets:v2.8.0
+## ES per Ready status
+   4 False
+ 109 True
+not-True:
+dispatcharr/dispatcharr-provider-server SecretSyncedError
+eso-guard-test/guard-trip SecretSyncedError
+eso-guard-test/guard-trip-range SecretSyncedError
+observability/airmax-backup SecretSyncedError
+## targets
+targets=113 present=110
+uid-set-sha256=a13d700c02636fb8
+datahash-set-sha256=2e03cd3675c03f02
+## CRD stored/served
+acraccesstokens.generators.external-secrets.io stored=v1alpha1 served=v1alpha1 storage=v1alpha1
+beyondtrustworkloadcredentialsdynamicsecrets.generators.external-secrets.io stored=v1alpha1 served=v1alpha1 storage=v1alpha1
+cloudsmithaccesstokens.generators.external-secrets.io stored=v1alpha1 served=v1alpha1 storage=v1alpha1
+clusterexternalsecrets.external-secrets.io stored=v1 served=v1 storage=v1
+clustergenerators.generators.external-secrets.io stored=v1alpha1 served=v1alpha1 storage=v1alpha1
+clusterpushsecrets.external-secrets.io stored=v1alpha1 served=v1alpha1 storage=v1alpha1
+clustersecretstores.external-secrets.io stored=v1 served=v1 storage=v1
+ecrauthorizationtokens.generators.external-secrets.io stored=v1alpha1 served=v1alpha1 storage=v1alpha1
+externalsecrets.external-secrets.io stored=v1 served=v1 storage=v1
+fakes.generators.external-secrets.io stored=v1alpha1 served=v1alpha1 storage=v1alpha1
+gcraccesstokens.generators.external-secrets.io stored=v1alpha1 served=v1alpha1 storage=v1alpha1
+generatorstates.generators.external-secrets.io stored=v1alpha1 served=v1alpha1 storage=v1alpha1
+githubaccesstokens.generators.external-secrets.io stored=v1alpha1 served=v1alpha1 storage=v1alpha1
+gitlabdeploytokens.generators.external-secrets.io stored=v1alpha1 served=v1alpha1 storage=v1alpha1
+grafanas.generators.external-secrets.io stored=v1alpha1 served=v1alpha1 storage=v1alpha1
+mfas.generators.external-secrets.io stored=v1alpha1 served=v1alpha1 storage=v1alpha1
+passwords.generators.external-secrets.io stored=v1alpha1 served=v1alpha1 storage=v1alpha1
+pushsecrets.external-secrets.io stored=v1alpha1 served=v1alpha1 storage=v1alpha1
+quayaccesstokens.generators.external-secrets.io stored=v1alpha1 served=v1alpha1 storage=v1alpha1
+secretstores.external-secrets.io stored=v1 served=v1 storage=v1
+sshkeys.generators.external-secrets.io stored=v1alpha1 served=v1alpha1 storage=v1alpha1
+stssessiontokens.generators.external-secrets.io stored=v1alpha1 served=v1alpha1 storage=v1alpha1
+uuids.generators.external-secrets.io stored=v1alpha1 served=v1alpha1 storage=v1alpha1
+vaultdynamicsecrets.generators.external-secrets.io stored=v1alpha1 served=v1alpha1 storage=v1alpha1
+webhooks.generators.external-secrets.io stored=v1alpha1 served=v1alpha1 storage=v1alpha1
