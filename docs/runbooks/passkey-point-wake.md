@@ -48,6 +48,32 @@ namespace's `db/app/cluster.yaml`. Leave the CronJobs suspended unless the night
   in `kubernetes/main/apps/observability/kube-prometheus-stack/app/alertmanager-secret.yaml`, so quota alerts
   watch the running LABs again. Then reconcile `kube-prometheus-stack`.
 
+**Also on wake: the build app's Graph roles and its key (ar-011 D1, chg-2026-11-18-001).** From D1 (2026-11-23)
+the build app `atlas-devtenant-build` (dev tenant 7m5b27gbc only) holds only K4: `AppRoleAssignment.ReadWrite.All`,
+`Application.Read.All`, `RoleManagement.Read.Directory`, `Organization.Read.All`, and its key is NOT in the cluster.
+The devtenant image's `appSignIn()` refuses a token whose roles differ from its 24-role manifest, so bootstrap-v01
+and every other build-key tool fail closed until this step is done. Do it BEFORE unsuspending
+`devtenant-refresh-contractor-new`, in this order:
+
+1. Key back: `hack/ops/chg-2026-11-18-001-ar011-key-out.sh restore` re-applies the ExternalSecret
+   `devtenant-build/atlas-devtenant-build-key` (ClusterSecretStore `onepassword-devtenant-build`, item
+   `atlas-devtenant-build`, `tls.key` + `tls.crt`). Readback: ES Ready, Secret has exactly those two keys.
+   The 1Password item in vault `passkey-point-devtenant-build` was never removed.
+2. Roles back (reverse plan; until D2 lands the window helper, this re-grants the full 20). The build app still
+   holds `AppRoleAssignment.ReadWrite.All` (K4), so it can grant itself, with no human consent. Write a reviewed
+   `regrant` mode for `hack/ops/chg-2026-11-18-001-ar011-k4.mjs` (same own sign-in, accepts K4 before and the
+   7d850ff5 set after): POST `/servicePrincipals/8ac9ffda.../appRoleAssignments` with
+   `{principalId: build SP, resourceId: Graph SP, appRoleId}` for exactly the `regrantForWake` list in
+   `ops/evidence/chg-2026-11-18-001/40-ar011-plan-20261120t092236z-joblog.txt` (20 roles, `planSha256`
+   `33720a3d...`). Readback: the 24 role names equal the 7d850ff5 names (assignment ids are new, so the state sha
+   differs; record the new one), a fresh token's roles claim has 24 entries, wids `[0997a1d0...]` only,
+   roleAssignments 0, transitiveMemberOf 0. Needs Argus GO on the regrant script first (AGR-087).
+   After D2 (OwnedBy + window helper) this step becomes "open a provisioning window" instead; do not re-grant 20.
+3. Then wake as above; the CronJob runs `bootstrap-v01` with the image's own `appSignIn()` again.
+
+Sleeping again: `node /work/k4.mjs plan` -> `cut --expect <planSha>` -> `readback` (devtenant-build Job, build key
+mounted), then `hack/ops/chg-2026-11-18-001-ar011-key-out.sh remove`.
+
 ## Reconcile
 
 ```bash
@@ -90,7 +116,8 @@ All must hold; "reconciled" alone is not proof.
 4. The site answers through the internal gateway: HTTPRoutes `passkey-point-lab`, `passkey-point-dotnet-lab`,
    `passkey-point-dotnet-lab-maxsession` show `Accepted`/`ResolvedRefs` True, and a GET on the host
    (`kubectl get httproute -n <ns> -o jsonpath='{.items[*].spec.hostnames}'`) returns the login page, not 503.
-5. CronJobs: `kubectl get cronjob -n passkey-point-e2e` and `-n devtenant-build` show `SUSPEND False`.
+5. CronJobs: `kubectl get cronjob -n passkey-point-e2e` and `-n devtenant-build` show `SUSPEND False`; the build
+   app's roles are back to the 24 names and `atlas-devtenant-build-key` exists (step "build app's Graph roles").
 6. The next nightly E2E (`passkey-point-e2e` 02:40, `-dotnet` 03:50 Europe/Amsterdam) ends `Complete`. A manual
    run (`kubectl create job --from=cronjob/...`) writes to the dev tenant: only when the team asks for it.
 
