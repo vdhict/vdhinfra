@@ -37,6 +37,28 @@ spec:
               protocol: TCP
             - port: "3478"
               protocol: UDP
+    # chg-2026-11-20-060: the family-chat subnet router is a cluster endpoint too (as the canary, B4).
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            app.kubernetes.io/name: headscale-gezin-router
+      toPorts:
+        - ports:
+            - port: "8443"
+              protocol: TCP
+            - port: "3478"
+              protocol: UDP
+    # chg-2026-11-20-060 TEMPORARY: the throwaway test node in namespace hs-gezin-test. Removed in the cleanup commit.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: hs-gezin-test
+            app.kubernetes.io/name: hs-gezin-testnode
+      toPorts:
+        - ports:
+            - port: "8443"
+              protocol: TCP
+            - port: "3478"
+              protocol: UDP
     - fromEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: observability
@@ -55,4 +77,56 @@ spec:
             - port: "53"
               protocol: UDP
             - port: "53"
+              protocol: TCP
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/cilium.io/ciliumnetworkpolicy_v2.json
+# chg-2026-11-20-060: headscale-gezin-router. No ingress (tailnet traffic arrives over its own outbound DERP/headscale
+# connection). Egress ONLY to: the envoy-gezin proxies (the one advertised route, 172.16.2.253:443 -> 10443 after
+# Cilium service translation), headscale (control + embedded DERP + STUN), kube-dns, and the API server (state Secret).
+# No world egress: peers reach it via the embedded DERP only. This is the backstop behind the ACL.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: headscale-gezin-router
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: headscale-gezin-router
+  ingress:
+    - {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            gateway.envoyproxy.io/owning-gateway-name: envoy-gezin
+      toPorts:
+        - ports:
+            - port: "10443"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            app.kubernetes.io/name: headscale
+            app.kubernetes.io/component: headscale
+      toPorts:
+        - ports:
+            - port: "8443"
+              protocol: TCP
+            - port: "3478"
+              protocol: UDP
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
               protocol: TCP
