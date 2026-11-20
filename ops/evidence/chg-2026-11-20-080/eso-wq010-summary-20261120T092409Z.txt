@@ -1,0 +1,13 @@
+chg-2026-11-20-080 wq-010 ESO fail-guard rewrite + hops 2.12.0/2.15.0, written 20261120T092409Z (date -u)
+Replacement: upstream #7019 (v2.12.0) removed 'fail' with no successor. ESO executes templates with
+missingkey=error (runtime/template/v2/template.go, v2.8.0 and v2.15.0), so '{{- $.ESO_GUARD_REFUSED_TO_RENDER -}}'
+aborts the render: Secret not written, ES SecretSyncedError. Same effect as fail; message kept as template comment.
+d8a4776d  50 guards in 17 files / 19 ES rewritten (2.8.0). 15 force-synced True; 4 refreshInterval=0 ES
+          (generator/bcrypt) not re-rendered by design, so their data cannot regenerate.
+2d522847  chart 2.12.0. 06a110bc chart 2.15.0.
+Per stage (eso-pre-guards, eso-post-guards, eso-hop2-2.12.0-retry, eso-hop3-2.15.0): 108 prod ES True, 2 known False
+(dispatcharr-provider-server, airmax-backup); 109 target Secret UIDs identical; sha256 of each target Secret .data
+identical (hash lists kept off the public repo); CRD stored/served identical; Role/ClusterRole rules unchanged 2.8.0..2.15.0.
+Mechanism test: throwaway ns eso-guard-test, fake SecretStore: guard-pass True, guard-trip and guard-trip-range
+SecretSyncedError on 2.8.0, 2.12.0 and 2.15.0 (2.8.0 error: map has no entry for key "ESO_GUARD_REFUSED_TO_RENDER").
+Namespace deleted after the 2.15.0 check. Final vs pre-guards: UIDs identical, data hashes identical (109).
