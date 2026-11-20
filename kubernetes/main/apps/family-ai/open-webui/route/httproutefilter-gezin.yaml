@@ -1,0 +1,17 @@
+---
+# chg-2026-11-20-060 Argus C1 (F1): on the TAILNET chat route only, Envoy answers 403 for Open WebUI's local
+# password signin, signup and LDAP endpoints; the request never reaches Open WebUI. Off-site devices log in with OIDC
+# (Authelia) only. The LAN route (httproute.yaml, envoy-internal) keeps the break-glass local login unchanged.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/gateway.envoyproxy.io/httproutefilter_v1alpha1.json
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: HTTPRouteFilter
+metadata:
+  name: open-webui-gezin-local-auth-403
+spec:
+  directResponse:
+    contentType: text/plain
+    statusCode: 403
+    body:
+      type: Inline
+      inline: |
+        forbidden

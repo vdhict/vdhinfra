@@ -1,0 +1,29 @@
+---
+# chg-2026-11-20-060: Authelia portal for the family tailnet, on the chat-only Gateway envoy-gezin. Needed because the
+# Open WebUI login is an OIDC redirect to auth.bluejungle.net in the user's browser. The chart-managed LAN route
+# (envoy-internal) is unchanged. Backend = the chart's own route backend (Service authelia:8888).
+# DNS: as open-webui-gezin (controller none; envoy-gezin pins the unifi target to .241; tailnet via extra_records).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/gateway.networking.k8s.io/httproute_v1.json
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: authelia-gezin
+  annotations:
+    external-dns.alpha.kubernetes.io/controller: none
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: envoy-gezin
+      namespace: network
+      sectionName: auth
+  hostnames:
+    - auth.bluejungle.net
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: authelia
+          port: 8888

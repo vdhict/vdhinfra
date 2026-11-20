@@ -1,0 +1,77 @@
+---
+# envoy-gezin: chat-only entry point for the family tailnet (chg-2026-11-20-060, tsk-2026-11-20-118).
+#
+# Why a separate Gateway (same reasoning as envoy-forge, chg-2026-10-05-031):
+# envoy-internal (172.16.2.241) serves 40 hostnames on one IP:443, including admin UIs (hass-code, zwave, zigbee2mqtt,
+# esphome, node-red, pgadmin, lldap, gitops). chg-2026-10-20-007 (admin-route SecurityPolicy) is NOT live, and a
+# Tailscale ACL filters on IP:port only, never on Host/SNI. So the tailnet must not reach .241 at all. This Gateway
+# has its own Envoy deployment and LB IP and serves exactly two hostnames:
+#   * chat.${SECRET_DOMAIN}  - Open WebUI (HTTPRoute family-ai/open-webui-gezin)
+#   * auth.${SECRET_DOMAIN}  - Authelia portal, needed for the Open WebUI OIDC login redirect
+#                              (HTTPRoute security/authelia-gezin)
+# Any other SNI/Host gets no route (404).
+#
+# Invariants (do not relax without Argus):
+#   * own Envoy deployment (EnvoyProxy `envoy` has no mergeGateways);
+#   * exactly TWO listeners, both HTTPS :443 with a fixed hostname; no :80;
+#   * allowedRoutes per listener: one namespace only (family-ai / security).
+#
+# Addressing: NO spec.addresses (envoy-gateway v1.3.0 copies it to externalIPs, collides with Cilium LB IPAM; see
+# envoy-forge.yaml). IP from the lbipam annotation only. 172.16.2.253: UniFi no reservation/last_ip/live client/forward/
+# networkconf entry, ARP incomplete, silent from Mini and a pod (ops/evidence/chg-2026-11-20-060/v0-ip-check-*.txt).
+# .252 was rejected: a disabled WAN forward (61952) and the CLIENT-VLAN DNS list still point at it.
+#
+# DNS: no LAN or public name for this IP. Tailnet clients get chat/auth -> this IP from headscale dns.extra_records.
+# The two gezin HTTPRoutes would make external-dns-unifi publish a second A record from this Gateway's status; the
+# target annotation pins this Gateway's contribution to the envoy-internal IP, so the LAN records stay {.241}.
+# Cloudflare stays off via `controller: none` on both routes.
+#
+# Alias Services: none (inc-2026-10-12-013, see envoy-forge.yaml).
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: envoy-gezin
+  annotations:
+    external-dns-unifi.bluejungle.net/target: ${ENVOY_INTERNAL_LB_IP}
+spec:
+  gatewayClassName: envoy
+  infrastructure:
+    annotations:
+      lbipam.cilium.io/ips: "172.16.2.253"
+  listeners:
+    - name: chat
+      protocol: HTTPS
+      port: 443
+      hostname: chat.${SECRET_DOMAIN}
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: family-ai
+        kinds:
+          - group: gateway.networking.k8s.io
+            kind: HTTPRoute
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: ${SECRET_DOMAIN/./-}-production-tls
+    - name: auth
+      protocol: HTTPS
+      port: 443
+      hostname: auth.${SECRET_DOMAIN}
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: security
+        kinds:
+          - group: gateway.networking.k8s.io
+            kind: HTTPRoute
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: ${SECRET_DOMAIN/./-}-production-tls

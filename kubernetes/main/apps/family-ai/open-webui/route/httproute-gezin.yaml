@@ -1,0 +1,64 @@
+---
+# chg-2026-11-20-060: chat.bluejungle.net for the family tailnet, on the chat-only Gateway envoy-gezin.
+# The LAN route (httproute.yaml, envoy-internal) is unchanged. Same backend, same 600s request timeout.
+# Local password login is closed on this route (Argus C1), OIDC only.
+# DNS: `controller: none` keeps Cloudflare off; envoy-gezin's external-dns-unifi target annotation keeps the LAN A
+# record at 172.16.2.241. Tailnet clients resolve chat via headscale dns.extra_records.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/gateway.networking.k8s.io/httproute_v1.json
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: open-webui-gezin
+  annotations:
+    external-dns.alpha.kubernetes.io/controller: none
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: envoy-gezin
+      namespace: network
+      sectionName: chat
+  hostnames:
+    - chat.bluejungle.net
+  rules:
+    # Argus C1: local password signin/signup/LDAP -> 403 from Envoy (httproutefilter-gezin.yaml). PathPrefix matches
+    # per path element, so /signin and /signin/... are both caught. OIDC (/oauth/...) is not affected.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/v1/auths/signin
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: gateway.envoyproxy.io
+            kind: HTTPRouteFilter
+            name: open-webui-gezin-local-auth-403
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/v1/auths/signup
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: gateway.envoyproxy.io
+            kind: HTTPRouteFilter
+            name: open-webui-gezin-local-auth-403
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/v1/auths/ldap
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: gateway.envoyproxy.io
+            kind: HTTPRouteFilter
+            name: open-webui-gezin-local-auth-403
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: open-webui
+          port: 8080
+      timeouts:
+        request: 600s
