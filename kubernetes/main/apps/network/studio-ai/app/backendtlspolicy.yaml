@@ -18,8 +18,8 @@
 # serves nothing, so an upstream misconfiguration is visible rather than
 # silently served. Caddy's `strict_sni_host` is off, which is what makes the
 # split legal; it only matters with TLS client auth, which this leg does not use.
-# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/gateway.networking.k8s.io/backendtlspolicy_v1alpha3.json
-apiVersion: gateway.networking.k8s.io/v1alpha3
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/gateway.networking.k8s.io/backendtlspolicy_v1.json
+apiVersion: gateway.networking.k8s.io/v1
 kind: BackendTLSPolicy
 metadata:
   name: studio-ai

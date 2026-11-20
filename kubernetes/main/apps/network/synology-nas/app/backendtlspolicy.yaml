@@ -10,8 +10,8 @@
 # `hostname` is used by Envoy both as the SNI sent to DSM and as the name
 # matched against the served cert's SAN — it MUST equal the DSM cert SAN
 # (`cloudnas.vdh-ict.nl`), NOT the public route hostname (nas.bluejungle.net).
-# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/gateway.networking.k8s.io/backendtlspolicy_v1alpha3.json
-apiVersion: gateway.networking.k8s.io/v1alpha3
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/gateway.networking.k8s.io/backendtlspolicy_v1.json
+apiVersion: gateway.networking.k8s.io/v1
 kind: BackendTLSPolicy
 metadata:
   name: synology-nas
