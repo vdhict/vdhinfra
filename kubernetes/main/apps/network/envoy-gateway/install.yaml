@@ -44,3 +44,27 @@ spec:
   wait: false
   interval: 30m
   timeout: 5m
+---
+# chg-2026-11-20-080 (wq-017): TEMPORARY upgrade canary, removed after the last hop.
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app envoy-gateway-canary
+  namespace: flux-system
+spec:
+  targetNamespace: network
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  dependsOn:
+    - name: envoy-gateway-gateways
+  path: ./kubernetes/main/apps/network/envoy-gateway/canary
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  wait: false
+  interval: 30m
+  timeout: 5m
