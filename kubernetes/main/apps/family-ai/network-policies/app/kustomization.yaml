@@ -36,3 +36,6 @@ resources:
   - ./web.yaml   # controlled internet (search + fetch)
   - ./kennisdienst.yaml   # knowledge search, hermes-profiel-1/2/3 (own token each)
   - ./kennis-prive-vullen.yaml   # land-12q seed pod: no ingress, no egress
+  # chg-2026-11-17-011 go (commit B, Argus Q4 5): api.anthropic.com:443 for hermes-profiel-3 ONLY. Rollback = git revert
+  # of this commit (also re-suspends the probe). The profiel-2 cloud file stays OUT until its own change (condition 4).
+  - ./hermes-profiel-3-cloud.yaml
