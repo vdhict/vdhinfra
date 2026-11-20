@@ -49,8 +49,13 @@ spec:
         # "alerts"), read by the ntfy-* receivers via credentials_file;
         # mounted at /etc/alertmanager/secrets/ntfy-alertmanager-token/.
         # Secret owned by the ntfy app (kubernetes/main/apps/ntfy/ntfy/clients).
+        # Bearer token for Mack's card receiver on the Mini (POST
+        # http://172.16.2.201:9877/alertmanager), read by receiver "cards";
+        # mounted at /etc/alertmanager/secrets/alertmanager-cards-token/.
+        # Secret: alertmanager-cards.sops.yaml (chg-2026-11-20-070).
         secrets:
           - ntfy-alertmanager-token
+          - alertmanager-cards-token
         storage:
           volumeClaimTemplate:
             spec:

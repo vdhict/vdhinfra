@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: alertmanager-cards-token
+    namespace: observability
+type: Opaque
+stringData:
+    token: ENC[AES256_GCM,data:D/+KIU51qpC6VfpwEfMEDFDHCCz6KI7igYRIQfjkwXnBFVnGZj7XubNkOnbR4XHi2eAPf3JC4n/dXU98AW+dCQ==,iv:mf/dACQdaEIbifCngma/0uQBxLP6j0HtKKERC5I9OUI=,tag:QSu+faScuP9APVwOFQM7PA==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBJZE4zdXQzRUR3eE9UcHhJ
+            YlVvdDdEcFhQaTFEaDQwKzFhY2xOcEdkRUFFCktlc0lnYjZ6MzdwNmRPTzJHbDZt
+            WjdmNEJRL05nazhKcXQxN3BhSGZKN1UKLS0tIDhGQ04vUkJLdi8wMzVybTVqVHdv
+            VDRKYjZmQXVNbXl1djZWem9IWFhlOVUKeyI74SqC1P2GhUrqbbeQSQBkYkG9ia74
+            wYZgniSSsJvMdZNm12SQbgdiUwtvBQzSKrHafcgo3bfEn8b4eRx0cA==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1dfs2z6esr6rhm46pvh6l8xlualxsn756rkkt9432d5kk3k7s4pssmus4gk
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-11-20T07:35:58Z"
+    mac: ENC[AES256_GCM,data:2qnrKeJBCFVlJH45t8utN6TTdfQVRorqYZZr/s5afD+hpslfFtVN7bSg6MWhZUgxiOoCVeJGwNaXvii2ACKPIx161jRCm9bfL7ctljSVC2v0H+nKSRGDzGMOm/Kfk/N3PSZDQXSgln66HQdE8m+iSo147idZ8YoAEGAzYK5fZ6E=,iv:ZyjHDC5AhpedAds/eRvoBIBgNMdpJoP7jBUMRs6efdk=,tag:WIGFmtnjiQupHmp40goCJQ==,type:str]
+    version: 3.13.1

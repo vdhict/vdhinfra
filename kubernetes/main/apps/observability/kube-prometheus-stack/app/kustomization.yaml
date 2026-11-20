@@ -6,4 +6,5 @@ resources:
   - ./helmrelease.yaml
   - ./alertmanager-secret.yaml
   - ./alertmanager-ntfy.sops.yaml
+  - ./alertmanager-cards.sops.yaml
   - ./httproute-alertmanager.yaml
