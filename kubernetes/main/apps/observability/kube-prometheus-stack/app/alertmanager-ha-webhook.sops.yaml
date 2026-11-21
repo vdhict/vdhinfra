@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: alertmanager-ha-webhook
+    namespace: observability
+type: Opaque
+stringData:
+    url: ENC[AES256_GCM,data:iQ/pHyn7f/vr3xgi3QnHdKZ2g23WK2sjtVjBYamTi2sxzYWscFL4fKnWV8abPD3iHliXVfnkIvNzzrffgS1VzflYIGxHJj0TxiNNlI3QQrUTHnm1lt0qlEkyyMVYmOMhlqvExx5M75G1l+ceEFuvDQqCLW31WReRpTHfh2enRnT7E2Zgf3cSdYg=,iv:tPgV//bpFEKltgECXPtHr5pugzh3FdSxJMepGYpKn2g=,tag:P2pM1LZSoYtbGmOaLFGwxw==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBjWlZqeXZsV25GRE8wUmlK
+            NkVMekNjbDBhNldiQ083RXRISndWNTlLZkcwCmIzbHR1L3pJUVlRUDdYaHVQVXZ1
+            bHdabGk2WEM3dEY3cXdNQnFFQ2NOVUUKLS0tIExRZzRwK2haQTNNcFY3c0RmOXhk
+            MTdtTjFHbGdRcDZ4QXQwLzdWaGorejgK+VtqsiSqB4b0/4JHZSqwC5go1g+X/0tV
+            NF7Jec2pW0FwjiBtdeunBePuglDALRgpRSB+TaAg0B3r9dFthQ3GSg==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1dfs2z6esr6rhm46pvh6l8xlualxsn756rkkt9432d5kk3k7s4pssmus4gk
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-11-21T06:45:36Z"
+    mac: ENC[AES256_GCM,data:eMHmo4kGWjPF6YNenyQnrDUd+ZF3Cud1Od4J97wocO4u+j6zNfMUFJTMXGtZUYE8w0ZYMnjPAlSOakKviAHK+HDQb1OQptr0GsVTHBngz/y85jpi6SJnf8P7nS7s/EMIQyJy6sETy01hRNE0E6Y2TmZWQVWRBA56zhIOXRcoWeY=,iv:HGAiQHDEtv+GfESOyp4idUxkA5abfeqeWpGIN7YBnQw=,tag:pVcwZYor5tZd6XwBfHGviA==,type:str]
+    version: 3.13.1

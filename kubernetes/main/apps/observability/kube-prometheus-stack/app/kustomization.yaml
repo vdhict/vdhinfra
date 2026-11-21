@@ -7,4 +7,5 @@ resources:
   - ./alertmanager-secret.yaml
   - ./alertmanager-ntfy.sops.yaml
   - ./alertmanager-cards.sops.yaml
+  - ./alertmanager-ha-webhook.sops.yaml
   - ./httproute-alertmanager.yaml

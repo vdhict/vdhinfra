@@ -53,9 +53,13 @@ spec:
         # http://172.16.2.201:9877/alertmanager), read by receiver "cards";
         # mounted at /etc/alertmanager/secrets/alertmanager-cards-token/.
         # Secret: alertmanager-cards.sops.yaml (chg-2026-11-20-070).
+        # HA critical webhook URL (random id) for receiver ha-critical, read via
+        # url_file; mounted at /etc/alertmanager/secrets/alertmanager-ha-webhook/.
+        # Secret: alertmanager-ha-webhook.sops.yaml (chg-2026-11-21-004).
         secrets:
           - ntfy-alertmanager-token
           - alertmanager-cards-token
+          - alertmanager-ha-webhook
         storage:
           volumeClaimTemplate:
             spec:
