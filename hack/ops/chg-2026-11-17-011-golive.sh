@@ -366,7 +366,7 @@ T0=$(awk '/^TURNSTART/{print $2}' "$CACHE/turn-g4.txt"); T1=$(awk '/^TURNEND/{pr
 RT=$(g4p "$P3" routes "$(python3 -I -c "print(${T0:-0}-2)")" "$(python3 -I -c "print(${T1:-0}+5)")"); LA=$(g4p "$P3" state)
 log "  3b route records: $(jq -c .routes <<<"$RT")"
 chk "3b synthetic turn answered (Studio), canary account deleted" "gall -x 'RESULT GREEN' '$CACHE/turn-g4.txt'"
-chk "3b rule cloud_off, no cloud record" "jq -e '(.routes | index([\"studio\",\"cloud_off\"]) != null) and ([.routes[] | select(.[0] == \"cloud\")] | length == 0)' <<<'$RT' >/dev/null"
+chk "3b rule cloud_off, no cloud record" "jq -e '(.routes | any(. == [\"studio\",\"cloud_off\"])) and ([.routes[] | select(.[0] == \"cloud\")] | length == 0)' <<<'$RT' >/dev/null"
 chk "3b no cloud request: p3 person_usd unchanged" "[ \"\$(jget .p3_usd '$LA')\" = \"\$(jget .p3_usd '$LB')\" ]"
 [ "$RED" = 0 ] && C_TURN=true; gate "G4 3b" R4; act executed "G4 3b synthetic turn while off -> studio/cloud_off, no cloud call" GREEN
 # 3c offgate + ONE team FamilyCloudOff
@@ -461,7 +461,7 @@ T0=$(awk '/^TURNSTART/{print $2}' "$CACHE/turn-go.txt"); T1=$(awk '/^TURNEND/{pr
 RT=$(g4p "$P3" routes "$(python3 -I -c "print(${T0:-0}-2)")" "$(python3 -I -c "print(${T1:-0}+5)")"); LA=$(g4p "$P3" state)
 DP3=$(fsub "$(jget .p3_usd "$LA")" "$(jget .p3_usd "$LB")"); log "  5 route records: $(jq -c .routes <<<"$RT"); p3 ledger +$DP3; month usd $(jget .usd "$LA")"
 chk "R6 synthetic public turn answered, canary account deleted" "gall -x 'RESULT GREEN' '$CACHE/turn-go.txt'"
-chk "R6 rule cloud_ok" "jq -e '.routes | index([\"cloud\",\"cloud_ok\"]) != null' <<<'$RT' >/dev/null"
+chk "R6 rule cloud_ok" "jq -e '.routes | any(. == [\"cloud\",\"cloud_ok\"])' <<<'$RT' >/dev/null"
 chk "R6 p3 ledger rise in (0, $RESERVE_MAX]" "fle 0.0000000001 '$DP3' && fle '$DP3' $RESERVE_MAX"
 chk "R6 ledger readable and month usd <= 99" "[ -z \"\$(jget '.ledger_error // empty' '$LA')\" ] && fle \"\$(jget .usd '$LA')\" 99"
 gate "go turn" "$(cls)"
