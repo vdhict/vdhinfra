@@ -23,6 +23,9 @@ MOCK=clean; t "logs_count clean logs -> rc0 + 0" "[ \"\$(logs_count \"'p' -c app
 MOCK=lines; t "logs_count one hit -> 1" "[ \"\$(logs_count \"'p' -c app\" 'Traceback')\" = 1 ]" 0
 MOCK=empty; t "logs_count empty logs -> rc 1" "logs_count \"'p' -c app\" 'Traceback'" 1
 MOCK=fail; t "logs_count kubectl failure -> rc 1" "logs_count \"'p' -c app\" 'Traceback'" 1
+MOCK=empty; t "logs_count allow-empty, empty logs -> rc0 + 0 (F5)" "[ \"\$(logs_count \"'p' -c app\" 'Traceback' allow-empty)\" = 0 ]" 0
+MOCK=fail; t "logs_count allow-empty, kubectl failure -> rc 1 (F5)" "logs_count \"'p' -c app\" 'Traceback' allow-empty" 1
+MOCK=lines; t "logs_count allow-empty, one hit -> 1 (F5)" "[ \"\$(logs_count \"'p' -c app\" 'Traceback' allow-empty)\" = 1 ]" 0
 P3=hermes-profiel-3-x
 # run the driver's own chk lines verbatim (eval of the exact source line), judge by RED
 line_of() { grep -m1 -F "$1" "$D"; }
@@ -30,9 +33,16 @@ runchk() { RED=0; eval "$1" >/dev/null 2>&1; echo $RED; }
 R2LINE=$(line_of 'chk "R2 no Traceback'); R5LINE=$(line_of "chk \"R5 no 'calls_while_off='")
 for m in clean:0 lines:1 empty:1 fail:1; do MOCK=${m%%:*}; t "R2 chk line with logs=$MOCK -> RED ${m##*:}" "[ \"\$(runchk \"\$R2LINE\")\" = ${m##*:} ]" 0; done
 pod() { echo "hermes-profiel-$1-x"; }; PUSH_B_ISO=2026-11-22T07:00:00Z
-for m in clean:0 empty:1 fail:1; do MOCK=${m%%:*}; t "R5 chk line with logs=$MOCK -> RED ${m##*:}" "[ \"\$(runchk \"\$R5LINE\")\" = ${m##*:} ]" 0; done
+# F5: R5 reads a --since-time window; an idle pod's empty window is 0 hits (GREEN), only a kubectl error is RED
+for m in clean:0 empty:0 fail:1; do MOCK=${m%%:*}; t "R5 chk line with logs=$MOCK -> RED ${m##*:}" "[ \"\$(runchk \"\$R5LINE\")\" = ${m##*:} ]" 0; done
+# shellcheck disable=SC2329  # invoked by the eval'd driver R5 line
 kubectl() { case "$MOCK" in cwo) printf 'x calls_while_off=1\n';; *) printf 'a\n';; esac; }
 MOCK=cwo; t "R5 chk line with a calls_while_off line -> RED 1" "[ \"\$(runchk \"\$R5LINE\")\" = 1 ]" 0
+# per pod (the args carry the pod name): MOCK=<p2>/<p3>
+kubectl() { local w; case "$*" in *profiel-2-x*) w=${MOCK%%/*};; *) w=${MOCK##*/};; esac
+  case "$w" in empty) :;; clean) printf 'a\n';; cwo) printf 'x calls_while_off=1\n';; fail) return 1;; esac; }
+for m in empty/empty:0 empty/clean:0 clean/empty:0 fail/empty:1 empty/fail:1 clean/fail:1 empty/cwo:1 cwo/empty:1; do
+  MOCK=${m%%:*}; t "R5 chk line with p2/p3 logs=$MOCK -> RED ${m##*:}" "[ \"\$(runchk \"\$R5LINE\")\" = ${m##*:} ]" 0; done
 g4p() { case "$DROP" in ok) echo '{"drop":"ok","uid":10000,"gid":10000,"groups":[10000]}';; root) echo '{"drop":"ok","uid":0,"gid":0}';; err) echo '{"error":"privilege drop failed"}'; return 1;; esac; }
 P2=hermes-profiel-2-x
 DBODY=$(grep -A1 'chk "F2 in-pod helper drops' "$D" | tail -1 | sed -E 's/^ *"//; s/"; done$//')

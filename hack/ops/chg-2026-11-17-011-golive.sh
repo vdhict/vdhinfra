@@ -140,9 +140,11 @@ alerts_since() { job_logs_since alert "$1" | grep '"changelog"' | jq -c '.change
 lock_runs_since() { job_logs_since lock "$1" | grep '"family_cloud_lock"' | jq -c '.family_cloud_lock'; }
 # F4: every cloud-* file and month.json in the helper's `state` is a regular file owned SVC:SVC (empty/absent -> false)
 own_svc() { jq -e --argjson u "$SVC" '(.files | type == "object") and (.files["month.json"] != null) and ([.files[] | (.uid == $u and .gid == $u and .type == "reg")] | all)' <<<"$1" >/dev/null; }
-# L1: count lines matching $2 in pod logs; a failed or empty `kubectl logs` is an error (rc 1), never a silent 0
-logs_count() { # $1 = kubectl logs args (eval'd), $2 = ERE; prints the count; rc 1 when the logs could not be read
-  local out; out=$(eval "kubectl -n $NS logs $1" 2>/dev/null) || return 1; [ -n "$out" ] || return 1
+# L1: count lines matching $2 in pod logs; a failed or empty `kubectl logs` is an error (rc 1), never a silent 0.
+# F5: R5 reads a --since window, where an idle pod legitimately logs nothing: allow-empty there, R2 stays non-empty
+logs_count() { # $1 = kubectl logs args (eval'd), $2 = ERE, $3 = allow-empty (optional); prints the count; rc 1 when
+  # `kubectl logs` fails, and (without allow-empty) when the log is empty. allow-empty (F5, R5 --since window): empty = 0 hits
+  local out; out=$(eval "kubectl -n $NS logs $1" 2>/dev/null) || return 1; [ -n "$out" ] || [ "${3:-}" = allow-empty ] || return 1
   printf '%s\n' "$out" | grep -c -i -E "$2"; return 0; }
 
 log "$CHG go-live driver ${MODE#--} $TS A=$A B=$B${DACK:+ dormant-ack=$DACK} (wq-001; AGR-109: tests are the gate)"
@@ -512,7 +514,7 @@ LR=$(lock_runs_since "$PUSH_B_ISO" | head -2); log "  lock runs after B: $(print
 chk "R5 next 2 lock runs: off false, triggers [], offgate absent" "[ \"\$(printf '%s\n' \"\$LR\" | grep -c .)\" = 2 ] && [ \"\$(printf '%s\n' \"\$LR\" | jq -c '[.off, .triggers, .actions[\"family-cloud-offgate\"]]' | sort -u)\" = '[false,[],\"absent\"]' ]"
 chk "R5 no lock CNP, no offgate" "no_guard_cnps"
 chk "R5 no call_while_off transition since G4 start; no FamilyCloudCallWhileOff alert" "[ \"\$(g4p '$P3' transitions '$G4E' | jq '[.transitions[] | select(.[0] == \"call_while_off\")] | length')\" = 0 ] && ! alerts_since '$G4ISO' | gall CallWhileOff"
-chk "R5 no 'calls_while_off=' ERROR line in p2/p3 logs since B (each log read, non-empty: L1)" "for n in 2 3; do c=\$(logs_count \"\$(pod \$n) -c app --since-time='$PUSH_B_ISO'\" 'calls_while_off=') && [ \"\$c\" = 0 ] || exit 1; done"
+chk "R5 no 'calls_while_off=' ERROR line in p2/p3 logs since B (each log read; an empty window = 0 hits, a kubectl error = RED: F5)" "for n in 2 3; do c=\$(logs_count \"\$(pod \$n) -c app --since-time='$PUSH_B_ISO'\" 'calls_while_off=' allow-empty) && [ \"\$c\" = 0 ] || exit 1; done"
 chk "on-transition alerted (FamilyCloudOn since G4)" "alerts_since '$G4ISO' | gall FamilyCloudOn"
 chk "R7 no \"person\" in alert output or in this chg's change-log lines since G4; MONEY_TO_OWNER false" \
   "[ \"\$(job_logs_since alert '$G4ISO' | grep -c -i person)\" = 0 ] && [ \"\$(jq -c --arg t '$G4ISO' 'select(.chg==\"$CHG\" and .ts >= \$t)' '$REPO/ops/changes.jsonl' | grep -c -i person)\" = 0 ] && [ \"\$(money_env)\" = false ]"
