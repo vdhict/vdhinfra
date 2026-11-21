@@ -8,6 +8,8 @@ F2 (Argus 21-11): write commands run only as the service user (a test runner nam
 different uid -> refuse, nothing written); `seen` reads (an unreadable off file -> off_seen false); `state` reports
 owner/mode per file; abort-archive refuses wrong fields / wrong ts / symlink / existing target / call_while_off, and on
 the exact synthetic trip links it to cloud-off.aborted-g4-<tag>.json and drops only the cloud-off.json name.
+F6 (inc-2026-11-21-001): import/trip write NO __pycache__ (even when run without -B), import/routes/transitions refuse
+as a non-service uid, and root-owned counts `find -xdev -uid N` under plugins/.plugins.old/.plugins.new read-only.
   python3 -I hack/ops/chg-2026-11-17-011-test-g4-pod.py  -> "G4POD TESTS n/n passed", rc 0
 """
 import datetime as dt
@@ -82,6 +84,7 @@ def main():
     s, rc = run(e2, 'trip'); ok('pin guard: pre-signal module -> trip refused, nothing written', rc != 0 and 'not the pin' in json.dumps(s) and not os.path.exists(os.path.join(l2, 'cloud-off.json')))
     s, rc = run(e2, 'import'); ok('pin guard: import refused', rc != 0)
     f2_tests(signal, month, prev)
+    f6_tests(signal)
     n, good = len(RES), sum(RES)
     print('G4POD TESTS %d/%d passed' % (good, n))
     return 0 if good == n else 1
@@ -163,6 +166,76 @@ def f2_tests(signal, month, prev):
     open(os.path.join(l3, 'cloud-off.json'), 'w').write(json.dumps(off_doc(m3, 1795243795.837)))
     open(os.path.join(l3, 'cloud-transitions.jsonl'), 'w').write('{"ts":1795243795.84,"to":"off","kind":"billing","status":402,"type":"billing_error","calls_while_off":0}\n')
     s, rc = run(e3, 'abort-archive', '1795243795.837', '20261121T064806Z'); ok('F2 abort-archive with the rerun-day arguments (1795243795.837) -> aborted', rc == 0 and s.get('aborted') is True)
+
+
+def tree(top):
+    """names + (uid, size, mtime_ns) of everything under top (lstat): proves a command wrote nothing"""
+    out = {}
+    for dirpath, dirs, files in os.walk(top):
+        for n in dirs + files:
+            p = os.path.join(dirpath, n); st = os.lstat(p)
+            out[os.path.relpath(p, top)] = (st.st_uid, st.st_size, st.st_mtime_ns)
+    return out
+
+
+def pycache(top):
+    return [d for d, _, f in os.walk(top) if os.path.basename(d) == '__pycache__' or any(x.endswith('.pyc') for x in f)]
+
+
+def run_plain(env, *args):
+    """like run(), but WITHOUT -B (and without -I's -E): the helper's own sys.dont_write_bytecode must hold"""
+    p = subprocess.run([sys.executable, '-s', '-', *args], stdin=open(HELPER), capture_output=True, text=True,
+                       env=dict(env, PYTHONDONTWRITEBYTECODE=''), cwd=env['HOME'])
+    out = (p.stdout.strip() or p.stderr.strip()).splitlines()
+    try:
+        return json.loads(out[-1]), p.returncode
+    except Exception:
+        return {'raw': out[-1:] if out else []}, p.returncode
+
+
+def f6_tests(signal):
+    root, led, env, _ = setup(signal)
+    plug = env['G4_PLUGIN_DIR']
+    s, rc = run(env, 'import')
+    ok('F6 import runs as the service user with bytecode off', rc == 0 and s.get('import') == 'ok' and s.get('as_uid') == os.getuid() and s.get('bytecode') == 'off')
+    s, rc = run_plain(env, 'import')
+    ok('F6 import WITHOUT -B still writes no __pycache__/.pyc in the plugin dir (helper sets dont_write_bytecode)', rc == 0 and s.get('import') == 'ok' and pycache(plug) == [])
+    s, rc = run_plain(env, 'trip')
+    ok('F6 trip WITHOUT -B: tripped, no __pycache__/.pyc anywhere in the test root', s == {'tripped': True} and pycache(root) == [])
+    bad = dict(env, G4_SERVICE_UID=str(os.getuid() + 4242))
+    s, rc = run(bad, 'import'); ok('F6 import as a non-service uid -> refused before the load, no __pycache__', rc != 0 and 'service user' in json.dumps(s) and pycache(plug) == [])
+    s, rc = run(bad, 'routes', '0', '1'); ok('F6 routes as a non-service uid -> refused', rc != 0 and 'service user' in json.dumps(s))
+    s, rc = run(bad, 'transitions', '0'); ok('F6 transitions as a non-service uid -> refused', rc != 0 and 'service user' in json.dumps(s))
+    # root-owned on a synthetic /opt/data
+    data = os.path.join(root, 'data')
+    os.makedirs(os.path.join(data, 'plugins', 'model-providers', 'family-cloud', '__pycache__'))
+    open(os.path.join(data, 'plugins', 'model-providers', 'family-cloud', '__init__.py'), 'w').write('x = 1\n')
+    open(os.path.join(data, 'plugins', 'model-providers', 'family-cloud', '__pycache__', 'x.pyc'), 'w').write('')
+    os.makedirs(os.path.join(data, '.plugins.old', 'a'))
+    open(os.path.join(data, '.plugins.old', 'a', 'b.py'), 'w').write('')
+    os.makedirs(os.path.join(data, 'memories')); open(os.path.join(data, 'memories', 'not-scanned.txt'), 'w').write('')
+    outside = os.path.join(root, 'outside'); os.makedirs(outside); open(os.path.join(outside, 'o.txt'), 'w').write('')
+    os.symlink(outside, os.path.join(data, 'plugins', 'link-out'))
+    me = dict(env, G4_DATA_DIR=data, G4_ROOTCHECK_UID=str(os.getuid()))
+    before = tree(data)
+    s, rc = run(me, 'root-owned')
+    # plugins: plugins, model-providers, family-cloud, __pycache__, __init__.py, x.pyc, link-out (lstat, not followed) = 7
+    # .plugins.old: .plugins.old, a, b.py = 3; memories/ and the symlink target are not scanned
+    ok('F6 root-owned counts every name under plugins + .plugins.old owned by the checked uid (7 + 3), symlink not followed, memories/ not scanned',
+       rc == 0 and s.get('plugins_present') is True and s.get('root_owned') == 10 and s.get('per_root') == {'plugins': 7, '.plugins.old': 3}
+       and s.get('errors') == 0 and len(s.get('first', [])) == 5 and not any('memories' in f or 'o.txt' in f for f in s['first']))
+    ok('F6 root-owned wrote nothing (tree identical before/after)', tree(data) == before)
+    s, rc = run(dict(env, G4_DATA_DIR=data), 'root-owned')
+    ok('F6 root-owned default uid 0 on a runner-owned tree -> 0 root-owned, plugins present, no error',
+       rc == 0 and s.get('root_owned') == 0 and s.get('plugins_present') is True and s.get('errors') == 0 and s.get('scanned') == 10)
+    os.makedirs(os.path.join(data, '.plugins.new')); open(os.path.join(data, '.plugins.new', 'n.py'), 'w').write('')
+    s, rc = run(me, 'root-owned'); ok('F6 root-owned also scans .plugins.new (seed-once rm -rf target)', s.get('per_root', {}).get('.plugins.new') == 2 and s.get('root_owned') == 12)
+    locked = os.path.join(data, '.plugins.old', 'a'); os.chmod(locked, 0)
+    s, rc = run(me, 'root-owned'); os.chmod(locked, 0o755)
+    ok('F6 root-owned counts an unlistable dir as an error (driver fails closed)', rc == 0 and s.get('errors', 0) >= 1)
+    empty = os.path.join(root, 'data-empty'); os.makedirs(empty)
+    s, rc = run(dict(me, G4_DATA_DIR=empty), 'root-owned'); ok('F6 root-owned with no plugins dir -> plugins_present false', rc == 0 and s.get('plugins_present') is False and s.get('root_owned') == 0)
+    s, rc = run(dict(me, G4_DATA_DIR=os.path.join(root, 'nope')), 'root-owned'); ok('F6 root-owned on a missing data dir -> error counted', s.get('errors') == 1)
 
 
 if __name__ == '__main__':

@@ -1,5 +1,9 @@
 # chg-2026-11-17-011 G4 helper, run INSIDE a hermes pod from stdin (never stored in the pod):
-#   kubectl exec -i <pod> -c app -- /opt/hermes/.venv/bin/python -I - <cmd> [args] < hack/ops/chg-2026-11-17-011-g4-pod.py
+#   kubectl exec -i <pod> -c app -- /opt/hermes/.venv/bin/python -I -B - <cmd> [args] < hack/ops/chg-2026-11-17-011-g4-pod.py
+# F6 (inc-2026-11-21-001): an `import` run as root wrote a root-owned __pycache__ under /opt/data/plugins and the next
+# pod start crashed seed-once (uid 10000 could not rm .plugins.old). So: no bytecode is ever written (-B AND
+# sys.dont_write_bytecode below, before any other import), and every command that loads or parses service files drops
+# to uid 10000 first. Only `state` and `root-owned` stay root, on purpose: they lstat/list and open nothing for write.
 # Prints ONE JSON line of fixed fields: numbers, flags, file names, sha256 prefixes. Never conversation text, never a
 # "person" value, never the sticky stores, never the workspace id or a key. Commands:
 #   state            ledger month/usd (+ p2/p3 person_usd numbers), off file present + its month/kind/status/type,
@@ -9,7 +13,10 @@
 #                    readable by the service user?) -> off_present (lstat), off_readable, off_seen (= readable)
 #   drop-check       AS UID 10000: proves the privilege drop works in this pod (uid/gid/groups, root not regainable);
 #                    no file is opened
-#   import           load the deployed family-cloud module (the probe's loader) -> import ok + sha
+#   import           AS UID 10000, no bytecode: load the deployed family-cloud module (the probe's loader)
+#                    -> import ok, as_uid, bytecode "off"
+#   root-owned       AS ROOT on purpose, read-only (lstat + listdir, no file opened): `find /opt/data/{plugins,
+#                    .plugins.old,.plugins.new} -xdev -uid 0` as a count -> plugins_present, root_owned, errors, per root
 #   trip             AS UID 10000. Argus G4 3a: trip_cloud_off(ledger, 'billing', 402, 'billing_error') with the
 #                    DEPLOYED module (sha must be the pin), no person -> {"tripped": bool}
 #   swap-prev <tag>  AS UID 10000. Argus G4 3e: mv cloud-off.json -> cloud-off.cleared-g4-<tag>.json (no delete, refuses
@@ -24,8 +31,10 @@
 # module load: `kubectl exec` bypasses s6 and runs as root, and a root-owned shared file is unreadable for the lock and
 # alert jobs (Argus F-A, 21-11). The container keeps CAP_SETUID/CAP_SETGID for s6, so a plain setgroups/setgid/setuid
 # works; the drop is verified (euid/egid/groups == 10000, setuid(0) must fail) or the command refuses.
-#   routes <t0> <t1> route records (route, rule) with t0 <= ts <= t1 from the plugin's route file
-#   transitions <t0> 'to' (+ kind) of cloud-transitions.jsonl lines with ts >= t0 (no other field)
+#   routes <t0> <t1> AS UID 10000: route records (route, rule) with t0 <= ts <= t1 from the plugin's route file
+#   transitions <t0> AS UID 10000: 'to' (+ kind) of cloud-transitions.jsonl lines with ts >= t0 (no other field)
+import sys
+sys.dont_write_bytecode = True      # F6: before ANY other import, also when someone runs this without -B
 import datetime as dt
 import hashlib
 import importlib.util
@@ -33,7 +42,6 @@ import json
 import os
 import re
 import stat
-import sys
 import time
 import types
 from pathlib import Path
@@ -45,6 +53,10 @@ DIR = LEDGER.parent
 OFF = DIR / 'cloud-off.json'
 ROUTES = Path(os.environ.get('FAMILY_CLOUD_ROUTE_FILE', '/opt/data/family-cloud-route.jsonl'))
 TRANS = DIR / 'cloud-transitions.jsonl'
+DATA = Path(os.environ.get('G4_DATA_DIR', '/opt/data'))                    # env: local tests only
+SEED_ROOTS = ('plugins', '.plugins.old', '.plugins.new')                   # what seed-once replaces / rm -rf's
+# Local tests only: a non-root runner cannot create uid-0 files, so a test names the uid to count. Default 0.
+ROOTCHECK_UID = int(os.environ.get('G4_ROOTCHECK_UID', 0))
 SERVICE_ID = 10000
 # Local tests only: a non-root test runner cannot setuid, so it names its own uid as the "service user". Never 0.
 EXPECT_ID = int(os.environ.get('G4_SERVICE_UID', SERVICE_ID))
@@ -146,6 +158,47 @@ def state():
     return out
 
 
+def root_owned():
+    """F6: count names owned by uid 0 (ROOTCHECK_UID) under DATA/{plugins,.plugins.old,.plugins.new}, like
+    `find <root> -xdev -uid 0`. lstat only (symlinks are not followed), never descends into another filesystem, opens
+    no file. A listing/lstat error is counted (fail closed in the driver). Prints counts + at most 5 relative names."""
+    out = {'plugins_present': os.path.isdir(DATA / 'plugins') and not os.path.islink(DATA / 'plugins'),
+           'root_owned': 0, 'scanned': 0, 'errors': 0, 'per_root': {}, 'first': []}
+    try:
+        dev = os.lstat(DATA).st_dev
+    except OSError as error:
+        out['errors'] += 1; out['data_error'] = type(error).__name__
+        return out
+    for name in SEED_ROOTS:
+        base = DATA / name
+        if not os.path.lexists(base):
+            continue
+        count = 0
+        stack = [base]
+        while stack:
+            path = stack.pop()
+            try:
+                st = os.lstat(path)
+            except OSError:
+                out['errors'] += 1
+                continue
+            if st.st_dev != dev:                                          # -xdev: neither counted nor entered
+                continue
+            out['scanned'] += 1
+            if st.st_uid == ROOTCHECK_UID:
+                count += 1
+                if len(out['first']) < 5:
+                    out['first'].append(str(path.relative_to(DATA))[:160])
+            if stat.S_ISDIR(st.st_mode):
+                try:
+                    stack.extend(path / child for child in sorted(os.listdir(path), reverse=True))
+                except OSError:
+                    out['errors'] += 1
+        out['per_root'][name] = count
+        out['root_owned'] += count
+    return out
+
+
 def abort_archive(args):
     """Argus F2 / rerun R1: retire the off file of an ABORTED synthetic G4 trip under an archive name. Every check runs
     as the service user before the one write (a hard link), then only the cloud-off.json name is unlinked."""
@@ -240,8 +293,12 @@ def main(argv):
         who = drop_to_service()
         print(json.dumps(dict(who, drop='ok')))
     elif cmd == 'import':
+        who = drop_to_service()                     # F6: never load the module as root (pycache, import-time files)
         m = load()
-        print(json.dumps({'import': 'ok', 'has': [n for n in ('trip_cloud_off', 'run_probe', 'Router', 'log_route') if hasattr(m, n)]}))
+        print(json.dumps({'import': 'ok', 'as_uid': who['uid'], 'bytecode': 'off' if sys.dont_write_bytecode else 'on',
+                          'has': [n for n in ('trip_cloud_off', 'run_probe', 'Router', 'log_route') if hasattr(m, n)]}))
+    elif cmd == 'root-owned':
+        print(json.dumps(root_owned(), sort_keys=True))
     elif cmd == 'trip':
         drop_to_service()
         if os.path.lexists(OFF):
@@ -272,6 +329,7 @@ def main(argv):
         print(json.dumps(abort_archive(argv[2:])))
     elif cmd == 'routes':
         t0, t1 = float(argv[2]), float(argv[3])
+        drop_to_service()
         recs = []
         for path in (Path(str(ROUTES) + '.1'), ROUTES):
             try:
@@ -287,6 +345,7 @@ def main(argv):
         print(json.dumps({'routes': recs}))
     elif cmd == 'transitions':
         t0 = float(argv[2]); out = []
+        drop_to_service()
         try:
             for raw in (DIR / 'cloud-transitions.jsonl').read_text().splitlines():
                 try:

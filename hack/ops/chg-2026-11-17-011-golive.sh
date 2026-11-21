@@ -18,13 +18,16 @@
 #    the in-pod helper drops to uid 10000 in p2 and p3 (drop-check, no file opened); every cloud-* file and month.json
 #    on /cloud-spend is a regular file owned 10000:10000 (Argus F-A/F4, 21-11: a root-owned file broke lock + alert);
 #    --go refuses to start without --dormant-ack (Argus L7: without it step 4 is RED after both paid probes);
+#    F6: p3 has 0 uid-0 names under /opt/data/{plugins,.plugins.old,.plugins.new} (step 2 restarts p3; a root-owned
+#    name makes seed-once crash: inc-2026-11-21-001);
 #    --go only: local time 07:40-20:00 Europe/Amsterdam (team: no go after 21:00; and an un-suspend between 07:05 and
 #    07:35 would let the CronJob start its missed 07:05 run = a 3rd probe Job that day -> T3 latch).
 #  1 snapshot: VolSync manual sync hermes-profiel-3; VolumeSnapshot of hermes-cloud-spend-shared (no ReplicationSource
 #    exists for it). FORENSIC ONLY: never restore cloud-spend (an older month.json re-allows spend; sticky-* C2 rule).
 #    Rollback material: origin/main p3 bundle.sops.yaml sha256 + live bundle.tar.gz sha256.
 #  2 push commit A (dark: p3 bundle with the one-file swap; egress still closed). Post: Flux at A; p3 new pod Ready
-#    within 10 min, restarts 0, no import/traceback line, module imports; Secret + pod plugin = 99fb4183, probe script
+#    within 10 min, restarts 0, no import/traceback line, module imports (as uid 10000, no bytecode), then 0 uid-0
+#    names under /opt/data/{plugins,.plugins.old,.plugins.new} (F6); Secret + pod plugin = 99fb4183, probe script
 #    = f1d9aed6; settings.json sha unchanged + fields (budget 99, confirmed, workspace ok, no school keys); p1/p2/p4
 #    pod uid + bundle sha unchanged; p3 still cannot reach the API.
 #  3 G4 canary on the real PVC, synthetic only: a trip (billing 402 billing_error, no person, written as uid 10000)
@@ -49,9 +52,11 @@
 #
 # Rollback (automatic): R1-R3 -> revert B (if pushed) and A; R4-R8 -> revert B (if pushed). Fresh worktree off
 # origin/main, git revert, push (never force), Flux reconcile, read-back: no *-cloud CNP, probe suspended, lock + alert
-# newest runs succeeded (Argus L9), and when A is reverted the p3 bundle sha == the pre-change value and the in-pod
-# plugin == 82fafe60 (Argus L2). Never: restore cloud-spend, delete cloud-off*/ledger/sticky files,
+# newest runs succeeded (Argus L9), p3 has 0 uid-0 names under the seed-once plugin dirs (F6), and when A is
+# reverted the p3 bundle sha == the pre-change value and the in-pod plugin == 82fafe60 (Argus L2). Never: restore cloud-spend, delete cloud-off*/ledger/sticky files,
 # hand-edit month.json. Any other end after a push -> exit guard runs the R1 rollback.
+# F6 (inc-2026-11-21-001): every in-pod python runs with -I -B (no bytecode, no env/cwd on sys.path); the helper also
+# sets sys.dont_write_bytecode itself and drops to uid 10000 for everything except the read-only `state`/`root-owned`.
 # MONEY_TO_OWNER stays false (its flip is its own commit, D-F1). Never prints a key, a workspace id or family content.
 # No rm (AGR-121). Evidence write-once: ops/evidence/chg-2026-11-17-011/golive-{prep-dryrun,go}-<UTC>.txt.
 set -uo pipefail
@@ -106,8 +111,8 @@ pod() { kubectl -n $NS get pod -l "app.kubernetes.io/instance=hermes-profiel-$1"
 uid() { kubectl -n $NS get pod -l "app.kubernetes.io/instance=hermes-profiel-$1" -o jsonpath='{.items[*].metadata.uid}'; }
 bsha() { kubectl -n $NS get secret "family-ai-hermes-profiel-bundle-$1" -o jsonpath='{.data.bundle\.tar\.gz}' | base64 -d | shasum -a 256 | cut -c1-64; }
 bstream() { kubectl -n $NS get secret "family-ai-hermes-profiel-bundle-$1" -o jsonpath='{.data.bundle\.tar\.gz}' | base64 -d; }
-g4p() { local p="$1"; shift; kubectl -n $NS exec -i "$p" -c app -- /opt/hermes/.venv/bin/python -I - "$@" < "$HACK/$CHG-g4-pod.py"; }
-tcp() { kubectl -n $NS exec "$1" -c app -- /opt/hermes/.venv/bin/python -I -c "import socket; socket.create_connection(('$2', $3), timeout=8)" >/dev/null 2>&1; }
+g4p() { local p="$1"; shift; kubectl -n $NS exec -i "$p" -c app -- /opt/hermes/.venv/bin/python -I -B - "$@" < "$HACK/$CHG-g4-pod.py"; }
+tcp() { kubectl -n $NS exec "$1" -c app -- /opt/hermes/.venv/bin/python -I -B -c "import socket; socket.create_connection(('$2', $3), timeout=8)" >/dev/null 2>&1; }
 ow() { kubectl -n $NS get pod -l app.kubernetes.io/name=open-webui --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}'; }
 cnps() { kubectl -n $NS get cnp -o json | jq -c '[.items[].metadata.name]'; }
 has_cnp() { [ "$(cnps | jq -r --arg n "$1" 'index($n) != null')" = true ]; }      # unreadable -> false
@@ -140,6 +145,12 @@ alerts_since() { job_logs_since alert "$1" | grep '"changelog"' | jq -c '.change
 lock_runs_since() { job_logs_since lock "$1" | grep '"family_cloud_lock"' | jq -c '.family_cloud_lock'; }
 # F4: every cloud-* file and month.json in the helper's `state` is a regular file owned SVC:SVC (empty/absent -> false)
 own_svc() { jq -e --argjson u "$SVC" '(.files | type == "object") and (.files["month.json"] != null) and ([.files[] | (.uid == $u and .gid == $u and .type == "reg")] | all)' <<<"$1" >/dev/null; }
+# F6: `find /opt/data/{plugins,.plugins.old,.plugins.new} -xdev -uid 0` == 0 in pod $1, read-only (helper root-owned);
+# plugins/ must exist and every name must have been lstat'ed (errors 0). Unreadable/empty/old helper -> false (RED).
+root_free() { local o; o=$(g4p "$1" root-owned 2>/dev/null) || return 1; printf '%s\n' "$o" >> "$CACHE/root-owned.log"
+  jq -e '(.plugins_present == true) and (.errors == 0) and (.root_owned == 0) and ((.scanned // 0) > 0)' <<<"$o" >/dev/null; }
+# F6: the R2 import ran as the service user with bytecode off (an old helper without these fields -> false)
+import_ok() { jq -e --argjson u "$SVC" '(.import == "ok") and (.as_uid == $u) and (.bytecode == "off")' <<<"$1" >/dev/null; }
 # L1: count lines matching $2 in pod logs; a failed or empty `kubectl logs` is an error (rc 1), never a silent 0.
 # F5: R5 reads a --since window, where an idle pod legitimately logs nothing: allow-empty there, R2 stays non-empty
 logs_count() { # $1 = kubectl logs args (eval'd), $2 = ERE, $3 = allow-empty (optional); prints the count; rc 1 when
@@ -183,6 +194,8 @@ rollback_core() { # $1 class (R1..R8 or exitguard), $2 reason
   waitfor 660 "last_run_ok alert 660"
   chk "rollback read-back (L9): family-cloud-alert newest finished run succeeded, last success < 11 min" "last_run_ok alert 660"
   chk "rollback read-back: every cloud-* file and month.json owned $SVC (helper state)" "own_svc \"\$(g4p \"\$(pod 3)\" state)\""
+  chk "rollback read-back (F6): p3 0 uid-0 names under /opt/data/{plugins,.plugins.old,.plugins.new} (find -xdev -uid 0)" "root_free \"\$(pod 3)\""
+  case "$WHY" in *"rollback read-back (F6)"*) log "  info F6: a uid-0 name there makes seed-once crash on the next p3 start (inc-2026-11-21-001): chown it to $SVC first (see ops/evidence/$CHG/54-p3-initfix-*)";; esac
   act rolled_back "automatic rollback $1: $2" "reverted:${revs:- none}"
 }
 GO_FINISHED=""; ROLLED_BACK=""
@@ -260,6 +273,7 @@ chk "F4 every cloud-* file and month.json is a regular file owned $SVC:$SVC (loc
 for n in 2 3; do
   chk "F2 in-pod helper drops to uid/gid $SVC in p$n (drop-check: no file opened, setuid(0) must fail)" \
     "[ \"\$(g4p \"\$P$n\" drop-check | jq -c '[.drop, .uid, .gid]')\" = '[\"ok\",$SVC,$SVC]' ]"; done
+chk "F6 p3: 0 uid-0 names under /opt/data/{plugins,.plugins.old,.plugins.new} (find -xdev -uid 0; step 2 restarts p3)" "root_free \"\$P3\""
 chk "ledger readable and usd <= 98 (Argus Q4 0)" "fle \"\$(jget .usd '$ST0')\" 98"
 chk "no cloud-off.json now" "[ \"\$(jget .off '$ST0')\" = false ]"
 chk "p3 live settings: budget 99, price_confirmed true, workspace ok, no school keys" "[ \"\$(jq -c '[.budget_usd,.price_confirmed,.workspace_ok,.school_keys]' <<<'$ST0')\" = '[99,true,true,[]]' ]"
@@ -355,7 +369,8 @@ chk "R2 p3 new pod Ready within 10 min of the push, one pod, restarts 0" "[ \"\$
 # R2 is about the module (Argus: "a family-cloud import/traceback line"). NOT any family-cloud error: with the egress
 # closed a real p3 turn legitimately logs "family-cloud: cloud call failed" and falls back to the Studio (seen live).
 chk "R2 no Traceback/ImportError/ModuleNotFoundError/SyntaxError/NameError/AttributeError, no family-cloud import/load line in p3 logs (logs read, non-empty: L1)" "n=\$(logs_count \"'$P3' -c app\" 'Traceback|ImportError|ModuleNotFoundError|SyntaxError|NameError|AttributeError|family-cloud.*(import|load)') && [ \"\$n\" = 0 ]"
-chk "R2 family-cloud module imports in the pod (pin-guarded loader)" "g4p '$P3' import | jq -e '.import == \"ok\"' >/dev/null"
+chk "R2 family-cloud module imports in the pod (pin-guarded loader, as uid $SVC, -B: no bytecode written)" "import_ok \"\$(g4p '$P3' import)\""
+chk "R2 F6 p3: 0 uid-0 names under /opt/data/{plugins,.plugins.old,.plugins.new} after the in-pod checks (find -xdev -uid 0)" "root_free '$P3'"
 STA=$(g4p "$P3" state); printf '%s\n' "$STA" > "$CACHE/state-after-A.json"
 chk "R1 in-pod family-cloud/__init__.py == 99fb4183" "[ \"\$(jget .plugin_sha '$STA')\" = '$PIN_INIT' ]"
 chk "R1 probe script in the CronJob ConfigMap == f1d9aed6" "[ \"\$(probe_script_sha)\" = '$PIN_PROBE' ]"
@@ -402,7 +417,7 @@ LR1=$(lock_runs_since "$TRIPISO1" | head -1); log "  3a first lock run after the
 chk "3a F4 the first lock run after the trip succeeded: no error, off true, triggers []" "[ \"\$(jq -c '[.error, .off, .triggers]' <<<'$LR1')\" = '[null,true,[]]' ]"
 [ "$RED" = 0 ] && C_OFFVIS=true; gate "G4 3a lock run" R4; act executed "G4 3a trip (billing 402, uid $SVC) read from p2; files owned $SVC; lock run green" GREEN
 # 3b synthetic turn while off
-LB=$(g4p "$P3" state); kubectl -n $NS exec -i "$(ow)" -c app -- sh -c 'cd /app/backend && python3 - g4-off' < "$HACK/$CHG-owui-turn.py" > "$CACHE/turn-g4.txt" 2>&1
+LB=$(g4p "$P3" state); kubectl -n $NS exec -i "$(ow)" -c app -- sh -c 'cd /app/backend && python3 -I -B - g4-off' < "$HACK/$CHG-owui-turn.py" > "$CACHE/turn-g4.txt" 2>&1
 sed 's/^/    /' "$CACHE/turn-g4.txt" | grep -E 'PASS|FAIL|RESULT' >> "$EV"
 T0=$(awk '/^TURNSTART/{print $2}' "$CACHE/turn-g4.txt"); T1=$(awk '/^TURNEND/{print $2}' "$CACHE/turn-g4.txt")
 RT=$(g4p "$P3" routes "$(python3 -I -c "print(${T0:-0}-2)")" "$(python3 -I -c "print(${T1:-0}+5)")"); LA=$(g4p "$P3" state)
@@ -499,7 +514,7 @@ waitfor 60 "tcp '$P3' api.anthropic.com 443"
 chk "p3 -> api.anthropic.com:443 connects" "tcp '$P3' api.anthropic.com 443"
 for n in 1 2 4; do chk "R3 p$n -> api.anthropic.com:443 fails" "blocked \"\$(pod $n)\" api.anthropic.com 443"; done
 gate "commit B egress" "$(cls)"
-LB=$(g4p "$P3" state); kubectl -n $NS exec -i "$(ow)" -c app -- sh -c 'cd /app/backend && python3 - go-cloud' < "$HACK/$CHG-owui-turn.py" > "$CACHE/turn-go.txt" 2>&1
+LB=$(g4p "$P3" state); kubectl -n $NS exec -i "$(ow)" -c app -- sh -c 'cd /app/backend && python3 -I -B - go-cloud' < "$HACK/$CHG-owui-turn.py" > "$CACHE/turn-go.txt" 2>&1
 grep -E 'PASS|FAIL|RESULT' "$CACHE/turn-go.txt" | sed 's/^/    /' >> "$EV"
 T0=$(awk '/^TURNSTART/{print $2}' "$CACHE/turn-go.txt"); T1=$(awk '/^TURNEND/{print $2}' "$CACHE/turn-go.txt")
 RT=$(g4p "$P3" routes "$(python3 -I -c "print(${T0:-0}-2)")" "$(python3 -I -c "print(${T1:-0}+5)")"); LA=$(g4p "$P3" state)
