@@ -17,8 +17,13 @@ Dedupe: same_month_200 repeats daily for one off episode; one item per (off ts, 
 First run: the cursor starts at "now"; history is never alerted. Per alert one JSON "changelog" line on stdout (Loki),
 fixed fields only; Atlas's host-side collector turns those into ops/changes.jsonl lines.
 Also: G7 probe result error (or ledger_unreadable, pin mismatch) on two UTC days running -> one team warning per day.
+Fail closed on the inputs (Argus F-B/F3, 21-11): a transitions or probe-results file that exists but cannot be read (any
+error but "absent") posts ONE team warning FamilyCloudStateUnreadable per UTC day and file (deduped in the state
+ConfigMap), keeps the cursor where it is (nothing is skipped; the lines are alerted once the file is readable again) and
+exits 1, so the job shows red. It never exits silently.
 DRILL mode (ALERT_MODE=drill): synthetic state dir from DRILL_SEED, drill state ConfigMap, every alert is forced to
 severity=warning with alertname Drill*, label drill=true and would_severity, so a drill never reaches the owner.
+A seed value "__UNREADABLE__" writes that file with mode 000 (the job runs as uid 10000): the drill for the above.
 """
 import datetime as dt
 import json
@@ -94,7 +99,17 @@ def clean(record, fields):
     return out
 
 
+class Unreadable(Exception):
+    """A state file exists but cannot be read (anything but FileNotFoundError)."""
+    def __init__(self, name, error):
+        super().__init__(f'{name}: {type(error).__name__}')
+        self.name, self.cls = name, type(error).__name__
+
+
 def read_lines(name):
+    """All JSON-object lines of one state file; [] when the file is absent; raises Unreadable on any other error.
+    Read fully before anything is alerted, so a read error half-way never posts a partial set."""
+    out = []
     try:
         with (STATE_DIR / name).open() as handle:
             for raw in handle:
@@ -103,9 +118,12 @@ def read_lines(name):
                 except ValueError:
                     continue
                 if isinstance(line, dict):
-                    yield line
+                    out.append(line)
     except FileNotFoundError:
-        return
+        return []
+    except Exception as error:
+        raise Unreadable(name, error) from None
+    return out
 
 
 def current_off():
@@ -169,6 +187,14 @@ def seed_drill():
         if '/' in name or name.startswith('.'):
             continue
         text = content if isinstance(content, str) else json.dumps(content)
+        try:
+            os.chmod(STATE_DIR / name, 0o600)      # a previous __UNREADABLE__ seed in the same dir (local tests)
+        except FileNotFoundError:
+            pass
+        if content == '__UNREADABLE__':
+            (STATE_DIR / name).write_text('')
+            os.chmod(STATE_DIR / name, 0)
+            continue
         for minus in (900, 600, 300, 120, 60):
             text = text.replace(f'"__NOW_MINUS_{minus}__"', str(now - minus))
         (STATE_DIR / name).write_text(text)
@@ -192,7 +218,15 @@ def main():
     out, log = [], []
     newest = cursor
 
-    for raw in read_lines('cloud-transitions.jsonl'):
+    try:
+        transitions = read_lines('cloud-transitions.jsonl')
+        probe_results = read_lines('cloud-probe-results.jsonl')
+    except Unreadable as error:
+        return unreadable(state, error, now)
+    if state.pop('unreadable', None) is not None:
+        log.append({'unreadable': 'recovered'})
+
+    for raw in transitions:
         line = clean(raw, LINE_FIELDS)
         ts = float(line.get('ts', 0))
         if ts <= cursor:
@@ -238,7 +272,7 @@ def main():
 
     # G7: probe result error on two UTC days running.
     per_day = {}
-    for raw in read_lines('cloud-probe-results.jsonl'):
+    for raw in probe_results:
         line = clean(raw, ('ts', 'day', 'result', 'class'))
         if 'day' in line:
             per_day[line['day']] = line
@@ -270,6 +304,36 @@ def main():
     print(json.dumps({'family_cloud_alert': {'mode': MODE, 'posted': len(out), 'pending_money': len(pending),
                                              'notes': log, 'money_to_owner': MONEY_TO_OWNER}}, sort_keys=True))
     return 0
+
+
+def unreadable(state, error, now):
+    """Argus F3: one team warning per UTC day and file, the cursor untouched, exit 1. A failed post is not recorded,
+    so the next run tries again."""
+    day = dt.datetime.fromtimestamp(now, dt.timezone.utc).strftime('%Y-%m-%d')
+    seen = state.get('unreadable') or {}
+    key = f'{error.name}|{day}'
+    posted = 0
+    if key not in (seen.get('keys') or []):
+        item = alert('FamilyCloudStateUnreadable', 'warning',
+                     f'family-cloud: {error.name} exists but cannot be read ({error.cls}). The G5 call_while_off check '
+                     'and the transition alerts are blind; the lock job closes the egress. Check owner/mode on '
+                     '/cloud-spend (must be 10000).', {'file': error.name, 'class': error.cls}, now)
+        if post([item]):
+            posted = 1
+            state['unreadable'] = {'keys': ((seen.get('keys') or []) + [key])[-10:], 'since': seen.get('since', now)}
+            try:
+                save_state(state)
+            except Exception:
+                pass
+            print(json.dumps({'changelog': {'chg': 'chg-2026-11-17-011', 'alert': item['labels']['alertname'],
+                                            'severity': item['labels']['severity'],
+                                            'labels': {k: v for k, v in item['labels'].items()
+                                                       if k in ('file', 'class', 'would_severity', 'drill')}}},
+                             sort_keys=True))
+    print(json.dumps({'family_cloud_alert': {'mode': MODE, 'error': 'state_unreadable', 'file': error.name,
+                                             'class': error.cls, 'posted': posted, 'deduped': posted == 0 and key in (seen.get('keys') or []),
+                                             'money_to_owner': MONEY_TO_OWNER}}, sort_keys=True))
+    return 1
 
 
 if __name__ == '__main__':

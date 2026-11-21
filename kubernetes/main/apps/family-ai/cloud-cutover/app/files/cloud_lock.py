@@ -12,12 +12,19 @@ Flux-managed *-cloud allow CNPs say, and Flux never prunes or re-opens them (the
            T1 a transition line {"to":"call_while_off"} newer than the last reopen (keyed on lines, D-I1);
            T2 the ledger usd rising while off by more than (probe Jobs since the baseline) x PROBE_MAX_COST_USD (D-L1;
               the ledger reserves before a call, so this does not depend on the plugin's own detector);
-           T3 more than MAX_PROBES_PER_DAY probe Jobs created in one UTC day (D-L2).
+           T3 more than MAX_PROBES_PER_DAY probe Jobs created in one UTC day (D-L2);
+           T0 cloud-transitions.jsonl exists but cannot be read (any error but "absent"): T1 is blind then, so the
+              lock closes and the run exits non-zero (Argus F-B/F3, 21-11: a root-owned file made this reader raise
+              PermissionError and the job exit BEFORE any deny was ensured = fail open).
            Never removed by a trigger going away. Reopen = a logged manual step: set data.reopen_ack_ts of the state
            ConfigMap to the current epoch (kubectl patch); the next run removes the lock if no trigger is newer.
+A lock CNP found without a "locked" record in the state ConfigMap (e.g. left by the fail-safe below when the state
+could not be saved) is adopted as latched, so the normal reopen_ack_ts path can remove it.
+Fail-safe: any unexpected error in a run tries ensure(OFFGATE) and ensure(LOCK) (and records the latch) before exit 1.
 Nothing here reads "person", conversation text or the sticky stores. Output: one JSON line per run (Loki), fixed fields.
 DRILL mode (LOCK_MODE=drill) uses the same code on a synthetic state dir (DRILL_SEED), drill names and the drill pod
-selector; it never opens /cloud-spend.
+selector; it never opens /cloud-spend. A seed value "__UNREADABLE__" writes that file with mode 000 (the job runs as
+uid 10000, not root, so it cannot read it back): the drill for T0.
 """
 import datetime as dt
 import json
@@ -169,7 +176,9 @@ def ledger():
 
 
 def call_while_off_lines(after_ts):
-    """ts of every {"to":"call_while_off"} transition line newer than after_ts (only 'to' and 'ts' are read)."""
+    """(hits, error): ts of every {"to":"call_while_off"} transition line newer than after_ts (only 'to' and 'ts' are
+    read), and None or the error class name when the file exists but cannot be read (fail closed: T0). An absent file
+    is not an error (no transition yet). A call_while_off line with an unparseable ts counts as a hit."""
     hits = []
     try:
         with (STATE_DIR / 'cloud-transitions.jsonl').open() as handle:
@@ -179,12 +188,17 @@ def call_while_off_lines(after_ts):
                 except ValueError:
                     continue
                 if isinstance(line, dict) and line.get('to') == 'call_while_off':
-                    ts = float(line.get('ts', 0))
+                    try:
+                        ts = float(line.get('ts', 0))
+                    except (TypeError, ValueError):
+                        ts = float('inf')
                     if ts > after_ts:
                         hits.append(ts)
     except FileNotFoundError:
-        pass
-    return hits
+        return [], None
+    except Exception as error:
+        return hits, type(error).__name__
+    return hits, None
 
 
 def seed_drill():
@@ -193,6 +207,14 @@ def seed_drill():
     now = time.time()
     for name, content in seed.items():
         if '/' in name or name.startswith('.'):
+            continue
+        try:
+            os.chmod(STATE_DIR / name, 0o600)      # a previous __UNREADABLE__ seed in the same dir (local tests)
+        except FileNotFoundError:
+            pass
+        if content == '__UNREADABLE__':
+            (STATE_DIR / name).write_text('')
+            os.chmod(STATE_DIR / name, 0)
             continue
         text = content if isinstance(content, str) else json.dumps(content)
         (STATE_DIR / name).write_text(text.replace('"__NOW_MINUS_600__"', str(now - 600)).replace('"__NOW_MINUS_300__"', str(now - 300)))
@@ -213,8 +235,10 @@ def main():
     probes_today = sum(1 for t in jobs if t >= day_start)
     triggers = []
 
-    # T1: call_while_off lines newer than the last reopen.
-    cwo = call_while_off_lines(ack)
+    # T0 + T1: call_while_off lines newer than the last reopen; an unreadable transitions log closes (T0).
+    cwo, unreadable = call_while_off_lines(ack)
+    if unreadable:
+        triggers.append({'t': 'transitions_unreadable', 'class': unreadable})
     if cwo:
         triggers.append({'t': 'call_while_off', 'n': len(cwo), 'last_ts': max(cwo)})
 
@@ -249,6 +273,10 @@ def main():
         state.pop('locked', None)
     elif state.get('locked'):
         actions[LOCK] = ensure(LOCK, LOCK_SEL, 'latched', {})   # latched until acknowledged, even if removed by hand
+    elif exists(LOCK):
+        # a lock CNP without a record (the fail-safe could not save state): adopt it as latched; reopen as usual
+        state['locked'] = {'ts': now, 'triggers': [{'t': 'adopted_unrecorded_lock'}]}
+        actions[LOCK] = 'adopted'
     if off:
         actions[OFFGATE] = ensure(OFFGATE, OFFGATE_SEL, 'cloud-off', {})
     else:
@@ -257,12 +285,45 @@ def main():
     save_state(state)
     print(json.dumps({'family_cloud_lock': {'mode': MODE, 'off': off, 'probes_today': probes_today,
                                             'triggers': triggers, 'actions': actions}}, sort_keys=True))
-    return 0
+    return 3 if unreadable else 0    # closed, but the job must show red: the state needs a person (Argus F3)
+
+
+def exists(name):
+    status, _ = api('GET', cnp_path(name))
+    if status not in (200, 404):
+        raise RuntimeError(f'get {name}: HTTP {status}')
+    return status == 200
+
+
+def failsafe(error):
+    """Argus F3: an unexpected error must not leave the egress open. Best effort, each step on its own: ensure the
+    offgate and the lock, then record the latch so the usual reopen_ack_ts path applies. Never raises."""
+    done = {}
+    for name, sel in ((OFFGATE, OFFGATE_SEL), (LOCK, LOCK_SEL)):
+        try:
+            done[name] = ensure(name, sel, 'lock_error', {'family-cloud/error': type(error).__name__})
+        except Exception as inner:
+            done[name] = 'failed:' + type(inner).__name__
+    try:
+        state, _ = load_state()
+        if not state.get('locked'):
+            state['locked'] = {'ts': time.time(), 'triggers': [{'t': 'lock_error', 'class': type(error).__name__}]}
+            save_state(state)
+        done['state'] = 'latched'
+    except Exception as inner:
+        done['state'] = 'failed:' + type(inner).__name__
+    return done
+
+
+def run():
+    try:
+        return main()
+    except Exception as error:
+        done = failsafe(error)
+        print(json.dumps({'family_cloud_lock': {'mode': MODE, 'error': type(error).__name__, 'detail': str(error)[:200],
+                                                'failsafe': done}}, sort_keys=True))
+        return 1
 
 
 if __name__ == '__main__':
-    try:
-        sys.exit(main())
-    except Exception as error:
-        print(json.dumps({'family_cloud_lock': {'mode': MODE, 'error': type(error).__name__, 'detail': str(error)[:200]}}))
-        sys.exit(1)
+    sys.exit(run())
