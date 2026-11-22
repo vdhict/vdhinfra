@@ -87,5 +87,35 @@ EXECPY=$(grep -E 'kubectl[^#]*exec[^#]*python' "$D")
 t "F6 in-pod python exec sites found (g4p, tcp, 2x OWUI turn)" "[ \"\$(printf '%s\n' \"\$EXECPY\" | grep -c .)\" -ge 4 ]" 0
 t "F6 every in-pod python exec runs with -I -B" "! printf '%s\n' \"\$EXECPY\" | grep -v -E 'python3? -I -B ' | grep -q ." 0
 t "F6 g4p pipes the helper into python -I -B -" "grep -E '^g4p\(\) ' '$D' | grep -q -- 'python -I -B - '" 0
+# ---- F7 (Argus 22-11 go RED): G4 3d waits for + requires FamilyCloudMoneyCandidate BEFORE swap-prev; exact alert set; this run's cleared-g4 tag
+eval "$(grep -E '^gall\(\) ' "$D")"; G4ISO=2026-11-22T07:00:00Z
+al() { local a; for a in "$@"; do printf '{"alert":"%s","severity":"%s"}\n' "${a%%:*}" "$( [ "${a#*:}" = "$a" ] && echo warning || echo "${a#*:}")"; done; }
+# shellcheck disable=SC2329  # invoked by the eval'd driver lines
+alerts_since() { printf '%s' "$ALERTS"; }
+D3LINE=$(grep -A1 -F 'chk "3d alert: billing same_month_200' "$D" | tail -2 | sed 's/ \\$//' | tr '\n' ' ')
+TEAMLINE=$(grep -A1 -F 'chk "alert_team_only:' "$D" | tail -2 | sed 's/ \\$//' | tr '\n' ' ')
+t "F7 the 3d alert chk and the alert_team_only chk exist in the driver" "[ -n \"\$D3LINE\" ] && [ -n \"\$TEAMLINE\" ]" 0
+for c in "Off NotMoney On:1:3d" "Off MoneyCandidate On:0:3d" "Off On:1:3d" "MoneyCandidate MoneyCandidate:1:3d" "Off MoneyCandidate MoneyReopen:1:3d" \
+         "Off NotMoney On:1:team" "Off MoneyCandidate On:0:team" "Off On:1:team" "Off MoneyCandidate MoneyCandidate On:1:team" "Off MoneyCandidate On Extra:1:team"; do
+  seq=${c%%:*}; rest=${c#*:}; want=${rest%%:*}; which=${rest#*:}; args=()
+  for w in $seq; do case $w in Off) args+=(FamilyCloudOff);; On) args+=(FamilyCloudOn);; MoneyCandidate) args+=(FamilyCloudMoneyCandidate);; MoneyReopen) args+=(FamilyCloudMoneyReopen);; NotMoney) args+=(FamilyCloudSameMonth200NotMoney);; Extra) args+=(FamilyCloudSomethingElse);; esac; done
+  ALERTS=$(al "${args[@]}"); L=$D3LINE; [ "$which" = team ] && L=$TEAMLINE
+  t "F7 $which chk with {$seq} -> RED $want" "[ \"\$(runchk \"\$L\")\" = $want ]" 0; done
+ALERTS=$(al FamilyCloudOff FamilyCloudMoneyCandidate FamilyCloudOn:critical); t "F7 team chk with a critical alert -> RED 1" "[ \"\$(runchk \"\$TEAMLINE\")\" = 1 ]" 0
+ALERTS=$(al FamilyCloudOff FamilyCloudMoneyCandidate:critical FamilyCloudOn); t "F7 team chk with a critical MoneyCandidate -> RED 1" "[ \"\$(runchk \"\$TEAMLINE\")\" = 1 ]" 0
+ALERTS=$(al FamilyCloudOff FamilyCloudMoneyCandidate FamilyCloudOn); t "F7 the 3d alert line is not bypassed by a MoneyCandidate arriving with an earlier Off (once)" "[ \"\$(runchk \"\$D3LINE\")\" = 0 ]" 0
+# static order: the MoneyCandidate wait precedes swap-prev, the waitfor and the gate sit between probe 1's gate and the swap
+WL=$(grep -n 'waitfor 420 "alerts_since .\$G4ISO. | gall FamilyCloudMoneyCandidate"' "$D" | head -1 | cut -d: -f1); SL=$(grep -n 'swap-prev "\$SWTAG"' "$D" | head -1 | cut -d: -f1)
+GL=$(grep -n 'gate "G4 3d alert" R4' "$D" | head -1 | cut -d: -f1)
+t "F7 static: MoneyCandidate waitfor (l.$WL) precedes swap-prev (l.$SL), its gate (l.$GL) too" "[ -n \"\$WL\" ] && [ -n \"\$SL\" ] && [ \"\$WL\" -lt \"\$SL\" ] && [ \"\$GL\" -gt \"\$WL\" ] && [ \"\$GL\" -lt \"\$SL\" ]" 0
+t "F7 static: exactly one swap-prev call, no other date-stamped inline tag" "[ \"\$(grep -c 'g4p \"\$P3\" swap-prev' '$D')\" = 1 ]" 0
+# 3e this-run tag: an old archive cleared-g4-<old> next to this run's tag is GREEN; only the old tag (this run's missing) is RED
+E3LINE=$(line_of 'chk "3e off state gone, both archives present"'); LB='{}'; SWTAG=20261123T080000Z
+LAOK="$(jq -nc --arg t "cloud-off.cleared-g4-$SWTAG.json" '{off:false,off_files:["cloud-off.aborted-g4-20261121T064806Z.json","cloud-off.cleared-1795331125.json","cloud-off.cleared-g4-20261122T070523Z.json",$t]}')"
+LAOLD="$(jq -nc '{off:false,off_files:["cloud-off.cleared-1795331125.json","cloud-off.cleared-g4-20261122T070523Z.json"]}')"
+LAONLY="$(jq -nc --arg t "cloud-off.cleared-g4-$SWTAG.json" '{off:false,off_files:["cloud-off.cleared-1795331125.json",$t]}')"
+LA=$LAOK; t "F7 3e chk: old cleared-g4-<old> + this run's tag -> GREEN" "[ \"\$(runchk \"\$E3LINE\")\" = 0 ]" 0
+LA=$LAOLD; t "F7 3e chk: only an old cleared-g4 archive (this run's tag missing) -> RED" "[ \"\$(runchk \"\$E3LINE\")\" = 1 ]" 0
+LA=$LAONLY; t "F7 3e chk: this run's tag, no old archive -> GREEN" "[ \"\$(runchk \"\$E3LINE\")\" = 0 ]" 0
 t "L7: --go without --dormant-ack exits 2 before any work" "cd '$CACHE' && bash '$D' --go --commit-a $(printf 'a%.0s' {1..40}) --commit-b $(printf 'b%.0s' {1..40}) 2>&1 | grep -q 'needs --dormant-ack'; [ \${PIPESTATUS[0]} = 2 ]" 0
 echo "DRIVER SNIPPET TESTS $PASS/$((PASS+FAIL)) passed"; [ "$FAIL" = 0 ]

@@ -448,14 +448,20 @@ chk "3d stays off (month $(date -u +%Y-%m))" "[ \"\$(jq -c '[.off,.off_month]' <
 chk "3d ledger rise (minus p2) <= PROBE_MAX_COST_USD $PROBE_MAX" "fle \"\$(fsub \"\$(fsub \"\$(jget .usd '$LA')\" \"\$(jget .usd '$LB')\")\" \"\$(fsub \"\$(jget .p2_usd '$LA')\" \"\$(jget .p2_usd '$LB')\")\")\" $PROBE_MAX"
 lock_fp || { RED=1; WHY="${WHY:+$WHY; }lock latch"; }
 [ "$RED" = 0 ] && C_SM200=true; gate "G4 3d" R4; act executed "G4 3d probe 1 -> same_month_200 (exit 3), stays off" GREEN
+# 3d alert (Argus F7, 22-11): the alert job classifies by the CURRENT off file, and 3e removes it. So the money classification
+# must be posted BEFORE swap-prev: wait for the */5 alert run, then require exactly ONE MoneyCandidate and no NotMoney/MoneyReopen.
+waitfor 420 "alerts_since '$G4ISO' | gall FamilyCloudMoneyCandidate"
+chk "3d alert: billing same_month_200 -> exactly ONE team FamilyCloudMoneyCandidate, no NotMoney/MoneyReopen" \
+  "[ \"\$(alerts_since '$G4ISO' | grep -c FamilyCloudMoneyCandidate)\" = 1 ] && ! alerts_since '$G4ISO' | gall -E 'NotMoney|MoneyReopen'"
+gate "G4 3d alert" R4
 # 3e previous-month off file -> probe 2 clears
-SW=$(g4p "$P3" swap-prev "$(date -u +%Y%m%dT%H%M%SZ)" 2>&1); log "  3e swap: $SW"
+SWTAG=$(date -u +%Y%m%dT%H%M%SZ); SW=$(g4p "$P3" swap-prev "$SWTAG" 2>&1); log "  3e swap: $SW"
 chk "3e real off file archived by link (no delete), synthetic previous-month off file written" "[ \"\$(jq -r .swapped <<<'$SW')\" = true ]"
 gate "G4 3e swap" R4
 LB=$(g4p "$P3" state); probe_job "c011-g4-probe-2-$(date -u +%H%M%S)"; LA=$(g4p "$P3" state); PL=$(printf '%s\n' "$PJ_LOG" | tail -1)
 log "  3e probe 2: $(printf '%s' "$PJ_LOG" | tr '\n' ' '); off files now $(jq -c .off_files <<<"$LA")"
 chk "3e pins ok, result cleared, probe_exit 0" "printf '%s' \"\$PJ_LOG\" | gall '\"pins ok\"' && [ \"\$(jq -c '[.probe_run.result, .probe_exit]' <<<'$PL')\" = '[\"cleared\",0]' ]"
-chk "3e off state gone, both archives present" "[ \"\$(jget .off '$LA')\" = false ] && jq -e '[.off_files[] | select(startswith(\"cloud-off.cleared-g4-\"))] | length == 1' <<<'$LA' >/dev/null && jq -e '[.off_files[] | select(test(\"^cloud-off.cleared-[0-9]+[.]json$\"))] | length >= 1' <<<'$LA' >/dev/null"
+chk "3e off state gone, both archives present" "[ \"\$(jget .off '$LA')\" = false ] && jq -e '[.off_files[] | select(. == \"cloud-off.cleared-g4-$SWTAG.json\")] | length == 1' <<<'$LA' >/dev/null && jq -e '[.off_files[] | select(test(\"^cloud-off.cleared-[0-9]+[.]json$\"))] | length >= 1' <<<'$LA' >/dev/null"
 chk "3e ledger rise (minus p2) <= $PROBE_MAX" "fle \"\$(fsub \"\$(fsub \"\$(jget .usd '$LA')\" \"\$(jget .usd '$LB')\")\" \"\$(fsub \"\$(jget .p2_usd '$LA')\" \"\$(jget .p2_usd '$LB')\")\")\" $PROBE_MAX"
 lock_fp || { RED=1; WHY="${WHY:+$WHY; }lock latch"; }
 waitfor 300 "no_cnp family-cloud-offgate"
@@ -466,8 +472,8 @@ chk "3e transitions: off(billing), off(same_month_200), on(probe); no call_while
 [ "$RED" = 0 ] && C_CLEAR=true; gate "G4 3e" R4; act executed "G4 3e previous-month off -> probe 2 cleared, offgate removed" GREEN
 waitfor 420 "alerts_since '$G4ISO' | gall FamilyCloudOn"
 AL=$(alerts_since "$G4ISO" | sort | uniq -c | tr -s ' ' | tr '\n' ';'); log "  alerts since G4 start: $AL"
-chk "alert_team_only: only FamilyCloudOff / FamilyCloudMoneyCandidate / FamilyCloudOn, all warning, on-transition seen" \
-  "[ -z \"\$(alerts_since '$G4ISO' | jq -r 'select((.severity != \"warning\") or ((.alert | IN(\"FamilyCloudOff\",\"FamilyCloudMoneyCandidate\",\"FamilyCloudOn\")) | not)) | .alert')\" ] && alerts_since '$G4ISO' | gall FamilyCloudOn"
+chk "alert_team_only: exactly [FamilyCloudMoneyCandidate, FamilyCloudOff, FamilyCloudOn], all warning; NotMoney forbidden" \
+  "[ \"\$(alerts_since '$G4ISO' | jq -sc '[.[].alert] | sort')\" = '[\"FamilyCloudMoneyCandidate\",\"FamilyCloudOff\",\"FamilyCloudOn\"]' ] && [ -z \"\$(alerts_since '$G4ISO' | jq -r 'select(.severity != \"warning\") | .alert')\" ]"
 chk "R7 no \"person\" in alert output; MONEY_TO_OWNER false" "[ \"\$(job_logs_since alert '$G4ISO' | grep -c -i person)\" = 0 ] && [ \"\$(money_env)\" = false ]"
 chk "R3 p1/p2/p4 unchanged after G4" "[ \"\$(uid 1)\" = '$U1' ] && [ \"\$(uid 2)\" = '$U2' ] && [ \"\$(uid 4)\" = '$U4' ] && [ \"\$(bsha 1)\" = '$S1' ] && [ \"\$(bsha 2)\" = '$S2' ] && [ \"\$(bsha 4)\" = '$S4' ]"
 [ "$RED" = 0 ] && C_ALERT=true; gate "G4 alerts" R4

@@ -304,11 +304,53 @@ def alert_tests():
     os.environ.pop('DRILL_SEED', None)
 
 
+def race_tests():
+    """F7 (Argus 22-11, go RED at G4): the alert job classifies a same_month_200 line by the CURRENT cloud-off.json. The driver's
+    3e moved that file away inside the same */5 window as 3d, so ONE alert run that saw both lines gave NotMoney instead of
+    MoneyCandidate. The first case documents the race (cloud_alert.py is NOT changed in this rerun, F7-b); the second is the
+    sequence the fixed driver enforces: an alert run between 3d and 3e -> MoneyCandidate."""
+    t0 = time.time() - 900
+    base = time.time() - 300
+
+    def lines(*objs):
+        return ''.join(json.dumps(o) + '\n' for o in objs)
+    off_bill = {'ts': base, 'to': 'off', 'kind': 'billing', 'status': 402, 'type': 'billing_error'}
+    off_sm = {'ts': base + 10, 'to': 'off', 'kind': 'same_month_200', 'status': 200, 'month': month()}
+    on_probe = {'ts': base + 20, 'to': 'on', 'kind': 'probe'}
+    off_file = {'v': 1, 'ts': base, 'month': month(), 'kind': 'billing', 'status': 402, 'type': 'billing_error'}
+
+    def names(posted):
+        return [a['labels']['alertname'] for a in posted]
+    # race: the off file is gone (3e swap) before the single alert run that sees off/billing, off/same_month_200 and on/probe
+    d = tempfile.mkdtemp(prefix='c011-alert-race-')
+    write(d, 'cloud-transitions.jsonl', lines(off_bill, off_sm, on_probe))
+    m, api, posted = alert_env(d, cursor=t0)
+    rc, _ = alert_run(m)
+    ok('race F7: off file already moved + ONE alert run over off/billing, off/same_month_200, on/probe -> NotMoney (documents the race)',
+       rc == 0 and names(posted) == ['FamilyCloudOff', 'FamilyCloudSameMonth200NotMoney', 'FamilyCloudOn']
+       and 'FamilyCloudMoneyCandidate' not in names(posted))
+    # fixed sequence: off file present at the first alert run (after 3d), then moved, then the on/probe line
+    d2 = tempfile.mkdtemp(prefix='c011-alert-seq-')
+    write(d2, 'cloud-off.json', off_file)
+    write(d2, 'cloud-transitions.jsonl', lines(off_bill, off_sm))
+    m2, api2, posted2 = alert_env(d2, cursor=t0)
+    rc1, _ = alert_run(m2)
+    ok('race F7: an alert run between 3d and 3e (off file present) -> FamilyCloudOff + FamilyCloudMoneyCandidate, no NotMoney',
+       rc1 == 0 and names(posted2) == ['FamilyCloudOff', 'FamilyCloudMoneyCandidate'])
+    os.rename(os.path.join(d2, 'cloud-off.json'), os.path.join(d2, 'cloud-off.cleared-g4-T.json'))
+    write(d2, 'cloud-transitions.jsonl', lines(off_bill, off_sm, on_probe))
+    rc2, _ = alert_run(m2)
+    ok('race F7: the later run after the off file moved adds only FamilyCloudOn; set == [MoneyCandidate, Off, On], all warning',
+       rc2 == 0 and sorted(names(posted2)) == ['FamilyCloudMoneyCandidate', 'FamilyCloudOff', 'FamilyCloudOn']
+       and {a['labels']['severity'] for a in posted2} == {'warning'})
+
+
 def main():
     if os.geteuid() == 0:
         print('run as a normal user: mode 000 does not stop root'); return 2
     lock_tests()
     alert_tests()
+    race_tests()
     n, good = len(RES), sum(RES)
     print('CLOUD GUARD TESTS %d/%d passed' % (good, n))
     return 0 if good == n else 1
