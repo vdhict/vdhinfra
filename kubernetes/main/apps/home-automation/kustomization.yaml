@@ -5,6 +5,7 @@ kind: Kustomization
 resources:
   - ./namespace.yaml
   - ./home-assistant/install.yaml
+  - ./ha-config-entry-exporter/install.yaml
   - ./mosquitto/install.yaml
   - ./zigbee2mqtt/install.yaml
   - ./zwave-js-ui/install.yaml

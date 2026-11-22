@@ -1,0 +1,37 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/prometheusrule_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ha-config-entry-alerts
+  labels:
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: ha-config-entries
+      rules:
+        # Warning only: Alertmanager sends warning to the "cards" receiver
+        # (vault card, no push, no sound). One alert per domain+state so a
+        # broken integration with many entries is one card.
+        - alert: HAConfigEntryNotLoaded
+          expr: |
+            sum by (domain, state) (
+              ha_config_entry_state{state=~"setup_error|setup_retry|migration_error|failed_unload|not_loaded"}
+            ) > 0
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "HA integration {{ $labels.domain }} has config entries in state {{ $labels.state }} for over 1h"
+            description: "{{ $value }} enabled config entries of domain {{ $labels.domain }} are {{ $labels.state }}. Source: ha-config-entry-exporter (HA /api/config/config_entries/entry); Settings > Devices & services in HA shows which."
+        # The signal itself must not die silently.
+        - alert: HAConfigEntryExporterStale
+          expr: |
+            (time() - ha_config_entry_scrape_timestamp_seconds > 900)
+            or (ha_config_entry_poll_success == 0)
+            or absent(ha_config_entry_poll_success)
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "ha-config-entry-exporter cannot read HA config entries (no HAConfigEntryNotLoaded signal)"
