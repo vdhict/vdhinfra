@@ -1,0 +1,56 @@
+[
+  {
+    "domain": "ipp",
+    "entry_id": "01JD75FXQPZJDPMHV46Q5217K2",
+    "reden": "labelprinter uit of standby (UDM: offline sinds 2026-09-21); gemeten 2026-11-22, tsk-2026-11-22-103",
+    "herzien": "2026-12-22"
+  },
+  {
+    "domain": "homewizard",
+    "entry_id": "01JD87RXKJKFGTX8QTTJJBE9RY",
+    "reden": "meter uit of van het netwerk (UDM: niet verbonden); gemeten 2026-11-22, tsk-2026-11-22-103",
+    "herzien": "2026-12-22"
+  },
+  {
+    "domain": "homewizard",
+    "entry_id": "01JEY8PMPZPGE58Y0KEMT5NFEF",
+    "reden": "meter uit of van het netwerk (UDM: niet verbonden); gemeten 2026-11-22, tsk-2026-11-22-103",
+    "herzien": "2026-12-22"
+  },
+  {
+    "domain": "androidtv_remote",
+    "entry_id": "01JEY8YKBWBE5VC8WN2DNMHFX0",
+    "reden": "tv uit of standby (MAC niet in UDM); gemeten 2026-11-22, tsk-2026-11-22-103",
+    "herzien": "2026-12-22"
+  },
+  {
+    "domain": "twinkly",
+    "entry_id": "01JF2702HY38DGE0THZFVN5KK5",
+    "reden": "seizoensverlichting, stekker eruit (MAC niet in UDM); gemeten 2026-11-22, tsk-2026-11-22-103",
+    "herzien": "2026-12-22"
+  },
+  {
+    "domain": "twinkly",
+    "entry_id": "01JF89ZH08EMM9DW39GCS0VGFX",
+    "reden": "seizoensverlichting, stekker eruit (MAC niet in UDM); gemeten 2026-11-22, tsk-2026-11-22-103",
+    "herzien": "2026-12-22"
+  },
+  {
+    "domain": "androidtv_remote",
+    "entry_id": "01JGXY33NG357S17GR5PJ4VEQ6",
+    "reden": "tv uit of standby (MAC niet in UDM); gemeten 2026-11-22, tsk-2026-11-22-103",
+    "herzien": "2026-12-22"
+  },
+  {
+    "domain": "androidtv_remote",
+    "entry_id": "01JGXY65MHZ02BQNYET2NPFSHS",
+    "reden": "tv uit of standby (MAC niet in UDM); gemeten 2026-11-22, tsk-2026-11-22-103",
+    "herzien": "2026-12-22"
+  },
+  {
+    "domain": "music_assistant",
+    "entry_id": "01JPT3NNY2V0GDPJJZFT313RAY",
+    "reden": "genegeerde discovery-entry, laadt by design nooit; gemeten 2026-11-22, tsk-2026-11-22-103",
+    "herzien": "2026-12-22"
+  }
+]

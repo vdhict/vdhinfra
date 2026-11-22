@@ -13,5 +13,11 @@ configMapGenerator:
         kustomize.toolkit.fluxcd.io/substitute: disabled
     files:
       - scripts/exporter.py
+  - name: ha-config-entry-exceptions
+    options:
+      annotations:
+        kustomize.toolkit.fluxcd.io/substitute: disabled
+    files:
+      - exceptions.json
 generatorOptions:
   disableNameSuffixHash: true

@@ -74,8 +74,15 @@ spec:
             - name: scripts
               mountPath: /scripts
               readOnly: true
+            - name: exceptions
+              mountPath: /exceptions
+              readOnly: true
       volumes:
         - name: scripts
           configMap:
             name: ha-config-entry-exporter-scripts
             defaultMode: 0555
+        - name: exceptions
+          configMap:
+            name: ha-config-entry-exceptions
+            optional: true

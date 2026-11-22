@@ -13,10 +13,13 @@ spec:
         # Warning only: Alertmanager sends warning to the "cards" receiver
         # (vault card, no push, no sound). One alert per domain+state so a
         # broken integration with many entries is one card.
+        # Entries on the exception list (ConfigMap ha-config-entry-exceptions) are left out only while their
+        # herzien date is valid (exporter: today <= herzien <= today+30d); after that they alert again.
         - alert: HAConfigEntryNotLoaded
           expr: |
             sum by (domain, state) (
               ha_config_entry_state{state=~"setup_error|setup_retry|migration_error|failed_unload|not_loaded"}
+              unless on (entry_id) (ha_config_entry_exception_active == 1)
             ) > 0
           for: 1h
           labels:
@@ -35,3 +38,10 @@ spec:
             severity: warning
           annotations:
             summary: "ha-config-entry-exporter cannot read HA config entries (no HAConfigEntryNotLoaded signal)"
+        - alert: HAConfigEntryExceptionInvalid
+          expr: ha_config_entry_exceptions_invalid > 0
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "ha-config-entry-exceptions has {{ $value }} unreadable item(s); they are not honoured"
