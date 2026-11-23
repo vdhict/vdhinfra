@@ -3,9 +3,8 @@
 # cloud-off.json exists; then ONE synthetic call ("ping", max_tokens 1, no profile data), cleared only on a 200 in a
 # later UTC month (S-F1). Wrapper files/probe_run.py: bundle sha256 check, plugin + probe pinned to the wire blobs of
 # family-ai-cluster b7b3a96 (G3 on the probe job), rendered budget_usd <= 99 (C2); reads the JSON result line.
-# LIVE since the go-live commit B of chg-2026-11-17-011 (after the G3 one-file-swap p3 bundle, the G4 canary and the G9
-# gate). On a state that is not off it makes no call (result not_off). p2 still carries the pre-signal plugin; the probe
-# reads the profiel-3 bundle only. Rollback = git revert of commit B (suspend: true again, same commit as the p3 CNP).
+# SUSPENDED until go-live: the deployed p2/p3 bundles still carry the pre-signal plugin (sha256 82fafe60..), so the
+# pin check would refuse anyway. Go-live (G3 bundles, G4 canary, G9) flips suspend to false in its own commit.
 # backoffLimit 0 + restartPolicy Never: a failed run is never retried the same day (D-L4: no paid reruns).
 # yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/batch/cronjob_v1.json
 apiVersion: batch/v1
@@ -15,7 +14,7 @@ metadata:
 spec:
   schedule: "5 7 * * *"
   timeZone: Europe/Amsterdam
-  suspend: false
+  suspend: true
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 1800
   successfulJobsHistoryLimit: 3
