@@ -45,7 +45,10 @@
 #    p2 local or (with --dormant-ack) dormant; exactly "GATE GREEN (g1)", never "(w2)".
 #  5 push commit B (hermes-profiel-3-cloud CNP + probe suspend:false). Post: Flux at B; CNP spec == repo; cloud CNPs ==
 #    {hermes-profiel-3-cloud}; no cloud CNP selects profiel-1; egress p3 open, p1/p2/p4 closed; ONE synthetic public
-#    turn -> cloud/cloud_ok, p3 ledger rise in (0, 0.2048], month usd <= 99; Hubble: flows to the API only from p3;
+#    turn -> cloud/cloud_ok, p3 ledger rise in (0, 0.2048], month usd <= 99; Hubble (F8): a live capture started
+#    before B and stopped 30 s after the turn has FORWARDED p3 -> api.anthropic.com in the p3 tcp test and inside the
+#    turn, 0 FORWARDED from p1/p2/p4, the capture never died, wrote >= 1 line and no stderr (--dry-run: the same capture
+#    must show the p3 -> Studio tcp test, proving Hubble sees p3);
 #    next 2 lock runs triggers [] + no offgate; on-transition alerted; no call_while_off; no "person"; MONEY_TO_OWNER
 #    false; p1/p2/p4 unchanged.
 #  6 executed + validated lines. Then (human): watch the 07:05 probe (not_off, exit 0) and the next lock/alert runs.
@@ -76,6 +79,10 @@ case "$MODE" in --dry-run|--go) ;; *) echo "usage: $0 --dry-run|--go --commit-a 
 # Argus L7: live p2 carries the pre-signal family-cloud, so step 4 is GREEN only with p2 dormant + Argus' ack. Without
 # it --go would spend both probe Jobs of the day and then stop RED at step 4.
 [ "$MODE" != --go ] || [ -n "$DACK" ] || { echo "--go needs --dormant-ack (Argus L7: step 4 cannot pass without it)" >&2; exit 2; }
+# F8 (Argus r3red 23-11): every LOCAL python runs as this pinned interpreter. Apple CLT /usr/bin/python3 3.9 writes stdlib
+# bytecode under $HOME at startup (G4POD 58/59). In-pod pythons are the pods' own (-I -B, F6).
+PY=/opt/homebrew/bin/python3
+[ -x "$PY" ] || { echo "F8: $PY missing; this driver runs local python only as $PY" >&2; exit 2; }
 
 CHG=chg-2026-11-17-011; TSK=tsk-2026-10-17-005; NS=family-ai
 PIN_INIT=99fb4183deb1793c4cecf3e2abece50e4375b37962f44fa53c358bf581c37496
@@ -128,8 +135,8 @@ probe_jobs_today() { local d; d=$(date -u +%Y-%m-%dT00:00:00Z); kubectl -n $NS g
 script_cm() { kubectl -n $NS get cronjob family-cloud-probe -o json | jq -r '.spec.jobTemplate.spec.template.spec.volumes[] | select(.name=="probe") | .configMap.name'; }
 probe_script_sha() { kubectl -n $NS get cm "$(script_cm)" -o json | jq -j '.data["cloud-probe"]' | shasum -a 256 | cut -c1-64; }
 jget() { jq -r "$1" <<<"$2"; }
-fle() { python3 -I -c 'import sys; a,b=float(sys.argv[1]),float(sys.argv[2]); sys.exit(0 if a <= b + 1e-9 else 1)' "$1" "$2"; }
-fsub() { python3 -I -c 'import sys; print(repr(float(sys.argv[1]) - float(sys.argv[2])))' "$1" "$2"; }
+fle() { "$PY" -I -c 'import sys; a,b=float(sys.argv[1]),float(sys.argv[2]); sys.exit(0 if a <= b + 1e-9 else 1)' "$1" "$2"; }
+fsub() { "$PY" -I -c 'import sys; print(repr(float(sys.argv[1]) - float(sys.argv[2])))' "$1" "$2"; }
 waitfor() { # $1 seconds, $2 command (eval'd in a subshell); polls every 10 s, collects job logs meanwhile
   local end=$(( $(now_e) + $1 )); while [ "$(now_e)" -lt "$end" ]; do collect; ( eval "$2" ) >/dev/null 2>&1 && return 0; sleep 10; done
   collect; ( eval "$2" ) >/dev/null 2>&1; }
@@ -157,13 +164,72 @@ logs_count() { # $1 = kubectl logs args (eval'd), $2 = ERE, $3 = allow-empty (op
   # `kubectl logs` fails, and (without allow-empty) when the log is empty. allow-empty (F5, R5 --since window): empty = 0 hits
   local out; out=$(eval "kubectl -n $NS logs $1" 2>/dev/null) || return 1; [ -n "$out" ] || [ "${3:-}" = allow-empty ] || return 1
   printf '%s\n' "$out" | grep -c -i -E "$2"; return 0; }
+# ---- F8 Hubble live capture (begin) (Argus r3hubble 23-11 Q3). The ring buffer holds ~45 s on node02, so the R3 flows
+# are judged from a STREAM started before B, never from an after-the-fact query. hubble's stderr is kept in its own
+# 0600 file and judged: a relay/CLI error is RED, never "none" (Q3d). Capture + port-forward die on every exit path.
+HPID=""; HCAP=""; HERR=""; HALIVE=0; HSLACK=2   # HSLACK: seconds around windows measured on this Mac's clock
+hub_start() { # $1 tag -> $CACHE/hubble-$1.json (stdout) + $CACHE/hubble-$1.err (stderr), both 0600; sets PF, HPID
+  HCAP="$CACHE/hubble-$1.json"; HERR="$CACHE/hubble-$1.err"; ( umask 077; : > "$HCAP"; : > "$HERR" ); chmod 600 "$HCAP" "$HERR"
+  kubectl -n kube-system port-forward svc/hubble-relay 14245:80 > "$CACHE/hubble-$1.pf.log" 2>&1 & PF=$!; sleep 3
+  hubble observe --server localhost:14245 --follow --namespace $NS -o json >> "$HCAP" 2>> "$HERR" & HPID=$!
+  log "  info Hubble capture $1 started: pid $HPID -> ${HCAP#"$CACHE"/} (stderr ${HERR#"$CACHE"/}, 0600)"; }
+hub_alive() { [ -n "$HPID" ] && kill -0 "$HPID" 2>/dev/null && ! ps -o stat= -p "$HPID" | grep -q Z; }
+hub_kill() { # every exit path (on_exit, rollback_core, hub_stop): stop the capture and the relay port-forward
+  [ -n "$HPID" ] && kill "$HPID" 2>/dev/null; HPID=""; [ -n "$PF" ] && kill "$PF" 2>/dev/null; PF=""; return 0; }
+hub_stop() { # sets HALIVE=1 only if the capture was still running at the stop; logs line + stderr counts (stderr head)
+  HALIVE=0; hub_alive && HALIVE=1; local p="$HPID"; hub_kill; [ -n "$p" ] && wait "$p"
+  log "  info Hubble capture stopped: alive at the stop $HALIVE; $(grep -c . "$HCAP") lines; stderr $(grep -c . "$HERR") lines${HERR:+$( [ -s "$HERR" ] && printf '; stderr: %s' "$(head -3 "$HERR" | tr '\n' ' ')")}"; }
+hub_errn() { [ -f "$1" ] || { echo -1; return; }; grep -c . "$1"; }   # missing stderr file -> -1 (RED)
+HUB_JQ='def ep: capture("^(?<s>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(?<f>[.][0-9]+)?Z$") as $m
+    | ($m.s + "Z" | fromdateiso8601) + (("0" + ($m.f // ".0")) | tonumber);
+  def nm: ascii_downcase | rtrimstr(".");
+  def wl: ((.source.workloads // [])[0].name // ((.source.pod_name // "") | sub("-[a-z0-9]+-[a-z0-9]+$"; "")));
+  def named: (.destination_names // []) | any(.[]; nm == "api.anthropic.com");
+  def cnt(f): [.[] | select(f)] | length;
+  def byw: group_by(.w) | map({(.[0].w): length}) | add // {};
+  [.[] | select(type == "object" and has("flow")) | .flow] as $f
+  | ([$f[] | select((.l7.dns.query // "") | nm == "api.anthropic.com") | (.l7.dns.ips // [])[]]
+     + [$f[] | select(named) | .IP.destination // empty] | map(select(. != "")) | unique) as $ips
+  | [$f[] | select((.source.namespace // "") == "family-ai")
+      | select(named or ((.IP.destination // "") as $d | any($ips[]; . == $d)))
+      | {t: (.time | ep), v: .verdict, w: wl}] as $a
+  | [$a[] | select(.w == "hermes-profiel-3" and .v == "FORWARDED")] as $p3
+  | {lines: length, alive: ($alive == 1), stderr_lines: $errn, flows: ($f | length),
+     lost_events_info: cnt(type == "object" and has("lost_events")), api_ips: $ips,
+     p3_forwarded: ($p3 | length),
+     p3_in_tcp_test: ($p3 | cnt(.t >= $c0 - $sl and .t <= $c1 + $sl)),
+     p3_in_go_turn: ($p3 | cnt(.t >= $t0 and .t <= $t1)),
+     p124_forwarded: ([$a[] | select((.w | test("^hermes-profiel-[124]$")) and .v == "FORWARDED")] | byw),
+     p124_dropped_info: ([$a[] | select((.w | test("^hermes-profiel-[124]$")) and .v == "DROPPED")] | byw)}
+  | .pass = (.alive and .stderr_lines == 0 and .lines > 0 and .p3_in_tcp_test >= 1 and .p3_in_go_turn >= 1 and .p124_forwarded == {})'
+hub_judge() { # --go R3: $1 capture $2 stderr file $3 alive(1|0) $4 $5 p3 tcp-test window (Mac epoch) $6 $7 go turn (TURNSTART/END)
+  # -> one JSON line with .pass; a non-JSON capture line or a missing window -> jq error, no output (RED)
+  jq -s -c --argjson alive "$3" --argjson errn "$(hub_errn "$2")" --argjson c0 "$4" --argjson c1 "$5" --argjson t0 "$6" \
+    --argjson t1 "$7" --argjson sl "$HSLACK" "$HUB_JQ" "$1"; }
+hub_seen_p3() { # --dry-run (Q3e): $1 capture $2 stderr $3 alive $4 $5 window (Mac epoch). p3 cannot reach the API before B,
+  # so the positive control is the driver's own p3 -> Studio 172.16.2.200:443 tcp test (FORWARDED); p3 egress kinds are logged
+  jq -s -c --argjson alive "$3" --argjson errn "$(hub_errn "$2")" --argjson w0 "$4" --argjson w1 "$5" --argjson sl "$HSLACK" '
+    def ep: capture("^(?<s>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(?<f>[.][0-9]+)?Z$") as $m
+      | ($m.s + "Z" | fromdateiso8601) + (("0" + ($m.f // ".0")) | tonumber);
+    def wl: ((.source.workloads // [])[0].name // ((.source.pod_name // "") | sub("-[a-z0-9]+-[a-z0-9]+$"; "")));
+    def port: (.l4.TCP.destination_port // .l4.UDP.destination_port // "?") | tostring;
+    [.[] | select(type == "object" and has("flow")) | .flow] as $f
+    | [$f[] | select((.source.namespace // "") == "family-ai" and wl == "hermes-profiel-3") | select((.time | ep) as $t | $t >= $w0 - $sl and $t <= $w1 + $sl)
+        | {v: .verdict, k: ((.IP.destination // "?") + ":" + port)}] as $p
+    | {lines: length, alive: ($alive == 1), stderr_lines: $errn, flows: ($f | length),
+       p3_egress_in_window: ($p | group_by([.v, .k]) | map({("\(.[0].v) \(.[0].k)"): length}) | add // {}),
+       positive_control: "p3 -> 172.16.2.200:443 FORWARDED (the driver tcp test)",
+       positive_control_flows: ([$p[] | select(.v == "FORWARDED" and .k == "172.16.2.200:443")] | length)}
+    | .pass = (.alive and .stderr_lines == 0 and .lines > 0 and .positive_control_flows >= 1)' "$1"; }
+# ---- F8 Hubble live capture (end)
 
 log "$CHG go-live driver ${MODE#--} $TS A=$A B=$B${DACK:+ dormant-ack=$DACK} (wq-001; AGR-109: tests are the gate)"
 log "driver sha256 $(shasum -a 256 "$0" | cut -c1-64); gate sha256 $(shasum -a 256 "$HACK/$CHG-g9gate.py" | cut -c1-64)"
+log "python (F8): pinned $PY $("$PY" -V 2>&1); command -v python3 = $(command -v python3 || echo none) (info only, not used)"
 
 # ------------------------------------------------------------------ rollback + exit guard
 rollback_core() { # $1 class (R1..R8 or exitguard), $2 reason
-  ROLLED_BACK=1; log "ROLLBACK ($1): $2"
+  ROLLED_BACK=1; hub_kill; log "ROLLBACK ($1): $2"   # F8: no capture keeps running through a rollback
   local revs="" tries=0 w rv
   [ -n "$PUSHED_B" ] && revs="$B"
   case "$1" in R1|R2|R3|exitguard) [ -n "$PUSHED_A" ] && revs="$revs $A";; esac
@@ -201,7 +267,7 @@ rollback_core() { # $1 class (R1..R8 or exitguard), $2 reason
 GO_FINISHED=""; ROLLED_BACK=""
 on_exit() {
   local rc=$?; trap '' HUP INT TERM; trap - EXIT; set +u
-  [ -n "$COLLECTOR" ] && kill "$COLLECTOR" 2>/dev/null; [ -n "$PF" ] && kill "$PF" 2>/dev/null
+  [ -n "$COLLECTOR" ] && kill "$COLLECTOR" 2>/dev/null; hub_kill   # F8: Hubble capture + port-forward
   if { [ -n "$PUSHED_A" ] || [ -n "$PUSHED_B" ]; } && [ -z "$GO_FINISHED" ] && [ -z "$ROLLED_BACK" ]; then
     log "  RED  driver ended (rc=$rc) after a push without GREEN and without a rollback -> exit guard"
     rollback_core exitguard "driver ended rc=$rc"; log "RESULT go RED -> rolled back (exit guard)"; [ "$rc" = 0 ] && rc=1
@@ -227,13 +293,13 @@ chk "commit B touches exactly the CNP kustomization line + probe suspend" \
    && ! git -C '$SRC' show '$B:$KUST' | gall 'hermes-profiel-2-cloud' \
    && [ \"\$(git -C '$SRC' show '$B:$PROBEFILE' | yq '.spec.suspend')\" = false ] \
    && [ \"\$(git -C '$SRC' diff '$A' '$B' -- '$PROBEFILE' | grep -c '^[-+] ')\" -le 8 ]"
-C1OUT=$(cd "$SRC" && python3 -I "$HACK/$CHG-c1check.py" --repo "$SRC" --base "$MAIN" --commit "$A" 2>&1); printf '%s\n' "$C1OUT" | sed 's/^/    /' >> "$EV"
+C1OUT=$(cd "$SRC" && "$PY" -I "$HACK/$CHG-c1check.py" --repo "$SRC" --base "$MAIN" --commit "$A" 2>&1); printf '%s\n' "$C1OUT" | sed 's/^/    /' >> "$EV"
 chk "C1: A's p3 bundle == origin/main's with exactly family-cloud/__init__.py 82fafe60 -> 99fb4183 (in-memory decrypt)" "printf '%s\n' \"\$C1OUT\" | tail -1 | gall '^C1 OK '"
 P3BASE=$(printf '%s\n' "$C1OUT" | tail -1 | awk '/^C1 OK /{print $4}'); P3NEW=$(printf '%s\n' "$C1OUT" | tail -1 | awk '/^C1 OK /{print $6}')
 log "  info rollback material: origin/main $MAIN p3 bundle.sops.yaml sha256 $(git -C "$SRC" show "$MAIN:$BUNDLE_PATH" | shasum -a 256 | cut -c1-64); bundle.tar.gz $P3BASE; A bundle.tar.gz $P3NEW"
-GT=$(TMPDIR="$CACHE" python3 -I "$HACK/$CHG-test-g9gate.py" 2>&1 | tail -1); log "  info gate tests: $GT"
+GT=$(TMPDIR="$CACHE" "$PY" -I "$HACK/$CHG-test-g9gate.py" 2>&1 | tail -1); log "  info gate tests: $GT"
 chk "gate tests all passed" "printf '%s' \"\$GT\" | gall -E '^TESTS ([0-9]+)/\\1 passed\$'"
-GP=$(TMPDIR="$CACHE" python3 -I "$HACK/$CHG-test-g4-pod.py" 2>&1 | tail -1); log "  info G4 helper tests: $GP"
+GP=$(TMPDIR="$CACHE" "$PY" -I "$HACK/$CHG-test-g4-pod.py" 2>&1 | tail -1); log "  info G4 helper tests: $GP"
 chk "G4 helper tests all passed (trip / swap-prev / abort-archive / uid drop / pin guard on a synthetic ledger)" "printf '%s' \"\$GP\" | gall -E '^G4POD TESTS ([0-9]+)/\\1 passed\$'"
 GD=$(TMPDIR="$CACHE" bash "$HACK/$CHG-test-golive-snippets.sh" "$HACK/$CHG-golive.sh" 2>&1 | tail -1); log "  info driver snippet tests: $GD"
 chk "driver snippet tests all passed (F4 owner check / L1 log reads / L7, stubbed)" "printf '%s' \"\$GD\" | gall -E '^DRIVER SNIPPET TESTS ([0-9]+)/\\1 passed\$'"
@@ -297,7 +363,7 @@ run_gate() { # $1 changes file, $2 evidence dir, $3 g4 ts, $4 p3 source (live|A)
   else exec 7< <(bstream 3); fi
   exec 8< <(bstream 1); exec 9< <(bstream 4); exec 6< <(bstream 2)
   local ack=(); [ -n "$6" ] && ack=(--dormant-ack "$6")
-  python3 -I "$HACK/$CHG-g9gate.py" --changes "$1" --evidence-dir "$2" ${3:+--g4-event "$3"} \
+  "$PY" -I "$HACK/$CHG-g9gate.py" --changes "$1" --evidence-dir "$2" ${3:+--g4-event "$3"} \
     --cloud-bundle profiel-3=/dev/fd/7 --local-bundle profiel-1=/dev/fd/8 --local-bundle profiel-4=/dev/fd/9 \
     "--$5-bundle" profiel-2=/dev/fd/6 ${ack[@]+"${ack[@]}"} 2>&1
   local rc=$?; exec 6<&- 7<&- 8<&- 9<&-; return $rc; }
@@ -332,11 +398,16 @@ if [ "$MODE" = --dry-run ]; then
   # if the guard failed does not belong in a read-only run ('trip' calls the same load() before any write)
   chk "p3 'import' REFUSES today (deployed plugin is pre-signal: fail-closed pin guard)" "o=\$(g4p '$P3' import 2>&1); printf '%s' \"\$o\" | gall 'not the pin'"
   ST1=$(g4p "$P3" state); chk "p3 state unchanged by the dry-run (no off file, same ledger usd)" "[ \"\$(jget .off '$ST1')\" = false ] && [ \"\$(jget .usd '$ST1')\" = \"\$(jget .usd '$ST0')\" ]"
-  kubectl -n kube-system port-forward svc/hubble-relay 14245:80 >/dev/null 2>&1 & PF=$!; sleep 3
-  HF=$(hubble observe --server localhost:14245 --since 1h --from-namespace $NS --to-fqdn api.anthropic.com -o json 2>/dev/null | jq -r '.flow.source.pod_name // "?"' | sed -E 's/-[a-z0-9]+-[a-z0-9]+$//' | sort | uniq -c | tr '\n' ' ')
-  kill $PF 2>/dev/null; PF=""
-  log "  info Hubble flows family-ai -> api.anthropic.com, last 1 h: ${HF:-none}"
-  chk "Hubble query path works (relay reachable)" "true"
+  # F8 (Argus Q3e): the same live capture as --go, around a p3 positive control, proves Hubble sees p3 before the go
+  log "== dry-run: Hubble live capture (F8)"
+  hub_start dry; waitfor 30 "[ -s '$HCAP' ]"
+  HW0=$(now_e)
+  chk "p3 -> Studio 172.16.2.200:443 connects (Hubble positive control)" "tcp '$P3' 172.16.2.200 443"
+  chk "p3 cannot reach api.anthropic.com:443 (kube-dns + DROPPED flows for the capture, info)" "blocked '$P3' api.anthropic.com 443"
+  HW1=$(now_e); sleep 10; hub_stop
+  HD=$(hub_seen_p3 "$HCAP" "$HERR" "$HALIVE" "$HW0" "$HW1"); log "  info Hubble dry-run capture: ${HD:-jq error (unparseable capture)}"
+  log "  info positive control used: the driver's p3 -> Studio 172.16.2.200:443 tcp test (p3 cannot reach the API before B)"
+  chk "R3 Hubble sees p3 live (F8): capture alive until the stop, stderr empty, >= 1 line, >= 1 FORWARDED p3 -> 172.16.2.200:443 in the test window" "jq -e '.pass == true' <<<'$HD' >/dev/null"
   [ "$RED" = 0 ] && log "RESULT dry-run GREEN (no writes; the go needs the items in the report)" || log "RESULT dry-run RED ($WHY)"
   GO_FINISHED=1; exit $RED
 fi
@@ -390,7 +461,7 @@ lock_fp() { # the KNOWN p2 false positive (Argus Q4 3e): explain + reopen, never
   local st trig cur d_usd d_p2 d_p3 rest allow
   st=$(kubectl -n $NS get cm family-cloud-lock-state -o jsonpath='{.data.state\.json}'); trig=$(jq -c '[.locked.triggers[]?.t] | unique' <<<"$st")
   cur=$(g4p "$P3" state); d_usd=$(fsub "$(jget .usd "$cur")" "$(jget .usd "$L0")"); d_p2=$(fsub "$(jget .p2_usd "$cur")" "$(jget .p2_usd "$L0")")
-  d_p3=$(fsub "$(jget .p3_usd "$cur")" "$(jget .p3_usd "$L0")"); rest=$(fsub "$d_usd" "$d_p2"); allow=$(python3 -I -c "print($PROBES*$PROBE_MAX)")
+  d_p3=$(fsub "$(jget .p3_usd "$cur")" "$(jget .p3_usd "$L0")"); rest=$(fsub "$d_usd" "$d_p2"); allow=$("$PY" -I -c "print($PROBES*$PROBE_MAX)")
   log "  info lock latched: triggers $trig; since G4 start usd +$d_usd, p2 +$d_p2, p3 +$d_p3, rest +$rest (probe allowance $allow)"
   if [ "$trig" = '["ledger_rise_while_off"]' ] && fle "$d_p3" 0 && fle 0.0000000001 "$d_p2" && fle "$rest" "$allow"; then
     log "  KNOWN p2 false positive (Argus Q4 3e): p2's pre-signal plugin kept a reservation at the closed egress while off. Reopen via reopen_ack_ts."
@@ -420,7 +491,7 @@ chk "3a F4 the first lock run after the trip succeeded: no error, off true, trig
 LB=$(g4p "$P3" state); kubectl -n $NS exec -i "$(ow)" -c app -- sh -c 'cd /app/backend && python3 -I -B - g4-off' < "$HACK/$CHG-owui-turn.py" > "$CACHE/turn-g4.txt" 2>&1
 sed 's/^/    /' "$CACHE/turn-g4.txt" | grep -E 'PASS|FAIL|RESULT' >> "$EV"
 T0=$(awk '/^TURNSTART/{print $2}' "$CACHE/turn-g4.txt"); T1=$(awk '/^TURNEND/{print $2}' "$CACHE/turn-g4.txt")
-RT=$(g4p "$P3" routes "$(python3 -I -c "print(${T0:-0}-2)")" "$(python3 -I -c "print(${T1:-0}+5)")"); LA=$(g4p "$P3" state)
+RT=$(g4p "$P3" routes "$("$PY" -I -c "print(${T0:-0}-2)")" "$("$PY" -I -c "print(${T1:-0}+5)")"); LA=$(g4p "$P3" state)
 log "  3b route records: $(jq -c .routes <<<"$RT")"
 chk "3b synthetic turn answered (Studio), canary account deleted" "gall -x 'RESULT GREEN' '$CACHE/turn-g4.txt'"
 chk "3b rule cloud_off, no cloud record" "jq -e '(.routes | any(. == [\"studio\",\"cloud_off\"])) and ([.routes[] | select(.[0] == \"cloud\")] | length == 0)' <<<'$RT' >/dev/null"
@@ -505,6 +576,10 @@ gate "gate" R8; act executed "G9 v2 gate GREEN (g1) on the live bundles, G4 even
 
 # ------------------------------------------------------------------ 5. commit B (go)
 log "== 5 commit B (go)"
+# F8 (Argus Q3a): the R3 Hubble judgement reads a live stream started BEFORE B (the ring buffer holds < 1 min)
+hub_start go; waitfor 30 "[ -s '$HCAP' ]"
+chk "R3 Hubble capture running before B (F8): process alive, >= 1 line, stderr empty" "hub_alive && [ -s '$HCAP' ] && [ ! -s '$HERR' ]"
+gate "Hubble capture before B" R3
 git -C "$SRC" push -q origin "$B:refs/heads/main" || { log "  RED  push of B refused (origin/main moved). A stays dark; cloud on but no egress. Nothing else changed."; act executed "push B refused; A dark, no egress" RED; GO_FINISHED=1; exit 1; }
 PUSHED_B=1; PUSH_B_E=$(now_e); PUSH_B_ISO=$(iso "$PUSH_B_E"); log "  ok   pushed B $B to main"; act executed "commit B pushed (hermes-profiel-3-cloud CNP + probe un-suspended)" "${B:0:8}"
 flux reconcile source git flux-system -n flux-system >/dev/null 2>&1
@@ -516,19 +591,21 @@ chk "R3 live cloud CNPs == {hermes-profiel-3-cloud} (profiel-3 only)" "[ \"\$(cl
 chk "R3 0 cloud CNPs that select profiel-1" "[ \"\$(p1_cloud_cnps)\" = 0 ]"
 chk "probe CronJob suspend false" "[ \"\$(probe_suspend)\" = false ]"
 P3=$(pod 3)
-waitfor 60 "tcp '$P3' api.anthropic.com 443"
-chk "p3 -> api.anthropic.com:443 connects" "tcp '$P3' api.anthropic.com 443"
+HT0=$(now_e); waitfor 60 "tcp '$P3' api.anthropic.com 443"
+chk "p3 -> api.anthropic.com:443 connects" "tcp '$P3' api.anthropic.com 443"; HT1=$(now_e)
 for n in 1 2 4; do chk "R3 p$n -> api.anthropic.com:443 fails" "blocked \"\$(pod $n)\" api.anthropic.com 443"; done
 gate "commit B egress" "$(cls)"
-LB=$(g4p "$P3" state); kubectl -n $NS exec -i "$(ow)" -c app -- sh -c 'cd /app/backend && python3 -I -B - go-cloud' < "$HACK/$CHG-owui-turn.py" > "$CACHE/turn-go.txt" 2>&1
+LB=$(g4p "$P3" state); kubectl -n $NS exec -i "$(ow)" -c app -- sh -c 'cd /app/backend && python3 -I -B - go-cloud' < "$HACK/$CHG-owui-turn.py" > "$CACHE/turn-go.txt" 2>&1; TURN_E=$(now_e)
 grep -E 'PASS|FAIL|RESULT' "$CACHE/turn-go.txt" | sed 's/^/    /' >> "$EV"
 T0=$(awk '/^TURNSTART/{print $2}' "$CACHE/turn-go.txt"); T1=$(awk '/^TURNEND/{print $2}' "$CACHE/turn-go.txt")
-RT=$(g4p "$P3" routes "$(python3 -I -c "print(${T0:-0}-2)")" "$(python3 -I -c "print(${T1:-0}+5)")"); LA=$(g4p "$P3" state)
+RT=$(g4p "$P3" routes "$("$PY" -I -c "print(${T0:-0}-2)")" "$("$PY" -I -c "print(${T1:-0}+5)")"); LA=$(g4p "$P3" state)
 DP3=$(fsub "$(jget .p3_usd "$LA")" "$(jget .p3_usd "$LB")"); log "  5 route records: $(jq -c .routes <<<"$RT"); p3 ledger +$DP3; month usd $(jget .usd "$LA")"
 chk "R6 synthetic public turn answered, canary account deleted" "gall -x 'RESULT GREEN' '$CACHE/turn-go.txt'"
 chk "R6 rule cloud_ok" "jq -e '.routes | any(. == [\"cloud\",\"cloud_ok\"])' <<<'$RT' >/dev/null"
 chk "R6 p3 ledger rise in (0, $RESERVE_MAX]" "fle 0.0000000001 '$DP3' && fle '$DP3' $RESERVE_MAX"
 chk "R6 ledger readable and month usd <= 99" "[ -z \"\$(jget '.ledger_error // empty' '$LA')\" ] && fle \"\$(jget .usd '$LA')\" 99"
+# F8: stop the capture 30 s after the go turn completed, then judge R3 from that file (below, after the R5 waits)
+w=$(( TURN_E + 30 - $(now_e) )); [ "$w" -gt 0 ] && sleep "$w"; hub_stop
 gate "go turn" "$(cls)"
 waitfor 330 "[ \"\$(lock_runs_since '$PUSH_B_ISO' | grep -c .)\" -ge 2 ]"
 LR=$(lock_runs_since "$PUSH_B_ISO" | head -2); log "  lock runs after B: $(printf '%s' "$LR" | tr '\n' ' ')"
@@ -539,16 +616,8 @@ chk "R5 no 'calls_while_off=' ERROR line in p2/p3 logs since B (each log read; a
 chk "on-transition alerted (FamilyCloudOn since G4)" "alerts_since '$G4ISO' | gall FamilyCloudOn"
 chk "R7 no \"person\" in alert output or in this chg's change-log lines since G4; MONEY_TO_OWNER false" \
   "[ \"\$(job_logs_since alert '$G4ISO' | grep -c -i person)\" = 0 ] && [ \"\$(jq -c --arg t '$G4ISO' 'select(.chg==\"$CHG\" and .ts >= \$t)' '$REPO/ops/changes.jsonl' | grep -c -i person)\" = 0 ] && [ \"\$(money_env)\" = false ]"
-kubectl -n kube-system port-forward svc/hubble-relay 14245:80 >/dev/null 2>&1 & PF=$!; sleep 3
-SINCE=$(( $(now_e) - PUSH_B_E + 30 ))s
-hubble observe --server localhost:14245 --since "$SINCE" --from-namespace $NS --to-fqdn api.anthropic.com -o json 2>/dev/null > "$CACHE/hubble-fqdn.json"
-IPS=$(jq -r '.flow.IP.destination // empty' "$CACHE/hubble-fqdn.json" | sort -u)
-: > "$CACHE/hubble-ip.json"; for ip in $IPS; do hubble observe --server localhost:14245 --since "$SINCE" --from-namespace $NS --to-ip "$ip" -o json 2>/dev/null >> "$CACHE/hubble-ip.json"; done
-kill $PF 2>/dev/null; PF=""
-SRCS=$(cat "$CACHE/hubble-fqdn.json" "$CACHE/hubble-ip.json" | jq -r '.flow.source.pod_name // "?"' | sed -E 's/-[a-z0-9]+-[a-z0-9]+$//' | sort | uniq -c | tr -s ' ' | tr '\n' ';')
-log "  Hubble flows to the API since B (by source workload): ${SRCS:-none}"
-chk "R3 Hubble: flows to api.anthropic.com from hermes-profiel-3 only (>= 1), 0 from p1/p2/p4" \
-  "cat '$CACHE/hubble-fqdn.json' '$CACHE/hubble-ip.json' | jq -r '.flow.source.pod_name // \"?\"' | gall '^hermes-profiel-3-' && ! cat '$CACHE/hubble-fqdn.json' '$CACHE/hubble-ip.json' | jq -r '.flow.source.pod_name // \"?\"' | gall -E '^hermes-profiel-[124]-'"
+HJ=$(hub_judge "$HCAP" "$HERR" "$HALIVE" "$HT0" "$HT1" "${T0:-null}" "${T1:-null}"); log "  Hubble live capture (F8): ${HJ:-jq error (unparseable capture or missing window)}"
+chk "R3 Hubble live capture: alive until the stop, stderr empty, >= 1 line; FORWARDED p3 -> api.anthropic.com in the p3 tcp test AND inside the go turn; 0 FORWARDED from p1/p2/p4 (DROPPED = info)" "jq -e '.pass == true' <<<'$HJ' >/dev/null"
 chk "R3 p1/p2/p4 unchanged after B" "[ \"\$(uid 1)\" = '$U1' ] && [ \"\$(uid 2)\" = '$U2' ] && [ \"\$(uid 4)\" = '$U4' ] && [ \"\$(bsha 1)\" = '$S1' ] && [ \"\$(bsha 2)\" = '$S2' ] && [ \"\$(bsha 4)\" = '$S4' ]"
 chk "R1 pins still: Secret p3 tar == A, pod plugin 99fb4183, probe script f1d9aed6" "[ \"\$(bsha 3)\" = '$P3NEW' ] && [ \"\$(jget .plugin_sha '$LA')\" = '$PIN_INIT' ] && [ \"\$(probe_script_sha)\" = '$PIN_PROBE' ]"
 gate "post-go checks" "$(cls)"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2034  # the stub variables are read by the driver lines this harness evals
-# chg-2026-11-17-011 local test of the go-live driver's F4 / L1 / L7 / F6 snippets (Argus 21-11) with stubbed kubectl and
+# chg-2026-11-17-011 local test of the go-live driver's F4 / L1 / L7 / F6 / F7 / F8 snippets (Argus 21-11) with stubbed kubectl and
 # g4p: no cluster, no network, no write outside a fresh mktemp dir. The R2/R5 chk lines are eval'd verbatim from the
 # driver source. Usage: bash hack/ops/chg-2026-11-17-011-test-golive-snippets.sh [driver]
 #   -> "DRIVER SNIPPET TESTS n/n passed", rc 0
@@ -117,5 +117,90 @@ LAONLY="$(jq -nc --arg t "cloud-off.cleared-g4-$SWTAG.json" '{off:false,off_file
 LA=$LAOK; t "F7 3e chk: old cleared-g4-<old> + this run's tag -> GREEN" "[ \"\$(runchk \"\$E3LINE\")\" = 0 ]" 0
 LA=$LAOLD; t "F7 3e chk: only an old cleared-g4 archive (this run's tag missing) -> RED" "[ \"\$(runchk \"\$E3LINE\")\" = 1 ]" 0
 LA=$LAONLY; t "F7 3e chk: this run's tag, no old archive -> GREEN" "[ \"\$(runchk \"\$E3LINE\")\" = 0 ]" 0
+# ---- F8 (Argus r3hubble 23-11 Q3): R3 Hubble judged from a live capture; hubble stderr judged; local python pinned
+eval "$(sed -n '/^# ---- F8 Hubble live capture (begin)/,/^# ---- F8 Hubble live capture (end)/p' "$D")"
+HE=1795417200   # 2026-11-23T07:00:00Z; tcp-test window HE+10..HE+12 (Mac clock), go turn HE+20.5..HE+25 (pod clock)
+hts() { printf '%s.%sZ' "$(date -u -r "${1%.*}" +%Y-%m-%dT%H:%M:%S)" "${2:-250000000}"; }
+fl() { # $1 verdict $2 workload $3 dst ip $4 epoch $5 dst port $6 destination_names json (default [])
+  jq -nc --arg v "$1" --arg w "$2" --arg ip "$3" --arg t "$(hts "$4")" --argjson p "${5:-443}" --argjson n "${6:-[]}" \
+    '{flow:{time:$t,verdict:$v,Type:"L3_L4",source:{namespace:"family-ai",pod_name:($w+"-6d9f8b7c5-x2k4q"),workloads:[{name:$w,kind:"Deployment"}]},
+      IP:{source:"10.244.5.17",destination:$ip},l4:{TCP:{destination_port:$p}},destination_names:$n},node_name:"vdhclu01node02",time:$t}'; }
+dnsfl() { jq -nc --arg t "$(hts "$1")" '{flow:{time:$t,verdict:"FORWARDED",Type:"L7",source:{namespace:"kube-system",pod_name:"coredns-7d8f9c6b5-abcde",workloads:[{name:"coredns"}]},
+      IP:{source:"10.244.0.10",destination:"10.244.5.17"},l7:{type:"RESPONSE",dns:{query:"api.anthropic.com.",ips:["160.79.104.10"]}}},time:$t}'; }
+API=160.79.104.10; NAMES='["api.anthropic.com"]'
+cap() { local f; f="$CACHE/f8-$1.json"; shift; : > "$f"; for l in "$@"; do printf '%s\n' "$l" >> "$f"; done; echo "$f"; }
+ERR0="$CACHE/f8-err0"; : > "$ERR0"; ERR1="$CACHE/f8-err1"; echo 'rpc error: code = Unavailable desc = connection error: dial tcp 127.0.0.1:14245: connect: connection refused' > "$ERR1"
+GOODL=("$(dnsfl $((HE+10)))" "$(fl FORWARDED hermes-profiel-3 $API $((HE+11)) 443 "$NAMES")" "$(fl FORWARDED hermes-profiel-3 $API $((HE+22)))" "$(fl FORWARDED hermes-profiel-1 172.16.2.200 $((HE+15)))")
+GOOD=$(cap good "${GOODL[@]}")
+J() { hub_judge "$1" "${2:-$ERR0}" "${3:-1}" $((HE+10)) $((HE+12)) "${4:-$((HE+20)).5}" "${5:-$((HE+25))}"; }
+JP() { jq -e '.pass == true' <<<"$(J "$@")" >/dev/null; }
+# a must-FAIL case needs a real verdict (.pass == false), so a missing judge (old driver) cannot pass it vacuously
+JF() { jq -e '.pass == false' <<<"$(J "$@")" >/dev/null; }
+t "F8 judge: good capture (p3 named in the tcp test, p3 by DNS IP inside the turn) -> PASS" "JP '$GOOD'" 0
+t "F8 judge: good capture reports p3_in_tcp_test 1, p3_in_go_turn 1, api_ips [$API]" "[ \"\$(J '$GOOD' | jq -c '[.p3_in_tcp_test,.p3_in_go_turn,.api_ips]')\" = '[1,1,[\"$API\"]]' ]" 0
+t "F8 judge: DROPPED p1/p2/p4 flows to the API are info only -> PASS" "JP '$(cap p1drop "${GOODL[@]}" "$(fl DROPPED hermes-profiel-1 $API $((HE+21)) 443 "$NAMES")" "$(fl DROPPED hermes-profiel-4 $API $((HE+11)))")'" 0
+t "F8 judge: DROPPED p1 is reported under p124_dropped_info" "[ \"\$(J '$CACHE/f8-p1drop.json' | jq -c .p124_dropped_info)\" = '{\"hermes-profiel-1\":1,\"hermes-profiel-4\":1}' ]" 0
+t "F8 judge: capture died before the stop (alive 0) -> FAIL" "JF '$GOOD' '$ERR0' 0" 0
+t "F8 judge: 0 lines -> FAIL" "JF '$(cap empty)'" 0
+t "F8 judge: no p3 flow (only DNS + a p1 Studio flow) -> FAIL" "JF '$(cap nop3 "$(dnsfl $((HE+10)))" "$(fl FORWARDED hermes-profiel-1 172.16.2.200 $((HE+15)))")'" 0
+t "F8 judge: a FORWARDED p1 flow to the API (named) -> FAIL" "JF '$(cap p1fwd "${GOODL[@]}" "$(fl FORWARDED hermes-profiel-1 $API $((HE+23)) 443 "$NAMES")")'" 0
+t "F8 judge: a FORWARDED p2 flow to the API IP from the DNS answer (no name) -> FAIL" "JF '$(cap p2ip "${GOODL[@]}" "$(fl FORWARDED hermes-profiel-2 $API $((HE+40)))")'" 0
+t "F8 judge: p3 flows only outside the go turn (tcp test + after the turn) -> FAIL" "JF '$(cap outside "$(dnsfl $((HE+10)))" "$(fl FORWARDED hermes-profiel-3 $API $((HE+11)) 443 "$NAMES")" "$(fl FORWARDED hermes-profiel-3 $API $((HE+26)) 443 "$NAMES")" "$(fl FORWARDED hermes-profiel-3 $API $((HE+20)))")'" 0
+t "F8 judge: p3 inside the turn but the tcp test flow missing -> FAIL" "JF '$(cap notcp "$(dnsfl $((HE+18)))" "$(fl FORWARDED hermes-profiel-3 $API $((HE+22)) 443 "$NAMES")")'" 0
+t "F8 judge: p3 only DROPPED to the API -> FAIL" "JF '$(cap p3drop "$(fl DROPPED hermes-profiel-3 $API $((HE+11)) 443 "$NAMES")" "$(fl DROPPED hermes-profiel-3 $API $((HE+22)) 443 "$NAMES")")'" 0
+t "F8 judge: hubble error output (stderr non-empty) -> FAIL" "JF '$GOOD' '$ERR1'" 0
+t "F8 judge: stderr file missing -> FAIL" "JF '$GOOD' '$CACHE/f8-no-such-err'" 0
+t "F8 judge: a non-JSON line in the capture -> FAIL (jq error, no verdict)" "declare -F hub_judge >/dev/null && [ -z \"\$(J '$(cap junk "${GOODL[@]}" 'level=error msg="relay gone"')')\" ]" 0
+t "F8 judge: no go-turn window (TURNSTART missing) -> FAIL" "JF '$GOOD' '$ERR0' 1 null null" 0
+# the driver's own R3 chk line, verbatim
+R3LINE=$(line_of 'chk "R3 Hubble live capture:')
+t "F8 the R3 live-capture chk line exists in the driver" "[ -n \"\$R3LINE\" ]" 0
+for c in good:0 died:1 err:1 p1fwd:1 outside:1 empty:1; do
+  case ${c%%:*} in good) HJ=$(J "$GOOD");; died) HJ=$(J "$GOOD" "$ERR0" 0);; err) HJ=$(J "$GOOD" "$ERR1");; p1fwd) HJ=$(J "$CACHE/f8-p1fwd.json");;
+    outside) HJ=$(J "$CACHE/f8-outside.json");; empty) HJ=$(J "$CACHE/f8-empty.json");; esac
+  t "F8 R3 chk line with capture=${c%%:*} -> RED ${c##*:}" "[ -n \"\$R3LINE\" ] && [ \"\$(runchk \"\$R3LINE\")\" = ${c##*:} ]" 0; done
+HJ=""; t "F8 R3 chk line with an empty judgement (jq error) -> RED 1" "[ -n \"\$R3LINE\" ] && [ \"\$(runchk \"\$R3LINE\")\" = 1 ]" 0
+# dry-run positive control (Q3e)
+DS() { hub_seen_p3 "$1" "${2:-$ERR0}" "${3:-1}" $((HE+10)) $((HE+12)); }
+DSP() { jq -e '.pass == true' <<<"$(DS "$@")" >/dev/null; }
+DSF() { jq -e '.pass == false' <<<"$(DS "$@")" >/dev/null; }
+DGOOD=$(cap dgood "$(fl FORWARDED hermes-profiel-3 172.16.2.200 $((HE+11)))" "$(fl FORWARDED hermes-profiel-3 10.96.0.10 $((HE+11)) 53)" "$(fl DROPPED hermes-profiel-3 $API $((HE+12)))")
+t "F8 dry-run: p3 -> Studio :443 FORWARDED in the window -> PASS" "DSP '$DGOOD'" 0
+t "F8 dry-run: died -> FAIL" "DSF '$DGOOD' '$ERR0' 0" 0
+t "F8 dry-run: hubble stderr -> FAIL" "DSF '$DGOOD' '$ERR1'" 0
+t "F8 dry-run: 0 lines -> FAIL" "DSF '$CACHE/f8-empty.json'" 0
+t "F8 dry-run: Studio flow outside the window -> FAIL" "DSF '$(cap dlate "$(fl FORWARDED hermes-profiel-3 172.16.2.200 $((HE+40)))")'" 0
+t "F8 dry-run: only a p1 Studio flow -> FAIL" "DSF '$(cap dp1 "$(fl FORWARDED hermes-profiel-1 172.16.2.200 $((HE+11)))")'" 0
+DRYLINE=$(line_of 'chk "R3 Hubble sees p3 live (F8)')
+for c in good:0 died:1; do case ${c%%:*} in good) HD=$(DS "$DGOOD");; died) HD=$(DS "$DGOOD" "$ERR0" 0);; esac
+  t "F8 dry-run chk line with capture=${c%%:*} -> RED ${c##*:}" "[ -n \"\$DRYLINE\" ] && [ \"\$(runchk \"\$DRYLINE\")\" = ${c##*:} ]" 0; done
+# hub_start / hub_stop with stubbed kubectl + hubble: liveness, stderr, 0600, killed by hub_kill
+# shellcheck disable=SC2329  # invoked by hub_start
+kubectl() { exec sleep 60; }
+# shellcheck disable=SC2329
+hubble() { case "$HMODE" in alive) cat "$GOOD"; exec sleep 60;; died) cat "$GOOD"; return 1;; err) echo 'rpc error: relay unavailable' >&2; cat "$GOOD"; exec sleep 60;; esac; }
+HPID=""; PF=""; HCAP="$CACHE/none"; HERR="$CACHE/none"; HALIVE=x   # an old driver has no F8 block: no crash under set -u
+for m in alive died err; do HMODE=$m; hub_start "stub-$m" >/dev/null; sleep 1; P_H=${HPID:-0}; P_F=${PF:-0}
+  MODE_CAP=$(stat -f %Lp "$HCAP"); MODE_ERR=$(stat -f %Lp "$HERR"); hub_stop >/dev/null
+  eval "ALIVE_$m=$HALIVE; HJ_$m=\$(hub_judge '$HCAP' '$HERR' $HALIVE $((HE+10)) $((HE+12)) $((HE+20)).5 $((HE+25)))"
+  eval "GONE_$m=\$( kill -0 $P_H 2>/dev/null || kill -0 $P_F 2>/dev/null; echo \$? )"; eval "MODES_$m=$MODE_CAP/$MODE_ERR"; done
+t "F8 stub capture alive until the stop -> HALIVE 1, judge PASS" "[ $ALIVE_alive = 1 ] && jq -e '.pass == true' <<<'$HJ_alive' >/dev/null" 0
+t "F8 stub capture that exited early -> HALIVE 0, judge FAIL" "[ $ALIVE_died = 0 ] && jq -e '.pass == false' <<<'$HJ_died' >/dev/null" 0
+t "F8 stub capture with hubble stderr -> judge FAIL (stderr_lines 1)" "jq -e '.pass == false and .stderr_lines == 1' <<<'$HJ_err' >/dev/null" 0
+t "F8 capture + stderr files are 0600" "[ $MODES_alive = 600/600 ]" 0
+t "F8 hub_stop leaves neither the capture nor the port-forward running" "[ $GONE_alive = 1 ] && [ $GONE_err = 1 ]" 0
+unset -f kubectl hubble
+# static: placement, trap, no stderr discard, python pin
+ln_of() { grep -n -F -m1 -- "$1" "$D" | cut -d: -f1; }
+LS=$(ln_of 'hub_start go;'); LB=$(ln_of 'push -q origin "$B:refs/heads/main"'); LT=$(ln_of "go-cloud' <"); LSTOP=$(grep -n '^w=.*TURN_E + 30.*hub_stop$' "$D" | cut -d: -f1)
+LJ=$(ln_of 'HJ=$(hub_judge'); LH0=$(ln_of 'HT0=$(now_e)'); LGT=$(ln_of 'gate "go turn"')
+t "F8 static: capture starts before the push of B, gated (alive + lines) before it" "[ -n \"$LS\" ] && [ \"$LS\" -lt \"$LB\" ] && sed -n '${LS},${LB}p' '$D' | grep -q 'gate \"Hubble capture before B\" R3'" 0
+t "F8 static: the p3 tcp test window opens after B; the capture stops 30 s after the turn, before the turn gate" "[ \"$LH0\" -gt \"$LB\" ] && [ \"$LSTOP\" -gt \"$LT\" ] && [ \"$LSTOP\" -lt \"$LGT\" ] && [ \"$LJ\" -gt \"$LSTOP\" ]" 0
+t "F8 static: on_exit and rollback_core both kill the capture" "sed -n '/^on_exit() {/,/^}/p' '$D' | grep -q hub_kill && sed -n '/^rollback_core() {/,/^}/p' '$D' | grep -q 'hub_kill'" 0
+t "F8 static: every hubble observe keeps stderr (to \$HERR), none discards it" "[ \"\$(grep -c 'hubble observe' '$D')\" -ge 1 ] && ! grep 'hubble observe' '$D' | grep -q '/dev/null' && ! grep -v '^ *#' '$D' | grep 'hubble observe' | grep -v -q '2>> \"\$HERR\"'" 0
+t "F8 static: no after-the-fact hubble query (--since) remains" "! grep -v '^ *#' '$D' | grep -q 'hubble observe.*--since'" 0
+t "F8 static: the dry-run runs the live capture + the p3 positive control" "sed -n '/^if \\[ \"\$MODE\" = --dry-run \\]; then/,/^fi/p' '$D' | grep -q 'hub_start dry' && sed -n '/^if \\[ \"\$MODE\" = --dry-run \\]; then/,/^fi/p' '$D' | grep -q 'hub_seen_p3'" 0
+t "F8 static: local python pinned (PY=/opt/homebrew/bin/python3, refused if missing, logged)" "grep -q '^PY=/opt/homebrew/bin/python3\$' '$D' && grep -q '\\[ -x \"\$PY\" \\] || {' '$D' && grep -q 'command -v python3' '$D'" 0
+t "F8 static: no bare local python3 call (only in-pod kubectl exec lines and the log line)" "! grep -v '^ *#' '$D' | grep -E '(^|[^/a-z])python3( |\$)' | grep -v -E 'kubectl[^#]*exec' | grep -v 'command -v python3' | grep -q ." 0
 t "L7: --go without --dormant-ack exits 2 before any work" "cd '$CACHE' && bash '$D' --go --commit-a $(printf 'a%.0s' {1..40}) --commit-b $(printf 'b%.0s' {1..40}) 2>&1 | grep -q 'needs --dormant-ack'; [ \${PIPESTATUS[0]} = 2 ]" 0
 echo "DRIVER SNIPPET TESTS $PASS/$((PASS+FAIL)) passed"; [ "$FAIL" = 0 ]
