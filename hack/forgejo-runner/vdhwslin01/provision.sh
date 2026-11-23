@@ -989,6 +989,43 @@ step_packages() {
     || die "pacman install failed. Arch does not support partial upgrades: run 'sudo pacman -Syu' yourself, then re-run this script."
 }
 
+# sudo_list_deny_only: stdin = `LC_ALL=C sudo -l -U <user>`. Returns 0 only when the user may run
+# NO command: "is not allowed to run sudo", or a "may run" block whose every command is !-negated
+# (a deny-only rule such as Omarchy's 'ALL ALL=(ALL) !/usr/bin/asdcontrol', 2026-11-23). Any
+# positive command, or anything it cannot parse, returns 1 (fail closed).
+sudo_list_deny_only() {
+  local line body cmd seen=0 in=0 entries=0
+  local -a cmds
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^User\ [^\ ]+\ is\ not\ allowed\ to\ run\ sudo ]]; then seen=1; continue; fi
+    if [[ "$line" =~ ^User\ [^\ ]+\ may\ run\ the\ following\ commands ]]; then seen=1; in=1; continue; fi
+    (( in )) || continue
+    [[ -n "${line//[[:space:]]/}" ]] || continue
+    [[ "$line" =~ ^[[:space:]]+\(([^\)]*)\)[[:space:]]*(.*)$ ]] || return 1
+    body="${BASH_REMATCH[2]}"
+    while [[ "$body" =~ ^[A-Z_]+:[[:space:]]*(.*)$ ]]; do body="${BASH_REMATCH[1]}"; done
+    [[ -n "$body" ]] || return 1
+    IFS=, read -r -a cmds <<<"$body"
+    for cmd in "${cmds[@]}"; do
+      cmd="${cmd#"${cmd%%[![:space:]]*}"}"
+      [[ "$cmd" == '!/'* ]] || return 1
+    done
+    entries=$((entries + 1))
+  done
+  (( seen )) || return 1
+  (( in == 0 || entries > 0 ))
+}
+
+# runner_no_sudo: 0 only if runner has no sudo right: the listing is deny-only AND the
+# positive probe (may runner run /usr/bin/true?) is refused.
+runner_no_sudo() {
+  local out
+  out="$(LC_ALL=C sudo -l -U runner 2>&1)" || true
+  sudo_list_deny_only <<<"$out" || return 1
+  if LC_ALL=C sudo -n -l -U runner /usr/bin/true >/dev/null 2>&1; then return 1; fi
+  return 0
+}
+
 step_user() {
   say "user runner"
   if id runner >/dev/null 2>&1; then info "user runner exists"
@@ -1004,7 +1041,7 @@ step_user() {
     [[ "$g" != *" docker "* && "$g" != *" libvirt "* ]] || die "runner is in docker/libvirt (root-equivalent); refusing"
     [[ "$(id -nG runner | tr ' ' '\n' | sort | tr '\n' ' ')" == "kvm runner " ]] \
       || die "runner groups are not exactly 'runner kvm' (have:${g}); refusing"
-    if command -v sudo >/dev/null && sudo -l -U runner 2>/dev/null | grep -q 'may run'; then die "runner has sudo rights; refusing"; fi
+    if command -v sudo >/dev/null; then runner_no_sudo || die "runner has sudo rights (or sudo -l output is unclear); refusing"; fi
     info "runner groups:${g}(exactly runner+kvm; no wheel/sudo/docker/libvirt)"
   fi
   # The home dir is created by useradd (fresh, as root, in root-owned /var/lib).

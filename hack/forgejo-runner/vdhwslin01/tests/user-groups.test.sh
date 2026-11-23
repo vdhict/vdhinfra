@@ -11,7 +11,8 @@ case_body() { # runs in a subshell: source the SUT, stub, call step_user
   G="$1"
   . "$SUT"
   id() { case "$*" in (runner) return 0 ;; ("-nG runner") echo "$G" ;; (*) command id "$@" ;; esac; }
-  run() { :; }; sudo() { return 1; }; runner_dir() { :; }
+  run() { :; }; runner_dir() { :; }
+  sudo() { [[ "$*" == "-l -U runner" ]] && echo "User runner is not allowed to run sudo on vdhwslin01."; return 1; }
   stat() { echo runner; }
   DRY=0
   step_user 2>&1
