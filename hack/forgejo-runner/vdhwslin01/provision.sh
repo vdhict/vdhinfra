@@ -40,7 +40,9 @@
 #   vdh-runner-nft-guard.timer (every 1 min) + ExecStartPre: the runner stops
 #     taking jobs as soon as table inet vdh_runner is missing or incomplete.
 #   idle-poweroff.timer (every 5 min): powers off ONLY a team-started boot
-#     (/run/team-boot with this boot_id), runner idle, seat0 idle >= 60 min,
+#     (/run/team-boot with this boot_id), runner idle, no remote session or
+#     later login (the boot autologin, <= 180 s after boot, is ignored), no
+#     local input for 15 min (xhci_hcd interrupts, vdh-input-sampler.service),
 #     uptime >= 2 h. Never a boot Sander started.
 #   initramfs: controller's dropbear PUBLIC key + the vdh-teamboot wrapper
 #     (marks ssh-unlocked boots as team boots); rebuilds the initramfs.
@@ -580,7 +582,7 @@ cp "$B/known_hosts" "$kh_out"
 log "golden built: $out"
 VDH_PAYLOAD_EOF
 }
-# --- from src/idle-poweroff.sh (sha256 2756d954205ac7d2)
+# --- from src/idle-poweroff.sh (sha256 c2143361a9c6a58f)
 payload_idle_poweroff() {
 cat <<'VDH_PAYLOAD_EOF'
 #!/usr/bin/env bash
@@ -594,8 +596,15 @@ cat <<'VDH_PAYLOAD_EOF'
 #   2. uptime >= 2 h.
 #   3. the runner has no job (/run/forgejo-runner/job-active absent) and the
 #      last job ended >= 60 min ago.
-#   4. seat0 IdleHint=yes for >= 60 min, and every other user session (not
-#      agent/runner) is idle >= 60 min as well.
+#   4. nobody else is using the box (rules shared with the estate, pka-run
+#      guard_blocks/input_guard_blocks, AGR-114):
+#      - a user session (not agent/runner) that began within 180 s of boot is
+#        the Hyprland autologin of Sander's account: ignored (its idle hint is
+#        never set, measured 2026-10-29, so it would hold the box on forever);
+#      - a remote session, or a session that began later (a real login): KEEP;
+#      - no input for >= 15 min, read from the xhci_hcd interrupt counts that
+#        vdh-input-sampler (src/input-sampler.sh) writes to /run/vdh-input-state.
+#        No state, stale state or another boot's state: KEEP.
 #   5. no logind block inhibitor (systemctl --check-inhibitors=yes).
 # Anything it cannot read means KEEP (fail safe: never power off on doubt).
 # Every decision is one line on stdout, which systemd writes to the journal.
@@ -615,7 +624,9 @@ else
   NOW="$(date +%s)"
 fi
 
-SEAT_IDLE_MIN_S=3600
+AUTOLOGIN_WINDOW_US=180000000
+INPUT_QUIET_MIN_S=900
+INPUT_HEARTBEAT_MAX_S=30
 RUNNER_IDLE_MIN_S=3600
 UPTIME_MIN_S=7200
 # Sessions of these users never block (agent = team ssh, runner = CI service).
@@ -654,42 +665,50 @@ else
   runner_idle="none-this-boot"
 fi
 
-# --- 4. interactive idleness (logind) ----------------------------------------
-# idle_age <IdleHint> <IdleSinceHint-usec> -> prints seconds idle, or "busy"
-idle_age() {
-  local hint="$1" since_us="$2"
-  if [[ "$hint" != "yes" ]]; then echo busy; return; fi
-  [[ "$since_us" =~ ^[0-9]+$ ]] || { echo busy; return; }
-  echo $(( NOW - since_us / 1000000 ))
-}
-
+# --- 4. is anybody else using the box? ---------------------------------------
 prop() { # prop <key> <text>
   sed -n "s/^$1=//p" <<<"$2" | head -n1
 }
 
-seat="$("$LOGINCTL" show-seat seat0 -p IdleHint -p IdleSinceHint 2>/dev/null)" \
-  || keep "cannot read seat0 from logind"
-seat_age="$(idle_age "$(prop IdleHint "$seat")" "$(prop IdleSinceHint "$seat")")"
-[[ "$seat_age" != busy ]] || keep "seat0 IdleHint=no (someone is using the desktop)"
-(( seat_age >= SEAT_IDLE_MIN_S )) || keep "seat0 idle ${seat_age}s < ${SEAT_IDLE_MIN_S}s"
-
+# 4a. sessions: ignore the autologin, keep for remote or later logins.
 sessions="$("$LOGINCTL" list-sessions --no-legend 2>/dev/null)" \
   || keep "cannot list logind sessions"
 while read -r sid _; do
   [[ -n "${sid:-}" ]] || continue
-  info="$("$LOGINCTL" show-session "$sid" -p Name -p Class -p IdleHint -p IdleSinceHint 2>/dev/null)" \
+  info="$("$LOGINCTL" show-session "$sid" -p Name -p Class -p Remote -p TimestampMonotonic 2>/dev/null)" \
     || keep "cannot read session ${sid}"
   name="$(prop Name "$info")"
   class="$(prop Class "$info")"
   [[ "$class" == "user" ]] || continue
   [[ "$EXCLUDED_USERS" != *" ${name} "* ]] || continue
-  age="$(idle_age "$(prop IdleHint "$info")" "$(prop IdleSinceHint "$info")")"
-  [[ "$age" != busy ]] || keep "session ${sid} (${name}) is active"
-  (( age >= SEAT_IDLE_MIN_S )) || keep "session ${sid} (${name}) idle ${age}s < ${SEAT_IDLE_MIN_S}s"
+  [[ "$(prop Remote "$info")" != "yes" ]] || keep "remote session ${sid} (${name})"
+  started_us="$(prop TimestampMonotonic "$info")"
+  [[ "$started_us" =~ ^[0-9]+$ ]] || keep "session ${sid} (${name}) has no readable start time"
+  (( started_us <= AUTOLOGIN_WINDOW_US )) \
+    || keep "session ${sid} (${name}) began $(( started_us / 1000000 )) s after boot (a login, not the autologin)"
 done <<<"$sessions"
 
+# 4b. input: the sampler's state. Missing, stale or foreign state means KEEP.
+state="${ROOT}/run/vdh-input-state"
+[[ -f "$state" && ! -L "$state" ]] || keep "input activity unknown (no ${state#"$ROOT"})"
+st_boot="$(sed -n 's/^boot_id=//p' "$state" | head -n1)"
+st_beat="$(sed -n 's/^heartbeat=//p' "$state" | head -n1)"
+st_since="$(sed -n 's/^since=//p' "$state" | head -n1)"
+st_last="$(sed -n 's/^last_input=//p' "$state" | head -n1)"
+[[ "$st_boot" == "$boot_id" ]] || keep "input activity unknown (state is from another boot)"
+[[ "$st_beat" =~ ^[0-9]+$ && "$st_since" =~ ^[0-9]+$ ]] || keep "input activity unknown (state unreadable)"
+[[ -z "$st_last" || "$st_last" =~ ^[0-9]+$ ]] || keep "input activity unknown (last_input unreadable)"
+beat_age=$(( uptime_s - st_beat ))
+(( beat_age >= 0 && beat_age <= INPUT_HEARTBEAT_MAX_S )) || keep "input activity unknown (sampler heartbeat ${beat_age}s old)"
+# Quiet time counts from the later of: last input seen, sampler start (it cannot vouch for earlier).
+quiet_from="$st_since"
+if [[ -n "$st_last" ]] && (( st_last > quiet_from )); then quiet_from="$st_last"; fi
+quiet_s=$(( uptime_s - quiet_from ))
+(( quiet_s >= 0 )) || keep "input activity unknown (input time in the future)"
+(( quiet_s >= INPUT_QUIET_MIN_S )) || keep "local input ${quiet_s}s ago < ${INPUT_QUIET_MIN_S}s (AGR-114)"
+
 # --- 5. power off ------------------------------------------------------------
-echo "idle-poweroff: POWEROFF: started_by=team boot_id=${boot_id} uptime=${uptime_s}s seat0_idle=${seat_age}s runner_idle=${runner_idle}"
+echo "idle-poweroff: POWEROFF: started_by=team boot_id=${boot_id} uptime=${uptime_s}s input_quiet=${quiet_s}s runner_idle=${runner_idle}"
 if ! "$SYSTEMCTL" poweroff --check-inhibitors=yes; then
   echo "idle-poweroff: KEEP: systemctl poweroff refused (inhibitor?)"
 fi
@@ -707,6 +726,78 @@ if grep -qx "boot_id=$bid" /run/team-boot 2>/dev/null && grep -qx 'started_by=te
 else
   echo "started_by=sander boot_id=$bid"
 fi
+VDH_PAYLOAD_EOF
+}
+# --- from src/input-sampler.sh (sha256 50da5e361dfa367e)
+payload_input_sampler() {
+cat <<'VDH_PAYLOAD_EOF'
+#!/bin/bash
+# vdhwslin01 (chg-2026-10-05-031, AGR-114): local-input sampler for idle-poweroff.
+# Installed as /usr/local/libexec/vdh-runner/input-sampler, run as root by
+# vdh-input-sampler.service on team boots only (ConditionPathExists=/run/team-boot).
+#
+# The agent cannot read /dev/input or Hyprland (measured 2026-10-29), so local use
+# is read from the xhci_hcd (USB) interrupt count in /proc/interrupts, the same
+# rule as the estate's pka-run sampler (estate_lib.py INPUT_SAMPLER): every 2 s
+# take the delta; idle the count rises about 4/s, input adds far more. A delta is
+# INPUT when delta > 2 * min(last 450 deltas) + 4 (a 15 min window).
+# State, rewritten atomically every 2 s, root-owned in tmpfs:
+#   /run/vdh-input-state: boot_id=, heartbeat= and since= (this sampler's start)
+#   and last_input= (empty until input is seen), all in whole seconds of uptime.
+# A restart in the same boot keeps since= and last_input=. No state, a stale
+# heartbeat or another boot's state makes idle-poweroff KEEP.
+set -euo pipefail
+
+if [[ "${VDH_SAMPLER_TEST:-0}" == "1" ]]; then
+  ROOT="${VDH_SAMPLER_ROOT:?}"; TICK="${VDH_SAMPLER_TICK:-}"; MAX_ITER="${VDH_SAMPLER_ITER:?}"; PAUSE=0
+else
+  ROOT=""; TICK=""; MAX_ITER=0; PAUSE=2
+fi
+IRQ_NAMES="${VDH_IRQ_NAMES:-xhci_hcd}"
+WINDOW=450
+state="${ROOT}/run/vdh-input-state"
+
+uptime_s() { cut -d. -f1 < "${ROOT}/proc/uptime"; }
+
+irq_total() {
+  awk -v names=" ${IRQ_NAMES} " '
+    { last=$NF }
+    index(names, " " last " ") { for (i=2; i<=NF; i++) { if ($i !~ /^[0-9]+$/) break; t += $i } }
+    END { printf "%d\n", t }' "${ROOT}/proc/interrupts"
+}
+
+boot_id="$(tr -d '[:space:]' < "${ROOT}/proc/sys/kernel/random/boot_id")"
+[[ -n "$boot_id" ]] || { echo "input-sampler: cannot read boot_id" >&2; exit 1; }
+since="$(uptime_s)"
+last_input=""
+if [[ -f "$state" && ! -L "$state" ]] && [[ "$(sed -n 's/^boot_id=//p' "$state" | head -n1)" == "$boot_id" ]]; then
+  s0="$(sed -n 's/^since=//p' "$state" | head -n1)"; l0="$(sed -n 's/^last_input=//p' "$state" | head -n1)"
+  [[ "$s0" =~ ^[0-9]+$ ]] && since="$s0"
+  [[ "$l0" =~ ^[0-9]+$ ]] && last_input="$l0"
+fi
+
+deltas=()
+previous=""
+iter=0
+while :; do
+  iter=$((iter + 1))
+  [[ -z "$TICK" ]] || "$TICK" "$iter"
+  now="$(uptime_s)"
+  total="$(irq_total)"
+  if [[ -n "$previous" ]]; then
+    d=$(( total - previous )); (( d >= 0 )) || d=0
+    deltas+=("$d")
+    (( ${#deltas[@]} <= WINDOW )) || deltas=("${deltas[@]:1}")
+    min="${deltas[0]}"; for x in "${deltas[@]}"; do (( x >= min )) || min="$x"; done
+    if (( d > 2 * min + 4 )); then last_input="$now"; fi
+  fi
+  previous="$total"
+  tmp="${state}.tmp"
+  printf 'boot_id=%s\nheartbeat=%s\nsince=%s\nlast_input=%s\n' "$boot_id" "$now" "$since" "$last_input" > "$tmp"
+  mv -f -- "$tmp" "$state"
+  (( MAX_ITER == 0 || iter < MAX_ITER )) || break
+  (( PAUSE == 0 )) || sleep "$PAUSE"
+done
 VDH_PAYLOAD_EOF
 }
 # --- from src/nft-guard.sh (sha256 ff1bd7d818b1446d)
@@ -949,6 +1040,30 @@ AccuracySec=30s
 
 [Install]
 WantedBy=timers.target
+VDH_PAYLOAD_EOF
+}
+# --- from src/vdh-input-sampler.service (sha256 b93b1c87d0eb62dc)
+payload_vdh_input_sampler_service() {
+cat <<'VDH_PAYLOAD_EOF'
+# vdhwslin01 (chg-2026-10-05-031): AGR-114 local-input sampler, team boots only.
+[Unit]
+Description=Sample USB input activity (xhci_hcd) for idle-poweroff
+ConditionPathExists=/run/team-boot
+
+[Service]
+Type=simple
+ExecStart=/usr/local/libexec/vdh-runner/input-sampler
+SyslogIdentifier=vdh-input-sampler
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/run
+
+[Install]
+WantedBy=multi-user.target
 VDH_PAYLOAD_EOF
 }
 # --- from src/vdh-teamboot-record.service (sha256 bf835a22d18b8ae4)
@@ -1221,11 +1336,13 @@ step_payload() {
   payload_vm_golden_build | write_file /usr/local/libexec/vdh-runner/vm-golden-build 0755 root:root
   payload_idle_poweroff   | write_file /usr/local/libexec/vdh-runner/idle-poweroff 0755 root:root
   payload_teamboot_record | write_file /usr/local/libexec/vdh-runner/teamboot-record 0755 root:root
+  payload_input_sampler   | write_file /usr/local/libexec/vdh-runner/input-sampler 0755 root:root
   payload_nft_guard       | write_file /usr/local/libexec/vdh-runner/nft-guard 0755 root:root
   payload_teamboot_shell  | write_file /usr/local/lib/vdh-runner/teamboot-shell 0755 root:root
   payload_forgejo_runner_vm_service   | write_file /etc/systemd/system/forgejo-runner-vm.service 0644 root:root
   payload_idle_poweroff_service       | write_file /etc/systemd/system/idle-poweroff.service 0644 root:root
   payload_idle_poweroff_timer         | write_file /etc/systemd/system/idle-poweroff.timer 0644 root:root
+  payload_vdh_input_sampler_service   | write_file /etc/systemd/system/vdh-input-sampler.service 0644 root:root
   payload_vdh_teamboot_record_service | write_file /etc/systemd/system/vdh-teamboot-record.service 0644 root:root
   payload_vdh_runner_nft_service      | write_file /etc/systemd/system/vdh-runner-nft.service 0644 root:root
   payload_vdh_runner_nft_guard_service | write_file /etc/systemd/system/vdh-runner-nft-guard.service 0644 root:root
@@ -1402,6 +1519,9 @@ step_services() {
   run systemctl daemon-reload
   run systemctl enable --now vdh-teamboot-record.service
   run systemctl enable --now idle-poweroff.timer
+  run systemctl enable vdh-input-sampler.service
+  # a team boot only (ConditionPathExists=/run/team-boot): start it now when this is one
+  [[ -f /run/team-boot ]] && run systemctl start vdh-input-sampler.service || true
   run systemctl enable --now vdh-runner-nft-guard.timer
   run systemctl enable forgejo-runner-vm.service
   run systemctl restart forgejo-runner-vm.service
@@ -1533,7 +1653,7 @@ step_report() {
   info "registration scope expected: org ${RUNNER_SCOPE} (Atlas verifies owner/repo of the runner on the forge)"
   info "job image: ${JOB_IMAGE}"
   info "luks keyslot: $(cat /etc/vdh-runner/luks-keyslot 2>/dev/null || echo none)"
-  local u; for u in vdh-runner-nft.service vdh-runner-nft-guard.timer forgejo-runner-vm.service idle-poweroff.timer vdh-teamboot-record.service; do
+  local u; for u in vdh-runner-nft.service vdh-runner-nft-guard.timer forgejo-runner-vm.service idle-poweroff.timer vdh-input-sampler.service vdh-teamboot-record.service; do
     info "$u: $(systemctl is-enabled "$u" 2>/dev/null || true)/$(systemctl is-active "$u" 2>/dev/null || true)"
   done
   info "runner groups: $(id -nG runner 2>/dev/null || echo none)"
@@ -1544,7 +1664,7 @@ step_report() {
 uninstall() {
   say "uninstall (rollback of everything provision.sh added)"
   (( DRY )) || (( EUID == 0 )) || die "run with sudo"
-  run systemctl disable --now vdh-runner-nft-guard.timer forgejo-runner-vm.service idle-poweroff.timer vdh-teamboot-record.service vdh-runner-nft.service || true
+  run systemctl disable --now vdh-runner-nft-guard.timer forgejo-runner-vm.service idle-poweroff.timer vdh-input-sampler.service vdh-teamboot-record.service vdh-runner-nft.service || true
   local kf
   for kf in /etc/dropbear/root_key /etc/tinyssh/root_key "${REMOTE_UNLOCK_DIR}/authorized_keys"; do
     if ! { [[ -f "$kf" ]] && grep -q " ${KEY_COMMENT}\$" "$kf"; }; then continue; fi
@@ -1556,10 +1676,11 @@ uninstall() {
   fi
   run rm -f -- /etc/systemd/system/forgejo-runner-vm.service /etc/systemd/system/idle-poweroff.service \
     /etc/systemd/system/idle-poweroff.timer /etc/systemd/system/vdh-teamboot-record.service \
-    /etc/systemd/system/vdh-runner-nft.service
+    /etc/systemd/system/vdh-runner-nft.service /etc/systemd/system/vdh-input-sampler.service
   run systemctl daemon-reload
   run rm -f -- /usr/local/libexec/vdh-runner/vm-dispatch /usr/local/libexec/vdh-runner/vm-golden-build \
     /usr/local/libexec/vdh-runner/idle-poweroff /usr/local/libexec/vdh-runner/teamboot-record \
+    /usr/local/libexec/vdh-runner/input-sampler /run/vdh-input-state \
     /usr/local/lib/vdh-runner/teamboot-shell /usr/local/bin/forgejo-runner \
     /var/lib/vdh-runner-golden/golden.qcow2 /var/lib/vdh-runner-stage/base.qcow2 \
     /usr/local/libexec/vdh-runner/nft-guard /etc/systemd/system/vdh-runner-nft-guard.service \

@@ -10,6 +10,7 @@ payloads=(
   "vm_golden_build:src/vm-golden-build.sh"
   "idle_poweroff:src/idle-poweroff.sh"
   "teamboot_record:src/teamboot-record.sh"
+  "input_sampler:src/input-sampler.sh"
   "nft_guard:src/nft-guard.sh"
   "vdh_runner_nft_guard_service:src/vdh-runner-nft-guard.service"
   "vdh_runner_nft_guard_timer:src/vdh-runner-nft-guard.timer"
@@ -18,6 +19,7 @@ payloads=(
   "forgejo_runner_vm_service:src/forgejo-runner-vm.service"
   "idle_poweroff_service:src/idle-poweroff.service"
   "idle_poweroff_timer:src/idle-poweroff.timer"
+  "vdh_input_sampler_service:src/vdh-input-sampler.service"
   "vdh_teamboot_record_service:src/vdh-teamboot-record.service"
   "vdh_runner_nft_service:src/vdh-runner-nft.service"
 )

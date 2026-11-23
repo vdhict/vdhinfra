@@ -40,7 +40,9 @@
 #   vdh-runner-nft-guard.timer (every 1 min) + ExecStartPre: the runner stops
 #     taking jobs as soon as table inet vdh_runner is missing or incomplete.
 #   idle-poweroff.timer (every 5 min): powers off ONLY a team-started boot
-#     (/run/team-boot with this boot_id), runner idle, seat0 idle >= 60 min,
+#     (/run/team-boot with this boot_id), runner idle, no remote session or
+#     later login (the boot autologin, <= 180 s after boot, is ignored), no
+#     local input for 15 min (xhci_hcd interrupts, vdh-input-sampler.service),
 #     uptime >= 2 h. Never a boot Sander started.
 #   initramfs: controller's dropbear PUBLIC key + the vdh-teamboot wrapper
 #     (marks ssh-unlocked boots as team boots); rebuilds the initramfs.
@@ -420,11 +422,13 @@ step_payload() {
   payload_vm_golden_build | write_file /usr/local/libexec/vdh-runner/vm-golden-build 0755 root:root
   payload_idle_poweroff   | write_file /usr/local/libexec/vdh-runner/idle-poweroff 0755 root:root
   payload_teamboot_record | write_file /usr/local/libexec/vdh-runner/teamboot-record 0755 root:root
+  payload_input_sampler   | write_file /usr/local/libexec/vdh-runner/input-sampler 0755 root:root
   payload_nft_guard       | write_file /usr/local/libexec/vdh-runner/nft-guard 0755 root:root
   payload_teamboot_shell  | write_file /usr/local/lib/vdh-runner/teamboot-shell 0755 root:root
   payload_forgejo_runner_vm_service   | write_file /etc/systemd/system/forgejo-runner-vm.service 0644 root:root
   payload_idle_poweroff_service       | write_file /etc/systemd/system/idle-poweroff.service 0644 root:root
   payload_idle_poweroff_timer         | write_file /etc/systemd/system/idle-poweroff.timer 0644 root:root
+  payload_vdh_input_sampler_service   | write_file /etc/systemd/system/vdh-input-sampler.service 0644 root:root
   payload_vdh_teamboot_record_service | write_file /etc/systemd/system/vdh-teamboot-record.service 0644 root:root
   payload_vdh_runner_nft_service      | write_file /etc/systemd/system/vdh-runner-nft.service 0644 root:root
   payload_vdh_runner_nft_guard_service | write_file /etc/systemd/system/vdh-runner-nft-guard.service 0644 root:root
@@ -601,6 +605,9 @@ step_services() {
   run systemctl daemon-reload
   run systemctl enable --now vdh-teamboot-record.service
   run systemctl enable --now idle-poweroff.timer
+  run systemctl enable vdh-input-sampler.service
+  # a team boot only (ConditionPathExists=/run/team-boot): start it now when this is one
+  [[ -f /run/team-boot ]] && run systemctl start vdh-input-sampler.service || true
   run systemctl enable --now vdh-runner-nft-guard.timer
   run systemctl enable forgejo-runner-vm.service
   run systemctl restart forgejo-runner-vm.service
@@ -732,7 +739,7 @@ step_report() {
   info "registration scope expected: org ${RUNNER_SCOPE} (Atlas verifies owner/repo of the runner on the forge)"
   info "job image: ${JOB_IMAGE}"
   info "luks keyslot: $(cat /etc/vdh-runner/luks-keyslot 2>/dev/null || echo none)"
-  local u; for u in vdh-runner-nft.service vdh-runner-nft-guard.timer forgejo-runner-vm.service idle-poweroff.timer vdh-teamboot-record.service; do
+  local u; for u in vdh-runner-nft.service vdh-runner-nft-guard.timer forgejo-runner-vm.service idle-poweroff.timer vdh-input-sampler.service vdh-teamboot-record.service; do
     info "$u: $(systemctl is-enabled "$u" 2>/dev/null || true)/$(systemctl is-active "$u" 2>/dev/null || true)"
   done
   info "runner groups: $(id -nG runner 2>/dev/null || echo none)"
@@ -743,7 +750,7 @@ step_report() {
 uninstall() {
   say "uninstall (rollback of everything provision.sh added)"
   (( DRY )) || (( EUID == 0 )) || die "run with sudo"
-  run systemctl disable --now vdh-runner-nft-guard.timer forgejo-runner-vm.service idle-poweroff.timer vdh-teamboot-record.service vdh-runner-nft.service || true
+  run systemctl disable --now vdh-runner-nft-guard.timer forgejo-runner-vm.service idle-poweroff.timer vdh-input-sampler.service vdh-teamboot-record.service vdh-runner-nft.service || true
   local kf
   for kf in /etc/dropbear/root_key /etc/tinyssh/root_key "${REMOTE_UNLOCK_DIR}/authorized_keys"; do
     if ! { [[ -f "$kf" ]] && grep -q " ${KEY_COMMENT}\$" "$kf"; }; then continue; fi
@@ -755,10 +762,11 @@ uninstall() {
   fi
   run rm -f -- /etc/systemd/system/forgejo-runner-vm.service /etc/systemd/system/idle-poweroff.service \
     /etc/systemd/system/idle-poweroff.timer /etc/systemd/system/vdh-teamboot-record.service \
-    /etc/systemd/system/vdh-runner-nft.service
+    /etc/systemd/system/vdh-runner-nft.service /etc/systemd/system/vdh-input-sampler.service
   run systemctl daemon-reload
   run rm -f -- /usr/local/libexec/vdh-runner/vm-dispatch /usr/local/libexec/vdh-runner/vm-golden-build \
     /usr/local/libexec/vdh-runner/idle-poweroff /usr/local/libexec/vdh-runner/teamboot-record \
+    /usr/local/libexec/vdh-runner/input-sampler /run/vdh-input-state \
     /usr/local/lib/vdh-runner/teamboot-shell /usr/local/bin/forgejo-runner \
     /var/lib/vdh-runner-golden/golden.qcow2 /var/lib/vdh-runner-stage/base.qcow2 \
     /usr/local/libexec/vdh-runner/nft-guard /etc/systemd/system/vdh-runner-nft-guard.service \

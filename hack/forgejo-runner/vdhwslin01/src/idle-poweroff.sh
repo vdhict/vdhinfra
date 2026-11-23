@@ -9,8 +9,15 @@
 #   2. uptime >= 2 h.
 #   3. the runner has no job (/run/forgejo-runner/job-active absent) and the
 #      last job ended >= 60 min ago.
-#   4. seat0 IdleHint=yes for >= 60 min, and every other user session (not
-#      agent/runner) is idle >= 60 min as well.
+#   4. nobody else is using the box (rules shared with the estate, pka-run
+#      guard_blocks/input_guard_blocks, AGR-114):
+#      - a user session (not agent/runner) that began within 180 s of boot is
+#        the Hyprland autologin of Sander's account: ignored (its idle hint is
+#        never set, measured 2026-10-29, so it would hold the box on forever);
+#      - a remote session, or a session that began later (a real login): KEEP;
+#      - no input for >= 15 min, read from the xhci_hcd interrupt counts that
+#        vdh-input-sampler (src/input-sampler.sh) writes to /run/vdh-input-state.
+#        No state, stale state or another boot's state: KEEP.
 #   5. no logind block inhibitor (systemctl --check-inhibitors=yes).
 # Anything it cannot read means KEEP (fail safe: never power off on doubt).
 # Every decision is one line on stdout, which systemd writes to the journal.
@@ -30,7 +37,9 @@ else
   NOW="$(date +%s)"
 fi
 
-SEAT_IDLE_MIN_S=3600
+AUTOLOGIN_WINDOW_US=180000000
+INPUT_QUIET_MIN_S=900
+INPUT_HEARTBEAT_MAX_S=30
 RUNNER_IDLE_MIN_S=3600
 UPTIME_MIN_S=7200
 # Sessions of these users never block (agent = team ssh, runner = CI service).
@@ -69,42 +78,50 @@ else
   runner_idle="none-this-boot"
 fi
 
-# --- 4. interactive idleness (logind) ----------------------------------------
-# idle_age <IdleHint> <IdleSinceHint-usec> -> prints seconds idle, or "busy"
-idle_age() {
-  local hint="$1" since_us="$2"
-  if [[ "$hint" != "yes" ]]; then echo busy; return; fi
-  [[ "$since_us" =~ ^[0-9]+$ ]] || { echo busy; return; }
-  echo $(( NOW - since_us / 1000000 ))
-}
-
+# --- 4. is anybody else using the box? ---------------------------------------
 prop() { # prop <key> <text>
   sed -n "s/^$1=//p" <<<"$2" | head -n1
 }
 
-seat="$("$LOGINCTL" show-seat seat0 -p IdleHint -p IdleSinceHint 2>/dev/null)" \
-  || keep "cannot read seat0 from logind"
-seat_age="$(idle_age "$(prop IdleHint "$seat")" "$(prop IdleSinceHint "$seat")")"
-[[ "$seat_age" != busy ]] || keep "seat0 IdleHint=no (someone is using the desktop)"
-(( seat_age >= SEAT_IDLE_MIN_S )) || keep "seat0 idle ${seat_age}s < ${SEAT_IDLE_MIN_S}s"
-
+# 4a. sessions: ignore the autologin, keep for remote or later logins.
 sessions="$("$LOGINCTL" list-sessions --no-legend 2>/dev/null)" \
   || keep "cannot list logind sessions"
 while read -r sid _; do
   [[ -n "${sid:-}" ]] || continue
-  info="$("$LOGINCTL" show-session "$sid" -p Name -p Class -p IdleHint -p IdleSinceHint 2>/dev/null)" \
+  info="$("$LOGINCTL" show-session "$sid" -p Name -p Class -p Remote -p TimestampMonotonic 2>/dev/null)" \
     || keep "cannot read session ${sid}"
   name="$(prop Name "$info")"
   class="$(prop Class "$info")"
   [[ "$class" == "user" ]] || continue
   [[ "$EXCLUDED_USERS" != *" ${name} "* ]] || continue
-  age="$(idle_age "$(prop IdleHint "$info")" "$(prop IdleSinceHint "$info")")"
-  [[ "$age" != busy ]] || keep "session ${sid} (${name}) is active"
-  (( age >= SEAT_IDLE_MIN_S )) || keep "session ${sid} (${name}) idle ${age}s < ${SEAT_IDLE_MIN_S}s"
+  [[ "$(prop Remote "$info")" != "yes" ]] || keep "remote session ${sid} (${name})"
+  started_us="$(prop TimestampMonotonic "$info")"
+  [[ "$started_us" =~ ^[0-9]+$ ]] || keep "session ${sid} (${name}) has no readable start time"
+  (( started_us <= AUTOLOGIN_WINDOW_US )) \
+    || keep "session ${sid} (${name}) began $(( started_us / 1000000 )) s after boot (a login, not the autologin)"
 done <<<"$sessions"
 
+# 4b. input: the sampler's state. Missing, stale or foreign state means KEEP.
+state="${ROOT}/run/vdh-input-state"
+[[ -f "$state" && ! -L "$state" ]] || keep "input activity unknown (no ${state#"$ROOT"})"
+st_boot="$(sed -n 's/^boot_id=//p' "$state" | head -n1)"
+st_beat="$(sed -n 's/^heartbeat=//p' "$state" | head -n1)"
+st_since="$(sed -n 's/^since=//p' "$state" | head -n1)"
+st_last="$(sed -n 's/^last_input=//p' "$state" | head -n1)"
+[[ "$st_boot" == "$boot_id" ]] || keep "input activity unknown (state is from another boot)"
+[[ "$st_beat" =~ ^[0-9]+$ && "$st_since" =~ ^[0-9]+$ ]] || keep "input activity unknown (state unreadable)"
+[[ -z "$st_last" || "$st_last" =~ ^[0-9]+$ ]] || keep "input activity unknown (last_input unreadable)"
+beat_age=$(( uptime_s - st_beat ))
+(( beat_age >= 0 && beat_age <= INPUT_HEARTBEAT_MAX_S )) || keep "input activity unknown (sampler heartbeat ${beat_age}s old)"
+# Quiet time counts from the later of: last input seen, sampler start (it cannot vouch for earlier).
+quiet_from="$st_since"
+if [[ -n "$st_last" ]] && (( st_last > quiet_from )); then quiet_from="$st_last"; fi
+quiet_s=$(( uptime_s - quiet_from ))
+(( quiet_s >= 0 )) || keep "input activity unknown (input time in the future)"
+(( quiet_s >= INPUT_QUIET_MIN_S )) || keep "local input ${quiet_s}s ago < ${INPUT_QUIET_MIN_S}s (AGR-114)"
+
 # --- 5. power off ------------------------------------------------------------
-echo "idle-poweroff: POWEROFF: started_by=team boot_id=${boot_id} uptime=${uptime_s}s seat0_idle=${seat_age}s runner_idle=${runner_idle}"
+echo "idle-poweroff: POWEROFF: started_by=team boot_id=${boot_id} uptime=${uptime_s}s input_quiet=${quiet_s}s runner_idle=${runner_idle}"
 if ! "$SYSTEMCTL" poweroff --check-inhibitors=yes; then
   echo "idle-poweroff: KEEP: systemctl poweroff refused (inhibitor?)"
 fi

@@ -1,0 +1,19 @@
+# vdhwslin01 (chg-2026-10-05-031): AGR-114 local-input sampler, team boots only.
+[Unit]
+Description=Sample USB input activity (xhci_hcd) for idle-poweroff
+ConditionPathExists=/run/team-boot
+
+[Service]
+Type=simple
+ExecStart=/usr/local/libexec/vdh-runner/input-sampler
+SyslogIdentifier=vdh-input-sampler
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/run
+
+[Install]
+WantedBy=multi-user.target
