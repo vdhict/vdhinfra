@@ -14,21 +14,51 @@
 # provision.sh installs the output root-owned 0444 and pins its sha256.
 set -euo pipefail
 
-# Pass 1 is good only if the serial console shows, in this order: exactly one
-# GRUB boot, exactly one kernel banner, cloud-init's "finished" line, and then
-# the guest's own "reboot: Power down". qemu exits 0 on a guest reset as well
-# (-no-reboot), so the exit code alone proves nothing. Any missing marker, a
-# second GRUB boot or banner, or the wrong order is RED (fail closed). No
+# Pass 1 is good only if the serial console shows exactly one of each marker,
+# in this order by line number: GRUB "Booting" < kernel banner < cloud-init
+# "finished" < "reboot: Power down", the power-down line is the last kernel
+# line, and there is no "Kernel panic" or "reboot: Restarting system" anywhere
+# (Argus F1, 2026-11-24). qemu exits 0 on a guest reset as well (-no-reboot), so
+# the exit code alone proves nothing. Anything else is RED (fail closed). No
 # duration check: run 3 (2026-11-24) finished cleanly in 109 s.
 console_ok() {
-  local f="$1" grub kern fin pwr
+  local f="$1" ng nk nf np lg lk lf lp bad last
   [[ -r "$f" ]] || { echo "no console log"; return 1; }
-  grub="$(grep -ac 'Booting `Debian' "$f" || true)"
-  kern="$(grep -ac '] Linux version ' "$f" || true)"
-  fin="$(grep -anE 'Cloud-init v\. [^ ]+ finished at ' "$f" | tail -n1 | cut -d: -f1 || true)"
-  pwr="$(grep -an 'reboot: Power down' "$f" | tail -n1 | cut -d: -f1 || true)"
-  echo "console: ${grub} GRUB boot(s), ${kern} kernel banner(s), cloud-init finished line ${fin:-none}, power down line ${pwr:-none}"
-  [[ "$grub" == 1 && "$kern" == 1 && -n "$fin" && -n "$pwr" ]] && (( pwr > fin ))
+  ng="$(grep -ac 'Booting `Debian' "$f" || true)"
+  nk="$(grep -ac '] Linux version ' "$f" || true)"
+  nf="$(grep -acE 'Cloud-init v\. [^ ]+ finished at ' "$f" || true)"
+  np="$(grep -ac 'reboot: Power down' "$f" || true)"
+  lg="$(grep -an 'Booting `Debian' "$f" | head -n1 | cut -d: -f1 || true)"
+  lk="$(grep -an '] Linux version ' "$f" | head -n1 | cut -d: -f1 || true)"
+  lf="$(grep -anE 'Cloud-init v\. [^ ]+ finished at ' "$f" | head -n1 | cut -d: -f1 || true)"
+  lp="$(grep -an 'reboot: Power down' "$f" | head -n1 | cut -d: -f1 || true)"
+  bad="$(grep -acE 'Kernel panic|reboot: Restarting system' "$f" || true)"
+  last="$(grep -anE '^\[ *[0-9]+\.[0-9]+\] ' "$f" | tail -n1 | cut -d: -f1 || true)"
+  echo "console: ${ng} GRUB boot(s), ${nk} kernel banner(s), cloud-init finished line ${lf:-none}, power down line ${lp:-none}; finished x${nf}, power down x${np}, panic/restart x${bad}, GRUB line ${lg:-none}, banner line ${lk:-none}, last kernel line ${last:-none}"
+  [[ "$ng" == 1 && "$nk" == 1 && "$nf" == 1 && "$np" == 1 && "$bad" == 0 ]] || return 1
+  (( lg < lk && lk < lf && lf < lp )) && [[ "$last" == "$lp" ]]
+}
+# qemu runs in the background from bash, NOT with -daemonize: qemu applies
+# -sandbox before it daemonizes, and spawn=deny (fork) and elevateprivileges=deny
+# (setsid) make -daemonize exit 1 silently before the serial log exists
+# (chg-2026-11-06-005 run 4; repro in a pod with qemu 11.1.3). qemu_started
+# waits for qemu's own -pidfile to name the pid bash started; if qemu exits
+# first it fails with qemu's exit code and the console tail.
+# Same function in vm-golden-build and vm-dispatch (tests/qemu-start.test.sh).
+qemu_started() { # qemu_started <pid> <pidfile> <console log>
+  local pid="$1" pf="$2" con="$3" rc=0
+  for _ in $(seq 1 60); do
+    if [[ -s "$pf" && "$(cat "$pf" 2>/dev/null)" == "$pid" ]]; then return 0; fi
+    if ! kill -0 "$pid" 2>/dev/null; then
+      wait "$pid" 2>/dev/null || rc=$?
+      echo "qemu (pid $pid) exited rc=${rc} before writing its pidfile; console tail:"
+      tail -c 2000 "$con" 2>/dev/null | tr -cd '\11\12\15\40-\176'; echo
+      return 1
+    fi
+    sleep 0.5
+  done
+  echo "qemu (pid $pid) wrote no pidfile in 30 s"
+  return 1
 }
 if [[ "${1:-}" == --check-console ]]; then
   console_ok "${2:?console log}"; exit
@@ -127,10 +157,12 @@ qemu-system-x86_64 "${common[@]}" -name vdh-golden-verify -snapshot \
   -drive "file=$B/build.qcow2,if=virtio,format=qcow2" \
   -netdev "user,id=n0,ipv6=off,hostfwd=tcp:127.0.0.1:${FWD_PORT}-:22" \
   -device virtio-net-pci,netdev=n0 \
-  -daemonize -pidfile "$B/verify.pid"
-vpid="$(cat "$B/verify.pid")"
-stop_verify() { kill "$vpid" 2>/dev/null || true; }
+  -pidfile "$B/verify.pid" </dev/null &
+vpid=$!
+stop_verify() { kill "$vpid" 2>/dev/null || true; wait "$vpid" 2>/dev/null || true; }
 trap stop_verify EXIT
+# Not in $(...): wait needs qemu to be a child of THIS shell to get its exit code.
+qemu_started "$vpid" "$B/verify.pid" "$B/verify-console.log" || { log "FAIL: verify VM did not start"; exit 1; }
 
 sshv() {
   ssh -F /dev/null -i "$VM_KEY" -p "$FWD_PORT" -o IdentitiesOnly=yes -o BatchMode=yes \

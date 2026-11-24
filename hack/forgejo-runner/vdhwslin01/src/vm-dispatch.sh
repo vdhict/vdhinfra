@@ -42,7 +42,31 @@ vm_ssh() {
     -o ConnectTimeout=5 -o LogLevel=ERROR "$@"
 }
 
+# qemu runs in the background from bash, NOT with -daemonize: qemu applies
+# -sandbox before it daemonizes, and spawn=deny (fork) and elevateprivileges=deny
+# (setsid) make -daemonize exit 1 silently before the serial log exists
+# (chg-2026-11-06-005 run 4; repro in a pod with qemu 11.1.3). qemu_started
+# waits for qemu's own -pidfile to name the pid bash started; if qemu exits
+# first it fails with qemu's exit code and the console tail.
+# Same function in vm-golden-build and vm-dispatch (tests/qemu-start.test.sh).
+qemu_started() { # qemu_started <pid> <pidfile> <console log>
+  local pid="$1" pf="$2" con="$3" rc=0
+  for _ in $(seq 1 60); do
+    if [[ -s "$pf" && "$(cat "$pf" 2>/dev/null)" == "$pid" ]]; then return 0; fi
+    if ! kill -0 "$pid" 2>/dev/null; then
+      wait "$pid" 2>/dev/null || rc=$?
+      echo "qemu (pid $pid) exited rc=${rc} before writing its pidfile; console tail:"
+      tail -c 2000 "$con" 2>/dev/null | tr -cd '\11\12\15\40-\176'; echo
+      return 1
+    fi
+    sleep 0.5
+  done
+  echo "qemu (pid $pid) wrote no pidfile in 30 s"
+  return 1
+}
+
 tunnel_pid=""
+qemu_pid=""
 cleanup_vm() {
   if [[ -n "$tunnel_pid" ]] && kill -0 "$tunnel_pid" 2>/dev/null; then
     kill "$tunnel_pid" 2>/dev/null || true
@@ -56,6 +80,14 @@ cleanup_vm() {
       kill -KILL "$pid" 2>/dev/null || true
     fi
   fi
+  # Our own background qemu child: kill it by the pid bash recorded and reap it.
+  if [[ -n "$qemu_pid" ]]; then
+    kill -TERM "$qemu_pid" 2>/dev/null || true
+    for _ in $(seq 1 20); do kill -0 "$qemu_pid" 2>/dev/null || break; sleep 0.5; done
+    kill -KILL "$qemu_pid" 2>/dev/null || true
+    wait "$qemu_pid" 2>/dev/null || true
+  fi
+  qemu_pid=""
   # Literal paths only (no rm of variables).
   rm -f -- /run/forgejo-runner/qemu.pid /run/forgejo-runner/docker.sock
   rm -f -- /var/lib/forgejo-runner/vm/job.qcow2
@@ -91,7 +123,10 @@ start_vm() {
     -device virtio-net-pci,netdev=n0 \
     -device virtio-rng-pci \
     -sandbox on,obsolete=deny,elevateprivileges=deny,spawn=deny,resourcecontrol=deny \
-    -daemonize -pidfile "${STATE_DIR}/qemu.pid"
+    -pidfile "${STATE_DIR}/qemu.pid" </dev/null &
+  qemu_pid=$!
+  # Not in $(...): wait needs qemu to be a child of THIS shell to get its exit code.
+  qemu_started "$qemu_pid" "${STATE_DIR}/qemu.pid" "${STATE_DIR}/vm-console.log" || { log "VM did not start"; return 1; }
 }
 
 wait_vm() {

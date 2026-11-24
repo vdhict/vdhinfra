@@ -6,3 +6,5 @@ Fixtures for `vm-golden-build --check-console` (tests/golden-console.test.sh, ch
 - `golden-console-bad-*.log`: the good log with one marker removed or broken (no banner, no finished line, no
   power down, power down before finished, two GRUB boots), and the run 2 reset loop shape (only the 56-byte GRUB
   line, 50 times).
+- Argus F1 probes (2026-11-24): banner after "finished", a spoofed "finished" line before GRUB (real one removed),
+  "reboot: Restarting system" after power down, a "Kernel panic" line, and a kernel line after power down.
