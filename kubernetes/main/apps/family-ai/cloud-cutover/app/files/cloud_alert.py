@@ -140,20 +140,31 @@ def is_money(off):
     return off.get('type') == 'billing_error' or off.get('status') in (400, 402, 429)
 
 
-def _newer(off, ts):
+def _fallback_ok(off_file, transitions, ts):
+    """The off file may stand in for the episode only when its ts is a finite number not newer than the line and no 'on'
+    transition lies between the file's ts and the line (that on closed the episode the file belongs to)."""
     try:
-        return float(off.get('ts')) > ts
-    except (TypeError, ValueError):
+        fts = float(off_file.get('ts'))
+    except (TypeError, ValueError, AttributeError):
         return False
+    if fts != fts or fts in (float('inf'), float('-inf')) or fts > ts:
+        return False
+    for raw in transitions:
+        try:
+            if raw.get('to') == 'on' and fts <= float(raw.get('ts', 0)) <= ts:
+                return False
+        except (TypeError, ValueError, AttributeError):
+            continue
+    return True
 
 
-def episode_off(transitions, ts):
+def episode_off(transitions, ts, upto=None):
     """F7-b: cloud-off.json can be gone (driver swap) before this run sees a same_month_200 line. Rebuild the off state
     from the newest earlier 'off' transition that is not itself a same_month_200 (the trip that opened the episode).
     An 'on' transition closes the episode: no trip is then known (None -> NotMoney, never a false money alert).
     The ts keeps its original type so the dedupe key equals the one built from the off file."""
     rows = []
-    for raw in transitions:
+    for raw in (transitions if upto is None else transitions[:upto]):   # upto: only rows written before the line itself
         line = clean(raw, LINE_FIELDS)
         try:
             lts = float(line.get('ts', 0))
@@ -257,7 +268,7 @@ def main():
     if state.pop('unreadable', None) is not None:
         log.append({'unreadable': 'recovered'})
 
-    for raw in transitions:
+    for idx, raw in enumerate(transitions):
         line = clean(raw, LINE_FIELDS)
         ts = float(line.get('ts', 0))
         if ts <= cursor:
@@ -269,11 +280,12 @@ def main():
             # R-1: the transitions are the record of the episode this line belongs to; the off file only holds the
             # NEWEST trip (a backlog off->on->off moves it past this line), so it is a fallback, and only when it is
             # not newer than the line.
-            off = episode_off(transitions, ts)
-            if off is None and off_file and not _newer(off_file, ts):
+            off = episode_off(transitions, ts, idx)
+            if off is None and off_file and _fallback_ok(off_file, transitions, ts):
                 off = off_file
             key = f"{(off or {}).get('ts')}|{line.get('month')}"
-            if key in keys:
+            old_key = f"{(off_file or {}).get('ts')}|{line.get('month')}"   # keys written before R-1 used the off file ts
+            if key in keys or (off_file and old_key in keys and _fallback_ok(off_file, transitions, ts)):
                 log.append({'line': 'same_month_200', 'deduped': True})
                 continue
             keys.append(key)

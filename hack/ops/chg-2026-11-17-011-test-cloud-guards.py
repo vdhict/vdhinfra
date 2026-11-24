@@ -398,6 +398,34 @@ def race_tests():
     k3 = [k for k in m3.load_state()['dedupe'] if k.endswith('|' + month())]
     ok('R-2: off file ts differs from the transition ts by milliseconds -> still MoneyCandidate, dedupe key from the transition ts',
        rc3 == 0 and 'FamilyCloudMoneyCandidate' in names(posted3) and k3 == [f"{off_bill['ts']}|{month()}"])
+    # R-1 review: upgrade (dedupe holds the old off-file-ts key) -> no second alert
+    du = tempfile.mkdtemp(prefix='c011-alert-r1-upg-')
+    write(du, 'cloud-off.json', dict(off_file, ts=base - 0.004))
+    write(du, 'cloud-transitions.jsonl', lines(off_bill, off_sm))
+    mu, apiu, postedu = alert_env(du, cursor=t0)
+    mu.load_state = lambda: {'cursor_ts': t0, 'dedupe': [f"{base - 0.004}|{month()}"]}
+    alert_run(mu)
+    ok('R-1: dedupe already holds the off-file-ts key -> no second money alert after the upgrade', 'FamilyCloudMoneyCandidate' not in names(postedu))
+    # R-1 review: stale billing off file older than an ON, opening record missing -> no false money from the fallback
+    ds = tempfile.mkdtemp(prefix='c011-alert-r1-stale-')
+    write(ds, 'cloud-off.json', dict(off_file, ts=base - 100))
+    write(ds, 'cloud-transitions.jsonl', lines(dict(on_probe, ts=base - 50), off_sm))
+    ms, _, posteds = alert_env(ds, cursor=t0)
+    alert_run(ms)
+    ok('R-1: off file older than an on transition before the line -> fallback refused, NotMoney', 'FamilyCloudSameMonth200NotMoney' in names(posteds) and 'FamilyCloudMoneyCandidate' not in names(posteds))
+    # R-1 review: same-ts tie: an ON written AFTER the line with the same ts must not close the episode
+    dt_ = tempfile.mkdtemp(prefix='c011-alert-r1-tie-')
+    write(dt_, 'cloud-transitions.jsonl', lines(off_bill, dict(off_sm, ts=base + 20), on_probe))
+    mt, _, postedt = alert_env(dt_, cursor=t0)
+    alert_run(mt)
+    ok('R-1: an on line with the same ts but written after same_month_200 does not suppress the money event', 'FamilyCloudMoneyCandidate' in names(postedt))
+    # R-1 review: off file with a NaN / missing ts is never a fallback
+    dn2 = tempfile.mkdtemp(prefix='c011-alert-r1-nan-')
+    write(dn2, 'cloud-off.json', {'v': 1, 'kind': 'billing', 'status': 402, 'type': 'billing_error'})
+    write(dn2, 'cloud-transitions.jsonl', lines(off_sm))
+    mn2, _, postedn2 = alert_env(dn2, cursor=t0)
+    alert_run(mn2)
+    ok('R-1: off file without a ts is not a fallback -> NotMoney', names(postedn2) == ['FamilyCloudSameMonth200NotMoney'])
     # fixed sequence: off file present at the first alert run (after 3d), then moved, then the on/probe line
     d2 = tempfile.mkdtemp(prefix='c011-alert-seq-')
     write(d2, 'cloud-off.json', off_file)
