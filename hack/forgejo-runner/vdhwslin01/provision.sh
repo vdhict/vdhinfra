@@ -582,7 +582,7 @@ cp "$B/known_hosts" "$kh_out"
 log "golden built: $out"
 VDH_PAYLOAD_EOF
 }
-# --- from src/idle-poweroff.sh (sha256 c2143361a9c6a58f)
+# --- from src/idle-poweroff.sh (sha256 524498d55dcb7494)
 payload_idle_poweroff() {
 cat <<'VDH_PAYLOAD_EOF'
 #!/usr/bin/env bash
@@ -679,9 +679,12 @@ while read -r sid _; do
     || keep "cannot read session ${sid}"
   name="$(prop Name "$info")"
   class="$(prop Class "$info")"
+  [[ -n "$class" && -n "$name" ]] || keep "session ${sid} has no readable Name/Class"
   [[ "$class" == "user" ]] || continue
   [[ "$EXCLUDED_USERS" != *" ${name} "* ]] || continue
-  [[ "$(prop Remote "$info")" != "yes" ]] || keep "remote session ${sid} (${name})"
+  remote="$(prop Remote "$info")"
+  [[ "$remote" != "yes" ]] || keep "remote session ${sid} (${name})"
+  [[ "$remote" == "no" ]] || keep "session ${sid} (${name}) Remote unreadable: treated as remote"
   started_us="$(prop TimestampMonotonic "$info")"
   [[ "$started_us" =~ ^[0-9]+$ ]] || keep "session ${sid} (${name}) has no readable start time"
   (( started_us <= AUTOLOGIN_WINDOW_US )) \
@@ -691,10 +694,14 @@ done <<<"$sessions"
 # 4b. input: the sampler's state. Missing, stale or foreign state means KEEP.
 state="${ROOT}/run/vdh-input-state"
 [[ -f "$state" && ! -L "$state" ]] || keep "input activity unknown (no ${state#"$ROOT"})"
-st_boot="$(sed -n 's/^boot_id=//p' "$state" | head -n1)"
-st_beat="$(sed -n 's/^heartbeat=//p' "$state" | head -n1)"
-st_since="$(sed -n 's/^since=//p' "$state" | head -n1)"
-st_last="$(sed -n 's/^last_input=//p' "$state" | head -n1)"
+snap="$(cat "$state" 2>/dev/null)" || keep "input activity unknown (state unreadable)"   # one read: no mixed snapshots
+for k in boot_id heartbeat since last_input; do
+  grep -q "^${k}=" <<<"$snap" || keep "input activity unknown (state lacks ${k})"
+done
+st_boot="$(prop boot_id "$snap")"
+st_beat="$(prop heartbeat "$snap")"
+st_since="$(prop since "$snap")"
+st_last="$(prop last_input "$snap")"
 [[ "$st_boot" == "$boot_id" ]] || keep "input activity unknown (state is from another boot)"
 [[ "$st_beat" =~ ^[0-9]+$ && "$st_since" =~ ^[0-9]+$ ]] || keep "input activity unknown (state unreadable)"
 [[ -z "$st_last" || "$st_last" =~ ^[0-9]+$ ]] || keep "input activity unknown (last_input unreadable)"
@@ -728,7 +735,7 @@ else
 fi
 VDH_PAYLOAD_EOF
 }
-# --- from src/input-sampler.sh (sha256 50da5e361dfa367e)
+# --- from src/input-sampler.sh (sha256 725245174915811a)
 payload_input_sampler() {
 cat <<'VDH_PAYLOAD_EOF'
 #!/bin/bash
@@ -744,7 +751,10 @@ cat <<'VDH_PAYLOAD_EOF'
 # State, rewritten atomically every 2 s, root-owned in tmpfs:
 #   /run/vdh-input-state: boot_id=, heartbeat= and since= (this sampler's start)
 #   and last_input= (empty until input is seen), all in whole seconds of uptime.
-# A restart in the same boot keeps since= and last_input=. No state, a stale
+# A restart in the same boot keeps last_input= but restarts since= (the quiet window
+# cannot cover the gap). No xhci_hcd line in /proc/interrupts: no state is written, the
+# heartbeat goes stale and idle-poweroff keeps the box on. Samples that count as input
+# never enter the baseline, so sustained input cannot raise its own threshold. No state, a stale
 # heartbeat or another boot's state makes idle-poweroff KEEP.
 set -euo pipefail
 
@@ -762,8 +772,8 @@ uptime_s() { cut -d. -f1 < "${ROOT}/proc/uptime"; }
 irq_total() {
   awk -v names=" ${IRQ_NAMES} " '
     { last=$NF }
-    index(names, " " last " ") { for (i=2; i<=NF; i++) { if ($i !~ /^[0-9]+$/) break; t += $i } }
-    END { printf "%d\n", t }' "${ROOT}/proc/interrupts"
+    index(names, " " last " ") { hit=1; for (i=2; i<=NF; i++) { if ($i !~ /^[0-9]+$/) break; t += $i } }
+    END { if (!hit) exit 1; printf "%d\n", t }' "${ROOT}/proc/interrupts"
 }
 
 boot_id="$(tr -d '[:space:]' < "${ROOT}/proc/sys/kernel/random/boot_id")"
@@ -771,8 +781,7 @@ boot_id="$(tr -d '[:space:]' < "${ROOT}/proc/sys/kernel/random/boot_id")"
 since="$(uptime_s)"
 last_input=""
 if [[ -f "$state" && ! -L "$state" ]] && [[ "$(sed -n 's/^boot_id=//p' "$state" | head -n1)" == "$boot_id" ]]; then
-  s0="$(sed -n 's/^since=//p' "$state" | head -n1)"; l0="$(sed -n 's/^last_input=//p' "$state" | head -n1)"
-  [[ "$s0" =~ ^[0-9]+$ ]] && since="$s0"
+  l0="$(sed -n 's/^last_input=//p' "$state" | head -n1)"
   [[ "$l0" =~ ^[0-9]+$ ]] && last_input="$l0"
 fi
 
@@ -783,13 +792,21 @@ while :; do
   iter=$((iter + 1))
   [[ -z "$TICK" ]] || "$TICK" "$iter"
   now="$(uptime_s)"
-  total="$(irq_total)"
+  if ! total="$(irq_total)" || [[ ! "$total" =~ ^[0-9]+$ ]]; then
+    (( MAX_ITER == 0 || iter < MAX_ITER )) || break
+    (( PAUSE == 0 )) || sleep "$PAUSE"
+    continue
+  fi
   if [[ -n "$previous" ]]; then
     d=$(( total - previous )); (( d >= 0 )) || d=0
-    deltas+=("$d")
-    (( ${#deltas[@]} <= WINDOW )) || deltas=("${deltas[@]:1}")
-    min="${deltas[0]}"; for x in "${deltas[@]}"; do (( x >= min )) || min="$x"; done
-    if (( d > 2 * min + 4 )); then last_input="$now"; fi
+    if (( ${#deltas[@]} )); then
+      min="${deltas[0]}"; for x in "${deltas[@]}"; do (( x >= min )) || min="$x"; done
+    else min="$d"; fi
+    if (( d > 2 * min + 4 )); then last_input="$now"
+    else
+      deltas+=("$d")
+      (( ${#deltas[@]} <= WINDOW )) || deltas=("${deltas[@]:1}")
+    fi
   fi
   previous="$total"
   tmp="${state}.tmp"
@@ -1521,7 +1538,7 @@ step_services() {
   run systemctl enable --now idle-poweroff.timer
   run systemctl enable vdh-input-sampler.service
   # a team boot only (ConditionPathExists=/run/team-boot): start it now when this is one
-  [[ -f /run/team-boot ]] && run systemctl start vdh-input-sampler.service || true
+  if [[ -f /run/team-boot ]]; then run systemctl start vdh-input-sampler.service; fi
   run systemctl enable --now vdh-runner-nft-guard.timer
   run systemctl enable forgejo-runner-vm.service
   run systemctl restart forgejo-runner-vm.service

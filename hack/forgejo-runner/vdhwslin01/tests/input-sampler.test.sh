@@ -61,11 +61,25 @@ d="$(new_root wobble "$plan")"; run "$d" 40
 # 4. a restart in the same boot keeps since and last_input
 cp "$T/burst/run/vdh-input-state" "$T/restart-state"
 d="$(new_root restart "")"; cp "$T/restart-state" "$d/run/vdh-input-state"; run "$d" 5
-[[ "$(field "$d" since)" == 1000 && "$(field "$d" last_input)" == 1062 ]] && ok "restart keeps since and last_input" || bad "restart: $(cat "$d/run/vdh-input-state")"
+[[ "$(field "$d" since)" == 1000 && "$(field "$d" last_input)" == 1062 ]] && ok "restart keeps last_input and restarts the window (since = now)" || bad "restart: $(cat "$d/run/vdh-input-state")"
 
 # 5. state of another boot is not inherited
 d="$(new_root newboot "")"; printf 'boot_id=old\nheartbeat=5\nsince=1\nlast_input=3\n' > "$d/run/vdh-input-state"; run "$d" 5
 [[ "$(field "$d" boot_id)" == "$BOOT" && "$(field "$d" last_input)" == "" ]] && ok "other boot's state ignored" || bad "newboot: $(cat "$d/run/vdh-input-state")"
+
+# 6. sustained input must not raise its own threshold: 20 idle ticks, then 300 ticks at 200 per tick
+plan="$(for _ in $(seq 1 20); do printf '8 '; done)$(for _ in $(seq 1 300); do printf '200 '; done)"
+d="$(new_root sustained "$plan")"; run "$d" 320
+[[ "$(field "$d" last_input)" == "$(field "$d" heartbeat)" ]] && ok "sustained input stays input (baseline ignores input samples)" || bad "sustained: $(cat "$d/run/vdh-input-state")"
+
+# 7. no xhci_hcd row: no state written (heartbeat stays absent -> idle-poweroff keeps)
+d="$(new_root norow "")"; sed -i 's/xhci_hcd/nvme0q9/' "$d/proc/interrupts"
+cat > "$d/tick" <<'TICK'
+#!/usr/bin/env bash
+exit 0
+TICK
+run "$d" 5
+[[ ! -e "$d/run/vdh-input-state" ]] && ok "no xhci_hcd row -> no state, no fake heartbeat" || bad "norow wrote state"
 
 echo "input-sampler tests: ${pass} passed, ${fail} failed"
 (( fail == 0 ))

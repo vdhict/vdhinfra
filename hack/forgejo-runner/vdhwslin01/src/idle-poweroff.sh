@@ -92,9 +92,12 @@ while read -r sid _; do
     || keep "cannot read session ${sid}"
   name="$(prop Name "$info")"
   class="$(prop Class "$info")"
+  [[ -n "$class" && -n "$name" ]] || keep "session ${sid} has no readable Name/Class"
   [[ "$class" == "user" ]] || continue
   [[ "$EXCLUDED_USERS" != *" ${name} "* ]] || continue
-  [[ "$(prop Remote "$info")" != "yes" ]] || keep "remote session ${sid} (${name})"
+  remote="$(prop Remote "$info")"
+  [[ "$remote" != "yes" ]] || keep "remote session ${sid} (${name})"
+  [[ "$remote" == "no" ]] || keep "session ${sid} (${name}) Remote unreadable: treated as remote"
   started_us="$(prop TimestampMonotonic "$info")"
   [[ "$started_us" =~ ^[0-9]+$ ]] || keep "session ${sid} (${name}) has no readable start time"
   (( started_us <= AUTOLOGIN_WINDOW_US )) \
@@ -104,10 +107,14 @@ done <<<"$sessions"
 # 4b. input: the sampler's state. Missing, stale or foreign state means KEEP.
 state="${ROOT}/run/vdh-input-state"
 [[ -f "$state" && ! -L "$state" ]] || keep "input activity unknown (no ${state#"$ROOT"})"
-st_boot="$(sed -n 's/^boot_id=//p' "$state" | head -n1)"
-st_beat="$(sed -n 's/^heartbeat=//p' "$state" | head -n1)"
-st_since="$(sed -n 's/^since=//p' "$state" | head -n1)"
-st_last="$(sed -n 's/^last_input=//p' "$state" | head -n1)"
+snap="$(cat "$state" 2>/dev/null)" || keep "input activity unknown (state unreadable)"   # one read: no mixed snapshots
+for k in boot_id heartbeat since last_input; do
+  grep -q "^${k}=" <<<"$snap" || keep "input activity unknown (state lacks ${k})"
+done
+st_boot="$(prop boot_id "$snap")"
+st_beat="$(prop heartbeat "$snap")"
+st_since="$(prop since "$snap")"
+st_last="$(prop last_input "$snap")"
 [[ "$st_boot" == "$boot_id" ]] || keep "input activity unknown (state is from another boot)"
 [[ "$st_beat" =~ ^[0-9]+$ && "$st_since" =~ ^[0-9]+$ ]] || keep "input activity unknown (state unreadable)"
 [[ -z "$st_last" || "$st_last" =~ ^[0-9]+$ ]] || keep "input activity unknown (last_input unreadable)"

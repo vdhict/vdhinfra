@@ -118,6 +118,12 @@ expect "remote session (even early) -> keep" "$d" KEEP "remote session 9 (sheijd
 d="$(new_case no-start-time)"; printf 'Name=sheijden\nClass=user\nRemote=no\n' > "$d/logind/session-2"
 expect "session without start time -> keep" "$d" KEEP "no readable start time"
 
+d="$(new_case no-remote-prop)"; printf 'Name=sheijden\nClass=user\nTimestampMonotonic=35000000\n' > "$d/logind/session-2"
+expect "session without Remote property -> keep" "$d" KEEP "Remote unreadable"
+
+d="$(new_case state-missing-key)"; printf 'boot_id=%s\nheartbeat=9000\nsince=60\n' "$BOOT" > "$d/run/vdh-input-state"
+expect "state without last_input key -> keep" "$d" KEEP "state lacks last_input"
+
 d="$(new_case input-recent)"; printf 'boot_id=%s\nheartbeat=9000\nsince=60\nlast_input=8400\n' "$BOOT" > "$d/run/vdh-input-state"
 expect "input 10 min ago -> keep" "$d" KEEP "local input 600s ago"
 
@@ -139,7 +145,7 @@ expect "sampler heartbeat 100 s old -> keep" "$d" KEEP "heartbeat 100s old"
 d="$(new_case foreign-state)"; printf 'boot_id=deadbeef\nheartbeat=9000\nsince=60\nlast_input=\n' > "$d/run/vdh-input-state"
 expect "state from another boot -> keep" "$d" KEEP "another boot"
 
-d="$(new_case garbage-state)"; printf 'boot_id=%s\nheartbeat=soon\nsince=60\n' "$BOOT" > "$d/run/vdh-input-state"
+d="$(new_case garbage-state)"; printf 'boot_id=%s\nheartbeat=soon\nsince=60\nlast_input=\n' "$BOOT" > "$d/run/vdh-input-state"
 expect "unreadable state -> keep" "$d" KEEP "state unreadable"
 
 d="$(new_case symlink-state)"; find "$d/run/vdh-input-state" -delete; ln -s /etc/passwd "$d/run/vdh-input-state"

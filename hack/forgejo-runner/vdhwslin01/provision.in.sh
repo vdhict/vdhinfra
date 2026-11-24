@@ -607,7 +607,7 @@ step_services() {
   run systemctl enable --now idle-poweroff.timer
   run systemctl enable vdh-input-sampler.service
   # a team boot only (ConditionPathExists=/run/team-boot): start it now when this is one
-  [[ -f /run/team-boot ]] && run systemctl start vdh-input-sampler.service || true
+  if [[ -f /run/team-boot ]]; then run systemctl start vdh-input-sampler.service; fi
   run systemctl enable --now vdh-runner-nft-guard.timer
   run systemctl enable forgejo-runner-vm.service
   run systemctl restart forgejo-runner-vm.service

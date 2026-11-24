@@ -11,7 +11,10 @@
 # State, rewritten atomically every 2 s, root-owned in tmpfs:
 #   /run/vdh-input-state: boot_id=, heartbeat= and since= (this sampler's start)
 #   and last_input= (empty until input is seen), all in whole seconds of uptime.
-# A restart in the same boot keeps since= and last_input=. No state, a stale
+# A restart in the same boot keeps last_input= but restarts since= (the quiet window
+# cannot cover the gap). No xhci_hcd line in /proc/interrupts: no state is written, the
+# heartbeat goes stale and idle-poweroff keeps the box on. Samples that count as input
+# never enter the baseline, so sustained input cannot raise its own threshold. No state, a stale
 # heartbeat or another boot's state makes idle-poweroff KEEP.
 set -euo pipefail
 
@@ -29,8 +32,8 @@ uptime_s() { cut -d. -f1 < "${ROOT}/proc/uptime"; }
 irq_total() {
   awk -v names=" ${IRQ_NAMES} " '
     { last=$NF }
-    index(names, " " last " ") { for (i=2; i<=NF; i++) { if ($i !~ /^[0-9]+$/) break; t += $i } }
-    END { printf "%d\n", t }' "${ROOT}/proc/interrupts"
+    index(names, " " last " ") { hit=1; for (i=2; i<=NF; i++) { if ($i !~ /^[0-9]+$/) break; t += $i } }
+    END { if (!hit) exit 1; printf "%d\n", t }' "${ROOT}/proc/interrupts"
 }
 
 boot_id="$(tr -d '[:space:]' < "${ROOT}/proc/sys/kernel/random/boot_id")"
@@ -38,8 +41,7 @@ boot_id="$(tr -d '[:space:]' < "${ROOT}/proc/sys/kernel/random/boot_id")"
 since="$(uptime_s)"
 last_input=""
 if [[ -f "$state" && ! -L "$state" ]] && [[ "$(sed -n 's/^boot_id=//p' "$state" | head -n1)" == "$boot_id" ]]; then
-  s0="$(sed -n 's/^since=//p' "$state" | head -n1)"; l0="$(sed -n 's/^last_input=//p' "$state" | head -n1)"
-  [[ "$s0" =~ ^[0-9]+$ ]] && since="$s0"
+  l0="$(sed -n 's/^last_input=//p' "$state" | head -n1)"
   [[ "$l0" =~ ^[0-9]+$ ]] && last_input="$l0"
 fi
 
@@ -50,13 +52,21 @@ while :; do
   iter=$((iter + 1))
   [[ -z "$TICK" ]] || "$TICK" "$iter"
   now="$(uptime_s)"
-  total="$(irq_total)"
+  if ! total="$(irq_total)" || [[ ! "$total" =~ ^[0-9]+$ ]]; then
+    (( MAX_ITER == 0 || iter < MAX_ITER )) || break
+    (( PAUSE == 0 )) || sleep "$PAUSE"
+    continue
+  fi
   if [[ -n "$previous" ]]; then
     d=$(( total - previous )); (( d >= 0 )) || d=0
-    deltas+=("$d")
-    (( ${#deltas[@]} <= WINDOW )) || deltas=("${deltas[@]:1}")
-    min="${deltas[0]}"; for x in "${deltas[@]}"; do (( x >= min )) || min="$x"; done
-    if (( d > 2 * min + 4 )); then last_input="$now"; fi
+    if (( ${#deltas[@]} )); then
+      min="${deltas[0]}"; for x in "${deltas[@]}"; do (( x >= min )) || min="$x"; done
+    else min="$d"; fi
+    if (( d > 2 * min + 4 )); then last_input="$now"
+    else
+      deltas+=("$d")
+      (( ${#deltas[@]} <= WINDOW )) || deltas=("${deltas[@]:1}")
+    fi
   fi
   previous="$total"
   tmp="${state}.tmp"
