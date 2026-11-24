@@ -351,7 +351,7 @@ while true; do
 done
 VDH_PAYLOAD_EOF
 }
-# --- from src/vm-golden-build.sh (sha256 57e0039984cdfb10)
+# --- from src/vm-golden-build.sh (sha256 bde317fb8c00180e)
 payload_vm_golden_build() {
 cat <<'VDH_PAYLOAD_EOF'
 #!/usr/bin/env bash
@@ -360,6 +360,7 @@ cat <<'VDH_PAYLOAD_EOF'
 # runs it as user `runner` (same nftables egress limits as jobs).
 #
 #   vm-golden-build <verified-base.qcow2> <out.qcow2> <known_hosts-out>
+#   vm-golden-build --check-console <console.log>   (pass 1 marker check only; tests)
 #
 # Boots the checksum-verified Debian 13 cloud image once with a NoCloud seed:
 # installs docker.io, makes dockerd also listen on /run/forgejo-runner/
@@ -368,6 +369,27 @@ cat <<'VDH_PAYLOAD_EOF'
 # prove ssh + docker work and to record the VM host key, and flattens it.
 # provision.sh installs the output root-owned 0444 and pins its sha256.
 set -euo pipefail
+
+# Pass 1 is good only if the serial console shows, in this order: exactly one
+# GRUB boot, exactly one kernel banner, cloud-init's "finished" line, and then
+# the guest's own "reboot: Power down". qemu exits 0 on a guest reset as well
+# (-no-reboot), so the exit code alone proves nothing. Any missing marker, a
+# second GRUB boot or banner, or the wrong order is RED (fail closed). No
+# duration check: run 3 (2026-11-24) finished cleanly in 109 s.
+console_ok() {
+  local f="$1" grub kern fin pwr
+  [[ -r "$f" ]] || { echo "no console log"; return 1; }
+  grub="$(grep -ac 'Booting `Debian' "$f" || true)"
+  kern="$(grep -ac '] Linux version ' "$f" || true)"
+  fin="$(grep -anE 'Cloud-init v\. [^ ]+ finished at ' "$f" | tail -n1 | cut -d: -f1 || true)"
+  pwr="$(grep -an 'reboot: Power down' "$f" | tail -n1 | cut -d: -f1 || true)"
+  echo "console: ${grub} GRUB boot(s), ${kern} kernel banner(s), cloud-init finished line ${fin:-none}, power down line ${pwr:-none}"
+  [[ "$grub" == 1 && "$kern" == 1 && -n "$fin" && -n "$pwr" ]] && (( pwr > fin ))
+}
+if [[ "${1:-}" == --check-console ]]; then
+  console_ok "${2:?console log}"; exit
+fi
+
 base="${1:?base image}"; out="${2:?output image}"; kh_out="${3:?known_hosts output}"
 
 # A fresh work dir per build: nothing is overwritten or deleted. Old run-*
@@ -442,22 +464,17 @@ common=(-machine q35,accel=kvm,smm=off -cpu host -smp 4 -m 4G -no-reboot
 
 log "host: $(uname -r); $(grep -m1 '^model name' /proc/cpuinfo | cut -d: -f2- | sed 's/^ //'); $(qemu-system-x86_64 --version | head -n1)"
 log "pass 1: cloud-init install (up to 30 min)"
-t0="$(date +%s)"
 timeout 1800 qemu-system-x86_64 "${common[@]}" -name vdh-golden-build \
   -serial "file:$B/build-console.log" \
   -drive "file=$B/build.qcow2,if=virtio,format=qcow2" \
   -drive "file=$B/seed.iso,if=virtio,format=raw,readonly=on" \
   -netdev user,id=n0,ipv6=off -device virtio-net-pci,netdev=n0
-secs=$(( $(date +%s) - t0 ))
-log "pass 1 qemu exited after ${secs}s; console: $(grep -ac 'Booting `Debian' "$B/build-console.log") GRUB boot(s), $(grep -ac 'Linux version' "$B/build-console.log") kernel banner(s)"
-# qemu exits 0 on a guest reset as well (-no-reboot). package_upgrade plus
-# the docker install and image pull cannot finish in under 2 minutes, so a
-# short pass 1 is a reset or a crash, not a build.
-if (( secs < 120 )); then
-  log "FAIL: pass 1 ended after ${secs}s (guest reset or crash); console tail:"
+if ! res="$(console_ok "$B/build-console.log")"; then
+  log "FAIL: pass 1 $res; console tail:"
   tail -c 2000 "$B/build-console.log" | tr -cd '\11\12\15\40-\176'; echo
   exit 1
 fi
+log "pass 1 $res"
 log "pass 1 done (VM powered off)"
 
 log "pass 2: verify without seed (-snapshot: this boot writes nothing to the image)"
