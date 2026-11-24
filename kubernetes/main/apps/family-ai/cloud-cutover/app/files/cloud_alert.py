@@ -140,6 +140,29 @@ def is_money(off):
     return off.get('type') == 'billing_error' or off.get('status') in (400, 402, 429)
 
 
+def episode_off(transitions, ts):
+    """F7-b: cloud-off.json can be gone (driver swap) before this run sees a same_month_200 line. Rebuild the off state
+    from the newest earlier 'off' transition that is not itself a same_month_200 (the trip that opened the episode).
+    An 'on' transition closes the episode: no trip is then known (None -> NotMoney, never a false money alert).
+    The ts keeps its original type so the dedupe key equals the one built from the off file."""
+    rows = []
+    for raw in transitions:
+        line = clean(raw, LINE_FIELDS)
+        try:
+            lts = float(line.get('ts', 0))
+        except (TypeError, ValueError):
+            continue
+        if lts <= ts:
+            rows.append((lts, line))
+    best = None
+    for _, line in sorted(rows, key=lambda r: r[0]):
+        if line.get('to') == 'on':
+            best = None
+        elif line.get('to') == 'off' and line.get('kind') != 'same_month_200':
+            best = {'ts': line.get('ts'), **{k: line[k] for k in ('kind', 'status', 'type') if k in line}}
+    return best
+
+
 def daytime(now):
     hour = dt.datetime.fromtimestamp(now, LOCAL).hour
     return 7 <= hour < 23
@@ -214,7 +237,8 @@ def main():
     cursor = float(state['cursor_ts'])
     keys = state.setdefault('dedupe', [])
     pending = state.setdefault('pending_money', [])
-    off = current_off()
+    off_file = current_off()
+    off = off_file
     out, log = [], []
     newest = cursor
 
@@ -235,6 +259,7 @@ def main():
         to, kind = line.get('to'), line.get('kind')
         lab = {k: line[k] for k in ('kind', 'status', 'type') if k in line}
         if to == 'off' and kind == 'same_month_200':
+            off = off_file or episode_off(transitions, ts)   # F7-b: off file may already be moved
             key = f"{(off or {}).get('ts')}|{line.get('month')}"
             if key in keys:
                 log.append({'line': 'same_month_200', 'deduped': True})

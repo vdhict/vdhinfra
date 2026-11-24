@@ -326,9 +326,38 @@ def race_tests():
     write(d, 'cloud-transitions.jsonl', lines(off_bill, off_sm, on_probe))
     m, api, posted = alert_env(d, cursor=t0)
     rc, _ = alert_run(m)
-    ok('race F7: off file already moved + ONE alert run over off/billing, off/same_month_200, on/probe -> NotMoney (documents the race)',
-       rc == 0 and names(posted) == ['FamilyCloudOff', 'FamilyCloudSameMonth200NotMoney', 'FamilyCloudOn']
-       and 'FamilyCloudMoneyCandidate' not in names(posted))
+    ok('race F7: off file already moved + ONE alert run over off/billing, off/same_month_200, on/probe -> MoneyCandidate (F7-b, off=None rebuilt from the transitions)',
+       rc == 0 and names(posted) == ['FamilyCloudOff', 'FamilyCloudMoneyCandidate', 'FamilyCloudOn']
+       and 'FamilyCloudSameMonth200NotMoney' not in names(posted))
+    # F7-b: off=None and the trip that opened the episode was a key/permission one -> still NotMoney (no false money)
+    dk = tempfile.mkdtemp(prefix='c011-alert-race-key-')
+    off_key = {'ts': base, 'to': 'off', 'kind': 'key', 'status': 401, 'type': 'auth_error'}
+    write(dk, 'cloud-transitions.jsonl', lines(off_key, off_sm))
+    mk, _, postedk = alert_env(dk, cursor=t0)
+    rck, _ = alert_run(mk)
+    ok('race F7-b: off=None, episode opened by a key trip + same_month_200 -> NotMoney, never MoneyCandidate',
+       rck == 0 and names(postedk) == ['FamilyCloudOff', 'FamilyCloudSameMonth200NotMoney'])
+    # F7-b (Codex): off/billing, then ON (episode closed), then same_month_200, off file gone -> NotMoney, no false money
+    dc = tempfile.mkdtemp(prefix='c011-alert-race-closed-')
+    on_early = {'ts': base + 5, 'to': 'on', 'kind': 'probe'}
+    write(dc, 'cloud-transitions.jsonl', lines(off_bill, on_early, off_sm))
+    mc, _, postedc = alert_env(dc, cursor=t0)
+    rcc, _ = alert_run(mc)
+    ok('race F7-b: off=None, closed episode (off/billing, on, same_month_200) -> NotMoney, no MoneyCandidate',
+       rcc == 0 and 'FamilyCloudMoneyCandidate' not in names(postedc) and 'FamilyCloudSameMonth200NotMoney' in names(postedc))
+    # F7-b (Codex): the dedupe key is the same with the off file and without it (no duplicate after the swap)
+    dd = tempfile.mkdtemp(prefix='c011-alert-race-key2-')
+    write(dd, 'cloud-transitions.jsonl', lines(off_bill, off_sm))
+    md, _, postedd = alert_env(dd, cursor=t0)
+    alert_run(md)
+    keys_nofile = [k for k in md.load_state()['dedupe'] if k.endswith('|' + month())]
+    ok('race F7-b: dedupe key without the off file is "<off ts>|<month>" with the original ts type', keys_nofile == [f"{off_bill['ts']}|{month()}"])
+    # F7-b: off=None and no earlier off line at all -> NotMoney, no crash
+    dn = tempfile.mkdtemp(prefix='c011-alert-race-none-')
+    write(dn, 'cloud-transitions.jsonl', lines(off_sm))
+    mn, _, postedn = alert_env(dn, cursor=t0)
+    rcn, _ = alert_run(mn)
+    ok('race F7-b: off=None and no earlier off line -> NotMoney, rc 0, no crash', rcn == 0 and names(postedn) == ['FamilyCloudSameMonth200NotMoney'])
     # fixed sequence: off file present at the first alert run (after 3d), then moved, then the on/probe line
     d2 = tempfile.mkdtemp(prefix='c011-alert-seq-')
     write(d2, 'cloud-off.json', off_file)
