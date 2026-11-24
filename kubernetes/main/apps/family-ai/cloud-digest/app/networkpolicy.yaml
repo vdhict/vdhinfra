@@ -1,0 +1,15 @@
+---
+# The digest jobs need no network at all (stdlib, files only). family-ai is default-deny; this keeps it explicit.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: family-cloud-digest-job
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: family-cloud-digest
+  ingress:
+    - {}
+  egress:
+    - {}

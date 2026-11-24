@@ -1,0 +1,17 @@
+---
+# The digest's own state (cloud-digest-history.json: month -> highest usd seen, numbers only). Separate from the
+# ledger, which every digest pod mounts read-only. Survives a git revert (prune disabled): it holds the only copy
+# of a closed month's total once month.json has reset.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/v1/persistentvolumeclaim.json
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: family-cloud-digest-state
+  labels:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: rook-ceph-filesystem
+  resources:
+    requests:
+      storage: 1Gi

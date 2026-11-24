@@ -1,0 +1,16 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+# G8 digest: files/cloud-digest is family-ai-cluster bin/cloud-digest at 8e31f01 (Mack), byte-for-byte.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./pvc.yaml
+  - ./networkpolicy.yaml
+  - ./cronjobs.yaml
+configMapGenerator:
+  - name: family-cloud-digest-script
+    files:
+      - ./files/cloud-digest
+generatorOptions:
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled

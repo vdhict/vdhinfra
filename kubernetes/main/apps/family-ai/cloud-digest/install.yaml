@@ -1,0 +1,27 @@
+---
+# chg-2026-11-22-008 (tsk-2026-11-20-124, wq-037, Argus G8): family-cloud monthly digest line. Separate from
+# cloud-cutover on purpose: nothing here touches the go-live picks or the cut-over gate.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app family-ai-cloud-digest
+  namespace: flux-system
+spec:
+  targetNamespace: family-ai
+  commonMetadata:
+    labels:
+      app.kubernetes.io/part-of: family-ai
+  dependsOn:
+    - name: family-ai-network-policies
+    - name: family-ai-hermes
+  path: ./kubernetes/main/apps/family-ai/cloud-digest/app
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: false
+  interval: 30m
+  retryInterval: 1m
+  timeout: 5m
