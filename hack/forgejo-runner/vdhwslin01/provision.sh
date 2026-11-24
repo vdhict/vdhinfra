@@ -187,7 +187,7 @@ is_ipv4() { [[ "$1" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; }
 # ---------------------------------------------------------------------------
 # Embedded payloads (generated from src/ by build.sh; do not edit here)
 # ---------------------------------------------------------------------------
-# --- from src/vm-dispatch.sh (sha256 2f134a7618348f75)
+# --- from src/vm-dispatch.sh (sha256 b5393ed4a5de888e)
 payload_vm_dispatch() {
 cat <<'VDH_PAYLOAD_EOF'
 #!/usr/bin/env bash
@@ -271,8 +271,10 @@ golden_ok() {
 start_vm() {
   mkdir -p "$WORK_DIR"
   qemu-img create -q -f qcow2 -F qcow2 -b "$GOLDEN" /var/lib/forgejo-runner/vm/job.qcow2
+  # smm=off: with SMM the guest resets right after GRUB (see vm-golden-build).
+  # -no-reboot: a guest reset ends qemu, so wait_vm fails instead of a loop.
   qemu-system-x86_64 \
-    -name vdh-job-vm -machine q35,accel=kvm -cpu host \
+    -name vdh-job-vm -machine q35,accel=kvm,smm=off -cpu host -no-reboot \
     -smp "$VM_CPUS" -m "$VM_MEM" \
     -nodefaults -no-user-config -display none -vga none \
     -serial "file:${STATE_DIR}/vm-console.log" \
@@ -349,7 +351,7 @@ while true; do
 done
 VDH_PAYLOAD_EOF
 }
-# --- from src/vm-golden-build.sh (sha256 afe18f8f2abd9af6)
+# --- from src/vm-golden-build.sh (sha256 57e0039984cdfb10)
 payload_vm_golden_build() {
 cat <<'VDH_PAYLOAD_EOF'
 #!/usr/bin/env bash
@@ -424,18 +426,38 @@ xorriso -as mkisofs -quiet -output "$B/seed.iso" -volid cidata -joliet -rock \
 
 qemu-img create -q -f qcow2 -F qcow2 -b "$base" "$B/build.qcow2" 60G
 
+# smm=off (chg-2026-11-06-005 run 2, 2026-11-23): with SMM on, the guest reset
+# right after GRUB's "Booting" 5946 times in 30 min, no kernel output (the
+# image has earlyprintk=ttyS0). Repro on the Mini (TCG, same image, any CPU
+# model or q35/pc version): SMM on = vCPU stuck in SMRAM after "Booting";
+# smm=off = kernel banner in 4 s. Nothing here needs SMM (no OVMF, no
+# secure boot). Same flags in vm-dispatch.
+# -no-reboot: a guest reset ends qemu at once instead of looping until the
+# timeout (cloud-init here powers off; it never reboots).
 # shellcheck disable=SC2054  # qemu option values contain commas
-common=(-machine q35,accel=kvm -cpu host -smp 4 -m 4G
+common=(-machine q35,accel=kvm,smm=off -cpu host -smp 4 -m 4G -no-reboot
   -nodefaults -no-user-config -display none -vga none
   -device virtio-rng-pci
   -sandbox on,obsolete=deny,elevateprivileges=deny,spawn=deny,resourcecontrol=deny)
 
+log "host: $(uname -r); $(grep -m1 '^model name' /proc/cpuinfo | cut -d: -f2- | sed 's/^ //'); $(qemu-system-x86_64 --version | head -n1)"
 log "pass 1: cloud-init install (up to 30 min)"
+t0="$(date +%s)"
 timeout 1800 qemu-system-x86_64 "${common[@]}" -name vdh-golden-build \
   -serial "file:$B/build-console.log" \
   -drive "file=$B/build.qcow2,if=virtio,format=qcow2" \
   -drive "file=$B/seed.iso,if=virtio,format=raw,readonly=on" \
   -netdev user,id=n0,ipv6=off -device virtio-net-pci,netdev=n0
+secs=$(( $(date +%s) - t0 ))
+log "pass 1 qemu exited after ${secs}s; console: $(grep -ac 'Booting `Debian' "$B/build-console.log") GRUB boot(s), $(grep -ac 'Linux version' "$B/build-console.log") kernel banner(s)"
+# qemu exits 0 on a guest reset as well (-no-reboot). package_upgrade plus
+# the docker install and image pull cannot finish in under 2 minutes, so a
+# short pass 1 is a reset or a crash, not a build.
+if (( secs < 120 )); then
+  log "FAIL: pass 1 ended after ${secs}s (guest reset or crash); console tail:"
+  tail -c 2000 "$B/build-console.log" | tr -cd '\11\12\15\40-\176'; echo
+  exit 1
+fi
 log "pass 1 done (VM powered off)"
 
 log "pass 2: verify without seed (-snapshot: this boot writes nothing to the image)"

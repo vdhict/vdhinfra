@@ -79,8 +79,10 @@ golden_ok() {
 start_vm() {
   mkdir -p "$WORK_DIR"
   qemu-img create -q -f qcow2 -F qcow2 -b "$GOLDEN" /var/lib/forgejo-runner/vm/job.qcow2
+  # smm=off: with SMM the guest resets right after GRUB (see vm-golden-build).
+  # -no-reboot: a guest reset ends qemu, so wait_vm fails instead of a loop.
   qemu-system-x86_64 \
-    -name vdh-job-vm -machine q35,accel=kvm -cpu host \
+    -name vdh-job-vm -machine q35,accel=kvm,smm=off -cpu host -no-reboot \
     -smp "$VM_CPUS" -m "$VM_MEM" \
     -nodefaults -no-user-config -display none -vga none \
     -serial "file:${STATE_DIR}/vm-console.log" \

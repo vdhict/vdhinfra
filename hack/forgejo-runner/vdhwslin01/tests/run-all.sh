@@ -41,6 +41,14 @@ if [[ -r "$pub" ]]; then
 else echo "(wrapper pubkey not compared: Mini unlock pub not on this machine)"; fi
 ! grep -n -- '--steps [a-z,]*keyslot' sudo-window/vdh-provision-tonight || { echo "wrapper runs keyslot" >&2; exit 1; }
 echo "ok   job image pinned + golden matches, no .81-.83, scope vdhict, wrapper without keyslot"
+echo "== VM boot flags (chg-2026-11-06-005: reset loop after GRUB with SMM on)"
+for f in src/vm-golden-build.sh src/vm-dispatch.sh; do
+  m="$(grep -cE '^[^#]*-machine ' "$f")"; s="$(grep -cE '^[^#]*-machine q35,accel=kvm,smm=off ' "$f")"
+  [[ "$m" -ge 1 && "$m" == "$s" ]] || { echo "$f: a -machine without smm=off ($s of $m)" >&2; exit 1; }
+  grep -qE '^[^#]*-no-reboot' "$f" || { echo "$f without -no-reboot" >&2; exit 1; }
+done
+grep -qE '^if \(\( secs < 120 \)\); then' src/vm-golden-build.sh || { echo "golden build lost the short pass 1 guard" >&2; exit 1; }
+echo "ok   both VMs: q35 smm=off, -no-reboot; golden pass 1 fails on a reset"
 echo "== no secrets / client names in the bundle"
 ! grep -nEi 'BEGIN [A-Z ]*PRIVATE KEY|password=[^"$]|token=[A-Za-z0-9]{20,}' provision.sh src/* mini/* || { echo "secret-like string found" >&2; exit 1; }
 echo "ALL GREEN"
