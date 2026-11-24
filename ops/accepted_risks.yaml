@@ -80,3 +80,12 @@ risks:
     accepted_at: 2026-11-20
     review_by: 2026-12-04
     rationale: "Renewed in reduced form (Argus 2026-11-20). Until 2026-11-23T22:59Z the measured 24-role state (sha 7d850ff5) stands; from D1 the build app holds only K4 (AppRoleAssignment.ReadWrite.All, Application.Read.All, RoleManagement.Read.Directory, Organization.Read.All): latent tier-0 via self-grant, dev tenant 7m5b27gbc only, synthetic data. Write roles only inside a logged provisioning window (reviewed Job, plan sha, max 8 h, never past 22:59Z, close readback to K4 sha). While Passkey Point sleeps the key is not in the cluster (vault passkey-point-devtenant-build only). Plan: D2 2026-11-27 OwnedBy + window helper, D3 2026-12-02 rehearsal, D4 2026-12-04 review. LAPSES on: D1 missed; roles != K4 sha outside a logged window; a window open > 8 h or past 22:59Z; Secret atlas-devtenant-build-key present while asleep; any use against a non-dev tenant; any new key holder or vault reader; owner links or wids != [0997a1d0...] drift; D2-D4 missed; anything leaving 7m5b27gbc for the client before D4. Reversal: delete both apps and both vault items, readback."
+  # chg-2026-11-24-002 / tsk-2026-11-24-103 C1 (Argus G3, 20261124T220036Z). Count only, no name.
+  - id: ar-021
+    adr: docs/adr/0011-chase-client-fence-uncovered-work-contact.md
+    finding_title: "^.*(work contacts? without a term|uncovered_work_contacts|client fence (gap|uncovered)).*$"
+    target: "^(wire\\.pka-chase|host\\.vdhmini01\\.pka-chase)(/client-terms)?$"
+    accepted_by: team
+    accepted_at: 2026-11-24
+    review_by: 2027-05-24
+    rationale: "The chase client fence (keyed client term list v2, chase 088fb44) has no term for exactly one work contact: a person known only by a 3-letter first name, with no surname and no alias. A lone word under 4 letters is not a term (too many false hits on ordinary text) and is weakly identifying on its own. Team choice via Larry (AGR-120). Bound: count 1, as reported by build_client_terms.py / rotate_client_terms.py (uncovered_work_contacts=1). Lapses when that count rises above 1 (a new uncovered contact needs its own decision), when the contact gains a surname or alias in the CRM (then it becomes a term), or at review_by."
