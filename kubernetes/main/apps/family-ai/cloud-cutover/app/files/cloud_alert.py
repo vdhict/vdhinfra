@@ -140,6 +140,13 @@ def is_money(off):
     return off.get('type') == 'billing_error' or off.get('status') in (400, 402, 429)
 
 
+def _newer(off, ts):
+    try:
+        return float(off.get('ts')) > ts
+    except (TypeError, ValueError):
+        return False
+
+
 def episode_off(transitions, ts):
     """F7-b: cloud-off.json can be gone (driver swap) before this run sees a same_month_200 line. Rebuild the off state
     from the newest earlier 'off' transition that is not itself a same_month_200 (the trip that opened the episode).
@@ -259,7 +266,12 @@ def main():
         to, kind = line.get('to'), line.get('kind')
         lab = {k: line[k] for k in ('kind', 'status', 'type') if k in line}
         if to == 'off' and kind == 'same_month_200':
-            off = off_file or episode_off(transitions, ts)   # F7-b: off file may already be moved
+            # R-1: the transitions are the record of the episode this line belongs to; the off file only holds the
+            # NEWEST trip (a backlog off->on->off moves it past this line), so it is a fallback, and only when it is
+            # not newer than the line.
+            off = episode_off(transitions, ts)
+            if off is None and off_file and not _newer(off_file, ts):
+                off = off_file
             key = f"{(off or {}).get('ts')}|{line.get('month')}"
             if key in keys:
                 log.append({'line': 'same_month_200', 'deduped': True})

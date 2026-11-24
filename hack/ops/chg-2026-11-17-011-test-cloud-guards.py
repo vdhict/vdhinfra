@@ -358,6 +358,46 @@ def race_tests():
     mn, _, postedn = alert_env(dn, cursor=t0)
     rcn, _ = alert_run(mn)
     ok('race F7-b: off=None and no earlier off line -> NotMoney, rc 0, no crash', rcn == 0 and names(postedn) == ['FamilyCloudSameMonth200NotMoney'])
+    # R-1 (Argus): backlog off->on->off. The off file holds the NEWEST trip, the same_month_200 line belongs to an earlier episode.
+    # The episode from cloud-transitions.jsonl wins; the off file is only a fallback.
+    off_key_late = {'ts': base + 40, 'to': 'off', 'kind': 'key', 'status': 401, 'type': 'auth_error'}
+    file_key_late = {'v': 1, 'ts': base + 40, 'month': month(), 'kind': 'key', 'status': 401, 'type': 'auth_error'}
+    dr = tempfile.mkdtemp(prefix='c011-alert-r1-money-')
+    write(dr, 'cloud-off.json', file_key_late)
+    write(dr, 'cloud-transitions.jsonl', lines(off_bill, off_sm, on_probe, off_key_late))
+    mr, _, postedr = alert_env(dr, cursor=t0)
+    rcr, _ = alert_run(mr)
+    ok('R-1: backlog off(billing)->same_month_200->on->off(key), off file = the later key trip -> the money event is MoneyCandidate',
+       rcr == 0 and 'FamilyCloudMoneyCandidate' in names(postedr) and 'FamilyCloudSameMonth200NotMoney' not in names(postedr))
+    file_bill_late = {'v': 1, 'ts': base + 40, 'month': month(), 'kind': 'billing', 'status': 402, 'type': 'billing_error'}
+    off_bill_late = {'ts': base + 40, 'to': 'off', 'kind': 'billing', 'status': 402, 'type': 'billing_error'}
+    dq = tempfile.mkdtemp(prefix='c011-alert-r1-key-')
+    write(dq, 'cloud-off.json', file_bill_late)
+    write(dq, 'cloud-transitions.jsonl', lines(off_key, off_sm, on_probe, off_bill_late))
+    mq, _, postedq = alert_env(dq, cursor=t0)
+    rcq, _ = alert_run(mq)
+    ok('R-1: backlog off(key)->same_month_200->on->off(billing), off file = the later billing trip -> key failure is NotMoney, never MoneyCandidate',
+       rcq == 0 and 'FamilyCloudMoneyCandidate' not in names(postedq) and 'FamilyCloudSameMonth200NotMoney' in names(postedq))
+    # R-1 fallback: transitions hold no earlier off line, the off file (not later than the line) still classifies
+    df = tempfile.mkdtemp(prefix='c011-alert-r1-fallback-')
+    write(df, 'cloud-off.json', off_file)
+    write(df, 'cloud-transitions.jsonl', lines(off_sm))
+    mf, _, postedf = alert_env(df, cursor=t0)
+    rcf, _ = alert_run(mf)
+    ok('R-1: no episode in the transitions, off file older than the line -> falls back to the off file (MoneyCandidate)',
+       rcf == 0 and names(postedf) == ['FamilyCloudMoneyCandidate'])
+    # R-2: the plugin stamps the off file (trip_cloud_off: round(time.time(), 3)) and the transition line (_append_transition:
+    # its own round(time.time(), 3), after os.link) separately, so the two ts are NOT guaranteed equal (measured in the plugin
+    # source, cloud-signaal-cutoff-b7b3a96). The alert must not depend on equality: the dedupe key comes from the transition ts,
+    # with or without the off file, and the classification is the same.
+    d3 = tempfile.mkdtemp(prefix='c011-alert-r2-')
+    write(d3, 'cloud-off.json', dict(off_file, ts=base - 0.004))
+    write(d3, 'cloud-transitions.jsonl', lines(off_bill, off_sm))
+    m3, _, posted3 = alert_env(d3, cursor=t0)
+    rc3, _ = alert_run(m3)
+    k3 = [k for k in m3.load_state()['dedupe'] if k.endswith('|' + month())]
+    ok('R-2: off file ts differs from the transition ts by milliseconds -> still MoneyCandidate, dedupe key from the transition ts',
+       rc3 == 0 and 'FamilyCloudMoneyCandidate' in names(posted3) and k3 == [f"{off_bill['ts']}|{month()}"])
     # fixed sequence: off file present at the first alert run (after 3d), then moved, then the on/probe line
     d2 = tempfile.mkdtemp(prefix='c011-alert-seq-')
     write(d2, 'cloud-off.json', off_file)
