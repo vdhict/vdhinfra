@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- STAGED ONLY (chg I9 C1/C2). Not loaded. Install = copy to ~/Library/LaunchAgents/ and bootstrap at cutover C5. -->
+  <key>Label</key><string>com.sander.pka-chase-c1</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/sheijden/.local/share/uv/python/cpython-3.14-macos-aarch64-none/bin/python3.14</string><string>-I</string>
+    <string>/Users/sheijden/Code/homelab-migration/vdhinfra/hack/ops/i9-chase-c1-export.py</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key><string>/Users/sheijden</string>
+    <key>PATH</key><string>/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>C1_EXCHANGE_URL</key><string>ssh://git@forge-ssh.bluejungle.net/VDHICT/atlas-ops-export.git</string>
+    <key>C1_KEY</key><string>/Users/sheijden/.ssh/forge_atlas_ops_export</string>
+    <key>C1_HOST_ALIAS</key><string>forge-ssh.bluejungle.net</string>
+    <key>C1_CHANGES</key><string>/Users/sheijden/Code/homelab-migration/vdhinfra/ops/changes.jsonl</string>
+    <key>C1_HOOK</key><string>/Users/sheijden/mypka-larry/vault/.claude/hooks/atlas-changes-since.py</string>
+    <key>C1_TERMS</key><string>/Users/sheijden/.config/pka-chase/v2/client-terms.sha256</string>
+  </dict>
+  <key>StartInterval</key><integer>900</integer>
+  <key>RunAtLoad</key><false/>
+  <key>ProcessType</key><string>Background</string>
+  <key>LowPriorityIO</key><true/>
+  <key>StandardOutPath</key><string>/Users/sheijden/Library/Logs/com.sander.pka-chase-c1.log</string>
+  <key>StandardErrorPath</key><string>/Users/sheijden/Library/Logs/com.sander.pka-chase-c1.log</string>
+</dict>
+</plist>
