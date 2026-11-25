@@ -1,0 +1,38 @@
+---
+# chg-2026-11-13-002 P3 (Argus): commit-pin guard for the cluster-wires tenant source.
+# Red = a cluster-wires consumer follows a branch head = revoke trigger for the Mini deploy key (L7).
+name: cluster-wires pin guard
+on:
+  push:
+    branches: [main]
+    paths:
+      - "kubernetes/**"
+      - "hack/ops/pin-guard/**"
+      - ".github/workflows/cluster-wires-pin-guard.yml"
+  pull_request:
+    paths:
+      - "kubernetes/**"
+      - "hack/ops/pin-guard/**"
+      - ".github/workflows/cluster-wires-pin-guard.yml"
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pin-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PyYAML
+        run: python -m pip install --disable-pip-version-check pyyaml==6.0.2
+      - name: Guard tests
+        run: python hack/ops/pin-guard/tests/test_pin_guard.py
+      - name: Pin guard (repo)
+        run: python hack/ops/pin-guard/cluster-wires-pin-guard.py
