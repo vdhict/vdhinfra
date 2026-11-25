@@ -4,7 +4,7 @@
 Source: GET /api/config/config_entries/entry (read-only, same bearer token the
 HA ServiceMonitor already uses). Only domain, entry_id and state are exported:
 no entry titles, so no personal names reach Prometheus. Disabled entries
-(disabled_by set) are skipped: a switched-off entry is not a fault.
+(disabled_by set) and ignored discoveries (source=ignore) are skipped: a switched-off entry is not a fault.
 
 Exception list (tsk-2026-11-22-103, team choice via Larry 12:31): /exceptions/exceptions.json, a list of
 {"domain", "entry_id", "reden", "herzien": "YYYY-MM-DD"}. An entry is excepted only while today (UTC) <= herzien and
@@ -68,8 +68,8 @@ def poll():
            "# TYPE ha_config_entry_state gauge"]
     n = 0
     for e in entries:
-        if e.get("disabled_by"):
-            continue
+        if e.get("disabled_by") or e.get("source") == "ignore":
+            continue  # disabled or ignored-discovery: not a fault
         n += 1
         st = e.get("state", "unknown")
         out.append('ha_config_entry_state{domain="%s",entry_id="%s",state="%s"} 1'
