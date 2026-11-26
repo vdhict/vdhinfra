@@ -11,7 +11,7 @@ AGR-115 shared workstation). Argus verdicts on this change: 2026-10-13T08:33:05Z
 | `provision.in.sh` + `src/` | sources; `./build.sh` regenerates `provision.sh` | - |
 | VM dispatcher `forgejo-runner-vm.service` | box | `runner` (no sudo, nologin, group kvm) |
 | `idle-poweroff.timer` | box, every 5 min | root |
-| `vdh-input-sampler.service` | box, team boots only (`ConditionPathExists=/run/team-boot`) | root |
+| `vdh-input-sampler.service` | box, team boots only (`ConditionPathExists=/run/team-boot`) | `vdh-sampler` |
 | `vdh-teamboot` initramfs wrapper | box initramfs (encryptssh login shell) | root (initramfs) |
 | waker (since 2026-11-03) | `mini/vdhwslin01-waker.py`, installed by `mini/install-waker.sh <commit on origin/main>` to `~/.local/libexec/vdhwslin01-waker/` with a generated launchd plist (sha256 self-pin, absolute kubectl, pinned change log) | Atlas's user on the Mini |
 | HA webhook package | `ha/vdhwslin01_wake.yaml`, installed by Hestia | HA |
@@ -98,13 +98,14 @@ unlock never passes through it. switch_root carries `/run` into the booted syste
 - **idle-poweroff:** acts only when the marker carries THIS boot's id and:
   - uptime is at least 2 h;
   - no job is running, and the last job ended at least 60 min ago;
-  - nobody else uses the box (same rules as the estate's `pka-run` guard, AGR-114, measured 2026-10-29): a user
-    session (not agent/runner) that began within 180 s of boot is the autologin of Sander's account and is
-    ignored, because its idle hint is never set; a remote session or a later login keeps the box on;
-  - no local input for 15 min, read from the `xhci_hcd` interrupt count (idle about 4/s, input far more; an
-    interval is input when its delta exceeds 2 x the quietest of the last 15 min + 4). `vdh-input-sampler.service`
-    (team boots only) samples every 2 s into `/run/vdh-input-state`; missing, stale (> 30 s) or foreign state
-    keeps the box on, and the 15 min count never starts before the sampler did;
+  - nobody else uses the box. Every session with a class starting with `user` counts, except sessions
+    for `agent` and `runner`. At most one local `seat0` session that began within 180 s of boot is
+    ignored as the autologin. Any other counted session keeps the box on;
+  - no ALSA PCM stream reports `RUNNING`. An unreadable PCM status keeps the box on;
+  - no local input for 60 min. `vdh-input-sampler.service` samples the `xhci_hcd` interrupt count
+    every 2 s and records input when the delta exceeds 2 × the quietest delta of the last 15 min + 4.
+    The sampler runs as `vdh-sampler` on team boots and writes `/run/vdh-input/state`. Missing, stale
+    (> 30 s), or foreign state keeps the box on, and the 60 min count starts no earlier than the sampler;
   - no logind block inhibitor is held.
 
   Anything it cannot read means it keeps the box on.

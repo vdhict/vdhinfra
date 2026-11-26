@@ -1,6 +1,6 @@
 #!/bin/bash
 # vdhwslin01 (chg-2026-10-05-031, AGR-114): local-input sampler for idle-poweroff.
-# Installed as /usr/local/libexec/vdh-runner/input-sampler, run as root by
+# Installed as /usr/local/libexec/vdh-runner/input-sampler, run as vdh-sampler by
 # vdh-input-sampler.service on team boots only (ConditionPathExists=/run/team-boot).
 #
 # The agent cannot read /dev/input or Hyprland (measured 2026-10-29), so local use
@@ -8,8 +8,8 @@
 # rule as the estate's pka-run sampler (estate_lib.py INPUT_SAMPLER): every 2 s
 # take the delta; idle the count rises about 4/s, input adds far more. A delta is
 # INPUT when delta > 2 * min(last 450 deltas) + 4 (a 15 min window).
-# State, rewritten atomically every 2 s, root-owned in tmpfs:
-#   /run/vdh-input-state: boot_id=, heartbeat= and since= (this sampler's start)
+# State, rewritten atomically every 2 s, owned by vdh-sampler in tmpfs:
+#   /run/vdh-input/state: boot_id=, heartbeat= and since= (this sampler's start)
 #   and last_input= (empty until input is seen), all in whole seconds of uptime.
 # A restart in the same boot keeps last_input= but restarts since= (the quiet window
 # cannot cover the gap). No xhci_hcd line in /proc/interrupts: no state is written, the
@@ -25,7 +25,7 @@ else
 fi
 IRQ_NAMES="${VDH_IRQ_NAMES:-xhci_hcd}"
 WINDOW=450
-state="${ROOT}/run/vdh-input-state"
+state="${ROOT}/run/vdh-input/state"
 
 uptime_s() { cut -d. -f1 < "${ROOT}/proc/uptime"; }
 

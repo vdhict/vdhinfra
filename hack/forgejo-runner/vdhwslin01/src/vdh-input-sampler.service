@@ -5,6 +5,10 @@ ConditionPathExists=/run/team-boot
 
 [Service]
 Type=simple
+User=vdh-sampler
+RuntimeDirectory=vdh-input
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=restart
 ExecStart=/usr/local/libexec/vdh-runner/input-sampler
 SyslogIdentifier=vdh-input-sampler
 Restart=always
@@ -13,7 +17,15 @@ NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
-ReadWritePaths=/run
+PrivateDevices=yes
+CapabilityBoundingSet=
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+LockPersonality=yes
+RestrictNamespaces=yes
 
 [Install]
 WantedBy=multi-user.target

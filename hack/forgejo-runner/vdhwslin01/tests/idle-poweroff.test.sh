@@ -21,7 +21,10 @@ dir="$(dirname "$0")/../logind"
 [[ -f "$dir/fail" ]] && exit 1
 case "$1" in
   list-sessions) cat "$dir/sessions" ;;
-  show-session)  cat "$dir/session-$2" ;;
+  show-session)
+    [[ " $* " == *" -p Seat "* ]] || exit 1
+    cat "$dir/session-$2"
+    ;;
 esac
 STUB
   cat > "$d/bin/systemctl" <<'STUB'
@@ -34,7 +37,7 @@ STUB
 # new_case <name>: a fully idle team boot that SHOULD power off; tests break one thing.
 new_case() {
   local d="$T/$1"
-  mkdir -p "$d/run/forgejo-runner" "$d/proc/sys/kernel/random"
+  mkdir -p "$d/run/forgejo-runner" "$d/run/vdh-input" "$d/proc/sys/kernel/random"
   make_stubs "$d"
   echo "$BOOT" > "$d/proc/sys/kernel/random/boot_id"
   printf 'started_by=team\nboot_id=%s\nvia=initramfs-ssh-unlock\n' "$BOOT" > "$d/run/team-boot"
@@ -42,10 +45,10 @@ new_case() {
   echo $(( NOW - 4000 )) > "$d/run/forgejo-runner/last-job-end"
   # Sander's account autologged in 35 s after boot and reports no idle hint: the real box.
   printf '2 1000 sheijden seat0 tty1\n7 1001 agent - -\n' > "$d/logind/sessions"
-  printf 'Name=sheijden\nClass=user\nRemote=no\nTimestampMonotonic=35000000\n' > "$d/logind/session-2"
-  printf 'Name=agent\nClass=user\nRemote=yes\nTimestampMonotonic=5000000000\n' > "$d/logind/session-7"
+  printf 'Name=sheijden\nClass=user\nSeat=seat0\nRemote=no\nTimestampMonotonic=35000000\n' > "$d/logind/session-2"
+  printf 'Name=agent\nClass=user\nSeat=\nRemote=yes\nTimestampMonotonic=5000000000\n' > "$d/logind/session-7"
   # sampler state: running since uptime 60, last input at 5000, heartbeat fresh (uptime is 9000)
-  printf 'boot_id=%s\nheartbeat=9000\nsince=60\nlast_input=5000\n' "$BOOT" > "$d/run/vdh-input-state"
+  printf 'boot_id=%s\nheartbeat=9000\nsince=60\nlast_input=5000\n' "$BOOT" > "$d/run/vdh-input/state"
   echo "$d"
 }
 
@@ -98,67 +101,107 @@ d="$(new_case autologin-only)"
 expect "only the autologin (35 s after boot, never idle) -> poweroff" "$d" POWEROFF "input_quiet=4000s"
 
 d="$(new_case autologin-edge)"
-printf 'Name=sheijden\nClass=user\nRemote=no\nTimestampMonotonic=180000000\n' > "$d/logind/session-2"
+printf 'Name=sheijden\nClass=user\nSeat=seat0\nRemote=no\nTimestampMonotonic=180000000\n' > "$d/logind/session-2"
 expect "session at exactly 180 s is still the autologin -> poweroff" "$d" POWEROFF "POWEROFF"
 
 d="$(new_case later-login)"
-printf 'Name=sheijden\nClass=user\nRemote=no\nTimestampMonotonic=180000001\n' > "$d/logind/session-2"
+printf 'Name=sheijden\nClass=user\nSeat=seat0\nRemote=no\nTimestampMonotonic=180000001\n' > "$d/logind/session-2"
 expect "session 180.000001 s after boot is a login -> keep" "$d" KEEP "a login, not the autologin"
 
 d="$(new_case later-login-second)"
 printf '2 1000 sheijden seat0 tty1\n9 1000 sheijden seat0 tty2\n' > "$d/logind/sessions"
-printf 'Name=sheijden\nClass=user\nRemote=no\nTimestampMonotonic=3000000000\n' > "$d/logind/session-9"
+printf 'Name=sheijden\nClass=user\nSeat=seat0\nRemote=no\nTimestampMonotonic=3000000000\n' > "$d/logind/session-9"
 expect "autologin plus a later local login -> keep" "$d" KEEP "session 9 (sheijden) began 3000 s after boot"
+
+for class in user-incomplete user-light; do
+  d="$(new_case "$class")"
+  printf 'Name=sheijden\nClass=%s\nSeat=seat0\nRemote=no\nTimestampMonotonic=3000000000\n' "$class" > "$d/logind/session-2"
+  expect "$class session counts -> keep" "$d" KEEP "began 3000 s after boot"
+done
+
+d="$(new_case two-early)"
+printf '9 1000 sheijden seat0 tty2\n' >> "$d/logind/sessions"
+printf 'Name=sheijden\nClass=user\nSeat=seat0\nRemote=no\nTimestampMonotonic=40000000\n' > "$d/logind/session-9"
+expect "two early seat0 sessions -> keep" "$d" KEEP "additional early seat0 session 9"
+
+for seat in '' seat1; do
+  d="$(new_case "early-seat-${seat:-empty}")"
+  printf 'Name=sheijden\nClass=user\nSeat=%s\nRemote=no\nTimestampMonotonic=35000000\n' "$seat" > "$d/logind/session-2"
+  expect "early session with seat ${seat:-empty} -> keep" "$d" KEEP "is not on seat0"
+done
 
 d="$(new_case remote-sander)"
 printf '2 1000 sheijden seat0 tty1\n9 1000 sheijden - pts/0\n' > "$d/logind/sessions"
-printf 'Name=sheijden\nClass=user\nRemote=yes\nTimestampMonotonic=20000000\n' > "$d/logind/session-9"
+printf 'Name=sheijden\nClass=user\nSeat=\nRemote=yes\nTimestampMonotonic=20000000\n' > "$d/logind/session-9"
 expect "remote session (even early) -> keep" "$d" KEEP "remote session 9 (sheijden)"
 
-d="$(new_case no-start-time)"; printf 'Name=sheijden\nClass=user\nRemote=no\n' > "$d/logind/session-2"
+d="$(new_case no-start-time)"; printf 'Name=sheijden\nClass=user\nSeat=seat0\nRemote=no\n' > "$d/logind/session-2"
 expect "session without start time -> keep" "$d" KEEP "no readable start time"
 
-d="$(new_case no-remote-prop)"; printf 'Name=sheijden\nClass=user\nTimestampMonotonic=35000000\n' > "$d/logind/session-2"
+d="$(new_case no-remote-prop)"; printf 'Name=sheijden\nClass=user\nSeat=seat0\nTimestampMonotonic=35000000\n' > "$d/logind/session-2"
 expect "session without Remote property -> keep" "$d" KEEP "Remote unreadable"
 
-d="$(new_case state-missing-key)"; printf 'boot_id=%s\nheartbeat=9000\nsince=60\n' "$BOOT" > "$d/run/vdh-input-state"
+for running in 'state: RUNNING' RUNNING; do
+  d="$(new_case "audio-${running%%:*}")"
+  mkdir -p "$d/proc/asound/card0/pcm0p/sub0" "$d/proc/asound/card1/pcm0p/sub1"
+  printf 'closed\n' > "$d/proc/asound/card0/pcm0p/sub0/status"
+  printf '%s\nowner_pid: 123\n' "$running" > "$d/proc/asound/card1/pcm0p/sub1/status"
+  expect "audio status '$running' -> keep" "$d" KEEP "audio is playing"
+done
+
+d="$(new_case audio-idle)"
+mkdir -p "$d/proc/asound/card0/pcm0p/sub0"
+printf 'state: PREPARED\n' > "$d/proc/asound/card0/pcm0p/sub0/status"
+expect "PCM stream prepared -> poweroff" "$d" POWEROFF "POWEROFF"
+
+d="$(new_case audio-unreadable)"
+mkdir -p "$d/proc/asound/card0/pcm0p/sub0"
+ln -s missing "$d/proc/asound/card0/pcm0p/sub0/status"
+expect "unreadable PCM status -> keep" "$d" KEEP "cannot read audio status"
+
+d="$(new_case state-missing-key)"; printf 'boot_id=%s\nheartbeat=9000\nsince=60\n' "$BOOT" > "$d/run/vdh-input/state"
 expect "state without last_input key -> keep" "$d" KEEP "state lacks last_input"
 
-d="$(new_case input-recent)"; printf 'boot_id=%s\nheartbeat=9000\nsince=60\nlast_input=8400\n' "$BOOT" > "$d/run/vdh-input-state"
+d="$(new_case input-recent)"; printf 'boot_id=%s\nheartbeat=9000\nsince=60\nlast_input=8400\n' "$BOOT" > "$d/run/vdh-input/state"
 expect "input 10 min ago -> keep" "$d" KEEP "local input 600s ago"
 
-d="$(new_case input-edge)"; printf 'boot_id=%s\nheartbeat=9000\nsince=60\nlast_input=8100\n' "$BOOT" > "$d/run/vdh-input-state"
-expect "input exactly 15 min ago -> poweroff" "$d" POWEROFF "input_quiet=900s"
+d="$(new_case input-below-edge)"; printf 'boot_id=%s\nheartbeat=9000\nsince=60\nlast_input=5401\n' "$BOOT" > "$d/run/vdh-input/state"
+expect "input 3599 s ago -> keep" "$d" KEEP "local input 3599s ago < 3600s"
 
-d="$(new_case input-never)"; printf 'boot_id=%s\nheartbeat=9000\nsince=60\nlast_input=\n' "$BOOT" > "$d/run/vdh-input-state"
+d="$(new_case input-edge)"; printf 'boot_id=%s\nheartbeat=9000\nsince=60\nlast_input=5400\n' "$BOOT" > "$d/run/vdh-input/state"
+expect "input exactly 60 min ago -> poweroff" "$d" POWEROFF "input_quiet=3600s"
+
+d="$(new_case input-never)"; printf 'boot_id=%s\nheartbeat=9000\nsince=60\nlast_input=\n' "$BOOT" > "$d/run/vdh-input/state"
 expect "no input ever seen, sampler up since boot -> poweroff" "$d" POWEROFF "input_quiet=8940s"
 
-d="$(new_case sampler-young)"; printf 'boot_id=%s\nheartbeat=9000\nsince=8500\nlast_input=\n' "$BOOT" > "$d/run/vdh-input-state"
+d="$(new_case sampler-young)"; printf 'boot_id=%s\nheartbeat=9000\nsince=8500\nlast_input=\n' "$BOOT" > "$d/run/vdh-input/state"
 expect "sampler only watched 8 min -> keep" "$d" KEEP "local input 500s ago"
 
-d="$(new_case no-sampler-state)"; find "$d/run/vdh-input-state" -delete
-expect "no sampler state -> keep" "$d" KEEP "input activity unknown (no /run/vdh-input-state)"
+d="$(new_case no-sampler-state)"; find "$d/run/vdh-input/state" -delete
+expect "no sampler state -> keep" "$d" KEEP "input activity unknown (no /run/vdh-input/state)"
 
-d="$(new_case stale-heartbeat)"; printf 'boot_id=%s\nheartbeat=8900\nsince=60\nlast_input=\n' "$BOOT" > "$d/run/vdh-input-state"
+d="$(new_case stale-heartbeat)"; printf 'boot_id=%s\nheartbeat=8900\nsince=60\nlast_input=\n' "$BOOT" > "$d/run/vdh-input/state"
 expect "sampler heartbeat 100 s old -> keep" "$d" KEEP "heartbeat 100s old"
 
-d="$(new_case foreign-state)"; printf 'boot_id=deadbeef\nheartbeat=9000\nsince=60\nlast_input=\n' > "$d/run/vdh-input-state"
+d="$(new_case foreign-state)"; printf 'boot_id=deadbeef\nheartbeat=9000\nsince=60\nlast_input=\n' > "$d/run/vdh-input/state"
 expect "state from another boot -> keep" "$d" KEEP "another boot"
 
-d="$(new_case garbage-state)"; printf 'boot_id=%s\nheartbeat=soon\nsince=60\nlast_input=\n' "$BOOT" > "$d/run/vdh-input-state"
+d="$(new_case garbage-state)"; printf 'boot_id=%s\nheartbeat=soon\nsince=60\nlast_input=\n' "$BOOT" > "$d/run/vdh-input/state"
 expect "unreadable state -> keep" "$d" KEEP "state unreadable"
 
-d="$(new_case symlink-state)"; find "$d/run/vdh-input-state" -delete; ln -s /etc/passwd "$d/run/vdh-input-state"
+d="$(new_case symlink-state)"
+mv "$d/run/vdh-input/state" "$d/valid-snapshot"
+ln -s "$d/valid-snapshot" "$d/run/vdh-input/state"
 expect "state is a symlink -> keep" "$d" KEEP "input activity unknown"
 
 d="$(new_case runner-session)"
 printf '2 1000 sheijden seat0 tty1\n8 1002 runner - -\n' > "$d/logind/sessions"
-printf 'Name=runner\nClass=user\nRemote=no\nTimestampMonotonic=9000000000\n' > "$d/logind/session-8"
+printf 'Name=runner\nClass=user\nSeat=\nRemote=no\nTimestampMonotonic=9000000000\n' > "$d/logind/session-8"
 expect "runner user session never blocks -> poweroff" "$d" POWEROFF "POWEROFF"
 
 d="$(new_case greeter)"
 printf '2 1000 sheijden seat0 tty1\n3 975 gdm seat0 tty7\n' > "$d/logind/sessions"
-printf 'Name=gdm\nClass=greeter\nRemote=no\nTimestampMonotonic=900000000000\n' > "$d/logind/session-3"
+printf 'Name=gdm\nClass=greeter\nSeat=seat0\nRemote=no\nTimestampMonotonic=900000000000\n' > "$d/logind/session-3"
 expect "greeter session ignored -> poweroff" "$d" POWEROFF "POWEROFF"
 
 d="$(new_case logind-down)"; touch "$d/logind/fail"

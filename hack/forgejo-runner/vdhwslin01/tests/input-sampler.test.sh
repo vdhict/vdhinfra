@@ -16,7 +16,7 @@ bad() { fail=$((fail+1)); echo "FAIL $*"; }
 # new_root <name> <plan>: plan = space separated per-tick increments of the xhci_hcd count
 new_root() {
   local d="$T/$1"
-  mkdir -p "$d/proc/sys/kernel/random" "$d/run"
+  mkdir -p "$d/proc/sys/kernel/random" "$d/run/vdh-input"
   echo "$BOOT" > "$d/proc/sys/kernel/random/boot_id"
   echo "$2" > "$d/plan"; echo 1000 > "$d/uptime0"; echo 500 > "$d/total0"
   cat > "$d/tick" <<TICK
@@ -39,47 +39,56 @@ TICK
 run() { # run <dir> <iterations>
   VDH_SAMPLER_TEST=1 VDH_SAMPLER_ROOT="$1" VDH_SAMPLER_TICK="$1/tick" VDH_SAMPLER_ITER="$2" bash "$SUT"
 }
-field() { sed -n "s/^$2=//p" "$1/run/vdh-input-state"; }
+field() { sed -n "s/^$2=//p" "$1/run/vdh-input/state"; }
 
 # 1. idle only (8 per 2 s tick, i.e. 4/s): never input
 d="$(new_root idle "")"; run "$d" 40
-[[ "$(field "$d" last_input)" == "" ]] && ok "idle at 4/s -> no input recorded" || bad "idle recorded input: $(cat "$d/run/vdh-input-state")"
+[[ "$(field "$d" last_input)" == "" ]] && ok "idle at 4/s -> no input recorded" || bad "idle recorded input: $(cat "$d/run/vdh-input/state")"
 [[ "$(field "$d" boot_id)" == "$BOOT" && "$(field "$d" heartbeat)" == 1080 && "$(field "$d" since)" == 1000 ]] \
-  && ok "state carries boot_id, heartbeat 1080 and since 1000" || bad "state: $(cat "$d/run/vdh-input-state")"
-[[ -f "$d/run/vdh-input-state" && ! -e "$d/run/vdh-input-state.tmp" ]] && ok "state present, no temp file left" || bad "state files"
+  && ok "state carries boot_id, heartbeat 1080 and since 1000" || bad "state: $(cat "$d/run/vdh-input/state")"
+[[ -f "$d/run/vdh-input/state" && ! -e "$d/run/vdh-input/state.tmp" ]] && ok "state present, no temp file left" || bad "state files"
 
 # 2. a burst at tick 31 (200 interrupts in 2 s): input at that tick's uptime (1062)
 plan="$(for _ in $(seq 1 30); do printf '8 '; done)200"
 d="$(new_root burst "$plan")"; run "$d" 40
-[[ "$(field "$d" last_input)" == 1062 ]] && ok "burst of 200 in 2 s -> last_input at that tick" || bad "burst: $(cat "$d/run/vdh-input-state")"
+[[ "$(field "$d" last_input)" == 1062 ]] && ok "burst of 200 in 2 s -> last_input at that tick" || bad "burst: $(cat "$d/run/vdh-input/state")"
 
 # 3. small wobble (8 -> 14) is below 2*8+4 = 20: not input
 plan="$(for _ in $(seq 1 30); do printf '8 '; done)14 9 8"
 d="$(new_root wobble "$plan")"; run "$d" 40
-[[ "$(field "$d" last_input)" == "" ]] && ok "wobble 14 per tick is not input" || bad "wobble: $(cat "$d/run/vdh-input-state")"
+[[ "$(field "$d" last_input)" == "" ]] && ok "wobble 14 per tick is not input" || bad "wobble: $(cat "$d/run/vdh-input/state")"
 
-# 4. a restart in the same boot keeps since and last_input
-cp "$T/burst/run/vdh-input-state" "$T/restart-state"
-d="$(new_root restart "")"; cp "$T/restart-state" "$d/run/vdh-input-state"; run "$d" 5
-[[ "$(field "$d" since)" == 1000 && "$(field "$d" last_input)" == 1062 ]] && ok "restart keeps last_input and restarts the window (since = now)" || bad "restart: $(cat "$d/run/vdh-input-state")"
+# 4. a restart in the same boot resets since and keeps last_input
+cp "$T/burst/run/vdh-input/state" "$T/restart-state"
+d="$(new_root restart "")"; cp "$T/restart-state" "$d/run/vdh-input/state"; run "$d" 5
+[[ "$(field "$d" since)" == 1000 && "$(field "$d" last_input)" == 1062 ]] && ok "restart keeps last_input and restarts the window (since = now)" || bad "restart: $(cat "$d/run/vdh-input/state")"
 
 # 5. state of another boot is not inherited
-d="$(new_root newboot "")"; printf 'boot_id=old\nheartbeat=5\nsince=1\nlast_input=3\n' > "$d/run/vdh-input-state"; run "$d" 5
-[[ "$(field "$d" boot_id)" == "$BOOT" && "$(field "$d" last_input)" == "" ]] && ok "other boot's state ignored" || bad "newboot: $(cat "$d/run/vdh-input-state")"
+d="$(new_root newboot "")"; printf 'boot_id=old\nheartbeat=5\nsince=1\nlast_input=3\n' > "$d/run/vdh-input/state"; run "$d" 5
+[[ "$(field "$d" boot_id)" == "$BOOT" && "$(field "$d" last_input)" == "" ]] && ok "other boot's state ignored" || bad "newboot: $(cat "$d/run/vdh-input/state")"
 
 # 6. sustained input must not raise its own threshold: 20 idle ticks, then 300 ticks at 200 per tick
 plan="$(for _ in $(seq 1 20); do printf '8 '; done)$(for _ in $(seq 1 300); do printf '200 '; done)"
 d="$(new_root sustained "$plan")"; run "$d" 320
-[[ "$(field "$d" last_input)" == "$(field "$d" heartbeat)" ]] && ok "sustained input stays input (baseline ignores input samples)" || bad "sustained: $(cat "$d/run/vdh-input-state")"
+[[ "$(field "$d" last_input)" == "$(field "$d" heartbeat)" ]] && ok "sustained input stays input (baseline ignores input samples)" || bad "sustained: $(cat "$d/run/vdh-input/state")"
 
 # 7. no xhci_hcd row: no state written (heartbeat stays absent -> idle-poweroff keeps)
-d="$(new_root norow "")"; sed -i 's/xhci_hcd/nvme0q9/' "$d/proc/interrupts"
+d="$(new_root norow "")"; printf '           CPU0\n 52:       500  PCI-MSI 1-edge   nvme0q9\n' > "$d/proc/interrupts"
 cat > "$d/tick" <<'TICK'
 #!/usr/bin/env bash
 exit 0
 TICK
 run "$d" 5
-[[ ! -e "$d/run/vdh-input-state" ]] && ok "no xhci_hcd row -> no state, no fake heartbeat" || bad "norow wrote state"
+[[ ! -e "$d/run/vdh-input/state" ]] && ok "no xhci_hcd row -> no state, no fake heartbeat" || bad "norow wrote state"
+
+unit="${here}/../src/vdh-input-sampler.service"
+if grep -qx 'User=vdh-sampler' "$unit" &&
+   grep -qx 'RuntimeDirectory=vdh-input' "$unit" &&
+   ! grep -q '^ReadWritePaths=/run' "$unit"; then
+  ok "unit uses the dedicated user and runtime directory"
+else
+  bad "unit user or runtime directory settings"
+fi
 
 echo "input-sampler tests: ${pass} passed, ${fail} failed"
 (( fail == 0 ))

@@ -40,9 +40,9 @@
 #   vdh-runner-nft-guard.timer (every 1 min) + ExecStartPre: the runner stops
 #     taking jobs as soon as table inet vdh_runner is missing or incomplete.
 #   idle-poweroff.timer (every 5 min): powers off ONLY a team-started boot
-#     (/run/team-boot with this boot_id), runner idle, no remote session or
-#     later login (the boot autologin, <= 180 s after boot, is ignored), no
-#     local input for 15 min (xhci_hcd interrupts, vdh-input-sampler.service),
+#     (/run/team-boot with this boot_id), runner idle, no audio playback, no extra user
+#     sessions (one local seat0 autologin <= 180 s after boot is ignored), no
+#     local input for 60 min (xhci_hcd interrupts, vdh-input-sampler.service),
 #     uptime >= 2 h. Never a boot Sander started.
 #   initramfs: controller's dropbear PUBLIC key + the vdh-teamboot wrapper
 #     (marks ssh-unlocked boots as team boots); rebuilds the initramfs.
@@ -582,7 +582,7 @@ cp "$B/known_hosts" "$kh_out"
 log "golden built: $out"
 VDH_PAYLOAD_EOF
 }
-# --- from src/idle-poweroff.sh (sha256 524498d55dcb7494)
+# --- from src/idle-poweroff.sh (sha256 70a106508f60fee7)
 payload_idle_poweroff() {
 cat <<'VDH_PAYLOAD_EOF'
 #!/usr/bin/env bash
@@ -598,12 +598,11 @@ cat <<'VDH_PAYLOAD_EOF'
 #      last job ended >= 60 min ago.
 #   4. nobody else is using the box (rules shared with the estate, pka-run
 #      guard_blocks/input_guard_blocks, AGR-114):
-#      - a user session (not agent/runner) that began within 180 s of boot is
-#        the Hyprland autologin of Sander's account: ignored (its idle hint is
-#        never set, measured 2026-10-29, so it would hold the box on forever);
-#      - a remote session, or a session that began later (a real login): KEEP;
-#      - no input for >= 15 min, read from the xhci_hcd interrupt counts that
-#        vdh-input-sampler (src/input-sampler.sh) writes to /run/vdh-input-state.
+#      - ignore up to one local seat0 user session that began within 180 s
+#        of boot (the Hyprland autologin); other user sessions mean KEEP;
+#      - no audio is playing according to ALSA PCM status;
+#      - no input for >= 60 min, read from the xhci_hcd interrupt counts that
+#        vdh-input-sampler (src/input-sampler.sh) writes to /run/vdh-input/state.
 #        No state, stale state or another boot's state: KEEP.
 #   5. no logind block inhibitor (systemctl --check-inhibitors=yes).
 # Anything it cannot read means KEEP (fail safe: never power off on doubt).
@@ -625,7 +624,7 @@ else
 fi
 
 AUTOLOGIN_WINDOW_US=180000000
-INPUT_QUIET_MIN_S=900
+INPUT_QUIET_MIN_S=3600
 INPUT_HEARTBEAT_MAX_S=30
 RUNNER_IDLE_MIN_S=3600
 UPTIME_MIN_S=7200
@@ -670,29 +669,43 @@ prop() { # prop <key> <text>
   sed -n "s/^$1=//p" <<<"$2" | head -n1
 }
 
-# 4a. sessions: ignore the autologin, keep for remote or later logins.
+# 4a. sessions: ignore at most one early local seat0 session.
 sessions="$("$LOGINCTL" list-sessions --no-legend 2>/dev/null)" \
   || keep "cannot list logind sessions"
+autologin_seen=0
 while read -r sid _; do
   [[ -n "${sid:-}" ]] || continue
-  info="$("$LOGINCTL" show-session "$sid" -p Name -p Class -p Remote -p TimestampMonotonic 2>/dev/null)" \
+  info="$("$LOGINCTL" show-session "$sid" -p Name -p Class -p Remote -p Seat -p TimestampMonotonic 2>/dev/null)" \
     || keep "cannot read session ${sid}"
   name="$(prop Name "$info")"
   class="$(prop Class "$info")"
   [[ -n "$class" && -n "$name" ]] || keep "session ${sid} has no readable Name/Class"
-  [[ "$class" == "user" ]] || continue
+  [[ "$class" == user* ]] || continue
   [[ "$EXCLUDED_USERS" != *" ${name} "* ]] || continue
   remote="$(prop Remote "$info")"
   [[ "$remote" != "yes" ]] || keep "remote session ${sid} (${name})"
   [[ "$remote" == "no" ]] || keep "session ${sid} (${name}) Remote unreadable: treated as remote"
+  [[ "$(prop Seat "$info")" == "seat0" ]] || keep "session ${sid} (${name}) is not on seat0"
   started_us="$(prop TimestampMonotonic "$info")"
   [[ "$started_us" =~ ^[0-9]+$ ]] || keep "session ${sid} (${name}) has no readable start time"
   (( started_us <= AUTOLOGIN_WINDOW_US )) \
     || keep "session ${sid} (${name}) began $(( started_us / 1000000 )) s after boot (a login, not the autologin)"
+  (( autologin_seen == 0 )) || keep "additional early seat0 session ${sid} (${name})"
+  autologin_seen=1
 done <<<"$sessions"
 
-# 4b. input: the sampler's state. Missing, stale or foreign state means KEEP.
-state="${ROOT}/run/vdh-input-state"
+# 4b. audio: ALSA reports RUNNING for active PCM streams.
+shopt -s nullglob
+for status in "${ROOT}"/proc/asound/card*/pcm*/sub*/status; do
+  if grep -Ex '[[:space:]]*(state:[[:space:]]*)?RUNNING[[:space:]]*' "$status" >/dev/null 2>&1; then
+    keep "audio is playing"
+  elif (( $? != 1 )); then
+    keep "cannot read audio status ${status#"$ROOT"}"
+  fi
+done
+
+# 4c. input: the sampler's state. Missing, stale or foreign state means KEEP.
+state="${ROOT}/run/vdh-input/state"
 [[ -f "$state" && ! -L "$state" ]] || keep "input activity unknown (no ${state#"$ROOT"})"
 snap="$(cat "$state" 2>/dev/null)" || keep "input activity unknown (state unreadable)"   # one read: no mixed snapshots
 for k in boot_id heartbeat since last_input; do
@@ -735,12 +748,12 @@ else
 fi
 VDH_PAYLOAD_EOF
 }
-# --- from src/input-sampler.sh (sha256 725245174915811a)
+# --- from src/input-sampler.sh (sha256 bf4ff1141a6c9a18)
 payload_input_sampler() {
 cat <<'VDH_PAYLOAD_EOF'
 #!/bin/bash
 # vdhwslin01 (chg-2026-10-05-031, AGR-114): local-input sampler for idle-poweroff.
-# Installed as /usr/local/libexec/vdh-runner/input-sampler, run as root by
+# Installed as /usr/local/libexec/vdh-runner/input-sampler, run as vdh-sampler by
 # vdh-input-sampler.service on team boots only (ConditionPathExists=/run/team-boot).
 #
 # The agent cannot read /dev/input or Hyprland (measured 2026-10-29), so local use
@@ -748,8 +761,8 @@ cat <<'VDH_PAYLOAD_EOF'
 # rule as the estate's pka-run sampler (estate_lib.py INPUT_SAMPLER): every 2 s
 # take the delta; idle the count rises about 4/s, input adds far more. A delta is
 # INPUT when delta > 2 * min(last 450 deltas) + 4 (a 15 min window).
-# State, rewritten atomically every 2 s, root-owned in tmpfs:
-#   /run/vdh-input-state: boot_id=, heartbeat= and since= (this sampler's start)
+# State, rewritten atomically every 2 s, owned by vdh-sampler in tmpfs:
+#   /run/vdh-input/state: boot_id=, heartbeat= and since= (this sampler's start)
 #   and last_input= (empty until input is seen), all in whole seconds of uptime.
 # A restart in the same boot keeps last_input= but restarts since= (the quiet window
 # cannot cover the gap). No xhci_hcd line in /proc/interrupts: no state is written, the
@@ -765,7 +778,7 @@ else
 fi
 IRQ_NAMES="${VDH_IRQ_NAMES:-xhci_hcd}"
 WINDOW=450
-state="${ROOT}/run/vdh-input-state"
+state="${ROOT}/run/vdh-input/state"
 
 uptime_s() { cut -d. -f1 < "${ROOT}/proc/uptime"; }
 
@@ -1059,7 +1072,7 @@ AccuracySec=30s
 WantedBy=timers.target
 VDH_PAYLOAD_EOF
 }
-# --- from src/vdh-input-sampler.service (sha256 b93b1c87d0eb62dc)
+# --- from src/vdh-input-sampler.service (sha256 ca242cab95d5cb21)
 payload_vdh_input_sampler_service() {
 cat <<'VDH_PAYLOAD_EOF'
 # vdhwslin01 (chg-2026-10-05-031): AGR-114 local-input sampler, team boots only.
@@ -1069,6 +1082,10 @@ ConditionPathExists=/run/team-boot
 
 [Service]
 Type=simple
+User=vdh-sampler
+RuntimeDirectory=vdh-input
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=restart
 ExecStart=/usr/local/libexec/vdh-runner/input-sampler
 SyslogIdentifier=vdh-input-sampler
 Restart=always
@@ -1077,7 +1094,15 @@ NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
-ReadWritePaths=/run
+PrivateDevices=yes
+CapabilityBoundingSet=
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+LockPersonality=yes
+RestrictNamespaces=yes
 
 [Install]
 WantedBy=multi-user.target
@@ -1269,6 +1294,8 @@ step_user() {
   if id runner >/dev/null 2>&1; then info "user runner exists"
   else run useradd --system --user-group --home-dir /var/lib/forgejo-runner --create-home --shell /usr/bin/nologin runner; fi
   if ! id -nG runner 2>/dev/null | tr ' ' '\n' | grep -qx kvm; then run usermod -aG kvm runner; fi
+  if id vdh-sampler >/dev/null 2>&1; then info "user vdh-sampler exists"
+  else run useradd --system --no-create-home --shell /usr/bin/nologin vdh-sampler; fi
   run passwd -l runner
   if (( ! DRY )); then
     local g; g=" $(id -nG runner) "
@@ -1537,8 +1564,8 @@ step_services() {
   run systemctl enable --now vdh-teamboot-record.service
   run systemctl enable --now idle-poweroff.timer
   run systemctl enable vdh-input-sampler.service
-  # a team boot only (ConditionPathExists=/run/team-boot): start it now when this is one
-  if [[ -f /run/team-boot ]]; then run systemctl start vdh-input-sampler.service; fi
+  # Apply the updated unit on the current team boot.
+  if [[ -f /run/team-boot ]]; then run systemctl restart vdh-input-sampler.service; fi
   run systemctl enable --now vdh-runner-nft-guard.timer
   run systemctl enable forgejo-runner-vm.service
   run systemctl restart forgejo-runner-vm.service
@@ -1697,7 +1724,7 @@ uninstall() {
   run systemctl daemon-reload
   run rm -f -- /usr/local/libexec/vdh-runner/vm-dispatch /usr/local/libexec/vdh-runner/vm-golden-build \
     /usr/local/libexec/vdh-runner/idle-poweroff /usr/local/libexec/vdh-runner/teamboot-record \
-    /usr/local/libexec/vdh-runner/input-sampler /run/vdh-input-state \
+    /usr/local/libexec/vdh-runner/input-sampler /run/vdh-input/state \
     /usr/local/lib/vdh-runner/teamboot-shell /usr/local/bin/forgejo-runner \
     /var/lib/vdh-runner-golden/golden.qcow2 /var/lib/vdh-runner-stage/base.qcow2 \
     /usr/local/libexec/vdh-runner/nft-guard /etc/systemd/system/vdh-runner-nft-guard.service \
@@ -1706,6 +1733,7 @@ uninstall() {
   [[ -d /etc/vdh-runner ]] && run find /etc/vdh-runner -mindepth 1 -delete
   [[ -d /var/cache/vdh-runner ]] && run find /var/cache/vdh-runner -mindepth 1 -delete
   if id runner >/dev/null 2>&1; then run userdel --remove runner; fi
+  if id vdh-sampler >/dev/null 2>&1; then run userdel vdh-sampler; fi
   say "left for you (on purpose, they need you):"
   [[ -n "$slot" ]] && info "LUKS: sudo cryptsetup luksKillSlot <luks-device> $slot   (asks a remaining passphrase)"
   info "forge: Atlas deletes runner '${RUNNER_NAME}' on the forge"

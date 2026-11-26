@@ -11,12 +11,11 @@
 #      last job ended >= 60 min ago.
 #   4. nobody else is using the box (rules shared with the estate, pka-run
 #      guard_blocks/input_guard_blocks, AGR-114):
-#      - a user session (not agent/runner) that began within 180 s of boot is
-#        the Hyprland autologin of Sander's account: ignored (its idle hint is
-#        never set, measured 2026-10-29, so it would hold the box on forever);
-#      - a remote session, or a session that began later (a real login): KEEP;
-#      - no input for >= 15 min, read from the xhci_hcd interrupt counts that
-#        vdh-input-sampler (src/input-sampler.sh) writes to /run/vdh-input-state.
+#      - ignore up to one local seat0 user session that began within 180 s
+#        of boot (the Hyprland autologin); other user sessions mean KEEP;
+#      - no audio is playing according to ALSA PCM status;
+#      - no input for >= 60 min, read from the xhci_hcd interrupt counts that
+#        vdh-input-sampler (src/input-sampler.sh) writes to /run/vdh-input/state.
 #        No state, stale state or another boot's state: KEEP.
 #   5. no logind block inhibitor (systemctl --check-inhibitors=yes).
 # Anything it cannot read means KEEP (fail safe: never power off on doubt).
@@ -38,7 +37,7 @@ else
 fi
 
 AUTOLOGIN_WINDOW_US=180000000
-INPUT_QUIET_MIN_S=900
+INPUT_QUIET_MIN_S=3600
 INPUT_HEARTBEAT_MAX_S=30
 RUNNER_IDLE_MIN_S=3600
 UPTIME_MIN_S=7200
@@ -83,29 +82,43 @@ prop() { # prop <key> <text>
   sed -n "s/^$1=//p" <<<"$2" | head -n1
 }
 
-# 4a. sessions: ignore the autologin, keep for remote or later logins.
+# 4a. sessions: ignore at most one early local seat0 session.
 sessions="$("$LOGINCTL" list-sessions --no-legend 2>/dev/null)" \
   || keep "cannot list logind sessions"
+autologin_seen=0
 while read -r sid _; do
   [[ -n "${sid:-}" ]] || continue
-  info="$("$LOGINCTL" show-session "$sid" -p Name -p Class -p Remote -p TimestampMonotonic 2>/dev/null)" \
+  info="$("$LOGINCTL" show-session "$sid" -p Name -p Class -p Remote -p Seat -p TimestampMonotonic 2>/dev/null)" \
     || keep "cannot read session ${sid}"
   name="$(prop Name "$info")"
   class="$(prop Class "$info")"
   [[ -n "$class" && -n "$name" ]] || keep "session ${sid} has no readable Name/Class"
-  [[ "$class" == "user" ]] || continue
+  [[ "$class" == user* ]] || continue
   [[ "$EXCLUDED_USERS" != *" ${name} "* ]] || continue
   remote="$(prop Remote "$info")"
   [[ "$remote" != "yes" ]] || keep "remote session ${sid} (${name})"
   [[ "$remote" == "no" ]] || keep "session ${sid} (${name}) Remote unreadable: treated as remote"
+  [[ "$(prop Seat "$info")" == "seat0" ]] || keep "session ${sid} (${name}) is not on seat0"
   started_us="$(prop TimestampMonotonic "$info")"
   [[ "$started_us" =~ ^[0-9]+$ ]] || keep "session ${sid} (${name}) has no readable start time"
   (( started_us <= AUTOLOGIN_WINDOW_US )) \
     || keep "session ${sid} (${name}) began $(( started_us / 1000000 )) s after boot (a login, not the autologin)"
+  (( autologin_seen == 0 )) || keep "additional early seat0 session ${sid} (${name})"
+  autologin_seen=1
 done <<<"$sessions"
 
-# 4b. input: the sampler's state. Missing, stale or foreign state means KEEP.
-state="${ROOT}/run/vdh-input-state"
+# 4b. audio: ALSA reports RUNNING for active PCM streams.
+shopt -s nullglob
+for status in "${ROOT}"/proc/asound/card*/pcm*/sub*/status; do
+  if grep -Ex '[[:space:]]*(state:[[:space:]]*)?RUNNING[[:space:]]*' "$status" >/dev/null 2>&1; then
+    keep "audio is playing"
+  elif (( $? != 1 )); then
+    keep "cannot read audio status ${status#"$ROOT"}"
+  fi
+done
+
+# 4c. input: the sampler's state. Missing, stale or foreign state means KEEP.
+state="${ROOT}/run/vdh-input/state"
 [[ -f "$state" && ! -L "$state" ]] || keep "input activity unknown (no ${state#"$ROOT"})"
 snap="$(cat "$state" 2>/dev/null)" || keep "input activity unknown (state unreadable)"   # one read: no mixed snapshots
 for k in boot_id heartbeat since last_input; do

@@ -40,9 +40,9 @@
 #   vdh-runner-nft-guard.timer (every 1 min) + ExecStartPre: the runner stops
 #     taking jobs as soon as table inet vdh_runner is missing or incomplete.
 #   idle-poweroff.timer (every 5 min): powers off ONLY a team-started boot
-#     (/run/team-boot with this boot_id), runner idle, no remote session or
-#     later login (the boot autologin, <= 180 s after boot, is ignored), no
-#     local input for 15 min (xhci_hcd interrupts, vdh-input-sampler.service),
+#     (/run/team-boot with this boot_id), runner idle, no audio playback, no extra user
+#     sessions (one local seat0 autologin <= 180 s after boot is ignored), no
+#     local input for 60 min (xhci_hcd interrupts, vdh-input-sampler.service),
 #     uptime >= 2 h. Never a boot Sander started.
 #   initramfs: controller's dropbear PUBLIC key + the vdh-teamboot wrapper
 #     (marks ssh-unlocked boots as team boots); rebuilds the initramfs.
@@ -338,6 +338,8 @@ step_user() {
   if id runner >/dev/null 2>&1; then info "user runner exists"
   else run useradd --system --user-group --home-dir /var/lib/forgejo-runner --create-home --shell /usr/bin/nologin runner; fi
   if ! id -nG runner 2>/dev/null | tr ' ' '\n' | grep -qx kvm; then run usermod -aG kvm runner; fi
+  if id vdh-sampler >/dev/null 2>&1; then info "user vdh-sampler exists"
+  else run useradd --system --no-create-home --shell /usr/bin/nologin vdh-sampler; fi
   run passwd -l runner
   if (( ! DRY )); then
     local g; g=" $(id -nG runner) "
@@ -606,8 +608,8 @@ step_services() {
   run systemctl enable --now vdh-teamboot-record.service
   run systemctl enable --now idle-poweroff.timer
   run systemctl enable vdh-input-sampler.service
-  # a team boot only (ConditionPathExists=/run/team-boot): start it now when this is one
-  if [[ -f /run/team-boot ]]; then run systemctl start vdh-input-sampler.service; fi
+  # Apply the updated unit on the current team boot.
+  if [[ -f /run/team-boot ]]; then run systemctl restart vdh-input-sampler.service; fi
   run systemctl enable --now vdh-runner-nft-guard.timer
   run systemctl enable forgejo-runner-vm.service
   run systemctl restart forgejo-runner-vm.service
@@ -766,7 +768,7 @@ uninstall() {
   run systemctl daemon-reload
   run rm -f -- /usr/local/libexec/vdh-runner/vm-dispatch /usr/local/libexec/vdh-runner/vm-golden-build \
     /usr/local/libexec/vdh-runner/idle-poweroff /usr/local/libexec/vdh-runner/teamboot-record \
-    /usr/local/libexec/vdh-runner/input-sampler /run/vdh-input-state \
+    /usr/local/libexec/vdh-runner/input-sampler /run/vdh-input/state \
     /usr/local/lib/vdh-runner/teamboot-shell /usr/local/bin/forgejo-runner \
     /var/lib/vdh-runner-golden/golden.qcow2 /var/lib/vdh-runner-stage/base.qcow2 \
     /usr/local/libexec/vdh-runner/nft-guard /etc/systemd/system/vdh-runner-nft-guard.service \
@@ -775,6 +777,7 @@ uninstall() {
   [[ -d /etc/vdh-runner ]] && run find /etc/vdh-runner -mindepth 1 -delete
   [[ -d /var/cache/vdh-runner ]] && run find /var/cache/vdh-runner -mindepth 1 -delete
   if id runner >/dev/null 2>&1; then run userdel --remove runner; fi
+  if id vdh-sampler >/dev/null 2>&1; then run userdel vdh-sampler; fi
   say "left for you (on purpose, they need you):"
   [[ -n "$slot" ]] && info "LUKS: sudo cryptsetup luksKillSlot <luks-device> $slot   (asks a remaining passphrase)"
   info "forge: Atlas deletes runner '${RUNNER_NAME}' on the forge"
