@@ -28,6 +28,10 @@
 #   chg-2026-10-22-006 (05-11, E08 desk refusal): image e2e-4418d4c = 5bb1514 + E08 check 2 requires the desk's /refused
 #           pr_mfa_required (callback 302); base 0820eaa8. index sha256:c8f0f6c1 (amd64 7b712fe5, arm64 579539d9), grype 0 outside ar-015,
 #           signed + attested, cosign verify vs OOB key (evidence 20261105t2100z/2104z-e2e-4418d4c-*). Previous value 3c24f38e. Rollback: git revert.
+#   chg-2026-11-24-003 (26-11, v13c gate prep, PP asleep): image e2e-8f16166 = 7279fa1 (fpt allowlist, Argus C1 20-11) + base
+#           node 24.22.3-trixie-slim 4d00acb4 (pin-only delta, Argus 26-11 08:34Z). index sha256:efdda5bc (amd64 13699a16, arm64 79d886eb),
+#           grype 0 outside ar-015, signed + attested, cosign verify vs OOB key (evidence ops/evidence/chg-2026-11-24-003/97-*, 98-*, 99-*).
+#           Previous value c8f0f6c1 (e2e-4418d4c). Image reference only; suspend unchanged. Rollback: git revert.
 #   E2E_COMMIT / E2E_LAB_IMAGE_DIGEST  the desk under test: 10d8340 abfa7f2 (07-11, idp_unavailable refusal; was 0404ac1 e0f369e; E2E_LAB_IMAGE_DIGEST is mandatory for harness e2e/v11), desk digest (components/desk-image).
 #   initContainer desk-ready: GET https://<.NET LAB>/readyz through envoy-internal, 15 s apart for up to 10 min; not 200
 #           -> exit 1 BEFORE any tenant step (no password attempt, no TAP): "must not run before the desk is up".
@@ -81,7 +85,7 @@ spec:
           securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 0, fsGroup: 10001, seccompProfile: {type: RuntimeDefault}}
           initContainers:
             - name: desk-ready
-              image: forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:c8f0f6c15c4c7e1627fc4f65fff969bb4033fb0fd94335c6d62275a67864e9e2
+              image: forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:efdda5bc78a2bad9cc7ba066ad2d0e985c683f92e2acc8e2c2b9c6e8bd5e73c7
               command:
                 - node
                 - -e
@@ -164,7 +168,7 @@ spec:
                 - {name: gate-tmp, mountPath: /gate-tmp}
           containers:
             - name: e2e
-              image: forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:c8f0f6c15c4c7e1627fc4f65fff969bb4033fb0fd94335c6d62275a67864e9e2
+              image: forge.bluejungle.net/palamedes/passkey-point-e2e@sha256:efdda5bc78a2bad9cc7ba066ad2d0e985c683f92e2acc8e2c2b9c6e8bd5e73c7
               args: ["--set", "nightly"]
               env:
                 - {name: E2E_SECRETS_DIR, value: /secrets}
