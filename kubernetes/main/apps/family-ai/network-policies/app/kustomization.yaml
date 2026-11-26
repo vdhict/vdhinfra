@@ -38,4 +38,5 @@ resources:
   - ./kennis-prive-vullen.yaml   # land-12q seed pod: no ingress, no egress
   # chg-2026-11-17-011 go (commit B, Argus Q4 5): api.anthropic.com:443 for hermes-profiel-3 ONLY. Rollback = git revert
   # of this commit (also re-suspends the probe). The profiel-2 cloud file stays OUT until its own change (condition 4).
-  - ./hermes-profiel-3-cloud.yaml
+  # chg-2026-11-26-002 Studio fallback test: p3 cloud egress removed for one canary turn; reverted right after.
+  # - ./hermes-profiel-3-cloud.yaml
