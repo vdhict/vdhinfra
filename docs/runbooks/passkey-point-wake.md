@@ -52,10 +52,16 @@ namespace's `db/app/cluster.yaml`. Leave the CronJobs suspended unless the night
 the build app `atlas-devtenant-build` (dev tenant 7m5b27gbc only) holds only K4: `AppRoleAssignment.ReadWrite.All`,
 `Application.Read.All`, `RoleManagement.Read.Directory`, `Organization.Read.All`, and its key is NOT in the cluster.
 The devtenant image's `appSignIn()` refuses a token whose roles differ from its 24-role manifest, so bootstrap-v01
-and every other build-key tool fail closed until this step is done. Do it BEFORE unsuspending
-`devtenant-refresh-contractor-new`, in this order:
+and every other build-key tool fail closed until this step is done. Per-run mode (Argus review
+`ops/evidence/chg-2026-11-24-003/argus-k4-regrant-81b70c3c-20261126T144228Z.txt`, C3): the CronJob
+`devtenant-refresh-contractor-new` stays `suspend: true` during a wake. In the wake commit, keep it out of the
+`ff017cf6` revert (or set it back to `suspend: true` in that same commit). The refresh runs only as a manual
+`kubectl -n devtenant-build create job --from=cronjob/devtenant-refresh-contractor-new <name>`, after the regrant
+Job ended exit 0 with a `done` line (mode regrant, `fullStateSha256`) AND a `fresh-token` line `ok:true`
+`rolesCount:24` (C1). Read `spec.suspend` back (`true`) before the regrant and again after the cut. The
+steps, in this order:
 
-1. Key back: `hack/ops/chg-2026-11-18-001-ar011-key-out.sh restore` re-applies the ExternalSecret
+1. Key back (every run, since each sleep removes the key): `hack/ops/chg-2026-11-18-001-ar011-key-out.sh restore` re-applies the ExternalSecret
    `devtenant-build/atlas-devtenant-build-key` (ClusterSecretStore `onepassword-devtenant-build`, item
    `atlas-devtenant-build`, `tls.key` + `tls.crt`). Readback: ES Ready, Secret has exactly those two keys.
    The 1Password item in vault `passkey-point-devtenant-build` was never removed.
@@ -64,10 +70,13 @@ and every other build-key tool fail closed until this step is done. Do it BEFORE
    It POSTs exactly the 20 `regrantForWake` roles (list pinned by that sha; planSha `33720a3d...` of the 20-role cut is
    its origin), then reads back FULL24 three times in a row and needs a fresh token with exactly 24 roles, wids
    `[0997a1d0...]` only, roleAssignments 0, transitiveMemberOf 0. Fail closed: exit 6 after a write that did not end
-   in that state, and then the refresh job (`devtenant-refresh-contractor-new`) must not run. Idempotent. The `done`
+   in that state. Idempotent. Exit 6 (or any exit other than 0 without the `done` line): no refresh, no E2E. One
+   resume is allowed (same `--expect`); if that does not end in a `done` line, run `key-out.sh remove`, open an
+   incident, and do not hand-craft a partial cut (C5). The `done`
    line prints `fullStateSha256`: assignment ids are new, so 7d850ff5 no longer matches. Needs Argus GO on the script
    first (AGR-087). After D2 (OwnedBy + window helper) this step becomes "open a provisioning window"; do not re-grant 20.
-3. Then wake as above; the CronJob runs `bootstrap-v01` with the image's own `appSignIn()` again.
+3. Then wake as above, and run the refresh by hand as described above (not by schedule); `bootstrap-v01` uses the
+   image's own `appSignIn()` again.
 
 Sleeping again (after each run): `node /work/k4.mjs plan` -> `cut --expect <planSha> --state <fullStateSha256 from regrant>` -> `readback` (devtenant-build Job, build key
 mounted), then `hack/ops/chg-2026-11-18-001-ar011-key-out.sh remove`.
@@ -114,7 +123,8 @@ All must hold; "reconciled" alone is not proof.
 4. The site answers through the internal gateway: HTTPRoutes `passkey-point-lab`, `passkey-point-dotnet-lab`,
    `passkey-point-dotnet-lab-maxsession` show `Accepted`/`ResolvedRefs` True, and a GET on the host
    (`kubectl get httproute -n <ns> -o jsonpath='{.items[*].spec.hostnames}'`) returns the login page, not 503.
-5. CronJobs: `kubectl get cronjob -n passkey-point-e2e` and `-n devtenant-build` show `SUSPEND False`; the build
+5. CronJobs: `kubectl get cronjob -n passkey-point-e2e` and `-n devtenant-build` show `SUSPEND False`, except `devtenant-refresh-contractor-new`, which shows `SUSPEND True` (per-run
+   mode, run by hand after a successful regrant); the build
    app's roles are back to the 24 names and `atlas-devtenant-build-key` exists (step "build app's Graph roles").
 6. The next nightly E2E (`passkey-point-e2e` 02:40, `-dotnet` 03:50 Europe/Amsterdam) ends `Complete`. A manual
    run (`kubectl create job --from=cronjob/...`) writes to the dev tenant: only when the team asks for it.
