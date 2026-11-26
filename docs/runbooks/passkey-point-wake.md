@@ -59,19 +59,17 @@ and every other build-key tool fail closed until this step is done. Do it BEFORE
    `devtenant-build/atlas-devtenant-build-key` (ClusterSecretStore `onepassword-devtenant-build`, item
    `atlas-devtenant-build`, `tls.key` + `tls.crt`). Readback: ES Ready, Secret has exactly those two keys.
    The 1Password item in vault `passkey-point-devtenant-build` was never removed.
-2. Roles back (reverse plan; until D2 lands the window helper, this re-grants the full 20). The build app still
-   holds `AppRoleAssignment.ReadWrite.All` (K4), so it can grant itself, with no human consent. Write a reviewed
-   `regrant` mode for `hack/ops/chg-2026-11-18-001-ar011-k4.mjs` (same own sign-in, accepts K4 before and the
-   7d850ff5 set after): POST `/servicePrincipals/8ac9ffda.../appRoleAssignments` with
-   `{principalId: build SP, resourceId: Graph SP, appRoleId}` for exactly the `regrantForWake` list in
-   `ops/evidence/chg-2026-11-18-001/40-ar011-plan-20261120t092236z-joblog.txt` (20 roles, `planSha256`
-   `33720a3d...`). Readback: the 24 role names equal the 7d850ff5 names (assignment ids are new, so the state sha
-   differs; record the new one), a fresh token's roles claim has 24 entries, wids `[0997a1d0...]` only,
-   roleAssignments 0, transitiveMemberOf 0. Needs Argus GO on the regrant script first (AGR-087).
-   After D2 (OwnedBy + window helper) this step becomes "open a provisioning window" instead; do not re-grant 20.
+2. Roles back, per E2E run (teamkeuze B1 (a), tsk-2026-11-17-110): `K4_REGRANT=1 node /work/k4.mjs regrant --expect 7db4ce52073d5e7a91e46c3bfeb14ed406d96808741027ef91b57c10b35d92b9`
+   in a devtenant-build Job with the build key mounted (same own sign-in, accepts K4, a partial run or the 7d850ff5 set).
+   It POSTs exactly the 20 `regrantForWake` roles (list pinned by that sha; planSha `33720a3d...` of the 20-role cut is
+   its origin), then reads back FULL24 three times in a row and needs a fresh token with exactly 24 roles, wids
+   `[0997a1d0...]` only, roleAssignments 0, transitiveMemberOf 0. Fail closed: exit 6 after a write that did not end
+   in that state, and then the refresh job (`devtenant-refresh-contractor-new`) must not run. Idempotent. The `done`
+   line prints `fullStateSha256`: assignment ids are new, so 7d850ff5 no longer matches. Needs Argus GO on the script
+   first (AGR-087). After D2 (OwnedBy + window helper) this step becomes "open a provisioning window"; do not re-grant 20.
 3. Then wake as above; the CronJob runs `bootstrap-v01` with the image's own `appSignIn()` again.
 
-Sleeping again: `node /work/k4.mjs plan` -> `cut --expect <planSha>` -> `readback` (devtenant-build Job, build key
+Sleeping again (after each run): `node /work/k4.mjs plan` -> `cut --expect <planSha> --state <fullStateSha256 from regrant>` -> `readback` (devtenant-build Job, build key
 mounted), then `hack/ops/chg-2026-11-18-001-ar011-key-out.sh remove`.
 
 ## Reconcile

@@ -7,6 +7,16 @@
 //   node /work/k4.mjs cut --expect <planSha>    fresh plan must give the same planSha; DELETE the 20; read back to K4;
 //                                               then a FRESH token whose roles claim is exactly K4
 //   node /work/k4.mjs readback                  GETs only: Graph roles == K4, state sha == the K4 state sha
+//   K4_REGRANT=1 node /work/k4.mjs regrant --expect <regrantSha>
+//                                               the wake path, once per E2E run (tsk-2026-11-17-110, B1 (a)): POST the reviewed 20
+//                                               roles back (REGRANT_SHA256 pins the list), read back to FULL24 three times in a
+//                                               row, then a FRESH token whose roles claim is exactly the 24 the devtenant image's
+//                                               appSignIn() demands. Fail closed: any refusal, non-2xx POST or a fresh token that
+//                                               is not FULL24 exits 6 (after a write) and the refresh job must not run. Idempotent:
+//                                               a state that already holds FULL24 writes nothing. Prints stateSha256 for the next cut.
+//   node /work/k4.mjs cut --expect <planSha> [--state <sha>]
+//                                               --state: the FULL24 state sha printed by regrant (assignment ids are new after a
+//                                               regrant, so 7d850ff5 no longer matches); the 20-entry/role-set checks stay.
 //
 // Sign-in: the image's appSignIn() demands roles == the image manifest (24) exactly, so it refuses a K4 token by design.
 // This script therefore does its own client-credentials sign-in with the image's clientAssertion() and repeats every
@@ -29,6 +39,7 @@ export const BUILD_APP_ID = '9d98adaf-499f-49b2-ba94-cab1a5e42514';
 export const BUILD_SP_ID = '8ac9ffda-2f92-42e1-b2d9-c8db041eff41';
 export const BUILD_NAME = 'atlas-devtenant-build';
 export const GRAPH_APP_ID = '00000003-0000-0000-c000-000000000000';
+export const REGRANT_SHA256 = '7db4ce52073d5e7a91e46c3bfeb14ed406d96808741027ef91b57c10b35d92b9'; // sha of regrantForWake (role+appRoleId, sorted by role), reviewed list of 40-ar011-plan-20261120t092236z, planSha 33720a3d
 export const APP_ONLY_WIDS = '0997a1d0-0d1d-4acb-b408-d5ca73121e90';
 // Rollback snapshot (31-cleanup-app-20261120t075246z buildStateSha256; names = 01-dry graphBefore).
 export const FULL_STATE_SHA = '7d850ff573678d1cd7c5c0cc50bc2fd844bf784474a0c03a31ac57d76d51abef';
@@ -44,7 +55,7 @@ const G = 'https://graph.microsoft.com/v1.0';
 
 export const sha = (v) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
 const out = (o) => console.log('RESULT ' + JSON.stringify(o));
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => (ms > 0 ? setTimeout(r, ms) : r()));
 export class Refused extends Error {}
 const sorted = (a) => [...a].sort();
 export const sameSet = (a, b) => a.length === b.length && new Set(a).size === a.length && sorted(a).every((x, i) => x === sorted(b)[i]);
@@ -54,8 +65,8 @@ export const stateOf = (as) => as.map((a) => ({ id: String(a.id), resourceId: St
 export const K4_ROLES_SHA = sha(sorted(K4));
 export const FULL24_ROLES_SHA = sha(sorted(FULL24));
 
-/** Pure: from the build SP, the Graph SP and the build SP's appRoleAssignments, what a cut removes and keeps. Refuses on any ambiguity. */
-export function planCut(buildSp, graphSp, assignments) {
+/** Pure: identity checks, role-id lookup and per-assignment checks shared by cut and regrant. Refuses on any ambiguity. */
+function planBase(buildSp, graphSp, assignments) {
   if (String(buildSp.appId).toLowerCase() !== BUILD_APP_ID) throw new Refused(`SP appId ${buildSp.appId} != ${BUILD_APP_ID}`);
   if (String(buildSp.id).toLowerCase() !== BUILD_SP_ID) throw new Refused(`SP id ${buildSp.id} != ${BUILD_SP_ID}`);
   if (buildSp.displayName !== BUILD_NAME) throw new Refused(`SP displayName "${buildSp.displayName}" != "${BUILD_NAME}"`);
@@ -78,6 +89,12 @@ export function planCut(buildSp, graphSp, assignments) {
   if (new Set(roles).size !== roles.length) throw new Refused('duplicate Graph role assignments on the build SP');
   const unknown = roles.filter((r) => !FULL24.includes(r));
   if (unknown.length) throw new Refused(`roles outside the 7d850ff5 set: ${unknown.join(', ')}`);
+  return { appRoles, roleId, name, roles };
+}
+
+/** Pure: from the build SP, the Graph SP and the build SP's appRoleAssignments, what a cut removes and keeps. Refuses on any ambiguity. */
+export function planCut(buildSp, graphSp, assignments) {
+  const { roleId, name, roles } = planBase(buildSp, graphSp, assignments);
   const missingK4 = K4.filter((r) => !roles.includes(r));
   if (missingK4.length) throw new Refused(`K4 roles already absent: ${missingK4.join(', ')}; not a state this script handles`);
   const keep = assignments.filter((a) => K4.includes(name(a.appRoleId)))
@@ -108,7 +125,25 @@ export function tokenRolesKind(roles) {
   return null;
 }
 
+/** Pure: what a regrant writes. Refuses unless the build SP holds K4 (it grants itself with AppRoleAssignment.ReadWrite.All), nothing outside FULL24, and the
+ *  full reviewed 20-role list matches REGRANT_SHA256. Roles already present are skipped (idempotent, resumable after a partial run). */
+export function planRegrant(buildSp, graphSp, assignments) {
+  const base = planBase(buildSp, graphSp, assignments);
+  const roles = base.roles;
+  const missingK4 = K4.filter((r) => !roles.includes(r));
+  if (missingK4.length) throw new Refused(`K4 roles absent: ${missingK4.join(', ')}; the build app cannot grant itself, not a state this script handles`);
+  const full = FULL24.filter((r) => !K4.includes(r)).map((r) => ({ role: r, appRoleId: base.roleId[r] })).sort((x, y) => (x.role < y.role ? -1 : 1));
+  if (full.length !== 20) throw new Refused(`regrant list has ${full.length} entries, the reviewed plan has 20`);
+  const regrantSha256 = sha(full);
+  if (regrantSha256 !== REGRANT_SHA256) throw new Refused(`regrant list sha ${regrantSha256} != reviewed ${REGRANT_SHA256} (Graph role ids changed?); nothing written`);
+  const grant = full.filter((x) => !roles.includes(x.role));
+  return { buildSpId: String(buildSp.id), graphSpId: String(graphSp.id), roleId: base.roleId, rolesBefore: sorted(roles), stateSha256: sha(stateOf(assignments)),
+    regrantSha256, grant, alreadyFull: grant.length === 0, grantCount: grant.length };
+}
+
 let wrote = false;
+export const timing = { post: 5000, poll: 10000, token: 30000 };
+export const _resetWrote = () => { wrote = false; };
 
 /** Own client-credentials sign-in + the ADR-027 self-check, with roles accepted as FULL24 or K4 (see header). */
 async function signIn(lib, want) {
@@ -133,6 +168,8 @@ async function signIn(lib, want) {
     rec.wids = has('wids') ? claims.wids : null;
     const roles = Array.isArray(claims.roles) ? claims.roles.map(String) : [];
     rec.roles = roles.length; rec.rolesKind = tokenRolesKind(roles);
+    // Only regrant may resume a partial run: roles that contain all of K4 and nothing outside FULL24 (it needs AppRoleAssignment.ReadWrite.All to finish).
+    if (!rec.rolesKind && want?.includes('PARTIAL') && K4.every((r) => roles.includes(r)) && roles.every((r) => FULL24.includes(r))) rec.rolesKind = 'PARTIAL';
     assertDevTenant(`${BUILD_NAME} token`, claims.tid);
     if (String(claims.tid).toLowerCase() !== TENANT_ID) throw new Refused('token tid mismatch');
     if (String(rec.appid).toLowerCase() !== BUILD_APP_ID) throw new Refused('token appid mismatch');
@@ -168,16 +205,20 @@ async function signIn(lib, want) {
   }
 }
 
-function client(tok) {
-  const call = async (method, path) => {
+export function client(tok, grantOk = null) {
+  const call = async (method, path, body = null) => {
     const url = path.startsWith(G + '/') ? path : G + path;
     if (!url.startsWith(G + '/')) throw new Refused('URL outside Graph v1.0');
     if (method !== 'GET') {
-      // The only write this script ever makes: DELETE of one appRoleAssignment of the build SP.
-      if (method !== 'DELETE' || !new RegExp(`^${G}/servicePrincipals/${BUILD_SP_ID}/appRoleAssignments/[A-Za-z0-9_-]+$`).test(url)) throw new Refused(`write not allowed: ${method} ${url}`);
+      // The only writes this script ever makes: DELETE of one appRoleAssignment of the build SP (cut), and POST of one reviewed
+      // Graph role to the build SP itself (regrant; grantOk is the set of allowed bodies, built from the pinned plan).
+      const del = method === 'DELETE' && new RegExp(`^${G}/servicePrincipals/${BUILD_SP_ID}/appRoleAssignments/[A-Za-z0-9_-]+$`).test(url);
+      const post = method === 'POST' && url === `${G}/servicePrincipals/${BUILD_SP_ID}/appRoleAssignments` && grantOk instanceof Set
+        && body && body.principalId === BUILD_SP_ID && grantOk.has(`${body.resourceId}|${body.appRoleId}`) && Object.keys(body).length === 3;
+      if (!del && !post) throw new Refused(`write not allowed: ${method} ${url}`);
       wrote = true;
     }
-    const r = await fetch(url, { method, headers: { authorization: `Bearer ${tok}` } });
+    const r = await fetch(url, { method, headers: body ? { authorization: `Bearer ${tok}`, 'content-type': 'application/json' } : { authorization: `Bearer ${tok}` }, body: body ? JSON.stringify(body) : undefined });
     const text = await r.text();
     let json = null; try { json = text ? JSON.parse(text) : null; } catch { json = null; }
     return { status: r.status, json, code: json?.error?.code ?? null };
@@ -218,20 +259,79 @@ const planLine = (mode, p) => out({ step: 'plan', mode, buildSpId: p.buildSpId, 
   keep: p.keep, remove: p.remove, removeCount: p.remove.length, planSha256: p.planSha256,
   k4StateSha256: p.k4StateSha256, k4RolesSha256: p.k4RolesSha256, regrantForWake: p.regrant });
 
-async function main(argv) {
-  const mode = argv[0];
-  if (!['plan', 'cut', 'readback'].includes(mode)) { out({ refused: 'usage: plan | cut --expect <planSha256> | readback' }); return 2; }
-  let expect = null;
-  for (let i = 1; i < argv.length; i++) {
-    if (argv[i] !== '--expect' || !/^[0-9a-f]{64}$/.test(argv[i + 1] ?? '') || expect) { out({ refused: `unknown argument ${argv[i]}` }); return 2; }
-    expect = argv[++i];
+/** Wake path, once per E2E run. Fail closed: returns 6 after any write that did not end in a verified FULL24 (token included), 2 before any write. */
+export async function regrantFlow(lib, expect) {
+  if (process.env.K4_REGRANT !== '1') throw new Refused('regrant needs K4_REGRANT=1 (explicit mode, Argus GO on this script is the gate)');
+  const s = await signIn(lib, ['K4', 'FULL24', 'PARTIAL']);
+  const probe = client(s.token);
+  const { buildSp, graphSp, read } = await context(lib, probe, s.kind);
+  const p = planRegrant(buildSp, graphSp, await read());
+  out({ step: 'plan', mode: 'regrant', buildSpId: p.buildSpId, graphSpId: p.graphSpId, rolesBefore: p.rolesBefore, rolesBeforeCount: p.rolesBefore.length,
+    stateSha256: p.stateSha256, regrantSha256: p.regrantSha256, grant: p.grant, grantCount: p.grantCount, alreadyFull: p.alreadyFull });
+  if (expect !== p.regrantSha256) throw new Refused(`regrantSha ${p.regrantSha256} != --expect ${expect}; nothing written`);
+  const grantOk = new Set(p.grant.map((x) => `${p.graphSpId}|${x.appRoleId}`));
+  const c = client(s.token, grantOk);
+  const nameOf = (id) => (graphSp.appRoles ?? []).find((r) => String(r.id) === String(id))?.value ?? null;
+  let granted = 0;
+  for (const x of p.grant) {
+    let st = null, code = null, done = false;
+    for (let i = 0; i < 3 && !done; i++) {
+      if (i) await sleep(timing.post);
+      const w = await c.call('POST', `/servicePrincipals/${p.buildSpId}/appRoleAssignments`, { principalId: p.buildSpId, resourceId: p.graphSpId, appRoleId: x.appRoleId });
+      st = w.status; code = w.code;
+      if (st === 201) done = true;
+      // A 400/409 "already exists" is never proof on its own: count it only when the role is also in the list.
+      else if (st === 400 || st === 409) done = (await read()).some((a) => String(a.appRoleId) === x.appRoleId);
+    }
+    out({ step: 'write', method: 'POST', role: x.role, status: st, code, confirmed: done });
+    if (!done) throw new Refused(`POST ${x.role} -> ${st} ${code ?? ''}; stopped after ${granted} of ${p.grant.length}`);
+    granted++;
   }
-  if (mode === 'cut' && !expect) { out({ refused: 'cut needs --expect <planSha256 from plan>' }); return 2; }
-  if (mode !== 'cut' && expect) { out({ refused: `${mode} takes no --expect` }); return 2; }
+  let good = 0, cur = [];
+  for (let i = 0; i < 24 && good < 3; i++) {
+    if (i) await sleep(timing.poll);
+    cur = await read();
+    const roles = cur.map((a) => nameOf(a.appRoleId));
+    const nonGraph = cur.filter((a) => String(a.resourceId) !== String(graphSp.id)).length;
+    good = nonGraph === 0 && sameSet(roles, [...FULL24]) ? good + 1 : 0;
+  }
+  const rolesNow = sorted(cur.map((a) => nameOf(a.appRoleId)));
+  const stateSha256 = sha(stateOf(cur));
+  out({ step: 'read-back', roles: rolesNow, rolesCount: rolesNow.length, rolesSha256: sha(rolesNow), full24RolesSha256: FULL24_ROLES_SHA, stateSha256, goodReadsInARow: good, ok: good >= 3 });
+  if (good < 3) { out({ failed: 'read-back did not converge on FULL24', wrote, granted }); return wrote ? 6 : 2; }
+  // Fresh token: exactly the 24 the image's appSignIn() demands, so the refresh job can sign in (token issuance may lag the directory).
+  let fresh = null, lastErr = null;
+  for (let i = 0; i < 20 && !fresh; i++) {
+    if (i) await sleep(timing.token);
+    try { fresh = await signIn(lib, ['FULL24']); } catch (e) { lastErr = e?.message ?? String(e); }
+  }
+  out({ step: 'fresh-token', rolesKind: fresh?.kind ?? null, rolesCount: fresh?.roles?.length ?? null, rolesSha256: fresh ? sha(fresh.roles) : null, ok: fresh?.kind === 'FULL24', lastError: fresh ? null : lastErr });
+  if (!fresh) { out({ failed: 'fresh token did not show FULL24; the refresh job must NOT run', wrote, granted }); return wrote ? 6 : 2; }
+  out({ step: 'done', mode: 'regrant', written: granted, fullStateSha256: stateSha256, rc: 0, next: 'refresh job, E2E run, then plan -> cut --expect <planSha> --state <fullStateSha256>' });
+  return 0;
+}
 
-  const auth = await import('/app/infra/devtenant/lib/app-auth.ts');
-  const { assertDevTenant } = await import('/app/infra/devtenant/lib/tenant-pin.ts');
-  const lib = { ...auth, assertDevTenant };
+export async function main(argv, injectedLib = null) {
+  const mode = argv[0];
+  if (!['plan', 'cut', 'readback', 'regrant'].includes(mode)) { out({ refused: 'usage: plan | cut --expect <planSha256> [--state <sha>] | readback | regrant --expect <regrantSha256>' }); return 2; }
+  let expect = null, state = null;
+  for (let i = 1; i < argv.length; i++) {
+    const hex = /^[0-9a-f]{64}$/.test(argv[i + 1] ?? '');
+    if (argv[i] === '--expect' && hex && !expect) { expect = argv[++i]; continue; }
+    if (argv[i] === '--state' && hex && !state && mode === 'cut') { state = argv[++i]; continue; }
+    out({ refused: `unknown argument ${argv[i]}` }); return 2;
+  }
+  if ((mode === 'cut' || mode === 'regrant') && !expect) { out({ refused: `${mode} needs --expect <sha>` }); return 2; }
+  if (mode !== 'cut' && mode !== 'regrant' && expect) { out({ refused: `${mode} takes no --expect` }); return 2; }
+
+  let lib = injectedLib; // tests inject a fake image lib; in the Job the real one is loaded
+  if (!lib) {
+    const auth = await import('/app/infra/devtenant/lib/app-auth.ts');
+    const { assertDevTenant } = await import('/app/infra/devtenant/lib/tenant-pin.ts');
+    lib = { ...auth, assertDevTenant };
+  }
+
+  if (mode === 'regrant') return regrantFlow(lib, expect);
 
   if (mode === 'readback') {
     const s = await signIn(lib, null);
@@ -255,7 +355,8 @@ async function main(argv) {
   if (mode === 'plan') { out({ step: 'done', mode, written: 0, note: 'plan: GETs only, nothing written' }); return 0; }
 
   // cut
-  if (!p.stateIsFull) throw new Refused(`state sha ${p.stateSha256} != 7d850ff5 (the reviewed rollback snapshot); nothing written`);
+  // After a regrant the assignment ids are new: --state pins the sha regrant printed instead of 7d850ff5 (role set is still FULL24, 20 to remove).
+  if (!(state ? p.stateSha256 === state : p.stateIsFull)) throw new Refused(`state sha ${p.stateSha256} != ${state ? '--state ' + state : '7d850ff5 (the reviewed rollback snapshot)'}; nothing written`);
   if (p.remove.length !== 20) throw new Refused(`removal list has ${p.remove.length} entries, the reviewed plan has 20; nothing written`);
   if (expect !== p.planSha256) throw new Refused(`planSha ${p.planSha256} != --expect ${expect}; nothing written`);
 
@@ -267,7 +368,7 @@ async function main(argv) {
     if (K4.includes(x.role) || K4.includes(nameOf(x.appRoleId))) throw new Refused(`refusing to remove K4 role ${x.role}`);
     let st = null, code = null, done = false;
     for (let i = 0; i < 3 && !done; i++) {
-      if (i) await sleep(5000);
+      if (i) await sleep(timing.post);
       const w = await c.call('DELETE', `/servicePrincipals/${p.buildSpId}/appRoleAssignments/${x.assignmentId}`);
       st = w.status; code = w.code;
       // A 404 is never proof of delete on its own: count it only when the id is also absent from the list.
@@ -282,7 +383,7 @@ async function main(argv) {
   // Read back: K4 role set, the expected K4 state sha, and every removed id answering 404, three reads in a row.
   let good = 0, cur = [], gone = 0;
   for (let i = 0; i < 24 && good < 3; i++) {
-    if (i) await sleep(10000);
+    if (i) await sleep(timing.poll);
     cur = await read();
     const roles = cur.map((a) => nameOf(a.appRoleId));
     gone = 0;
@@ -297,7 +398,7 @@ async function main(argv) {
   // Fresh token: roles claim exactly K4 (token issuance may lag the directory; retry spaced).
   let fresh = null, lastErr = null;
   for (let i = 0; i < 20 && !fresh; i++) {
-    if (i) await sleep(30000);
+    if (i) await sleep(timing.token);
     try { fresh = await signIn(lib, ['K4']); } catch (e) { lastErr = e?.message ?? String(e); }
   }
   out({ step: 'fresh-token', rolesKind: fresh?.kind ?? null, roles: fresh?.roles ?? null, rolesSha256: fresh ? sha(fresh.roles) : null, k4RolesSha256: K4_ROLES_SHA, ok: fresh?.kind === 'K4', lastError: fresh ? null : lastErr });
