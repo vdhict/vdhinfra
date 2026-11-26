@@ -56,7 +56,7 @@ spec:
       subPath: ""
 
     ingress:
-      enabled: true
+      enabled: false
       className: internal
       annotations:
         external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"

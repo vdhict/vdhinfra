@@ -34,7 +34,7 @@ spec:
     cleanPrometheusOperatorObjectNames: true
     alertmanager:
       ingress:
-        enabled: true
+        enabled: false
         pathType: Prefix
         ingressClassName: internal
         annotations:
@@ -127,7 +127,7 @@ spec:
               targetLabel: kubernetes_node
     prometheus:
       ingress:
-        enabled: true
+        enabled: false
         ingressClassName: internal
         annotations:
           external-dns.alpha.kubernetes.io/target: internal.${SECRET_DOMAIN}
@@ -136,7 +136,7 @@ spec:
           - prometheus.${SECRET_DOMAIN}
       prometheusSpec:
         scrapeInterval: 1m # Must match interval in Grafana Helm chart
-        enableAdminAPI: true
+        enableAdminAPI: false
         enableFeatures:
           - auto-gomemlimit
           - memory-snapshot-on-shutdown
