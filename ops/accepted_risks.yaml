@@ -29,9 +29,17 @@ risks:
     accepted_at: 2026-05-13
     review_by: 2027-05-13
     rationale: Flux v2 requires cluster-admin on its core controllers; multi-tenant Flux + custom ClusterRole alternatives rejected as too costly for this scale.
+  - id: ar-002
+    adr: docs/adr/0004-forge-no-offsite-backup-interim.md
+    finding_title: "^.*(no off-?site|off-?site).*(backup|copy).*$"
+    target: "^(devtools/.*|k8s\\.devtools\\..*|s3://forge-(backups|volsync).*)$"
+    accepted_by: user
+    accepted_at: 2026-09-23
+    review_by: 2027-03-23
+    rationale: Forge backups stay on-prem only until Sander decides on off-site backups in general; interim, typed in session 2026-09-23.
   # ar-017 (Connect token for vault cursus-gast) CLOSED 2026-10-29: store, ExternalSecret and
-  # vault link removed after go-live (Argus D1). Keep the id reserved; ar-002..ar-016 are
-  # taken in unpushed work (main worktree).
+  # vault link removed after go-live (Argus D1). Keep the id reserved; ar-003..ar-016 are
+  # taken in unpushed work (main worktree). ar-002 landed on main 2026-11-26 (G1 row e).
   # chg-2026-10-28-002 (Argus go-live D2/B1).
   - id: ar-018
     adr: "ops change chg-2026-10-28-002 (Argus go-live review 72427592, D2); closes with tsk-2026-10-26-002"
