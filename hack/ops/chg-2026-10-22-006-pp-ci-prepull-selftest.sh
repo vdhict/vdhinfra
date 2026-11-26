@@ -61,7 +61,7 @@ run_case() {
     || no "$name: rc=$rc (want $wrc) tries=$tries (want $wtries) waits=$waits (want $wwaits)"
   sed 's/^/    /' "$d/prepull.txt"
 }
-PIN=sha256:0465844ba1d9f5689ac64626537e275f59b65569703e90edc46b33f93f872d8b
+PIN=sha256:1932ed7182997745254f4e99c08fb8f707ba06c9b61cc4578310456e2450ad92
 OTHER=sha256:1111111111111111111111111111111111111111111111111111111111111111
 run_case ok-first-try        0 "$PIN"   - 0 1 none
 run_case fail-2x-then-ok     2 "$PIN"   - 0 3 10,30
@@ -71,7 +71,7 @@ run_case digest-mismatch     0 "$OTHER" - 2 1 none
 run_case unpinned-tag-refused 0 "$PIN" registry.access.redhat.com/hi/dotnet-sdk:10.0 3 0 none
 
 # Static checks on the runner itself.
-grep -qx 'PREPULL_REF=registry.access.redhat.com/hi/dotnet-sdk@sha256:0465844ba1d9f5689ac64626537e275f59b65569703e90edc46b33f93f872d8b' "$RS" \
+grep -qx 'PREPULL_REF=registry.access.redhat.com/hi/dotnet-sdk@sha256:1932ed7182997745254f4e99c08fb8f707ba06c9b61cc4578310456e2450ad92' "$RS" \
   && ok "pinned ref is the step 9 digest" || no "pinned ref"
 call=$(grep -n '^prepull "\$PREPULL_REF"' "$RS" | head -1 | cut -d: -f1)
 first_ci=$(grep -n 'bash ci/run.sh' "$RS" | head -1 | cut -d: -f1)

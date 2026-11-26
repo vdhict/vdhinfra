@@ -19,9 +19,11 @@ wait_collect() { for _ in $(seq 1 720); do [ -e /work/in/COLLECTED ] && return 0
 NODE_V=24.22.1;  NODE_SHA=6c172a9ab6718f7b801fb5a7bd486af2ee5e32758086a04b84fcce2aa77095e6
 GRYPE_V=0.121.0; GRYPE_SHA=64e07133d3486115de647a66581461dccf5c732748a0a3119077395565f15519
 SYFT_V=1.55.0;   SYFT_SHA=bb65249542db5fedeeb4d3f9b018b75e7264dbfbbb10486f044581a92f90490d
+# Exactly the app's global.json sdk.version (ci/dotnet-sdk-check.sh wants `dotnet --version` == it; latestPatch never
+# crosses a feature band, so a 4xx SDK beside it is never picked). sha512 = releases.json 10.0 (release 10.0.15,
+# file sha256 482b9d79...a87c0) == the app's ci/dotnet-sdk.sha512 linux-x64 line; archive re-hashed 2026-11-26 (chg-2026-11-24-003).
 declare -A SDK_SHA512=(
-  [10.0.113]=1f2746d3684ef782c4308e056e709e9361802e082e401aff3760868125009a8aee2803ff3eeb87587dc60c766e5dc4f9bfd6051c660a85602cc892c31f72256d
-  [10.0.402]=1904a98dda2db34ba78ba3c4fb1b224455329af91c341d83547843c1839e112b04ae699ee92fa2449a8f62249196a938723078c0c60b9f65c88539d5687729c2
+  [10.0.115]=01bf048cf0495a7ce76be07b9623d385c9d9f172237d0267ded25c31f4b19604d74f1d328d0ee5fe6bcfb23cb20c41fb072c9b84fce6582c20edb1e3d93ea012
 )
 fetch() { curl -fsSL --retry 3 -o "$2" "$1" || die "download $1"; }
 
@@ -105,9 +107,10 @@ log "reference e2e installed"
 
 # >>> prepull (Mack 25-10): pull the step 9 base by its pinned digest before any ci/run.sh, so a registry/CDN 5xx
 # (runs 20261024t0345z/0357z) gets three tries instead of failing step 9. Never a tag. The ref is the one ci/run.sh
-# prints at step 9 (evidence 20261024t0357z-v6-c1b2766-steps.txt). Every try goes to /work/out/prepull.txt.
+# prints at step 9 = the app's LINUX_IMAGE default and Containerfile SDK_IMAGE (app 557e3a6, chg-2026-11-24-003; first
+# pinned from evidence 20261024t0357z-v6-c1b2766-steps.txt). Every try goes to /work/out/prepull.txt.
 # Self-test: hack/ops/chg-2026-10-22-006-pp-ci-prepull-selftest.sh (sources this block between the markers).
-PREPULL_REF=registry.access.redhat.com/hi/dotnet-sdk@sha256:0465844ba1d9f5689ac64626537e275f59b65569703e90edc46b33f93f872d8b
+PREPULL_REF=registry.access.redhat.com/hi/dotnet-sdk@sha256:1932ed7182997745254f4e99c08fb8f707ba06c9b61cc4578310456e2450ad92
 PREPULL_WAITS="10 30"
 PREPULL_LOG=/work/out/prepull.txt
 pl() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >> "$PREPULL_LOG"; }
