@@ -1,0 +1,39 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/prometheusrule_v1.json
+#
+# ExternalSecret sync failure (chg-2026-11-26-003, G1 row c, inc-2026-09-15-001).
+# observability/airmax-backup sat in SecretSyncedError for 90 days unnoticed:
+# deletionPolicy Retain kept the old Secret, so nothing downstream broke, and
+# no rule watched ESO. This rule closes that gap.
+#
+# Metric: externalsecret_status_condition from the ESO controller
+# (job external-secrets-metrics). Its `namespace` label is the ESO pod's
+# namespace (security); the ExternalSecret's own namespace is
+# `exported_namespace`. Aggregated by (exported_namespace, name) so an ESO
+# leader change (new pod/instance label) does not reset the 30m `for`.
+#
+# Routing: severity warning -> Alertmanager "cards" receiver (team board card,
+# no sound, so AGR-074 night silence holds; chg-2026-11-20-070). No secret
+# content: only the ExternalSecret namespace/name appear in the alert.
+# No `$` in the expression on purpose (Flux postBuild substitution).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: externalsecret-alerts
+  labels:
+    app.kubernetes.io/name: externalsecret-alerts
+spec:
+  groups:
+    - name: externalsecret-alerts
+      rules:
+        - alert: ExternalSecretSyncError
+          expr: |
+            max by (exported_namespace, name) (
+              externalsecret_status_condition{condition="Ready",status="False"}
+            ) == 1
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "ExternalSecret {{ $labels.exported_namespace }}/{{ $labels.name }} is not Ready (sync failing) for over 30m"
+            description: "ExternalSecret {{ $labels.exported_namespace }}/{{ $labels.name }} has Ready=False for 30m+. Its target Secret is not refreshed (with deletionPolicy Retain an old copy may still be served). Check: kubectl -n {{ $labels.exported_namespace }} describe externalsecret {{ $labels.name }}; usually a missing or renamed 1Password item/field."

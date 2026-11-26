@@ -25,3 +25,4 @@ resources:
   - ./cilium-l2-rules/install.yaml
   - ./cronjob-staleness/install.yaml
   - ./mypka-wires-alerts/install.yaml
+  - ./externalsecret-alerts/install.yaml
