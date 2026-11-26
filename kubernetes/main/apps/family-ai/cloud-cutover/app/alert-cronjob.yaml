@@ -1,7 +1,8 @@
 ---
 # G6 + C4 (chg-2026-11-17-011, Argus G6/C4/D-F1/S-F5): transition alerts via Alertmanager labels, every 5 minutes.
-# See files/cloud_alert.py. Mounts the shared ledger READ-ONLY. MONEY_TO_OWNER stays "false" until Atlas has checked
-# the first real same_month_200 against the grant renewal day (Argus D-F1); flipping it is its own commit.
+# See files/cloud_alert.py. Mounts the shared ledger READ-ONLY. MONEY_TO_OWNER "true" since chg-2026-11-26-006
+# (tsk-2026-11-26-907, team choice AGR-120, money is the owner's AGR-128): a money item goes to the owner route, held
+# 23:00-07:00 by the script (AGR-074). The AGR-129 credit ceiling stays the hard brake. Revert = set "false".
 # yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/batch/cronjob_v1.json
 apiVersion: batch/v1
 kind: CronJob
@@ -49,7 +50,7 @@ spec:
                 - name: POD_NAMESPACE
                   valueFrom:
                     fieldRef: {fieldPath: metadata.namespace}
-                - {name: MONEY_TO_OWNER, value: "false"}
+                - {name: MONEY_TO_OWNER, value: "true"}
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
