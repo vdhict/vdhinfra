@@ -1,0 +1,4 @@
+[
+  {"labels": {"alertname": "FamilyCloudMoneyReopen", "severity": "critical", "namespace": "family-ai"},
+   "annotations": {"summary": "second episode"}, "fingerprint": "aaaa000000000001", "startsAt": "2026-11-27T12:00:00.000Z", "status": {"state": "active"}}
+]

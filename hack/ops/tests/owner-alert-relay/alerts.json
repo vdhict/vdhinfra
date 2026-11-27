@@ -1,0 +1,11 @@
+[
+  {"labels": {"alertname": "FamilyCloudMoneyReopen", "severity": "critical", "namespace": "family-ai", "component": "aiops-family-cloud"},
+   "annotations": {"summary": "family-cloud: a paid 200 in the SAME month as a billing cut-off"},
+   "fingerprint": "aaaa000000000001", "startsAt": "2026-11-27T09:55:00.000Z", "status": {"state": "active"}},
+  {"labels": {"alertname": "FamilyCloudMoneyCandidate", "severity": "warning", "namespace": "family-ai"},
+   "annotations": {"summary": "team check item"}, "fingerprint": "aaaa000000000002", "startsAt": "2026-11-27T09:55:00.000Z", "status": {"state": "active"}},
+  {"labels": {"alertname": "KubePodCrashLooping", "severity": "critical", "namespace": "media"},
+   "annotations": {"summary": "not an owner alert"}, "fingerprint": "aaaa000000000003", "startsAt": "2026-11-27T09:00:00.000Z", "status": {"state": "active"}},
+  {"labels": {"alertname": "FamilyCloudMoneyReopen", "severity": "critical", "namespace": "family-ai"},
+   "annotations": {"summary": "silenced copy"}, "fingerprint": "aaaa000000000004", "startsAt": "2026-11-27T09:50:00.000Z", "status": {"state": "suppressed"}}
+]

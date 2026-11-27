@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- wq-161: owner money/act-on alerts from Alertmanager to pka-alert --for-sander, day only (hack/ops/owner-alert-relay.sh).
+     Install on the Mini AFTER the security review and from a checkout of origin/main:
+       cp to ~/Library/LaunchAgents/, then
+       launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/net.vdhict.owner-alert-relay.plist -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>net.vdhict.owner-alert-relay</string>
+  <key>ProgramArguments</key><array><string>/bin/bash</string><string>/Users/sheijden/Code/homelab-migration/vdhinfra/hack/ops/owner-alert-relay.sh</string></array>
+  <key>StartInterval</key><integer>300</integer>
+  <key>RunAtLoad</key><true/>
+  <key>StandardOutPath</key><string>/Users/sheijden/Library/Logs/owner-alert-relay.log</string>
+  <key>StandardErrorPath</key><string>/Users/sheijden/Library/Logs/owner-alert-relay.log</string>
+</dict>
+</plist>
