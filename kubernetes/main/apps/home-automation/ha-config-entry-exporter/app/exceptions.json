@@ -52,5 +52,11 @@
     "entry_id": "01JPT3NNY2V0GDPJJZFT313RAY",
     "reden": "genegeerde discovery-entry, laadt by design nooit; gemeten 2026-11-22, tsk-2026-11-22-103",
     "herzien": "2026-12-22"
+  },
+  {
+    "domain": "fully_kiosk",
+    "entry_id": "01JPTM45KA64HB43XARF94E91D",
+    "reden": "kantoortablet uit of zonder stroom/wifi (UDM: laatst gezien 2026-08-16, vast IP ongewijzigd); geen automations; gemeten 2026-11-27, tsk-2026-11-22-904",
+    "herzien": "2026-12-22"
   }
 ]
