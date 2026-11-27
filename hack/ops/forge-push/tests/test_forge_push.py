@@ -29,10 +29,10 @@ spec.loader.exec_module(fp)
 G = ["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "init.defaultBranch=main",
      "-c", "commit.gpgsign=false"]
 FP = "SHA256:testfingerprintnotarealkey"
-RULES_T1 = [  # cluster-wires today: main allows deploy keys; ** (T1) and the pinned patterns do not
-    {"name": "main", "can_push": True, "enable_whitelist": True, "whitelist_deploy_keys": True},
-    {"name": "runner/**", "can_push": True, "enable_whitelist": True, "whitelist_deploy_keys": False},
-    {"name": "**", "can_push": True, "enable_whitelist": True, "whitelist_deploy_keys": False},
+RULES_T1 = [  # cluster-wires as measured 2026-11-27: P1 rules created 19-11, T1 "**" created 27-11 (newest)
+    {"name": "main", "can_push": True, "enable_whitelist": True, "whitelist_deploy_keys": True, "created": 1795089983, "id": 13},
+    {"name": "runner/**", "can_push": True, "enable_whitelist": True, "whitelist_deploy_keys": False, "created": 1795089983, "id": 14},
+    {"name": "**", "can_push": True, "enable_whitelist": True, "whitelist_deploy_keys": False, "created": 1795779384, "id": 44},
 ]
 FAKE_FILTER = '''
 class FenceError(RuntimeError):
@@ -168,8 +168,8 @@ class PushTests(unittest.TestCase):
     def test_protected_pattern_refused_even_if_registry_allows(self):
         self.reg["keys"][0]["allow_branches"] = ["main", "runner/**", "mack/**"]
         self.reg_path.write_text(json.dumps(self.reg))
-        self.assertEqual(self.push("runner/x=" + self.b), 1)
-        self.assertIn("does not allow deploy keys", self.lines()[0]["payload"]["reason"])
+        self.assertEqual(self.push("runner/x=" + self.b), 1)                 # older runner/** wins over **
+        self.assertIn("rule 'runner/**'", self.lines()[0]["payload"]["reason"])
         LocalForge.rules_value = [r for r in RULES_T1 if r["name"] != "**"]
         self.assertEqual(self.push("runner/x=" + self.b), 1)
         self.assertIn("rule 'runner/**'", self.lines()[1]["payload"]["reason"])
@@ -319,9 +319,11 @@ class ProbeTests(unittest.TestCase):
 class RuleMatching(unittest.TestCase):
     def test_forgejo_order_plain_first_then_glob(self):
         self.assertEqual(fp.first_rule(RULES_T1, "main")["name"], "main")
-        # Forgejo 15 has no rule priority: globs sort by name, so T1 "**" shadows "runner/**"
-        self.assertEqual(fp.first_rule(RULES_T1, "runner/2026-11-05-fence-v4")["name"], "**")
-        self.assertEqual(fp.first_rule(RULES_T1[:2], "runner/2026-11-05-fence-v4")["name"], "runner/**")
+        # Forgejo 15.0.9 protected_branch_list.go:34: globs by CreatedUnix, oldest first; ** (27-11) is newest
+        self.assertEqual(fp.first_rule(RULES_T1, "runner/2026-11-05-fence-v4")["name"], "runner/**")
+        newer = dict(RULES_T1[1], created=RULES_T1[2]["created"] + 1, id=45)
+        self.assertEqual(fp.first_rule([RULES_T1[2], newer], "runner/x")["name"], "**")   # a newer glob loses to **
+        self.assertEqual(fp.first_rule(RULES_T1, "MAIN")["name"], "main")                 # plain match is EqualFold
         self.assertEqual(fp.first_rule(RULES_T1, "mack/mini/x")["name"], "**")
         self.assertIsNone(fp.first_rule([{"name": "main-pre-*"}], "main"))
         self.assertTrue(fp.glob_re("main-pre-*").match("main-pre-v10-2026-10-28"))

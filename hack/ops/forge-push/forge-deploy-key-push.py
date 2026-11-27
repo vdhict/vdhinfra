@@ -92,11 +92,12 @@ def is_glob(name: str) -> bool:
 
 
 def first_rule(rules: list[dict], branch: str) -> dict | None:
-    """Forgejo order (no priority column on 15.x): an exact plain-name rule first, then globs by name."""
+    """Forgejo 15.0.9 order (models/git/protected_branch_list.go:27-35): plain names first (matched with EqualFold),
+    then globs by CreatedUnix, oldest first. Ties are broken by id here (sort.Slice is not stable)."""
     for r in rules:
-        if not is_glob(r["name"]) and r["name"] == branch:
+        if not is_glob(r["name"]) and r["name"].lower() == branch.lower():
             return r
-    for r in sorted((r for r in rules if is_glob(r["name"])), key=lambda r: r["name"]):
+    for r in sorted((r for r in rules if is_glob(r["name"])), key=lambda r: (r.get("created", 0), r.get("id", 0))):
         if glob_re(r["name"]).match(branch):
             return r
     return None
@@ -138,14 +139,14 @@ class Forge:
               "and r.lower_name=%s)" % (fat.lit(owner), fat.lit(name))
         if not fat.sql("select count(*) from repository where id = " + rid).strip() == "1":
             raise Refused("repo %s not found on the forge" % repo)
-        rows = fat.sql("select branch_name, can_push, enable_whitelist, whitelist_deploy_keys "
+        rows = fat.sql("select branch_name, can_push, enable_whitelist, whitelist_deploy_keys, created_unix, id "
                        "from protected_branch where repo_id = " + rid).splitlines()
         tags = fat.sql("select name_pattern from protected_tag where repo_id = " + rid).splitlines()
         rules = []
         for line in rows:
-            n, cp, ew, wd = line.split("|")
+            n, cp, ew, wd, cu, i = line.split("|")
             rules.append({"name": n, "can_push": cp == "t", "enable_whitelist": ew == "t",
-                          "whitelist_deploy_keys": wd == "t"})
+                          "whitelist_deploy_keys": wd == "t", "created": int(cu), "id": int(i)})
         return rules, [t for t in tags if t]
 
     def readback(self, repo: str, branch: str, method: str) -> str | None:
