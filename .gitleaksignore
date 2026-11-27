@@ -1,0 +1,2 @@
+# wq-097: ESO template guard compares against the OpenSSH key header string; not a key (Atlas 2026-11-27)
+dad6af9c26dd937234a628e797721dd87d2e116d:kubernetes/main/apps/ha-zones/ha-zones/app/externalsecret.yaml:private-key:87
