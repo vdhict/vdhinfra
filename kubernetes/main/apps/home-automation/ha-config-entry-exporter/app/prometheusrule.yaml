@@ -15,10 +15,12 @@ spec:
         # broken integration with many entries is one card.
         # Entries on the exception list (ConfigMap ha-config-entry-exceptions) are left out only while their
         # herzien date is valid (exporter: today <= herzien <= today+30d); after that they alert again.
+        # max_over_time[10m]: HA retries a failed entry about hourly and reports setup_in_progress for ~1 min;
+        # without smoothing that gap resets for: 1h, so a permanently broken entry never fires (wq-159).
         - alert: HAConfigEntryNotLoaded
           expr: |
             sum by (domain, state) (
-              ha_config_entry_state{state=~"setup_error|setup_retry|migration_error|failed_unload|not_loaded"}
+              max_over_time(ha_config_entry_state{state=~"setup_error|setup_retry|migration_error|failed_unload|not_loaded"}[10m])
               unless on (entry_id) (ha_config_entry_exception_active == 1)
             ) > 0
           for: 1h
