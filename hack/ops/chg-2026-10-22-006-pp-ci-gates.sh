@@ -86,7 +86,7 @@ spec:
           command: [bash, /runner/runner.sh]
           securityContext: {privileged: true}
           resources:
-            requests: {cpu: "4", memory: 12Gi, ephemeral-storage: 40Gi}
+            requests: {cpu: 3500m, memory: 12Gi, ephemeral-storage: 40Gi}
             limits: {memory: 24Gi, ephemeral-storage: 120Gi}
           volumeMounts:
             - {name: runner, mountPath: /runner, readOnly: true}
