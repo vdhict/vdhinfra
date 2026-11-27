@@ -17,12 +17,18 @@ Steps (any failure refuses, fail closed; exactly one changes.jsonl line per invo
                AND the first matching live forge protection rule must allow deploy keys (read-only SQL on forge-pg).
   4 fetch      the remote branches are fetched with the same key into refs/forge-push/<owner>/<repo>/*.
   5 ff         an existing branch must be an ancestor of <sha> (merge-base --is-ancestor); never a force push.
-  6 scans      over the commits new to the forge: client terms 0 (AGR-073, boolean only, fail closed) and gitleaks clean.
+  3b inventory K1 a+b (Argus wq-140 delta): per registry repo the write deploy keys are exactly the registered one,
+               and each registered key is on one repo only (read-only SQL); any mismatch refuses.
+  6 scans      over the commits new to the forge: client terms 0 (AGR-073, boolean only, fail closed; the v2 keyed term
+               file ~/.config/pka-chase/v2/client-terms.sha256 via client_filter.load_terms, as the handoff prescan;
+               PKA_CHASE_TERMS_SCAN or --client-terms override) and gitleaks clean.
   7 probe      control-repo write probe: `git push --dry-run` with the key to the control repo (holds none of our
                keys) MUST be refused by Forgejo with "Public (Deploy) Key: <id>" equal to the registered id.
                Accepted = the key writes outside its repo = L7 revoke trigger.
   8 push       plain `git push <sha>:refs/heads/<branch>` (no +, no tags). --dry-run stops at `git push --dry-run`.
-  9 readback   ls-remote (forge-read alias, else the push key) must show <sha>: MATCH.
+  9 readback   ls-remote (forge-read alias, else the push key) must show <sha>: MATCH; and (K4) an independent
+               read-only SQL readback of branch.commit_id on forge-pg must show <sha> too (all repos; it is the only
+               independent route for the push-key repos print3d and secure-access-mobile-app).
 SSH: ssh -F none, -i <key>, IdentitiesOnly, IdentityAgent none, pinned known_hosts (this directory), StrictHostKeyChecking.
 Nothing secret is printed: the key path, the public fingerprint and forge ids are public; a client hit is a boolean.
 Exit 0 = pushed (or dry run passed) and read back, 1 = refused or failed.
@@ -52,6 +58,9 @@ SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 PROBE_RE = re.compile(r"Forgejo: Public \(Deploy\) Key: (\d+):.* is not authorized to")
 ZERO = "0" * 40
+DEFAULT_CLIENT_TERMS = "~/.config/pka-chase/v2/client-terms.sha256"   # F1: same file as the handoff prescan
+INVENTORY = ROOT / "kubernetes/main/apps/observability/cluster-health/app/scripts/forge_inventory.py"
+GLOB_REFUSE = "[]\\!{}"   # F2: gobwas classes, escapes, negation and braces: refuse instead of guessing
 
 
 class Refused(Exception):
@@ -63,7 +72,12 @@ def now() -> str:
 
 
 def glob_re(pattern: str) -> re.Pattern:
-    """Forgejo protected-branch glob (gobwas/glob, separator '/'): ** any, * and ? within one path segment."""
+    """Forgejo protected-branch glob (gobwas/glob, separator '/'): ** any, * and ? within one path segment.
+    F2: a pattern with [ ] \\ ! { } uses gobwas syntax this parser does not model: Refused (fail closed)."""
+    bad = sorted({c for c in pattern if c in GLOB_REFUSE})
+    if bad:
+        raise Refused("glob %r uses %s, which this script does not parse; refusing instead of guessing"
+                      % (pattern, " ".join(bad)))
     out, i = "", 0
     while i < len(pattern):
         c = pattern[i]
@@ -74,13 +88,6 @@ def glob_re(pattern: str) -> re.Pattern:
             out += "[^/]*"
         elif c == "?":
             out += "[^/]"
-        elif c == "{":
-            j = pattern.find("}", i)
-            if j < 0:
-                out += re.escape(c)
-            else:
-                out += "(?:" + "|".join(re.escape(a) for a in pattern[i + 1:j].split(",")) + ")"
-                i = j
         else:
             out += re.escape(c)
         i += 1
@@ -88,7 +95,8 @@ def glob_re(pattern: str) -> re.Pattern:
 
 
 def is_glob(name: str) -> bool:
-    return any(ch in name for ch in "*?{[")
+    """gobwas syntax.Special, as Forgejo IsRuleNameSpecial: any of * ? [ ] { } \\ ! makes the name a glob."""
+    return any(ch in name for ch in "*?[]{}\\!")
 
 
 def first_rule(rules: list[dict], branch: str) -> dict | None:
@@ -130,10 +138,15 @@ class Forge:
                    GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_NOSYSTEM="1")
         return env
 
-    def rules(self, repo: str) -> tuple[list[dict], list[str]]:
-        """Live protection rules, read-only SQL (default_transaction_read_only=on) on a forge-pg instance."""
+    @staticmethod
+    def _fat():
         sys.path.insert(0, str(HERE.parent / "lib"))
         import forge_admin_token as fat  # noqa: PLC0415 - read-only SQL on the forge-pg primary (fails closed)
+        return fat
+
+    def rules(self, repo: str) -> tuple[list[dict], list[str]]:
+        """Live protection rules, read-only SQL (default_transaction_read_only=on) on a forge-pg instance."""
+        fat = self._fat()
         owner, name = (p.lower() for p in repo.split("/", 1))
         rid = "(select r.id from repository r join \"user\" u on u.id=r.owner_id where u.lower_name=%s " \
               "and r.lower_name=%s)" % (fat.lit(owner), fat.lit(name))
@@ -148,6 +161,28 @@ class Forge:
             rules.append({"name": n, "can_push": cp == "t", "enable_whitelist": ew == "t",
                           "whitelist_deploy_keys": wd == "t", "created": int(cu), "id": int(i)})
         return rules, [t for t in tags if t]
+
+    def deploy_keys(self) -> list[dict]:
+        """K1 a+b: every deploy_key row site-wide (ids, repo, mode; no key material). Read-only SQL."""
+        fat = self._fat()
+        out = []
+        for line in fat.sql("select dk.id, dk.key_id, dk.repo_id, coalesce(lower(r.owner_name) || '/' || "
+                            "r.lower_name, ''), dk.mode from deploy_key dk left join repository r on "
+                            "r.id = dk.repo_id").splitlines():
+            if line.strip():
+                d, k, rid, repo, mode = line.split("|")
+                out.append({"deploy_key_id": int(d), "public_key_id": int(k), "repo_id": int(rid), "repo": repo,
+                            "mode": int(mode)})
+        return out
+
+    def branch_commit(self, repo: str, branch: str) -> str | None:
+        """K4: independent readback, branch.commit_id on forge-pg (read-only SQL, not the push credential)."""
+        fat = self._fat()
+        owner, name = (p.lower() for p in repo.split("/", 1))
+        out = fat.sql("select b.commit_id from branch b join repository r on r.id = b.repo_id where "
+                      "lower(r.owner_name) = %s and r.lower_name = %s and b.name = %s and not b.is_deleted"
+                      % (fat.lit(owner), fat.lit(name), fat.lit(branch))).split()
+        return out[0] if len(out) == 1 else None
 
     def readback(self, repo: str, branch: str, method: str) -> str | None:
         if method == "forge-read":
@@ -246,6 +281,38 @@ def check_branch_policy(entry: dict, branch: str, rules: list[dict], tag_pattern
     return "rule %s allows deploy keys" % (rule["name"] if rule else "none (unprotected)")
 
 
+def load_inventory():
+    spec = importlib.util.spec_from_file_location("forge_inventory", INVENTORY)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def check_inventory(forge: Forge, reg: dict) -> str:
+    """K1 a+b at push time: refuse on any unexpected write key on a registry repo or a key reused across repos."""
+    found = load_inventory().key_findings(reg, forge.deploy_keys())
+    if found:
+        raise Refused("forge inventory %s: %s (revoke runbook docs/runbooks/forge-deploy-key-revoke.md)"
+                      % (found[0]["check"], found[0]["evidence"][:200]))
+    return "K1a+K1b clean (%d registry repos)" % len(reg["keys"])
+
+
+def sql_readback(forge: Forge, repo: str, branch: str, sha: str, tries: int = 10, wait: float = 3) -> str:
+    """K4: after a push, branch.commit_id on forge-pg must equal sha (Forgejo updates the row from post-receive,
+    so it is retried). Returns MATCH, MISMATCH (<sha|absent>) or ERROR (<class>)."""
+    got = None
+    for n in range(tries):
+        try:
+            got = forge.branch_commit(repo, branch)
+        except Exception as e:  # noqa: BLE001 - an unread row is not a match
+            return "ERROR (%s)" % e.__class__.__name__
+        if got == sha:
+            return "MATCH"
+        if n + 1 < tries:
+            time.sleep(wait)
+    return "MISMATCH (%s)" % (got or "absent")
+
+
 def scan_client_terms(text: str, filter_bin: str, terms_path: str) -> bool:
     """True when clean. Raises Refused (fail closed) when the fence cannot load. Never says which term."""
     p = pathlib.Path(filter_bin) / "client_filter.py"
@@ -324,6 +391,7 @@ def run(a, forge_factory=Forge, registry_path=REGISTRY) -> tuple[dict, int]:
             raise Refused("git dir has url.*.insteadOf rewrites; refusing (the push URL must be the forge)")
         rules, tag_patterns = forge.rules(a.repo)
         c["rules"] = check_branch_policy(entry, branch, rules, tag_patterns)
+        c["inventory"] = check_inventory(forge, reg)
         ns = "refs/forge-push/%s" % a.repo.lower()
         f = git(a.gitdir, "fetch", "--no-tags", "--quiet", forge.url(a.repo), "+refs/heads/*:%s/*" % ns,
                 env=forge.env(), check=False, timeout=300)
@@ -371,8 +439,10 @@ def run(a, forge_factory=Forge, registry_path=REGISTRY) -> tuple[dict, int]:
             time.sleep(3)
         payload["readback"] = "MATCH" if got == sha else "MISMATCH (%s)" % (got or "absent")
         payload["readback_via"] = entry.get("readback", "push-key")
-        payload["result"] = "PUSHED" if got == sha else "PUSHED-READBACK-MISMATCH"
-        return payload, 0 if got == sha else 1
+        payload["readback_sql"] = sql_readback(forge, a.repo, branch, sha)
+        ok = got == sha and payload["readback_sql"] == "MATCH"
+        payload["result"] = "PUSHED" if ok else "PUSHED-READBACK-MISMATCH"
+        return payload, 0 if ok else 1
     except Refused as e:
         payload["result"] = "REFUSED"
         payload["reason"] = str(e)
@@ -394,9 +464,11 @@ def main(argv=None, forge_factory=Forge, registry_path=REGISTRY) -> int:
     ap.add_argument("--actor", default="k8s-engineer")
     ap.add_argument("--ops-cli", default=str(OPS_CLI))
     ap.add_argument("--client-filter-bin", default=os.path.expanduser("~/pka-chase/bin"))
-    ap.add_argument("--client-terms", default=os.environ.get(
-        "PKA_CHASE_CLIENT_TERMS", os.path.expanduser("~/.config/pka-chase/client-terms.sha256")))
+    ap.add_argument("--client-terms", default=None,
+                    help="v2 keyed term file (default $PKA_CHASE_TERMS_SCAN, else %s)" % DEFAULT_CLIENT_TERMS)
     a = ap.parse_args(argv)
+    if not a.client_terms:
+        a.client_terms = os.environ.get("PKA_CHASE_TERMS_SCAN") or os.path.expanduser(DEFAULT_CLIENT_TERMS)
     if not CHG_RE.match(a.chg):
         print("REFUSED: chg id required (chg-YYYY-MM-DD-NNN); no line written")
         return 1
@@ -406,7 +478,8 @@ def main(argv=None, forge_factory=Forge, registry_path=REGISTRY) -> int:
     payload, rc = run(a, forge_factory, registry_path)
     payload["ts_end"] = now()
     print("%s %s %s %s" % (payload.get("result"), a.repo, payload.get("branch", a.ref),
-                           payload.get("reason") or payload.get("readback") or ""))
+                           payload.get("reason") or ("%s sql %s" % (payload["readback"], payload["readback_sql"])
+                                                     if "readback_sql" in payload else "")))
     for k, v in payload["checks"].items():
         print("  %-14s %s" % (k, v))
     write_line(a.ops_cli, a.chg, a.actor, payload)

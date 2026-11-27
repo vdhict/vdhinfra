@@ -30,7 +30,8 @@ from pathlib import Path
 
 sys.path.insert(0, "/scripts")
 from git_push import mint_installation_token  # noqa: E402
-from lib import log, today  # noqa: E402
+from lib import log, prom_query, today  # noqa: E402
+import forge_inventory  # noqa: E402
 
 
 def load_accepted_risks(workdir: Path) -> list[dict]:
@@ -904,6 +905,84 @@ def check_forge_push_audit(repo: Path) -> list[dict]:
     return findings + reconcile_forge_pushes(events, _l4_pushes(changes), registry, start, end)
 
 
+# ── chg-2026-11-13-002 K1 (Argus wq-140 delta, wq-169): forge deploy-key inventory ────────────────────
+# Rows come from the CNPG exporter custom queries on forge-pg (devtools/forge-pg-oidc-links-queries, primary only,
+# pg_monitor column grants): read-only, no exec, independent of the Mini that holds the keys.
+
+INV_DK_QUERY = "max by (deploy_key_id, public_key_id, repo_id, repo) (cnpg_forgejo_deploy_key_mode)"
+INV_RULE_COLS = ("deploy_keys", "can_push", "enable_whitelist", "created_unix")
+INV_RULE_QUERY = "max by (rule_id, repo_id, repo, rule) (cnpg_forgejo_protected_branch_{col})"
+INV_COUNT_QUERY = "max(cnpg_forgejo_inventory_{col})"
+
+
+def build_forge_inventory(dk: list[dict], cols: dict[str, list[dict]], n_dk: list[dict], n_pb: list[dict]):
+    """Pure: Prometheus vectors -> (deploy_keys, rules, problem). A missing or incomplete vector is a problem
+    (fail closed): the row counts must equal the series counts."""
+    def num(vec):
+        try:
+            return int(float(vec[0]["value"][1])) if len(vec) == 1 else None
+        except (KeyError, IndexError, TypeError, ValueError):
+            return None
+    want_dk, want_pb = num(n_dk), num(n_pb)
+    if want_dk is None or want_pb is None:
+        return [], [], "cnpg_forgejo_inventory_* absent (exporter query or pg_monitor grant missing)"
+    if len(dk) != want_dk:
+        return [], [], f"deploy_key series {len(dk)} != rows {want_dk}"
+    keys = []
+    for s in dk:
+        m = s.get("metric", {})
+        try:
+            keys.append({"deploy_key_id": int(m["deploy_key_id"]), "public_key_id": int(m["public_key_id"]),
+                         "repo_id": int(m["repo_id"]), "repo": m.get("repo", ""), "mode": int(float(s["value"][1]))})
+        except (KeyError, IndexError, TypeError, ValueError):
+            return [], [], "malformed deploy_key series"
+    rules: dict[int, dict] = {}
+    for col in INV_RULE_COLS:
+        vec = cols.get(col) or []
+        if len(vec) != want_pb:
+            return [], [], f"protected_branch {col} series {len(vec)} != rows {want_pb}"
+        for s in vec:
+            m = s.get("metric", {})
+            try:
+                rid = int(m["rule_id"])
+                r = rules.setdefault(rid, {"rule_id": rid, "repo_id": int(m["repo_id"]), "repo": m.get("repo", ""),
+                                           "rule": m["rule"]})
+                v = int(float(s["value"][1]))
+            except (KeyError, IndexError, TypeError, ValueError):
+                return [], [], "malformed protected_branch series"
+            r["created" if col == "created_unix" else col] = v if col == "created_unix" else bool(v)
+    if len(rules) != want_pb or any(len(r) != 4 + len(INV_RULE_COLS) for r in rules.values()):
+        return [], [], "protected_branch series do not line up per rule"
+    return keys, list(rules.values()), None
+
+
+def forge_inventory_findings(registry: dict, keys: list[dict], rules: list[dict], problem: str | None) -> list[dict]:
+    """Pure: K1 a-d as scan findings; an unreadable inventory is high once any key is active, else medium."""
+    if problem:
+        active = any(k.get("status") == "active" for k in registry.get("keys", []))
+        return [_sev_finding("forge inventory unavailable (K1 not run)", "high" if active else "medium",
+                             "forge-pg exporter", problem,
+                             "check the forge-pg custom queries and run hack/ops/chg-2026-11-13-002-forge-inventory-"
+                             "grant.py; until then " + (f"treat the keys as unaudited ({REVOKE_RUNBOOK})" if active
+                                                        else "no deploy key may be created (K1)"))]
+    return [_sev_finding(f"forge inventory {f['check']}: {f['evidence'][:120]}", f["severity"], f["target"],
+                         f["evidence"], f["remediation"])
+            for f in forge_inventory.inventory_findings(registry, keys, rules)]
+
+
+def check_forge_inventory(repo: Path) -> list[dict]:
+    reg_path = repo / FORGE_PUSH_REGISTRY
+    if not reg_path.is_file():
+        return [_sev_finding("forge inventory: registry missing", "medium", FORGE_PUSH_REGISTRY,
+                             "deploy-keys.json absent from the clone", "restore the registry")]
+    registry = json.loads(reg_path.read_text())
+    keys, rules, problem = build_forge_inventory(
+        prom_query(INV_DK_QUERY), {c: prom_query(INV_RULE_QUERY.format(col=c)) for c in INV_RULE_COLS},
+        prom_query(INV_COUNT_QUERY.format(col="deploy_keys")),
+        prom_query(INV_COUNT_QUERY.format(col="protected_branches")))
+    return forge_inventory_findings(registry, keys, rules, problem)
+
+
 # ── main ────────────────────────────────────────────────────────────────
 
 def post_summary_to_ha(chg: str, findings_by_sev: dict, repo_url_base: str) -> None:
@@ -962,6 +1041,7 @@ def main() -> int:
             ("pin_guard_live", lambda: check_pin_guard_live(workdir)),
             ("pin_guard_ci", check_pin_guard_ci),
             ("forge_push_audit", lambda: check_forge_push_audit(workdir)),
+            ("forge_inventory", lambda: check_forge_inventory(workdir)),
         ]:
             log(f"argus: check {name}")
             try:

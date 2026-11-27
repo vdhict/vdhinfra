@@ -9,6 +9,14 @@
 # by hack/ops/chg-2026-11-04-004-forge-oidc-k8s-secrets.py grant):
 #   login_source(id, name, type), external_login_user(login_source_id).
 # The subject column (external_id) is deliberately NOT granted.
+#
+# K1 forge deploy-key inventory (chg-2026-11-13-002, Argus wq-140 delta, wq-169):
+# forgejo_deploy_key, forgejo_protected_branch and forgejo_inventory feed the
+# posture scan check forge_inventory (ops_security_scan.py). Primary only.
+# Column grants (hack/ops/chg-2026-11-13-002-forge-inventory-grant.py):
+#   deploy_key(id, key_id, repo_id, mode), repository(id, owner_name, lower_name),
+#   protected_branch(id, repo_id, branch_name, can_push, enable_whitelist,
+#   whitelist_deploy_keys, created_unix). No key material, fingerprint or name.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -27,3 +35,63 @@ data:
         - links:
             usage: "GAUGE"
             description: "External identities linked through this source"
+    forgejo_deploy_key:
+      query: "SELECT dk.id::text AS deploy_key_id, dk.key_id::text AS public_key_id, dk.repo_id::text AS repo_id, coalesce(lower(r.owner_name) || '/' || r.lower_name, '') AS repo, dk.mode AS mode FROM deploy_key dk LEFT JOIN repository r ON r.id = dk.repo_id"
+      target_databases: ["forgejo"]
+      primary: true
+      metrics:
+        - deploy_key_id:
+            usage: "LABEL"
+            description: "deploy_key.id"
+        - public_key_id:
+            usage: "LABEL"
+            description: "public_key id the deploy key uses"
+        - repo_id:
+            usage: "LABEL"
+            description: "repository id"
+        - repo:
+            usage: "LABEL"
+            description: "owner/repo, lower case"
+        - mode:
+            usage: "GAUGE"
+            description: "access mode (1 read, 2 write)"
+    forgejo_protected_branch:
+      query: "SELECT pb.id::text AS rule_id, pb.repo_id::text AS repo_id, coalesce(lower(r.owner_name) || '/' || r.lower_name, '') AS repo, pb.branch_name AS rule, pb.whitelist_deploy_keys::int AS deploy_keys, pb.can_push::int AS can_push, pb.enable_whitelist::int AS enable_whitelist, pb.created_unix AS created_unix FROM protected_branch pb LEFT JOIN repository r ON r.id = pb.repo_id"
+      target_databases: ["forgejo"]
+      primary: true
+      metrics:
+        - rule_id:
+            usage: "LABEL"
+            description: "protected_branch.id"
+        - repo_id:
+            usage: "LABEL"
+            description: "repository id"
+        - repo:
+            usage: "LABEL"
+            description: "owner/repo, lower case"
+        - rule:
+            usage: "LABEL"
+            description: "rule name (branch or glob)"
+        - deploy_keys:
+            usage: "GAUGE"
+            description: "1 when deploy keys may push"
+        - can_push:
+            usage: "GAUGE"
+            description: "1 when push is enabled"
+        - enable_whitelist:
+            usage: "GAUGE"
+            description: "1 when the push allowlist is on"
+        - created_unix:
+            usage: "GAUGE"
+            description: "rule creation time (Forgejo orders globs by it)"
+    forgejo_inventory:
+      query: "SELECT (SELECT count(id) FROM deploy_key) AS deploy_keys, (SELECT count(id) FROM protected_branch) AS protected_branches"
+      target_databases: ["forgejo"]
+      primary: true
+      metrics:
+        - deploy_keys:
+            usage: "GAUGE"
+            description: "deploy_key rows (completeness check)"
+        - protected_branches:
+            usage: "GAUGE"
+            description: "protected_branch rows (completeness check)"

@@ -45,6 +45,7 @@ configMapGenerator:
       - scripts/ops_render.sh
       - scripts/ops_digest.py
       - scripts/ops_security_scan.py
+      - scripts/forge_inventory.py
       - scripts/unifi_topology.py
 generatorOptions:
   # Stable name — kustomize's hashed-name volume ref rewriting is unreliable

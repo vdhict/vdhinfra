@@ -282,6 +282,63 @@ class Hardening(unittest.TestCase):
             """))
         self.assertEqual(self.red(), [])
 
+    # G1b (Argus wq-140 delta, probe B9): kustomize/Flux selectors are anchored regexes, so a regex kind can select
+    # GitRepository without naming it. wq-169.
+    def flux_patch(self, kind_yaml, patch):
+        self.write("kubernetes/main/apps/mypka/wires/install.yaml", textwrap.dedent("""\
+            apiVersion: kustomize.toolkit.fluxcd.io/v1
+            kind: Kustomization
+            metadata: {name: mypka-wires-source, namespace: flux-system}
+            spec:
+              path: ./kubernetes/main/apps/mypka/wires/source
+              patches:
+                - target: {%s}
+                  patch: '%s'
+            """ % (kind_yaml, patch)))
+
+    def test_g1b_regex_kind_removing_commit_is_red(self):
+        self.flux_patch('kind: "Git.*"', '[{"op": "remove", "path": "/spec/ref/commit"}]')
+        self.assertTrue(self.has("R5"), self.red())
+
+    def test_g1b_regex_kind_matching_gitrepository_is_red_without_ref_text(self):
+        for kind in ('"G.*y"', '"(GitRepository|Bucket)"', '"[Gg]itRepositor[y]"', '".*"', '"GitRepositor."'):
+            with self.subTest(kind=kind):
+                self.flux_patch("kind: " + kind, '[{"op": "replace", "path": "/spec", "value": {"url": "x"}}]')
+                self.assertTrue(self.has("R5"), self.red())
+
+    def test_g1b_regex_kind_not_matching_but_touching_ref_is_red(self):
+        self.flux_patch('kind: "Deploy.*"', '[{"op": "remove", "path": "/spec/ref/commit"}]')
+        self.assertTrue(self.has("R5"), self.red())
+
+    def test_g1b_bad_regex_or_odd_kind_touching_ref_is_red(self):
+        for kind in ('"Git(("', "[GitRepository]", "{x: 1}", "42"):
+            with self.subTest(kind=kind):
+                self.flux_patch("kind: " + kind, '[{"op": "remove", "path": "/spec/ref/commit"}]')
+                self.assertTrue(self.has("R5"), self.red())
+
+    def test_g1b_unparseable_kind_regex_is_red_without_ref_text(self):
+        self.flux_patch('kind: "Git(("', '[{"op": "replace", "path": "/spec", "value": {"url": "x"}}]')
+        self.assertTrue(self.has("R5"), self.red())
+
+    def test_g1b_kustomize_json6902_regex_kind_is_red(self):
+        self.write(pg.PRIMARY_DIR + "/kustomization.yaml", textwrap.dedent("""\
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            resources: [gitrepository.yaml]
+            patchesJson6902:
+              - target: {version: v1, kind: "Git.*", name: cluster-wires}
+                patch: |-
+                  - op: remove
+                    path: /spec/ref/commit
+            """))
+        self.assertTrue(self.has("R5"), self.red())
+
+    def test_g1b_literal_other_kind_regex_unrelated_is_green(self):
+        self.flux_patch('kind: "Helm.*"', '[{"op": "replace", "path": "/spec/chartRef/name", "value": "x"}]')
+        self.assertEqual(self.red(), [])
+        self.flux_patch("kind: Deployment", '[{"op": "replace", "path": "/spec/replicas", "value": 2}]')
+        self.assertEqual(self.red(), [])
+
     def test_g1_rendered_output_without_commit_is_red(self):
         rendered = gitrepo(ref={"branch": "main"})
         red = self.red(render=lambda d: rendered)

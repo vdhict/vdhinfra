@@ -23,8 +23,9 @@ Repo mode (default, used by CI):
      cluster-wires repository (scheme URL or owner/repo path, escapes and case
      folded), except the url line of a pinned GitRepository (G4).
   R5 no kustomize patch (patches, patchesJson6902, patchesStrategicMerge) and no
-     Flux Kustomization spec.patches entry targets kind GitRepository or edits
-     /spec/ref without naming a kind (G1, static).
+     Flux Kustomization spec.patches entry can select kind GitRepository (target.kind
+     is an anchored regex: "Git.*" counts, G1b) or edits /spec/ref unless its target
+     kind is a literal other kind (G1, static).
   R6 the rendered output (kustomize build) of the wires source directory still
      holds GitRepository cluster-wires with a 40-hex spec.ref.commit (G1, rendered).
      No renderer available = red (fail closed); --no-render skips R6 for tests only.
@@ -153,8 +154,29 @@ def _patch_entries(doc: dict) -> list:
     return out
 
 
+_REGEX_META = re.compile(r"[.^$*+?()\[\]{}|\\]")
+
+
+def _kind_selects_gitrepository(kind) -> bool | None:
+    """How a patch target kind selects (G1b). kustomize and Flux compile target.kind as an anchored regex
+    (^(?:kind)$), so "Git.*" selects GitRepository without naming it.
+    True = can select GitRepository (case folded, fail closed); False = a literal kind that is not GitRepository;
+    None = no kind, a regex that does not match GitRepository, or a value we cannot read (treated as unknown)."""
+    if kind is None or kind == "":
+        return None
+    if not isinstance(kind, str):
+        return True                       # not a string: kustomize would not accept it; fail closed
+    if not _REGEX_META.search(kind):
+        return kind.lower() == "gitrepository"
+    try:
+        return True if re.fullmatch(kind, "GitRepository", re.IGNORECASE) else None
+    except re.error:
+        return True                       # unparseable regex: fail closed
+
+
 def _patch_red(entry, base: pathlib.Path) -> bool:
-    """R5: the patch targets kind GitRepository, or edits /spec/ref without naming a kind."""
+    """R5: the patch can select kind GitRepository (literal or regex, G1b), or edits /spec/ref unless its target
+    kind is a literal kind other than GitRepository."""
     yaml, _ = _yaml()
     if isinstance(entry, str):  # patchesStrategicMerge: a path or an inline patch
         p = (base / entry)
@@ -162,7 +184,7 @@ def _patch_red(entry, base: pathlib.Path) -> bool:
         target_kind = None
     elif isinstance(entry, dict):
         target = entry.get("target") or {}
-        target_kind = target.get("kind") if isinstance(target, dict) else None
+        target_kind = target.get("kind") if isinstance(target, dict) else (target or None)
         text = yaml.safe_dump(entry, default_flow_style=False)
         path = entry.get("path")
         if isinstance(path, str) and (base / path).is_file():
@@ -170,11 +192,12 @@ def _patch_red(entry, base: pathlib.Path) -> bool:
     else:
         return False
     low = _decode(text)
-    if isinstance(target_kind, str) and target_kind.lower() == "gitrepository":
+    selects = _kind_selects_gitrepository(target_kind)
+    if selects:
         return True
     if "gitrepository" in low:
         return True
-    return not target_kind and bool(re.search(r"/spec/ref\b|\bref\s*:", low))
+    return selects is None and bool(re.search(r"/spec/ref\b|\bref\s*:", low))
 
 
 def _is_pinned_url_line(line: str, pinned_urls: set[str]) -> bool:
