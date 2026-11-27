@@ -14,15 +14,31 @@ FB=""; FC=""
 _fat_cq() { local s=${1//\\/\\\\}; s=${s//\"/\\\"}; printf '"%s"' "$s"; }
 _fat_sql_lit() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
 
-fat_pg_pod() {  # fat_pg_pod [primary|replica]
-  kubectl -n "$FAT_NS" get pod -l "cnpg.io/cluster=forge-pg,cnpg.io/instanceRole=${1:-primary}" \
-    -o jsonpath='{.items[0].metadata.name}'
+fat_pg_pod() {  # fat_pg_pod [primary|replica]; primary = CNPG status.currentPrimary (wq-115), fails closed
+  local role=${1:-primary} out cur tgt
+  if [ "$role" = primary ]; then
+    out=$(kubectl -n "$FAT_NS" get cluster.postgresql.cnpg.io forge-pg \
+      -o jsonpath='{.status.currentPrimary}|{.status.targetPrimary}') || return 1
+    cur=${out%%|*}; tgt=${out#*|}
+    [ -n "$cur" ] || { echo "fat_pg_pod: forge-pg currentPrimary is empty" >&2; return 1; }
+    [ -z "$tgt" ] || [ "$tgt" = "$cur" ] || { echo "fat_pg_pod: switchover in flight ($cur -> $tgt)" >&2; return 1; }
+    printf %s "$cur"; return 0
+  fi
+  out=$(kubectl -n "$FAT_NS" get pod -l "cnpg.io/cluster=forge-pg,cnpg.io/instanceRole=$role" \
+    -o jsonpath='{.items[0].metadata.name}') || return 1
+  [ -n "$out" ] || { echo "fat_pg_pod: no forge-pg $role pod" >&2; return 1; }
+  printf %s "$out"
 }
 
-fat_sql() {  # fat_sql <statement> [rw] [primary|replica]
-  local pre="SET default_transaction_read_only=on; "
+fat_sql() {  # fat_sql <statement> [rw] [primary|replica]; rw proves pg_is_in_recovery()=f first
+  local pre="SET default_transaction_read_only=on; " pod
   [ "${2:-}" = rw ] && pre=""
-  kubectl -n "$FAT_NS" exec "$(fat_pg_pod "${3:-primary}")" -c postgres -- \
+  pod=$(fat_pg_pod "${3:-primary}") || return 1
+  if [ "${2:-}" = rw ]; then
+    [ "$(kubectl -n "$FAT_NS" exec "$pod" -c postgres -- psql -U postgres -d forgejo -AtXq -c 'SELECT pg_is_in_recovery()')" = f ] \
+      || { echo "fat_sql: refusing write, $pod is in recovery or unreachable" >&2; return 1; }
+  fi
+  kubectl -n "$FAT_NS" exec "$pod" -c postgres -- \
     psql -U postgres -d forgejo -v ON_ERROR_STOP=1 -AtXq -c "$pre$1"
 }
 

@@ -24,7 +24,10 @@ pgq() { # pgq <sql...>: read-only psql on the forge-pg primary
   "${K[@]}" -n devtools exec "$p" -c postgres -- psql -X -q -At -F' | ' -v ON_ERROR_STOP=1 -U postgres -d forgejo -c "SET default_transaction_read_only = on" "${a[@]}"
 }
 pgw() { # pgw <sql>: ONE write statement in its own transaction (prereg --apply only)
-  local p; p=$("${K[@]}" -n devtools get pod -l cnpg.io/cluster=forge-pg,cnpg.io/instanceRole=primary -o jsonpath='{.items[0].metadata.name}')
+  local p; p=$("${K[@]}" -n devtools get cluster.postgresql.cnpg.io forge-pg -o jsonpath='{.status.currentPrimary}')
+  [[ -n "$p" ]] || { echo "pgw: forge-pg currentPrimary is empty, refusing" >&2; return 1; }
+  [[ "$("${K[@]}" -n devtools exec "$p" -c postgres -- psql -X -q -At -U postgres -d forgejo -c 'SELECT pg_is_in_recovery()')" == f ]] \
+    || { echo "pgw: $p is in recovery or unreachable, refusing" >&2; return 1; }
   "${K[@]}" -n devtools exec "$p" -c postgres -- psql -X -q -At -v ON_ERROR_STOP=1 -U postgres -d forgejo -c "$1"
 }
 ORG_ID="(SELECT id FROM \"user\" WHERE lower_name='vdhict')"

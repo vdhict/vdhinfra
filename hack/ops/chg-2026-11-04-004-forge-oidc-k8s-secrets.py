@@ -60,30 +60,48 @@ def secrets_step():
         base64.b64decode(f["key"]).decode(), len(s), s.isalnum(), d[:7], len(d)))
 
 
+def primary(ns, cluster):
+    """CNPG primary pod name from status.currentPrimary (wq-115); fails closed on empty or a switchover in flight."""
+    out = kubectl("-n", ns, "get", "cluster.postgresql.cnpg.io", cluster, "-o",
+                  "jsonpath={.status.currentPrimary}|{.status.targetPrimary}").stdout.decode().strip()
+    cur, _, tgt = out.partition("|")
+    if not cur or (tgt and tgt != cur):
+        sys.exit("refusing: %s/%s primary unresolved (current %r, target %r)" % (ns, cluster, cur, tgt))
+    return cur
+
+
+def writable_primary():
+    pod = primary("devtools", "forge-pg")
+    if psql(pod, "forgejo", "SELECT pg_is_in_recovery()", "devtools") != "f":
+        sys.exit("refusing write: %s is in recovery" % pod)
+    return pod
+
+
 def psql(pod, db, statement, ns):
     return kubectl("-n", ns, "exec", pod, "-c", "postgres", "--", "psql", "-U", "postgres", "-d", db, "-At", "-q",
                    "-c", statement).stdout.decode().strip()
 
 
 def link_step():
-    src = psql("forge-pg-1", "forgejo", "SELECT id FROM login_source WHERE name='authelia' AND type=6", "devtools")
-    uid = psql("forge-pg-1", "forgejo", "SELECT id FROM \"user\" WHERE lower_name='sheijden'", "devtools")
-    sub = psql("postgres16-2", "authelia", "SELECT identifier FROM user_opaque_identifier WHERE service='openid' AND "
+    pg = primary("devtools", "forge-pg")
+    src = psql(pg, "forgejo", "SELECT id FROM login_source WHERE name='authelia' AND type=6", "devtools")
+    uid = psql(pg, "forgejo", "SELECT id FROM \"user\" WHERE lower_name='sheijden'", "devtools")
+    sub = psql(primary("database", "postgres16"), "authelia", "SELECT identifier FROM user_opaque_identifier WHERE service='openid' AND "
                "sector_id='' AND username='sheijden'", "database")
     print("login source authelia id %s; forge user sheijden id %s; subject present %s" % (src or "-", uid or "-", bool(sub)))
     if not (src and uid == "10" and len(sub) == 36):
         sys.exit("refusing: source, user or subject missing")
-    have = psql("forge-pg-1", "forgejo", "SELECT count(*) FROM external_login_user WHERE login_source_id=%s" % src, "devtools")
+    have = psql(pg, "forgejo", "SELECT count(*) FROM external_login_user WHERE login_source_id=%s" % src, "devtools")
     if have != "0":
         sys.exit("refusing: source %s already has %s linked identities" % (src, have))
     # sub is a UUID from Authelia's own table; checked above for length, quoted as a literal.
     assert all(c in "0123456789abcdef-" for c in sub)
     stmt = ("INSERT INTO external_login_user (external_id, user_id, login_source_id, provider, email, name) "
             "VALUES ('%s', %s, %s, 'openidConnect', '', '')" % (sub, uid, src))
-    kubectl("-n", "devtools", "exec", "-i", "forge-pg-1", "-c", "postgres", "--", "psql", "-U", "postgres", "-d",
+    kubectl("-n", "devtools", "exec", "-i", writable_primary(), "-c", "postgres", "--", "psql", "-U", "postgres", "-d",
             "forgejo", "-At", "-q", "-v", "ON_ERROR_STOP=1", stdin=stmt.encode())
     print("readback: linked identities for source %s: %s (user %s)" % (src, psql(
-        "forge-pg-1", "forgejo", "SELECT count(*) FROM external_login_user WHERE login_source_id=%s AND user_id=%s" % (src, uid),
+        pg, "forgejo", "SELECT count(*) FROM external_login_user WHERE login_source_id=%s AND user_id=%s" % (src, uid),
         "devtools"), uid))
 
 
@@ -91,9 +109,10 @@ def grant_step():
     """Argus C3: column grants so the CNPG exporter (pg_monitor) can count links per source. No subject column."""
     stmt = ("GRANT SELECT (id, name, type) ON login_source TO pg_monitor; "
             "GRANT SELECT (login_source_id) ON external_login_user TO pg_monitor;")
-    kubectl("-n", "devtools", "exec", "-i", "forge-pg-1", "-c", "postgres", "--", "psql", "-U", "postgres", "-d",
+    pg = writable_primary()
+    kubectl("-n", "devtools", "exec", "-i", pg, "-c", "postgres", "--", "psql", "-U", "postgres", "-d",
             "forgejo", "-At", "-q", "-v", "ON_ERROR_STOP=1", stdin=stmt.encode())
-    print("readback: pg_monitor column grants: %s" % psql("forge-pg-1", "forgejo", (
+    print("readback: pg_monitor column grants: %s" % psql(pg, "forgejo", (
         "SELECT string_agg(table_name||'.'||column_name, ',' ORDER BY 1) FROM information_schema.column_privileges "
         "WHERE grantee='pg_monitor' AND table_name IN ('login_source','external_login_user')"), "devtools"))
 

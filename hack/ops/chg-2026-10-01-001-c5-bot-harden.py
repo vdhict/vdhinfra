@@ -60,7 +60,7 @@ def basic_status(user, pw, path="/api/v1/user"):
 
 def sql(query):
     """Read-only query on the forge DB primary; returns rows as lists of strings."""
-    out = run([KUBECTL, "-n", "devtools", "exec", "forge-pg-1", "-c", "postgres", "--", "psql", "-d", "forgejo",
+    out = run([KUBECTL, "-n", "devtools", "exec", fat.pg_pod(), "-c", "postgres", "--", "psql", "-d", "forgejo",
                "-v", "ON_ERROR_STOP=1", "-AtX", "-F", "\t",
                "-c", "set default_transaction_read_only=on", "-c", query]).decode()
     return [line.split("\t") for line in out.splitlines() if line and line != "SET"]

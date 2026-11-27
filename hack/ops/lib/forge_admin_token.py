@@ -49,6 +49,17 @@ def lit(s):
 
 
 def pg_pod(role="primary"):
+    """Pod name of the forge-pg primary (CNPG status.currentPrimary, wq-115) or of a replica (label).
+    Fails closed: an empty answer, or a switchover in flight (target != current), raises."""
+    if role == "primary":
+        out = kubectl("get", "cluster.postgresql.cnpg.io", "forge-pg", "-o",
+                      "jsonpath={.status.currentPrimary}|{.status.targetPrimary}").decode().strip()
+        cur, _, tgt = out.partition("|")
+        if not cur:
+            raise RuntimeError("forge-pg currentPrimary is empty")
+        if tgt and tgt != cur:
+            raise RuntimeError("forge-pg switchover in flight (%s -> %s)" % (cur, tgt))
+        return cur
     out = kubectl("get", "pod", "-l", "cnpg.io/cluster=forge-pg,cnpg.io/instanceRole=%s" % role,
                   "-o", "jsonpath={.items[0].metadata.name}").decode().strip()
     if not out:
@@ -56,13 +67,21 @@ def pg_pod(role="primary"):
     return out
 
 
+def _psql(pod, statement):
+    return kubectl("exec", pod, "-c", "postgres", "--", "psql", "-U", "postgres", "-d", "forgejo",
+                   "-v", "ON_ERROR_STOP=1", "-AtXq", "-c", statement).decode().strip()
+
+
 def sql(statement, write=False, role="primary"):
-    """One statement on the forge DB; read-only transaction unless write=True (primary only)."""
+    """One statement on the forge DB; read-only transaction unless write=True (primary only).
+    A write first proves the resolved pod is not in recovery."""
     if write and role != "primary":
         raise ValueError("writes go to the primary")
+    pod = pg_pod(role)
+    if write and _psql(pod, "SELECT pg_is_in_recovery()") != "f":
+        raise RuntimeError("refusing write: %s is in recovery" % pod)
     pre = "" if write else "SET default_transaction_read_only=on; "
-    return kubectl("exec", pg_pod(role), "-c", "postgres", "--", "psql", "-U", "postgres", "-d", "forgejo",
-                   "-v", "ON_ERROR_STOP=1", "-AtXq", "-c", pre + statement).decode().strip()
+    return _psql(pod, pre + statement)
 
 
 def _uid_sql(username):
