@@ -67,9 +67,16 @@ def pg_pod(role="primary"):
     return out
 
 
-def _psql(pod, statement):
+READ_ONLY_SET = "SET default_transaction_read_only=on"
+
+
+def _psql(pod, statement, read_only=False):
+    """One psql session. read_only: the SET goes in its OWN -c before the statement (R1, Argus wq-169). Inside a
+    single -c string the SET is too late: that string is one implicit transaction that has already started
+    read-write (probe: "-c 'SET ...; SHOW transaction_read_only'" -> off, "-c SET -c SHOW" -> on)."""
+    pre = ["-c", READ_ONLY_SET] if read_only else []
     return kubectl("exec", pod, "-c", "postgres", "--", "psql", "-U", "postgres", "-d", "forgejo",
-                   "-v", "ON_ERROR_STOP=1", "-AtXq", "-c", statement).decode().strip()
+                   "-v", "ON_ERROR_STOP=1", "-AtXq", *pre, "-c", statement).decode().strip()
 
 
 def sql(statement, write=False, role="primary"):
@@ -80,8 +87,7 @@ def sql(statement, write=False, role="primary"):
     pod = pg_pod(role)
     if write and _psql(pod, "SELECT pg_is_in_recovery()") != "f":
         raise RuntimeError("refusing write: %s is in recovery" % pod)
-    pre = "" if write else "SET default_transaction_read_only=on; "
-    return _psql(pod, pre + statement)
+    return _psql(pod, statement, read_only=not write)
 
 
 def _uid_sql(username):

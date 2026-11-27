@@ -31,15 +31,16 @@ fat_pg_pod() {  # fat_pg_pod [primary|replica]; primary = CNPG status.currentPri
 }
 
 fat_sql() {  # fat_sql <statement> [rw] [primary|replica]; rw proves pg_is_in_recovery()=f first
-  local pre="SET default_transaction_read_only=on; " pod
-  [ "${2:-}" = rw ] && pre=""
+  # Read-only: the SET is its own -c (R1, Argus wq-169); inside the statement's -c string it does not take effect.
+  local pod pre=(-c "SET default_transaction_read_only=on")
+  [ "${2:-}" = rw ] && pre=()
   pod=$(fat_pg_pod "${3:-primary}") || return 1
   if [ "${2:-}" = rw ]; then
     [ "$(kubectl -n "$FAT_NS" exec "$pod" -c postgres -- psql -U postgres -d forgejo -AtXq -c 'SELECT pg_is_in_recovery()')" = f ] \
       || { echo "fat_sql: refusing write, $pod is in recovery or unreachable" >&2; return 1; }
   fi
   kubectl -n "$FAT_NS" exec "$pod" -c postgres -- \
-    psql -U postgres -d forgejo -v ON_ERROR_STOP=1 -AtXq -c "$pre$1"
+    psql -U postgres -d forgejo -v ON_ERROR_STOP=1 -AtXq "${pre[@]}" -c "$1"
 }
 
 fat_mint() {
