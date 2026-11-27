@@ -97,3 +97,21 @@ risks:
     accepted_at: 2026-11-24
     review_by: 2027-05-24
     rationale: "The chase client fence (keyed client term list v2, chase 088fb44) has no term for exactly one work contact: a person known only by a 3-letter first name, with no surname and no alias. A lone word under 4 letters is not a term (too many false hits on ordinary text) and is weakly identifying on its own. Team choice via Larry (AGR-120). Bound: count 1, as reported by build_client_terms.py / rotate_client_terms.py (uncovered_work_contacts=1). Lapses when that count rises above 1 (a new uncovered contact needs its own decision), when the contact gains a surname or alias in the CRM (then it becomes a term), or at review_by."
+  # chg-2026-11-23-012 / wq-097 C7 point 2 (Argus 20261127T114525Z). Residual for go-live.
+  - id: ar-022
+    adr: "ops change chg-2026-11-23-012 (Argus C7 review ops/evidence/chg-2026-11-23-012/argus-wq097-c7-20261127T114525Z.txt, point 2); a Cilium host-policy ADR follows with its own change"
+    finding_title: "^.*(ha-zones|home-assistant).*(8123|host|remote-node|hostNetwork|ingress).*$"
+    target: "^(k8s\\.ns\\.ha-zones|cnp\\.ha-zones/ha-zones|app\\.home-assistant)$"
+    accepted_by: atlas
+    accepted_at: 2026-11-27
+    review_by: 2027-02-27
+    rationale: >-
+      Home Assistant runs hostNetwork, so the ha-zones job pod reaches HA :8123 through Cilium entities
+      host/remote-node (cilium policy-cidr-match-mode is empty, so toCIDR cannot select node IPs;
+      toEndpoints cannot match a hostNetwork pod). This admits TCP 8123 on any node IP from that pod
+      only; only HA listens there. The C7 ask 'HA-side ingress admits the ha-zones namespace only' is
+      not expressible for hostNetwork HA without a Cilium host policy (cluster-wide, own future change);
+      HA is LAN-reachable by design anyway. Compensating: dedicated HA user local_only=true (C6 proof:
+      external hostname refused, in-cluster Service 200, status codes only), weekly token last_used_at
+      check, default-deny on everything else in the namespace. Lapses at review_by, when a host policy
+      lands, or if anything else on the nodes starts listening on 8123.

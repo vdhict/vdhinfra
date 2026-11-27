@@ -21,6 +21,7 @@ log() { printf '{"service":"ha-zones","event":"%s","detail":"%s"}\n' "$1" "$2"; 
 
 if [ "$MODE" = fetch ]; then
   : "${EXCHANGE_URL:?}" "${SOURCE_URL:?}" "${SOURCE_REF:?}"
+  # /tmp here is the init-ONLY RAM volume fetch-tmp (Argus C7 B1); the apply container never mounts it.
   K=/tmp/keys
   umask 077
   mkdir -p "$K"
@@ -59,6 +60,8 @@ if [ "$MODE" = fetch ]; then
 fi
 
 : "${HA_URL:?}"
+# Argus C7 B1: the apply container must never see a deploy key.
+if [ -e /tmp/keys ] || [ -e /secrets ]; then log config_error "deploy key path visible in apply container"; exit 78; fi
 STATE=/state/state.json
 WANTED="$W/exchange/zones/ha-zones-wanted.json"
 cd "$W/ta"

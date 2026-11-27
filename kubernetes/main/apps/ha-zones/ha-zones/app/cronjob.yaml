@@ -7,7 +7,8 @@
 #   init  fetch  read-only clones of VDHICT/cluster-wires-exchange (main,
 #                the wanted file zones/ha-zones-wanted.json) and
 #                source/pka-trip-autopilot at SOURCE_REF, core.symlinks=false
-#                (F2). Deploy keys mounted here ONLY. No HA token.
+#                (F2). Deploy keys mounted here ONLY, copied only into this
+#                container's own RAM volume fetch-tmp (Argus C7 B1). No HA token.
 #   main  apply  dry run then live run of that same file (run.sh). HA token
 #                and coordinates as env from Secret ha-zones. No deploy key;
 #                the checkout is mounted read-only.
@@ -92,7 +93,8 @@ spec:
                 - {name: runner, mountPath: /srv/job, readOnly: true}
                 - {name: git-keys, mountPath: /secrets, readOnly: true}
                 - {name: work, mountPath: /work}
-                - {name: tmp, mountPath: /tmp}
+                # B1: init-ONLY RAM volume; the key copies live at /tmp/keys here.
+                - {name: fetch-tmp, mountPath: /tmp}
           containers:
             - name: apply
               image: docker.io/library/python:3.13.15-bookworm@sha256:227b6570d6ee07061ae6ca2eb04dedfb6d2b34045835f343065b9869e4d427ea
@@ -131,8 +133,9 @@ spec:
               configMap:
                 name: ha-zones-runner
                 defaultMode: 0444
-            # run.sh copies both keys to 0600 files under /tmp (memory) as
-            # uid 65534; 0440 + fsGroup lets it read them.
+            # Mounted in the init container ONLY. run.sh copies both keys to
+            # 0600 files under /tmp/keys on fetch-tmp as uid 65534; 0440 +
+            # fsGroup lets it read them.
             - name: git-keys
               secret:
                 secretName: ha-zones-git
@@ -142,7 +145,12 @@ spec:
                   - {key: source_key, path: source_key}
             - name: work            # the two checkouts (C7: emptyDir)
               emptyDir: {sizeLimit: 128Mi}
-            - name: tmp             # key working copies: RAM only
+            # Argus C7 B1: two SEPARATE RAM volumes. fetch-tmp (init only)
+            # holds the deploy-key copies; tmp (apply only) never sees them,
+            # and run.sh refuses to run the apply step if /tmp/keys exists.
+            - name: fetch-tmp       # init only: key working copies
+              emptyDir: {medium: Memory, sizeLimit: 16Mi}
+            - name: tmp             # apply only: Python scratch, no keys
               emptyDir: {medium: Memory, sizeLimit: 16Mi}
             - name: state
               persistentVolumeClaim:
