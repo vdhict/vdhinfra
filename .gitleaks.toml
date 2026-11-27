@@ -11,6 +11,9 @@ useDefault = true
 description = "Known-safe values and ephemeral/encrypted paths"
 
 regexes = [
+  # ESO template guard: a Go-template hasPrefix() check that mentions the PEM header literal,
+  # no key material (ha-zones/vikunja-sync externalsecret.yaml, chg-2026-11-27).
+  '''^-----BEGIN [A-Z ]*PRIVATE KEY-----" \(trim \.[a-z_]+\)\)''',
   # Age PUBLIC recipient key (safe to publish; not the private key). This is the
   # value the nightly scan kept re-flagging out of ops/changes.jsonl (FP loop).
   '''age1dfs2z6esr6rhm46pvh6l8xlualxsn756rkkt9432d5kk3k7s4pssmus4gk''',

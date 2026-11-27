@@ -5,11 +5,9 @@
 # Sends ONE test warning (alertname SibylSelfHostedNtfyProbe, 10 min) through
 # Alertmanager's own API and proves it was delivered to the self-hosted topic
 # (Alertmanager webhook success + ntfy published-message counter rising).
-# Then requires at least one live subscriber (ntfy_subscribers_total >= 1,
-# inc-2026-10-23-002): "published" is not "delivered" when nobody listens.
-# Exit 0 PASS, 1 FAIL + rollback, 2 FAIL no subscriber (path OK, NO rollback:
-# a phone that is not subscribed is not fixed by reverting a commit),
-# 3 no verdict.
+# Subscribers are informational only: 0 is the designed state since
+# chg-2026-11-27-005 (owner-alert-relay reads Alertmanager directly).
+# Exit 0 PASS, 1 FAIL + rollback, 3 no verdict.
 set -u
 SHA="${1:?usage: postcheck-self-hosted-ntfy.sh <sha>}"
 NS=observability
@@ -75,16 +73,10 @@ if [ "$fail" = 0 ]; then
 fi
 
 if [ "$fail" = 0 ]; then
+  # 0 subscribers is the designed state since chg-2026-11-27-005 (owner-alert-relay
+  # reads Alertmanager directly); health = ntfy up and publishing, proven above.
   subs=$(ntfy_subs)
-  if [ -z "$subs" ]; then
-    echo "FAIL ntfy_subscribers_total unreadable on ntfy :9090/metrics"
-    echo "POSTCHECK FAIL (no subscriber count; delivery path OK, NOT rolling back)"; exit 2
-  elif [ "$subs" -lt 1 ]; then
-    echo "FAIL ntfy has 0 subscribers: the test warning was published but NOBODY received it"
-    echo "     fix: ntfy Android app -> subscribe to topic alerts on the self-hosted server, instant delivery on"
-    echo "POSTCHECK FAIL (nobody listening; delivery path OK, NOT rolling back)"; exit 2
-  fi
-  ok "ntfy has $subs live subscriber(s)"
+  echo "INFO ntfy_subscribers_total=${subs:-unreadable} (informational, not a gate)"
   echo "POSTCHECK PASS"; exit 0
 fi
 echo "POSTCHECK FAIL -> rolling back $SHA"
