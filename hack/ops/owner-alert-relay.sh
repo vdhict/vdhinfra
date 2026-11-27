@@ -16,8 +16,17 @@
 #     -> pka-alert --for-sander "<title>" "<body>" (the ONLY reviewed way to the owner's phone; its language guard,
 #        phone-topic guard and per-title 6 h throttle all apply). The topic lives in ~/.config/pka-alert/alert.env;
 #        this script never reads or prints it.
-#     -> one line per alert identity (alertname|fingerprint|startsAt) in the state file, after the hand-off, so a
-#        repeat is never sent twice and a NEW episode (new startsAt) is.
+#     -> an episode (alertname|fingerprint|startsAt) is recorded ONLY on a terminal outcome (Argus C1, wq-161):
+#          SENT     this call wrote a NEW ledger line whose wire = sander-md5(title) (pka-alert's own throttle key)
+#                   -> sent.tsv
+#          REFUSED  pka-alert's language guard refused this title ("for-sander REFUSED reason=guard(...): <title>")
+#                   -> refused.tsv, never retried: the refusal raises a FORCED team alert, so a retry every 5 min
+#                   would spam the team for the alert's whole life
+#          PENDING  anything else (throttled, delivery failed, binary missing, no Sander topic): nothing recorded,
+#                   retried on the next run. cloud_alert.py keeps its alerts active 11 h, longer than the 6 h throttle.
+#        So a repeat is never sent twice, a NEW episode (new startsAt) is, and no episode is lost to a quiet failure.
+#   TestOwnerAlertRoute is only relayed with OWNER_RELAY_TEST=1 in the environment (Argus C3). The plist does NOT
+#   set it; the live test runs the relay once by hand with the flag. Removing the test route later needs no code.
 #
 # Texts are fixed Dutch templates per alertname, never the alert's own summary: summaries carry team vocabulary
 # that pka-alert's guard refuses (README "Three gates"). A new owner alert = one new line in TEMPLATE, checked with
@@ -28,7 +37,9 @@
 #     --input FILE  read alerts from FILE (Alertmanager /api/v2/alerts JSON) instead of the cluster (tests)
 #     --now EPOCH   evaluate day/night at this instant instead of the clock (tests)
 #     --templates   print every owner text (for `pka-alert --guard-check` in the test) and exit
-#   Env (tests): RELAY_STATE_DIR, PKA_ALERT (path of the pka-alert binary or a stub), RELAY_ZONEINFO, AIOPS_ENV.
+#   Env (tests): RELAY_STATE_DIR, PKA_ALERT (path of the pka-alert binary or a stub), PKA_ALERT_LEDGER,
+#   PKA_ALERT_LOG (pka-alert's own names), RELAY_ZONEINFO, AIOPS_ENV. OWNER_RELAY_TEST=1 enables the test route.
+#   Installed by owner-alert-relay-install.sh as a copy of origin/main in ~/.local/libexec (Argus C2).
 #
 # Receipt: after a send the log line carries the ntfy message id from pka-alert's own ledger (published.jsonl,
 # field id; no topic in that file's fields read here). A successful Alertmanager read touches $STATE/last-ok, the
@@ -40,6 +51,7 @@ ENV_FILE="${AIOPS_ENV:-$HOME/.config/aiops/ntfy.env}"
 STATE="${RELAY_STATE_DIR:-$HOME/.local/state/owner-alert-relay}"
 PKA_ALERT="${PKA_ALERT:-$HOME/pka-alert/bin/pka-alert}"
 LEDGER="${PKA_ALERT_LEDGER:-$HOME/.local/state/pka-alert/published.jsonl}"
+PLOG="${PKA_ALERT_LOG:-$HOME/Library/Logs/pka-alert.log}"
 ZONEINFO="${RELAY_ZONEINFO:-/usr/share/zoneinfo/Europe/Amsterdam}"
 DRY=0; INPUT=""; NOW=""; TEMPLATES=0
 while [ $# -gt 0 ]; do
@@ -109,24 +121,42 @@ fi
 
 [ "$DRY" = 1 ] || mkdir -p "$STATE" || { log "cannot create $STATE"; exit 1; }
 [ "$DRY" = 1 ] || [ -n "$INPUT" ] || touch "$STATE/last-ok"
-SENT="$STATE/sent.tsv"
+SENT="$STATE/sent.tsv"; REFUSED="$STATE/refused.tsv"
+
+# pka-alert's throttle key for --for-sander, which is also the ledger "wire" of what it published.
+wire_of() { printf 'sander-%s' "$(printf '%s' "$1" | md5 -q 2>/dev/null || printf '%s' "$1" | md5sum | cut -d' ' -f1)"; }
+recorded() { { [ -e "$SENT" ] && grep -qxF -- "$1" "$SENT"; } || { [ -e "$REFUSED" ] && grep -qxF -- "$1" "$REFUSED"; }; }
+lines_of() { local c; c=$(wc -l < "$1" 2>/dev/null) || c=0; echo $((c+0)); }
 
 day=0; is_day && day=1
-n_sent=0; n_held=0; n_seen=0
+n_sent=0; n_held=0; n_seen=0; n_pend=0; n_ref=0
 while IFS=$'\t' read -r name fp since; do
   [ -n "$name" ] || continue
   key="$name|$fp|$since"
-  if [ -e "$SENT" ] && grep -qxF -- "$key" "$SENT"; then n_seen=$((n_seen+1)); continue; fi
+  if recorded "$key"; then n_seen=$((n_seen+1)); continue; fi
+  if [ "$name" = TestOwnerAlertRoute ] && [ "${OWNER_RELAY_TEST:-0}" != 1 ]; then
+    log "SKIP $name: test route disabled (OWNER_RELAY_TEST not 1)"; continue
+  fi
   if [ "$day" = 0 ]; then n_held=$((n_held+1)); log "HELD (night) $name fp=$fp since=$since"; continue; fi
   template "$name" || { log "no template for $name (not sent)"; continue; }
   if [ "$DRY" = 1 ]; then echo "DRY would send $name: $T"; n_sent=$((n_sent+1)); continue; fi
-  before=$(wc -l < "$LEDGER" 2>/dev/null || echo 0); before=$((before+0))
-  "$PKA_ALERT" --for-sander "$T" "$B" || true      # pka-alert always exits 0; its log has the verdict
-  printf '%s\n' "$key" >> "$SENT"
-  # Only ledger lines written by THIS call count: a throttled or refused send leaves none, and must not borrow an
-  # older id. "none" = see ~/Library/Logs/pka-alert.log (throttle, guard refusal or delivery failure).
-  id=$(tail -n +"$((before+1))" "$LEDGER" 2>/dev/null | /usr/bin/jq -r --arg t "$T" 'select((.title // "") | endswith($t)) | .id' 2>/dev/null | tail -1)
-  log "SENT $name fp=$fp since=$since pka_alert_ledger_id=${id:-none}"
-  n_sent=$((n_sent+1))
+  if [ ! -x "$PKA_ALERT" ]; then
+    n_pend=$((n_pend+1)); log "PENDING $name fp=$fp since=$since reason=pka-alert-missing (retry next run)"; continue
+  fi
+  w=$(wire_of "$T")
+  l0=$(lines_of "$LEDGER"); g0=$(lines_of "$PLOG")
+  "$PKA_ALERT" --for-sander "$T" "$B" || true      # pka-alert always exits 0; the ledger and its log are the verdict
+  # Only lines written during THIS call count, so an older id for the same title is never borrowed.
+  id=$(tail -n +"$((l0+1))" "$LEDGER" 2>/dev/null | /usr/bin/jq -r --arg w "$w" 'select(.wire == $w) | .id // empty' 2>/dev/null | tail -1)
+  if [ -n "$id" ]; then
+    printf '%s\n' "$key" >> "$SENT"; n_sent=$((n_sent+1))
+    log "SENT $name fp=$fp since=$since wire=$w pka_alert_ledger_id=$id"
+  elif tail -n +"$((g0+1))" "$PLOG" 2>/dev/null | grep -F "for-sander REFUSED reason=guard" | grep -qF -- ": $T"; then
+    printf '%s\n' "$key" >> "$REFUSED"; n_ref=$((n_ref+1))
+    log "REFUSED $name fp=$fp since=$since wire=$w: language guard refused the text (final, not retried; fix the template)"
+  else
+    n_pend=$((n_pend+1))
+    log "PENDING $name fp=$fp since=$since wire=$w: no new ledger id (throttled or not delivered; see pka-alert.log), retry next run"
+  fi
 done <<< "$alerts"
-log "source=$src day=$day sent=$n_sent held=$n_held already-sent=$n_seen dry=$DRY"
+log "source=$src day=$day sent=$n_sent pending=$n_pend refused=$n_ref held=$n_held already-recorded=$n_seen dry=$DRY"

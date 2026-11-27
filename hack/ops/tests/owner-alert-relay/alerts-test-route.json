@@ -1,0 +1,4 @@
+[
+  {"labels": {"alertname": "TestOwnerAlertRoute", "severity": "critical", "namespace": "family-ai", "test": "wq-161"},
+   "annotations": {"summary": "route test"}, "fingerprint": "bbbb000000000001", "startsAt": "2026-11-27T10:00:00.000Z", "status": {"state": "active"}}
+]
