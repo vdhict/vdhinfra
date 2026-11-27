@@ -17,7 +17,14 @@
 #      - no input for >= 60 min, read from the xhci_hcd interrupt counts that
 #        vdh-input-sampler (src/input-sampler.sh) writes to /run/vdh-input/state.
 #        No state, stale state or another boot's state: KEEP.
-#   5. no logind block inhibitor (systemctl --check-inhibitors=yes).
+#   5. no logind block (or block-weak) inhibitor on shutdown, checked by this
+#      script from `systemd-inhibit --list` (wq-157). Delay locks stay honoured
+#      by logind itself.
+# Power-off is then `systemctl poweroff --check-inhibitors=no`: systemctl's own
+# client-side check (=yes) also refuses on ANY other logged-in user, and the
+# tty1 autologin plus agent ssh exist on every team boot, so =yes could never
+# succeed (inc 2026-11-27T01:11:40Z). Rule 4a is the session check instead.
+# Known gap: a block lock taken between check 5 and the poweroff call (ms).
 # Anything it cannot read means KEEP (fail safe: never power off on doubt).
 # Every decision is one line on stdout, which systemd writes to the journal.
 set -euo pipefail
@@ -28,11 +35,13 @@ if [[ "${VDH_IDLE_TEST:-0}" == "1" ]]; then
   ROOT="${VDH_IDLE_ROOT:?}"
   LOGINCTL="${VDH_IDLE_LOGINCTL:?}"
   SYSTEMCTL="${VDH_IDLE_SYSTEMCTL:?}"
+  INHIBIT="${VDH_IDLE_INHIBIT:?}"
   NOW="${VDH_IDLE_NOW:?}"
 else
   ROOT=""
   LOGINCTL="loginctl"
   SYSTEMCTL="systemctl"
+  INHIBIT="systemd-inhibit"
   NOW="$(date +%s)"
 fi
 
@@ -140,8 +149,37 @@ quiet_s=$(( uptime_s - quiet_from ))
 (( quiet_s >= 0 )) || keep "input activity unknown (input time in the future)"
 (( quiet_s >= INPUT_QUIET_MIN_S )) || keep "local input ${quiet_s}s ago < ${INPUT_QUIET_MIN_S}s (AGR-114)"
 
-# --- 5. power off ------------------------------------------------------------
+# --- 5. no block inhibitor on shutdown ---------------------------------------
+# Columns: WHO UID USER PID COMM WHAT WHY MODE. WHO and WHY may hold spaces, so
+# MODE is the last field and WHAT is matched as any field naming "shutdown" in
+# its colon list (a WHY word "shutdown" also matches: fail safe). An unknown
+# layout or an unknown mode means KEEP. No block lock is known-harmless: the box
+# holds only delay locks (NetworkManager, UPower, Omarchy; evidence 101).
+inhibitors="$("$INHIBIT" --list --mode=block --no-pager 2>/dev/null)" \
+  || keep "cannot list logind inhibitors"
+header_seen=0
+while read -r -a f; do
+  (( ${#f[@]} > 0 )) || continue
+  if [[ "${f[*]}" == "No inhibitors." ]]; then header_seen=1; continue; fi   # systemd's empty-table line
+  if (( header_seen == 0 )); then
+    [[ "${f[0]}" == WHO && "${f[${#f[@]}-1]}" == MODE ]] || keep "inhibitor list layout unknown"
+    header_seen=1; continue
+  fi
+  [[ "${f[*]}" =~ ^[0-9]+\ inhibitors?\ listed\.$ ]] && continue
+  mode="${f[${#f[@]}-1]}"
+  case "$mode" in
+    delay) continue ;;
+    block|block-weak) ;;
+    *) keep "inhibitor with unknown mode ${mode}" ;;
+  esac
+  for field in "${f[@]}"; do
+    [[ ":${field}:" != *":shutdown:"* ]] || keep "${mode} inhibitor on shutdown held by ${f[0]}"
+  done
+done <<<"$inhibitors"
+(( header_seen == 1 )) || keep "inhibitor list empty or layout unknown"
+
+# --- 6. power off ------------------------------------------------------------
 echo "idle-poweroff: POWEROFF: started_by=team boot_id=${boot_id} uptime=${uptime_s}s input_quiet=${quiet_s}s runner_idle=${runner_idle}"
-if ! "$SYSTEMCTL" poweroff --check-inhibitors=yes; then
-  echo "idle-poweroff: KEEP: systemctl poweroff refused (inhibitor?)"
+if ! "$SYSTEMCTL" poweroff --check-inhibitors=no; then
+  echo "idle-poweroff: KEEP: systemctl poweroff refused"
 fi

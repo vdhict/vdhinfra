@@ -17,7 +17,7 @@ set -euo pipefail
 umask 077
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
 PROV=/usr/local/sbin/vdh-provision.sh
-PROV_SHA256=8499cdd137842fe51ecb41ad7cf76a52a6b54b90ef3d37800117decf8d5f307c
+PROV_SHA256=493920901a796e659b537cb914da57c9c5777ff9d55d56f2cd8673f168de5f37
 DROPIN=/etc/sudoers.d/90-agent-provision
 # shellcheck disable=SC2054  # the --steps value is one comma-separated word
 ARGS=(--forge-url https://forge.bluejungle.net

@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 SC="${SHELLCHECK:-shellcheck}"
 echo "== shellcheck"
 "$SC" -S style -s bash provision.in.sh provision.sh build.sh src/idle-poweroff.sh src/input-sampler.sh src/vm-dispatch.sh \
-  src/vm-golden-build.sh src/initcpio-install-vdh-teamboot.sh tests/idle-poweroff.test.sh tests/input-sampler.test.sh tests/run-all.sh tests/arch-container.sh tests/nft-guard.test.sh tests/nft-kernel.sh tests/sudo-window-container.sh tests/remote-unlock.test.sh tests/user-groups.test.sh tests/sudo-check.test.sh tests/golden-console.test.sh tests/qemu-start.test.sh \
+  src/vm-golden-build.sh src/initcpio-install-vdh-teamboot.sh tests/idle-poweroff.test.sh tests/idle-poweroff.mutation.sh tests/input-sampler.test.sh tests/run-all.sh tests/arch-container.sh tests/nft-guard.test.sh tests/nft-kernel.sh tests/sudo-window-container.sh tests/remote-unlock.test.sh tests/user-groups.test.sh tests/sudo-check.test.sh tests/golden-console.test.sh tests/qemu-start.test.sh \
   sudo-window/vdh-provision-tonight sudo-window/install-window.sh sudo-window/verify-revoked.sh sudo-window/pin.sh sudo-window/larry/sweep-count.sh mini/make-webhook-id.sh mini/teamkey-pull.sh mini/team-stage.sh owner/owner-session.sh tests/owner-session-container.sh mini/install-waker.sh mini/ha-cap-readback.sh tests/run-in-pod.sh post-run-checks.sh
 "$SC" -S style -s sh src/teamboot-shell.sh src/teamboot-record.sh src/nft-guard.sh
 echo "== provision.sh in sync with sources"
@@ -14,6 +14,8 @@ echo "== bash -n on every shell file"
 for f in provision.sh src/*.sh tests/*.sh build.sh; do bash -n "$f"; done
 echo "== idle-poweroff unit tests"
 bash tests/idle-poweroff.test.sh
+echo "== idle-poweroff mutation check (wq-157: suite must fail without the inhibitor check)"
+bash tests/idle-poweroff.mutation.sh
 echo "== input-sampler unit tests"
 bash tests/input-sampler.test.sh
 echo "== sudo-window: install-window.sh pins in sync"

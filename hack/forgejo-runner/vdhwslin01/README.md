@@ -106,7 +106,12 @@ unlock never passes through it. switch_root carries `/run` into the booted syste
     every 2 s and records input when the delta exceeds 2 × the quietest delta of the last 15 min + 4.
     The sampler runs as `vdh-sampler` on team boots and writes `/run/vdh-input/state`. Missing, stale
     (> 30 s), or foreign state keeps the box on, and the 60 min count starts no earlier than the sampler;
-  - no logind block inhibitor is held.
+  - no logind `block` or `block-weak` inhibitor on `shutdown` is held. The script reads
+    `systemd-inhibit --list` itself (an unreadable or unknown list keeps the box on) and then runs
+    `systemctl poweroff --check-inhibitors=no`. systemctl's own check (`=yes`) also refuses on any
+    logged-in user, and the tty1 autologin and agent ssh exist on every team boot (wq-157, 2026-11-27).
+    Delay locks are still honoured by logind. pka-run claims live on the calling host only, so the box
+    cannot see them; a pka-run job on the box is not protected by idle-poweroff (open: I1).
 
   Anything it cannot read means it keeps the box on.
 
