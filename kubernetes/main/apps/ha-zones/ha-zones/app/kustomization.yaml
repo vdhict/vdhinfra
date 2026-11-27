@@ -1,0 +1,33 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+#
+# ha-zones (wq-097 C7). NO image build and NO code in this repo: the job
+# fetches trip-autopilot at a pinned commit from forge at run time (the
+# code carries a city table, which must not enter this public repo), and
+# the wanted list from the exchange repo. Only the runner script and the
+# pinned forge host key live here.
+#
+# code/known_hosts is byte-identical to
+# vikunja/vikunja-sync/app/code/known_hosts (sha256 6b76c597...; forgejo-ssh
+# RSA-4096 SHA256:VRbRDnbepo8x5G5SnTmHBxvBqBvHxTKgQ6pJ4gct+pE, re-measured
+# from the Forgejo pod 2026-10-07). Re-measure before go-live.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./externalsecret.yaml
+  - ./pvc.yaml
+  - ./cronjob.yaml
+  - ./prometheusrule.yaml
+configMapGenerator:
+  - name: ha-zones-runner
+    files:
+      - ./code/run.sh
+      - ./code/known_hosts
+generatorOptions:
+  # Fixed name: every run is a new pod, so a script change is picked up by
+  # the next Job without a hash-suffixed name.
+  disableNameSuffixHash: true
+  annotations:
+    # REQUIRED: run.sh contains ${VAR:?}; Flux postBuild would otherwise
+    # try to substitute it and fail or blank it.
+    kustomize.toolkit.fluxcd.io/substitute: disabled

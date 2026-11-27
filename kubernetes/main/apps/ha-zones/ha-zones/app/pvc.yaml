@@ -1,0 +1,17 @@
+---
+# zones_apply state file (--state): the last dry run (digest + time) and the
+# ids of the zones THIS job created, which is the rollback list (rollback
+# deletes only those ids). Small RWO block volume, Ceph only.
+# No VolSync: losing it loses the dry-run marker (next run re-dries) and the
+# rollback list; the C8 readback evidence records the created ids as well.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/v1/persistentvolumeclaim.json
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ha-zones-state
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: rook-ceph-block
+  resources:
+    requests:
+      storage: 100Mi

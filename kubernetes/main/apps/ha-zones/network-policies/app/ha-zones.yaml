@@ -1,0 +1,62 @@
+---
+# ha-zones job: NO ingress (default-deny keeps it closed). Egress to exactly
+# three things:
+#   1. Home Assistant, TCP 8123. HA runs with hostNetwork: true, so the
+#      in-cluster Service home-assistant.home-automation (ClusterIP) is
+#      translated by Cilium's socket LB to <node IP>:8123 BEFORE policy, and
+#      the peer identity is the node: `host` (same node) or `remote-node`.
+#      A toEndpoints rule on the HA pod labels can never match, and toCIDR
+#      cannot select node IPs (cilium-config policy-cidr-match-mode is
+#      empty, measured 2026-11-27). So the rule is node entities, port 8123
+#      ONLY. Residual, stated: this admits 8123 on any node IP; only HA
+#      listens there. No LB IP 172.16.2.237 path is used.
+#   2. the Forgejo pod in devtools, TCP 2222 - the container port behind
+#      Service forgejo-ssh (22 -> 2222). Same rule and reasoning as
+#      vikunja-sync (Cilium enforces after service translation). Init
+#      container only (the git fetch); the HA step has no key mounted.
+#   3. kube-dns, for exactly the two Service names above.
+#
+# HA-side ingress (Argus C7 "HA admits this namespace only"): NOT
+# expressible here. HA is hostNetwork, so a namespace CNP in
+# home-automation does not cover it; it would need a Cilium host policy on
+# the nodes (cluster-wide, own change). Recorded as an open C7 item.
+#
+# devtools has NO network policy today, so Forgejo accepts this without a
+# change there. When devtools gets its default-deny, it MUST admit this pod
+# on 2222 (as for vikunja-sync).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ha-zones
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: ha-zones
+  egress:
+    - toEntities:
+        - host
+        - remote-node
+      toPorts:
+        - ports: [{port: "8123", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: devtools
+            app.kubernetes.io/name: forgejo
+            app.kubernetes.io/instance: forgejo
+      toPorts:
+        - ports: [{port: "2222", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              # Anything else gets REFUSED. The pod uses ndots 1, so these
+              # absolute names resolve without walking the search list.
+              - matchName: home-assistant.home-automation.svc.cluster.local
+              - matchName: forgejo-ssh.devtools.svc.cluster.local

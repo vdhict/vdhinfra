@@ -1,0 +1,36 @@
+---
+# yaml-language-server: $schema=https://schemas.zinn.ca/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# ha-zones (wq-097 C7, chg-2026-11-23-012): the HA zones CronJob.
+# NOT listed in ../kustomization.yaml until go-live step 2 (see there).
+#
+# dependsOn:
+#   * ha-zones-network-policies - default-deny + the job CNP exist before any pod.
+#   * external-secrets-stores   - the ExternalSecrets need the 1Password store.
+#   * rook-ceph-cluster         - the state PVC.
+# wait: true makes the ExternalSecrets' Ready condition part of this
+# Kustomization's health: a missing 1Password field is a failed reconcile,
+# not a Job that fails at run time.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app ha-zones
+  namespace: flux-system
+spec:
+  targetNamespace: ha-zones
+  commonMetadata:
+    labels:
+      app.kubernetes.io/part-of: ha-zones
+  dependsOn:
+    - name: ha-zones-network-policies
+    - name: external-secrets-stores
+    - name: rook-ceph-cluster
+  path: ./kubernetes/main/apps/ha-zones/ha-zones/app
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  prune: true
+  wait: true
+  interval: 30m
+  retryInterval: 1m
+  timeout: 5m

@@ -1,0 +1,24 @@
+---
+# ha-zones (wq-097 C7, chg-2026-11-23-012): one CronJob that creates the
+# wanted Home Assistant zones (trip-autopilot zones_apply.py, create-only).
+#
+# Its OWN namespace (Argus C7), not home-automation: the pod holds an HA
+# ADMIN long-lived token, so it sits behind its own default-deny boundary,
+# PSA restricted, no ServiceAccount token and no RBAC. Nothing else runs here.
+#
+# Pod Security Admission: `restricted` ENFORCED. The vendor image
+# python:3.13.15-bookworm runs as uid 65534 (nobody, has a passwd entry,
+# which ssh needs) with every restricted field set explicitly in the pod.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ha-zones
+  labels:
+    # The state PVC records which zone ids this job created (the rollback
+    # list). Removing the directory from Git must not delete it: rollback
+    # deletes the namespace BY HAND, after a rollback run.
+    kustomize.toolkit.fluxcd.io/prune: disabled
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

@@ -1,0 +1,39 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/prometheusrule_v1.json
+# ha-zones failure alert (Argus C7: "failure alert silent 23-07").
+# Signal: a failed Job (backoffLimit 0; any refusal, fetch error, config
+# error or deadline is a non-zero exit). severity: warning routes to ntfy,
+# day 07-23 only, silent at night (Alertmanager, 2026-10-20). The schedule
+# itself only runs 07-21 Europe/Amsterdam.
+# Fires ONLY while the CronJob exists and is NOT suspended; manual C8 Jobs
+# during suspend are watched by the attended operator, not by this rule.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ha-zones
+spec:
+  groups:
+    - name: ha-zones
+      interval: 1m
+      rules:
+        - alert: HaZonesJobFailed
+          expr: |
+            (
+              # distinct Jobs: newer kube-state-metrics splits this series by `reason`
+              count(count by (job_name) (kube_job_status_failed{namespace="ha-zones", job_name=~"ha-zones-[0-9]+"} > 0)) >= 1
+            )
+            and on() (max(kube_cronjob_spec_suspend{namespace="ha-zones", cronjob="ha-zones"}) == 0)
+          for: 1m
+          labels:
+            severity: warning
+            component: ha-zones
+          annotations:
+            summary: "ha-zones: a zones run failed"
+            description: |
+              A ha-zones Job failed. Logs are counts only: `kubectl -n ha-zones
+              logs job/<newest> -c apply` (or -c fetch). Exit 78 = config
+              (Secret/wanted file), 128 = forge fetch (deploy key, known_hosts,
+              pinned commit), 1 = zones_apply refused (50 km, >5 creates, file
+              validation) or HA error. Nothing is created on a refusal.
+              Rollback: suspend the CronJob; rollback mode deletes only the
+              zone ids in the state file.

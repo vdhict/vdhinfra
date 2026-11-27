@@ -1,0 +1,149 @@
+---
+# ha-zones (wq-097 C7, chg-2026-11-23-012): creates the wanted Home
+# Assistant zones, create-only, with trip-autopilot zones_apply.py at the
+# Argus-reviewed commit 79e820d7 (argus-wq097-final-20261127T113633Z: GO for
+# the code; live NO-GO until C6-C8).
+#
+#   init  fetch  read-only clones of VDHICT/cluster-wires-exchange (main,
+#                the wanted file zones/ha-zones-wanted.json) and
+#                source/pka-trip-autopilot at SOURCE_REF, core.symlinks=false
+#                (F2). Deploy keys mounted here ONLY. No HA token.
+#   main  apply  dry run then live run of that same file (run.sh). HA token
+#                and coordinates as env from Secret ha-zones. No deploy key;
+#                the checkout is mounted read-only.
+#
+# suspend: true until C8 is done (attended first run, Argus delta). Manual
+# Jobs for C8, from this template with a different mode:
+#   kubectl -n ha-zones create job ha-zones-dry-<UTC> --from=cronjob/ha-zones \
+#     --dry-run=client -o yaml \
+#   | yq '.spec.template.spec.containers[0].args = ["dry"]' | kubectl apply -f -
+#   (modes: dry, apply, rollback-dry, rollback; see code/run.sh)
+#
+# NO image build (vendor images only): python:3.13.15-bookworm, the same
+# digest vikunja-sync runs (git, openssh-client, tzdata; uid 65534 has a
+# passwd entry, which ssh needs). trip-autopilot is stdlib-only (its
+# requirements.in: "stdlib only on the cluster"), Python 3.13 as its lock.
+#
+# Pod Security restricted: every checked field is set explicitly.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/batch/v1/cronjob.json
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ha-zones
+spec:
+  # Hourly in the day only: a failure never alerts at night (AGR-074), and
+  # a trip's zone appears well before departure.
+  schedule: "17 7-21 * * *"
+  timeZone: Europe/Amsterdam
+  suspend: true                      # C8: unsuspend only after the attended first run
+  concurrencyPolicy: Forbid          # never two runs against one state file
+  startingDeadlineSeconds: 600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 0                # the next hourly run is the retry
+      activeDeadlineSeconds: 300     # C7: <= 300 s, fetch included
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: ha-zones
+        spec:
+          restartPolicy: Never
+          # C7: no ServiceAccount token, no RBAC (the default SA has none).
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          # ndots 1: the two in-cluster names are absolute, so they resolve
+          # first time instead of walking the search list (which the CNP's
+          # DNS rule answers REFUSED).
+          dnsConfig:
+            options:
+              - {name: ndots, value: "1"}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            fsGroup: 65534
+            fsGroupChangePolicy: OnRootMismatch
+            seccompProfile: {type: RuntimeDefault}
+          initContainers:
+            - name: fetch
+              image: docker.io/library/python:3.13.15-bookworm@sha256:227b6570d6ee07061ae6ca2eb04dedfb6d2b34045835f343065b9869e4d427ea
+              command: ["/bin/sh", "/srv/job/run.sh"]
+              args: ["fetch"]
+              env:
+                - {name: HOME, value: /tmp}
+                # The INTERNAL Forgejo SSH Service (22 -> pod 2222); the host
+                # key is checked under the alias forgejo-ssh (run.sh).
+                - {name: EXCHANGE_URL, value: "ssh://git@forgejo-ssh.devtools.svc.cluster.local:22/VDHICT/cluster-wires-exchange.git"}
+                - {name: SOURCE_URL, value: "ssh://git@forgejo-ssh.devtools.svc.cluster.local:22/source/pka-trip-autopilot.git"}
+                # The Argus-reviewed commit. Bump ONLY in a reviewed commit.
+                - {name: SOURCE_REF, value: "79e820d7dad0c2ba6c43fc06de1ececb2f393707"}
+              resources:
+                requests: {cpu: 10m, memory: 32Mi}
+                limits: {memory: 256Mi}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                privileged: false
+                capabilities: {drop: ["ALL"]}
+              volumeMounts:
+                - {name: runner, mountPath: /srv/job, readOnly: true}
+                - {name: git-keys, mountPath: /secrets, readOnly: true}
+                - {name: work, mountPath: /work}
+                - {name: tmp, mountPath: /tmp}
+          containers:
+            - name: apply
+              image: docker.io/library/python:3.13.15-bookworm@sha256:227b6570d6ee07061ae6ca2eb04dedfb6d2b34045835f343065b9869e4d427ea
+              command: ["/bin/sh", "/srv/job/run.sh"]
+              args: ["apply"]
+              env:
+                - {name: HOME, value: /tmp}
+                - {name: TZ, value: Europe/Amsterdam}
+                - {name: PYTHONUNBUFFERED, value: "1"}
+                # In-cluster Service (C7). hawebsocket maps http -> ws.
+                - {name: HA_URL, value: "http://home-assistant.home-automation.svc.cluster.local:8123"}
+                - name: HA_ADMIN_TOKEN
+                  valueFrom:
+                    secretKeyRef: {name: ha-zones, key: HA_ADMIN_TOKEN}
+                - name: HA_HOME_LATLON
+                  valueFrom:
+                    secretKeyRef: {name: ha-zones, key: HA_HOME_LATLON}
+                - name: HA_PROTECTED_LATLON
+                  valueFrom:
+                    secretKeyRef: {name: ha-zones, key: HA_PROTECTED_LATLON}
+              resources:
+                requests: {cpu: 10m, memory: 32Mi}
+                limits: {memory: 128Mi}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                privileged: false
+                capabilities: {drop: ["ALL"]}
+              volumeMounts:
+                - {name: runner, mountPath: /srv/job, readOnly: true}
+                - {name: work, mountPath: /work, readOnly: true}
+                - {name: tmp, mountPath: /tmp}
+                - {name: state, mountPath: /state}
+          volumes:
+            - name: runner
+              configMap:
+                name: ha-zones-runner
+                defaultMode: 0444
+            # run.sh copies both keys to 0600 files under /tmp (memory) as
+            # uid 65534; 0440 + fsGroup lets it read them.
+            - name: git-keys
+              secret:
+                secretName: ha-zones-git
+                defaultMode: 0440
+                items:
+                  - {key: exchange_key, path: exchange_key}
+                  - {key: source_key, path: source_key}
+            - name: work            # the two checkouts (C7: emptyDir)
+              emptyDir: {sizeLimit: 128Mi}
+            - name: tmp             # key working copies: RAM only
+              emptyDir: {medium: Memory, sizeLimit: 16Mi}
+            - name: state
+              persistentVolumeClaim:
+                claimName: ha-zones-state

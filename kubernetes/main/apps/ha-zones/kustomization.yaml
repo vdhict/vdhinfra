@@ -1,0 +1,25 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+#
+# Namespace-level resource list for `ha-zones` (wq-097 C7, chg-2026-11-23-012,
+# tsk-2026-11-23-110). Picked up by cluster-apps through the directory scan
+# of ./kubernetes/main/apps, like every other namespace.
+#
+# GO-LIVE GATE: ./ha-zones/install.yaml is deliberately NOT listed yet.
+# The namespace and its default-deny policies land first (inert: no pod).
+# The job's two 1Password items do not exist yet, so its ExternalSecrets
+# would be NotReady and (wait: true) the Kustomization would fail.
+# Go-live order (C6-C8, Argus delta 20261127T085636Z):
+#   1. C6 HA user + LLAT made attended; 1Password items `ha-zones` and
+#      `ha-zones-git` created (see ha-zones/app/externalsecret.yaml);
+#      commit 79e820d7 landed on forge source/pka-trip-autopilot.
+#   2. Uncomment the line below (CronJob still suspend: true), one Argus
+#      look at the manifest (Z8), push; ESs Ready.
+#   3. C8 attended first run with manual Jobs, then a commit sets
+#      suspend: false on the CronJob.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./namespace.yaml
+  - ./network-policies/install.yaml
+  # - ./ha-zones/install.yaml   # go-live step 2, not before
