@@ -165,7 +165,7 @@ def check_gitleaks(repo: Path) -> list[dict]:
     """Run gitleaks against the working tree; flag any leaks."""
     findings = []
     res = run(["gitleaks", "detect", "--source", str(repo), "--no-banner",
-               "--no-git", "--report-format=json", "--report-path=/tmp/gitleaks.json",
+               "--no-git", "--redact", "--report-format=json", "--report-path=/tmp/gitleaks.json",
                "--exit-code=0"], timeout=120)
     if res.returncode not in (0, 1):
         log(f"argus: gitleaks unavailable or errored ({res.returncode}): {res.stderr[:200]}")
@@ -181,7 +181,8 @@ def check_gitleaks(repo: Path) -> list[dict]:
             "title": f"gitleaks: {leak.get('Description','potential secret')}",
             "severity": "high",
             "target": leak.get("File", "?"),
-            "evidence": f"line {leak.get('StartLine','?')}: {leak.get('Match','')[:80]}",
+            # Never the Match/Secret text: findings are pushed to the PUBLIC repo (Argus 2026-11-27, chg-2026-11-27-004).
+            "evidence": f"rule {leak.get('RuleID','?')} line {leak.get('StartLine','?')} fingerprint {leak.get('Fingerprint','?')}",
             "remediation": "rotate secret + remove from history; if false positive, add to .gitleaksignore",
             "owner_agent": "infra-ops",
         })
