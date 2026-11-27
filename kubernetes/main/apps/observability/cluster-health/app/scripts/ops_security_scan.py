@@ -23,6 +23,7 @@ import sys
 import tempfile
 import time
 import datetime as dt
+import urllib.parse
 import urllib.request
 import urllib.error
 from pathlib import Path
@@ -678,6 +679,230 @@ def check_teamregie_forged_header() -> list[dict]:
              "owner_agent": "k8s-engineer"}]
 
 
+# ── chg-2026-11-13-002 / wq-140: forge push deploy keys (L5) + pin guard (C3 G5/G6) ─────────────────
+
+PIN_GUARD = "hack/ops/pin-guard/cluster-wires-pin-guard.py"
+PIN_GUARD_WORKFLOW = "cluster-wires-pin-guard.yml"
+REVOKE_RUNBOOK = "docs/runbooks/forge-deploy-key-revoke.md"
+FORGE_PUSH_REGISTRY = "hack/ops/forge-push/deploy-keys.json"
+LOKI_URL = os.environ.get("LOKI_URL", "http://loki.observability.svc.cluster.local:3100")
+GITHUB_REPO = "vdhict/vdhinfra"
+FORGE_LOG_QUERY = '{namespace="devtools", app="forgejo"} |~ "api/internal/(serv/command|hook/(pre|post)-receive)/"'
+FORGE_LOG_RE = re.compile(
+    r"completed (?:GET|POST) /api/internal/(?:serv/command/(?P<key>\d+)/(?P<sowner>[^/?\s]+)/(?P<srepo>[^/?\s]+)"
+    r"\?mode=(?P<mode>\d+)&verb=(?P<verb>[\w-]+)|hook/(?P<hook>pre|post)-receive/(?P<howner>[^/?\s]+)/"
+    r"(?P<hrepo>[^/?\s]+)) for \S+ (?P<status>\d{3})")
+SESSION_S = 120          # hook lines belong to the receive-pack session that started at most this long before
+L4_MATCH_S = 15 * 60     # an L4 line matches a forge push within this distance
+
+
+def _sev_finding(title: str, severity: str, target: str, evidence: str, remediation: str) -> dict:
+    return {"title": title, "severity": severity, "target": target, "evidence": evidence[:400],
+            "remediation": remediation, "owner_agent": "k8s-engineer"}
+
+
+def pin_guard_findings(rc: int, out: str, mode: str) -> list[dict]:
+    """Pure: G6. A red or erroring guard is a high finding (sev3 incident) that names the L7 revoke."""
+    if rc == 0:
+        return []
+    what = "RED" if rc == 1 else "ERROR (treat as red)"
+    return [_sev_finding(f"pin guard {what} ({mode}): L7 revoke trigger for the forge push deploy keys", "high",
+                         "cluster-wires commit pin", out.strip()[-400:],
+                         f"revoke every active key in {FORGE_PUSH_REGISTRY} per {REVOKE_RUNBOOK}, then fix the pin")]
+
+
+def check_pin_guard_live(repo: Path) -> list[dict]:
+    """G5: live mode runs daily here (needs no PyYAML; the SA can list gitrepositories)."""
+    guard = repo / PIN_GUARD
+    if not guard.is_file():
+        return pin_guard_findings(2, f"{PIN_GUARD} missing from the clone", "live")
+    res = run([sys.executable, str(guard), "--live"], timeout=90)
+    return pin_guard_findings(res.returncode, res.stdout + res.stderr, "live")
+
+
+def ci_pin_guard_findings(latest: dict | None, latest_schedule: dict | None, now: dt.datetime) -> list[dict]:
+    """Pure: G6 for CI (a red run on main is a high finding) and G5 (the cron must keep firing)."""
+    out: list[dict] = []
+    if latest and latest.get("conclusion") == "failure":
+        out += pin_guard_findings(1, f"CI run {latest.get('html_url', '?')} on main {latest.get('head_sha', '?')[:12]} "
+                                     "concluded failure", "ci")
+    if not latest_schedule:
+        out.append(_sev_finding("pin guard CI: no scheduled run found", "medium", PIN_GUARD_WORKFLOW,
+                                "GitHub lists no event=schedule run", "check the workflow schedule on main"))
+    else:
+        ts = dt.datetime.fromisoformat(latest_schedule["created_at"].replace("Z", "+00:00"))
+        if now - ts > dt.timedelta(hours=48):
+            out.append(_sev_finding("pin guard CI: schedule has not fired for 48h", "medium", PIN_GUARD_WORKFLOW,
+                                    f"last scheduled run {latest_schedule['created_at']}",
+                                    "check the workflow schedule (GitHub disables crons on idle repos)"))
+    return out
+
+
+def _gh_runs(params: str) -> dict | None:
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/{PIN_GUARD_WORKFLOW}/runs?{params}"
+    headers = {"Accept": "application/vnd.github+json"}
+    tok = mint_installation_token()
+    if tok:
+        headers["Authorization"] = f"Bearer {tok}"
+    with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=20) as r:
+        runs = json.load(r).get("workflow_runs") or []
+    return runs[0] if runs else None
+
+
+def check_pin_guard_ci() -> list[dict]:
+    latest = _gh_runs("branch=main&status=completed&per_page=1")
+    sched = _gh_runs("event=schedule&per_page=1")
+    return ci_pin_guard_findings(latest, sched, dt.datetime.now(dt.timezone.utc))
+
+
+def parse_forge_log(entries: list[tuple[float, str]]) -> list[dict]:
+    """Pure: Loki (epoch seconds, line) -> forge router events. Owner/repo are lower-cased."""
+    out = []
+    for ts, line in entries:
+        m = FORGE_LOG_RE.search(line)
+        if not m:
+            continue
+        if m.group("key"):
+            out.append({"ts": ts, "kind": "serv", "key_id": int(m.group("key")),
+                        "repo": f"{m.group('sowner')}/{m.group('srepo')}".lower(), "mode": int(m.group("mode")),
+                        "verb": m.group("verb"), "status": int(m.group("status"))})
+        else:
+            out.append({"ts": ts, "kind": m.group("hook"), "repo": f"{m.group('howner')}/{m.group('hrepo')}".lower(),
+                        "status": int(m.group("status"))})
+    return sorted(out, key=lambda e: e["ts"])
+
+
+def _l4_pushes(changes_text: str) -> list[dict]:
+    out = []
+    for line in changes_text.splitlines():
+        try:
+            e = json.loads(line)
+        except ValueError:
+            continue
+        p = e.get("payload") or {}
+        if e.get("event") == "executed" and p.get("kind") == "forge-deploy-key-push" and \
+                str(p.get("result", "")).startswith("PUSHED"):
+            ts = p.get("ts_push") or e.get("ts")
+            try:
+                t = dt.datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+            except (AttributeError, ValueError):
+                continue
+            out.append({"ts": t, "repo": str(p.get("repo", "")).lower(), "key_id": p.get("public_key_id"),
+                        "chg": e.get("chg"), "new": p.get("new")})
+    return out
+
+
+def reconcile_forge_pushes(events: list[dict], l4: list[dict], registry: dict, start: float, end: float) -> list[dict]:
+    """Pure L5. The forge records a deploy-key push under the repo OWNER (P1-T8), so the key is identified by the
+    SSH serv/command key id in the router log. Each push session of a registered key must have an L4 line."""
+    keys = {int(k["public_key_id"]): k["repo"].lower() for k in registry.get("keys", [])
+            if k.get("status") == "active" and k.get("public_key_id")}
+    if not keys:
+        return []
+    findings: list[dict] = []
+    used: set[int] = set()
+    revoke = f"revoke the key per {REVOKE_RUNBOOK}, open an incident, then find the actor"
+    probes = 0
+    for i, s in enumerate(events):
+        if s["kind"] != "serv" or s["key_id"] not in keys or not (start <= s["ts"] < end):
+            continue
+        own = keys[s["key_id"]]
+        if s["verb"] != "git-receive-pack":
+            continue
+        if s["repo"] != own:
+            if s["status"] == 200:
+                findings.append(_sev_finding(f"forge push audit: deploy key {s['key_id']} got write access outside "
+                                             "its repo", "high", s["repo"],
+                                             f"key {s['key_id']} registered for {own}; serv/command 200 on {s['repo']}",
+                                             revoke))
+            else:
+                probes += 1   # the push script's control-repo probe: refused, as it must be
+            continue
+        if s["status"] != 200:
+            continue
+        hooks = [h for h in events[i + 1:] if h["kind"] in ("pre", "post") and h["repo"] == own
+                 and 0 <= h["ts"] - s["ts"] <= SESSION_S]
+        pre = next((h for h in hooks if h["kind"] == "pre"), None)
+        post = next((h for h in hooks if h["kind"] == "post"), None)
+        when = dt.datetime.fromtimestamp(s["ts"], dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        if pre and pre["status"] != 200:
+            findings.append(_sev_finding(f"forge push audit: refused push by deploy key {s['key_id']} "
+                                         "(force, delete or protected ref)", "high", own,
+                                         f"{when} pre-receive {pre['status']} on {own}", revoke))
+            continue
+        if not post:
+            continue      # session without a ref update (up to date or dry run)
+        match = next((j for j, l in enumerate(l4) if j not in used and l["repo"] == own
+                      and str(l["key_id"]) == str(s["key_id"]) and abs(l["ts"] - s["ts"]) <= L4_MATCH_S), None)
+        if match is None:
+            findings.append(_sev_finding(f"forge push audit: push by deploy key {s['key_id']} without an L4 line",
+                                         "high", own, f"{when} receive-pack + post-receive on {own}; no "
+                                         "forge-deploy-key-push line within 15 min in ops/changes.jsonl on main",
+                                         "if the line exists locally, push ops/changes.jsonl; otherwise " + revoke))
+        else:
+            used.add(match)
+    for j, l in enumerate(l4):
+        if j not in used and start <= l["ts"] < end and l["key_id"] and int(l["key_id"]) in keys:
+            findings.append(_sev_finding("forge push audit: L4 line without a forge push record", "medium", l["repo"],
+                                         f"{l['chg']} claims a push of {str(l.get('new'))[:12]} with key "
+                                         f"{l['key_id']}; no matching receive-pack + post-receive in the forge log",
+                                         "check the forge log retention and the line's origin"))
+    if probes:
+        findings.append(_sev_finding(f"forge push audit: {probes} refused control-repo probe(s)", "info", "forge",
+                                     "deploy keys were refused outside their repo (expected: push script probe)",
+                                     "none"))
+    return findings
+
+
+def loki_forge_entries(start: float, end: float) -> tuple[list[tuple[float, str]], bool]:
+    """Forge router lines from Loki, paged forward. Returns (entries, complete)."""
+    entries: list[tuple[float, str]] = []
+    cursor = int(start * 1e9)
+    for _ in range(20):
+        q = urllib.parse.urlencode({"query": FORGE_LOG_QUERY, "start": str(cursor), "end": str(int(end * 1e9)),
+                                    "limit": "5000", "direction": "forward"})
+        with urllib.request.urlopen(f"{LOKI_URL}/loki/api/v1/query_range?{q}", timeout=60) as r:
+            data = json.load(r)
+        batch = [(int(ts) / 1e9, line) for s in data["data"]["result"] for ts, line in s["values"]]
+        entries += batch
+        if len(batch) < 5000:
+            return entries, True
+        cursor = max(int(ts * 1e9) for ts, _ in batch) + 1
+    return entries, False
+
+
+def check_forge_push_audit(repo: Path) -> list[dict]:
+    """L5 (chg-2026-11-13-002): reconcile forge deploy-key pushes from the last 26h (minus a 2h grace for the L4
+    line to reach main) with the L4 lines in ops/changes.jsonl."""
+    reg_path = repo / FORGE_PUSH_REGISTRY
+    if not reg_path.is_file():
+        return [_sev_finding("forge push audit: registry missing", "medium", FORGE_PUSH_REGISTRY,
+                             "deploy-keys.json absent from the clone", "restore the registry")]
+    registry = json.loads(reg_path.read_text())
+    if not any(k.get("status") == "active" for k in registry.get("keys", [])):
+        return [_sev_finding("forge push audit: no active deploy key", "info", FORGE_PUSH_REGISTRY,
+                             "nothing to reconcile", "none")]
+    now = time.time()
+    start, end = now - 26 * 3600, now - 2 * 3600
+    try:
+        entries, complete = loki_forge_entries(start, end)
+    except Exception as e:  # noqa: BLE001 - an unaudited key is a finding, not a pass
+        return [_sev_finding("forge push audit could not read the forge log (L5 not run)", "high", "loki",
+                             f"{e.__class__.__name__}: {str(e)[:200]}", "fix Loki access; until then " +
+                             f"treat the keys as unaudited ({REVOKE_RUNBOOK})")]
+    findings = []
+    if not complete:
+        findings.append(_sev_finding("forge push audit: forge log truncated", "medium", "loki",
+                                     "more than 100000 router lines in the window", "raise the page limit"))
+    events = parse_forge_log(entries)
+    if not events:
+        findings.append(_sev_finding("forge push audit: no forge router lines in the window (log gap)", "high",
+                                     "loki", "0 serv/hook lines for devtools/forgejo in 24h",
+                                     "check promtail/Loki for the forge; until then the keys are unaudited"))
+    changes = (repo / "ops" / "changes.jsonl").read_text(errors="replace")
+    return findings + reconcile_forge_pushes(events, _l4_pushes(changes), registry, start, end)
+
+
 # ── main ────────────────────────────────────────────────────────────────
 
 def post_summary_to_ha(chg: str, findings_by_sev: dict, repo_url_base: str) -> None:
@@ -733,6 +958,9 @@ def main() -> int:
             ("cursus_gast_access", lambda: check_cursus_gast_access(workdir)),
             ("teamregie_authelia_rules", check_teamregie_authelia_rules),
             ("teamregie_forged_header", check_teamregie_forged_header),
+            ("pin_guard_live", lambda: check_pin_guard_live(workdir)),
+            ("pin_guard_ci", check_pin_guard_ci),
+            ("forge_push_audit", lambda: check_forge_push_audit(workdir)),
         ]:
             log(f"argus: check {name}")
             try:

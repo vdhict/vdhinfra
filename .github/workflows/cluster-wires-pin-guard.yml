@@ -1,6 +1,9 @@
 ---
 # chg-2026-11-13-002 P3 (Argus): commit-pin guard for the cluster-wires tenant source.
-# Red = a cluster-wires consumer follows a branch head = revoke trigger for the Mini deploy key (L7).
+# Red = a cluster-wires consumer follows a branch head = L7 revoke trigger for the forge push deploy keys.
+# wq-140 (Argus wq-103 C3): G1 render check needs kubectl/kustomize (preinstalled on ubuntu-latest);
+# G5 live mode runs daily in the argus-posture-scan; G6 a red run on main opens/updates an issue naming the revoke
+# runbook, and the posture scan turns a red CI run into a sev3 incident.
 name: cluster-wires pin guard
 on:
   push:
@@ -8,11 +11,17 @@ on:
     paths:
       - "kubernetes/**"
       - "hack/ops/pin-guard/**"
+      - "hack/ops/forge-push/**"
+      - "hack/ops/test_forge_push_audit.py"
+      - "docs/runbooks/forge-deploy-key-revoke.md"
       - ".github/workflows/cluster-wires-pin-guard.yml"
   pull_request:
     paths:
       - "kubernetes/**"
       - "hack/ops/pin-guard/**"
+      - "hack/ops/forge-push/**"
+      - "hack/ops/test_forge_push_audit.py"
+      - "docs/runbooks/forge-deploy-key-revoke.md"
       - ".github/workflows/cluster-wires-pin-guard.yml"
   schedule:
     - cron: "17 5 * * *"
@@ -20,13 +29,16 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   pin-guard:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 10
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -34,5 +46,26 @@ jobs:
         run: python -m pip install --disable-pip-version-check pyyaml==6.0.2
       - name: Guard tests
         run: python hack/ops/pin-guard/tests/test_pin_guard.py
-      - name: Pin guard (repo)
+      - name: Push script tests (L3/L4)
+        run: python hack/ops/forge-push/tests/test_forge_push.py
+      - name: Posture-scan audit tests (L5, G5/G6)
+        run: python hack/ops/test_forge_push_audit.py
+      - name: Pin guard (repo, with render)
         run: python hack/ops/pin-guard/cluster-wires-pin-guard.py
+      - name: Alert on red (G6)
+        if: failure() && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="PIN-GUARD RED: L7 revoke trigger for the forge push deploy keys (chg-2026-11-13-002)"
+          body="Run: ${RUN_URL} (event ${{ github.event_name }}, sha ${{ github.sha }}).
+          A red pin guard is an L7 revoke trigger: follow docs/runbooks/forge-deploy-key-revoke.md for every active
+          key in hack/ops/forge-push/deploy-keys.json, then fix the pin. A test failure (not a RED line) still
+          blocks: treat it as red until it is explained."
+          num=$(gh issue list --state open --search "in:title PIN-GUARD RED" --json number -q '.[0].number')
+          if [ -n "$num" ]; then
+            gh issue comment "$num" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi

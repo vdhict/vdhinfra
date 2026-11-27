@@ -1,0 +1,73 @@
+chg-2026-11-13-002 wq-140 build tests, measured 20261127T120532Z (date -u). Worktree of origin/main 85065429. No key created, nothing pushed.
+
+== 1. G1-G6 + exchange regression, run against the PRE-FIX guard (origin/main export; PIN_GUARD_PATH/PIN_GUARD_REPO_ROOT):
+test_exchange_repo_is_not_cluster_wires ... FAIL
+test_g1_flux_kustomization_patch_is_red ... FAIL
+test_g1_kindless_ref_patch_is_red ... FAIL
+test_g1_kustomize_json6902_remove_commit_is_red ... ERROR
+test_g1_real_render_of_pinned_source_is_green ... ERROR
+test_g1_rendered_output_without_commit_is_red ... FAIL
+test_g1_renderer_missing_fails_closed ... ERROR
+test_g1_strategic_merge_patch_file_is_red ... FAIL
+test_g1_unrelated_patch_is_green ... ok
+test_g2_case_variant_url_is_red_live ... FAIL
+test_g2_case_variant_url_is_red_repo ... FAIL
+test_g3_percent_encoded_is_red ... FAIL
+test_g3_yaml_x2d_escape_is_red ... FAIL
+test_g4_json_manifest_on_branch_is_red ... FAIL
+test_g4_scp_url_in_python_is_red ... FAIL
+test_g4_shell_script_clone_is_red ... FAIL
+test_g5_ci_schedule_and_scan_wiring ... FAIL
+test_g5_live_mode_runs_without_pyyaml ... FAIL
+test_g6_ci_failure_opens_alert ... FAIL
+test_g6_red_output_names_revoke_runbook ... FAIL
+
+== 2. Same tests, new guard:
+test_exchange_repo_is_not_cluster_wires ... ok
+test_g1_flux_kustomization_patch_is_red ... ok
+test_g1_kindless_ref_patch_is_red ... ok
+test_g1_kustomize_json6902_remove_commit_is_red ... ok
+test_g1_real_render_of_pinned_source_is_green ... ok
+test_g1_rendered_output_without_commit_is_red ... ok
+test_g1_renderer_missing_fails_closed ... ok
+test_g1_strategic_merge_patch_file_is_red ... ok
+test_g1_unrelated_patch_is_green ... ok
+test_g2_case_variant_url_is_red_live ... ok
+test_g2_case_variant_url_is_red_repo ... ok
+test_g3_percent_encoded_is_red ... ok
+test_g3_yaml_x2d_escape_is_red ... ok
+test_g4_json_manifest_on_branch_is_red ... ok
+test_g4_scp_url_in_python_is_red ... ok
+test_g4_shell_script_clone_is_red ... ok
+test_g5_ci_schedule_and_scan_wiring ... ok
+test_g5_live_mode_runs_without_pyyaml ... ok
+test_g6_ci_failure_opens_alert ... ok
+test_g6_red_output_names_revoke_runbook ... ok
+Ran 20 tests in 0.531s
+OK
+
+== full suite hack/ops/pin-guard/tests/test_pin_guard.py:
+Ran 44 tests in 2.498s
+OK
+
+== full suite hack/ops/forge-push/tests/test_forge_push.py:
+Ran 27 tests in 5.943s
+OK
+
+== full suite hack/ops/test_forge_push_audit.py:
+Ran 16 tests in 0.002s
+OK
+
+== full suite hack/ops/test_teamregie_posture.py:
+Ran 23 tests in 0.076s
+OK
+
+== guard on this tree (repo mode, with kustomize render):
+PIN-GUARD GREEN (repo): cluster-wires consumed only via a commit pin
+exit=0
+
+== origin/main guard on origin/main (CI red since 85065429, false positive on VDHICT/cluster-wires-exchange):
+RED R4 kubernetes/main/apps/ha-zones/ha-zones/app/cronjob.yaml:80: cluster-wires git URL outside a pinned GitRepository
+PIN-GUARD RED (repo): 1 violation(s); revoke trigger for the Mini deploy key (chg-2026-11-13-002 L7)
+
+== gitleaks 8.30.1 fail-open measured: bad --log-opts -> '0 commits scanned', exit 0; push script now requires scanned == range count
