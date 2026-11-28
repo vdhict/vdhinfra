@@ -314,7 +314,7 @@ d="$(new_case inhibit-why-says-shutdown)"
 inhibit_table "$d" 'tool 0 root 1 tool sleep Before a shutdown we wait block'
 expect "block lock whose WHY says 'shutdown' (fail safe) -> keep" "$d" KEEP "inhibitor on shutdown"
 
-# --- chg-2026-11-28-001: provisioning lock (rule 2b) ----------------------------
+# --- chg-2026-11-28-101: provisioning lock (rule 2b) ----------------------------
 # provision.sh rewrites the guard and restarts the sampler seconds apart; a tick in
 # between (or anywhere in a run) must KEEP. Uptime in the fixture is 9000.
 prov_lock() { # prov_lock <dir> <content>
@@ -347,6 +347,26 @@ expect "lock is a symlink -> keep" "$d" KEEP "provisioning lock is not a regular
 
 d="$(new_case prov-dangling)"; mkdir -p "$d/run/vdh-runner"; ln -s missing "$d/run/vdh-runner/provisioning"
 expect "lock is a dangling symlink -> keep" "$d" KEEP "provisioning lock is not a regular file"
+
+d="$(new_case prov-no-boot-id)"; prov_lock "$d" "since=8970\n"
+expect "lock without boot_id -> keep (malformed, not 'other boot')" "$d" KEEP "provisioning lock unreadable (boot_id)"
+
+d="$(new_case prov-dir-symlink)"; mkdir -p "$d/elsewhere-dir"
+printf 'boot_id=deadbeef\nsince=1\n' > "$d/elsewhere-dir/provisioning"; ln -s "$d/elsewhere-dir" "$d/run/vdh-runner"
+expect "lock dir is a symlink -> keep" "$d" KEEP "provisioning lock dir is not a directory"
+
+d="$(new_case prov-dir-file)"; : > "$d/run/vdh-runner"
+expect "lock dir is a plain file -> keep" "$d" KEEP "provisioning lock dir is not a directory"
+
+d="$(new_case prov-empty-dir)"; mkdir -p "$d/run/vdh-runner"
+expect "own lock dir without a lock -> poweroff" "$d" POWEROFF "provisioning=none"
+
+# Not owned by the effective uid (root on the box): a hard link to a root-owned file
+# in the same filesystem. Where the OS refuses that (Linux protected_hardlinks), skip.
+d="$(new_case prov-not-owned)"; mkdir -p "$d/run/vdh-runner"
+if [[ "$(id -u)" != 0 ]] && ln /etc/hosts "$d/run/vdh-runner/provisioning" 2>/dev/null; then
+  expect "lock not owned by the guard's uid -> keep" "$d" KEEP "provisioning lock not owned by root"
+else echo "skip lock not owned by the guard's uid (no foreign-owned hard link possible here)"; fi
 
 # The test seam must be inert unless VDH_IDLE_TEST=1: with the variables set but the
 # switch off, the script must read the real (absent on macOS) /run/team-boot -> KEEP.

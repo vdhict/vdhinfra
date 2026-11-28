@@ -44,7 +44,7 @@
 #     sessions (one local seat0 autologin <= 180 s after boot is ignored), no
 #     local input for 60 min (xhci_hcd interrupts, vdh-input-sampler.service),
 #     uptime >= 2 h, no live provisioning lock. Never a boot Sander started.
-#   provisioning lock /run/vdh-runner/provisioning (chg-2026-11-28-001):
+#   provisioning lock /run/vdh-runner/provisioning (chg-2026-11-28-101):
 #     (re)written before every step after preflight, removed after a
 #     successful run. idle-poweroff KEEPs while it is < 2 h old, so a timer
 #     tick between writing the new guard and restarting the sampler cannot

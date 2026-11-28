@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2034  # file-wide: PROV_LOCK/PROV_PROC/DRY are read by the sourced provision.sh
-# chg-2026-11-28-001: provision.sh's provisioning lock against the REAL guard.
+# chg-2026-11-28-101: provision.sh's provisioning lock against the REAL guard.
 # Sources provision.sh, replaces the steps with stubs that fire an idle-poweroff
 # tick mid-run (as the timer would between writing the guard and restarting the
 # sampler), and checks the guard's decision on a fixture box that is otherwise
@@ -107,6 +107,12 @@ d="$(box symlink)"; mkdir -p "$d/run/vdh-runner"; : > "$d/target"; ln -s "$d/tar
 if provision "$d" preflight,payload; then fail=$((fail+1)); echo "FAIL provision wrote through a symlinked lock"
 else check "symlinked lock -> provision refuses" "$(cat "$d/provision.out")" "symlink; refusing"; fi
 check "symlink target untouched" "$(wc -c < "$d/target" | tr -d ' ')" "0"
+
+# 6. symlinked lock dir: provision refuses and writes nothing through it.
+d="$(box dirsymlink)"; mkdir -p "$d/elsewhere"; ln -s "$d/elsewhere" "$d/run/vdh-runner"
+if provision "$d" preflight,payload; then fail=$((fail+1)); echo "FAIL provision used a symlinked lock dir"
+else check "symlinked lock dir -> provision refuses" "$(cat "$d/provision.out")" "is a symlink; refusing"; fi
+check "nothing written through the symlinked dir" "$(find "$d/elsewhere" -type f | wc -l | tr -d ' ')" "0"
 
 echo "provision-lock tests: ${pass} passed, ${fail} failed"
 (( fail == 0 ))

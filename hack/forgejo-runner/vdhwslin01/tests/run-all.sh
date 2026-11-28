@@ -14,9 +14,9 @@ echo "== bash -n on every shell file"
 for f in provision.sh src/*.sh tests/*.sh build.sh; do bash -n "$f"; done
 echo "== idle-poweroff unit tests"
 bash tests/idle-poweroff.test.sh
-echo "== provisioning lock vs the guard (chg-2026-11-28-001: a tick mid-provisioning must KEEP)"
+echo "== provisioning lock vs the guard (chg-2026-11-28-101: a tick mid-provisioning must KEEP)"
 bash tests/provision-lock.test.sh
-echo "== idle-poweroff mutation check (wq-157 inhibitors; chg-2026-11-28-001 provisioning lock)"
+echo "== idle-poweroff mutation check (wq-157 inhibitors; chg-2026-11-28-101 provisioning lock)"
 bash tests/idle-poweroff.mutation.sh
 echo "== input-sampler unit tests"
 bash tests/input-sampler.test.sh

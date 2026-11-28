@@ -6,13 +6,16 @@
 #   1. /run/team-boot exists, says started_by=team and carries THIS boot's
 #      boot_id. It is written in the initramfs by the ssh unlock path
 #      (vdh-teamboot); Sander's own boots (console unlock) never have it.
-#   2. uptime >= 2 h, and no live provisioning lock (chg-2026-11-28-001):
+#   2. uptime >= 2 h, and no live provisioning lock (chg-2026-11-28-101):
 #      provision.sh writes /run/vdh-runner/provisioning (boot_id=, since= in
 #      seconds of uptime) before every step and removes it after a successful
 #      run. A lock of this boot younger than 2 h means KEEP; an older one is
-#      stale (a failed or killed run) and is ignored, so it never holds the box
-#      on for ever. /run is tmpfs: a reboot clears it. A malformed lock of this
-#      boot means KEEP (only root writes it, atomically, in a root-owned dir).
+#      stale (a failed or killed run) and is ignored, so a well-formed lock
+#      never holds the box on for ever. A lock of another boot is ignored.
+#      A malformed lock of this boot (no boot_id=, bad or future since=), a
+#      lock or lock dir that is a symlink, not a regular file/dir, or not owned
+#      by root (the uid this runs as) means KEEP until a reboot clears /run
+#      (tmpfs). Only root can create /run/vdh-runner, so only root can do that.
 #   3. the runner has no job (/run/forgejo-runner/job-active absent) and the
 #      last job ended >= 60 min ago.
 #   4. nobody else is using the box (rules shared with the estate, pka-run
@@ -79,15 +82,23 @@ uptime_s="$(cut -d. -f1 < "${ROOT}/proc/uptime" 2>/dev/null || true)"
 [[ "$uptime_s" =~ ^[0-9]+$ ]] || keep "cannot read uptime"
 (( uptime_s >= UPTIME_MIN_S )) || keep "uptime ${uptime_s}s < ${UPTIME_MIN_S}s"
 
-# 2b. provisioning lock (chg-2026-11-28-001): provision.sh rewrites the guard and
+# 2b. provisioning lock (chg-2026-11-28-101): provision.sh rewrites the guard and
 # restarts the sampler seconds apart; a tick in between must not power off.
-prov_lock="${ROOT}/run/vdh-runner/provisioning"
+# -O = owned by the effective uid: root on the box (the unit runs as root).
+prov_dir="${ROOT}/run/vdh-runner"
+prov_lock="${prov_dir}/provisioning"
 provisioning="none"
+if [[ -e "$prov_dir" || -L "$prov_dir" ]]; then
+  [[ -d "$prov_dir" && ! -L "$prov_dir" ]] || keep "provisioning lock dir is not a directory"
+  [[ -O "$prov_dir" ]] || keep "provisioning lock dir not owned by root"
+fi
 if [[ -e "$prov_lock" || -L "$prov_lock" ]]; then
   [[ -f "$prov_lock" && ! -L "$prov_lock" ]] || keep "provisioning lock is not a regular file"
+  [[ -O "$prov_lock" ]] || keep "provisioning lock not owned by root"
   lock="$(cat "$prov_lock" 2>/dev/null)" || keep "provisioning lock unreadable"
   lock_boot="$(sed -n 's/^boot_id=//p' <<<"$lock" | head -n1)"
   lock_since="$(sed -n 's/^since=//p' <<<"$lock" | head -n1)"
+  [[ -n "$lock_boot" ]] || keep "provisioning lock unreadable (boot_id)"
   if [[ "$lock_boot" != "$boot_id" ]]; then
     provisioning="other-boot"   # cannot outlive a boot on tmpfs; never honoured
   else
