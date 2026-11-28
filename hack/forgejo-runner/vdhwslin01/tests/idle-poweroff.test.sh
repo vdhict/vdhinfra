@@ -314,6 +314,40 @@ d="$(new_case inhibit-why-says-shutdown)"
 inhibit_table "$d" 'tool 0 root 1 tool sleep Before a shutdown we wait block'
 expect "block lock whose WHY says 'shutdown' (fail safe) -> keep" "$d" KEEP "inhibitor on shutdown"
 
+# --- chg-2026-11-28-001: provisioning lock (rule 2b) ----------------------------
+# provision.sh rewrites the guard and restarts the sampler seconds apart; a tick in
+# between (or anywhere in a run) must KEEP. Uptime in the fixture is 9000.
+prov_lock() { # prov_lock <dir> <content>
+  mkdir -p "$1/run/vdh-runner"; printf '%b' "$2" > "$1/run/vdh-runner/provisioning"
+}
+d="$(new_case prov-tick)"; prov_lock "$d" "boot_id=${BOOT}\nsince=8970\npid=4242\n"
+expect "tick during provisioning (lock 30 s old) -> keep" "$d" KEEP "provisioning in progress (lock 30s old < 7200s)"
+
+d="$(new_case prov-edge-young)"; prov_lock "$d" "boot_id=${BOOT}\nsince=1801\n"
+expect "lock 7199 s old -> keep" "$d" KEEP "provisioning in progress (lock 7199s old"
+
+d="$(new_case prov-stale)"; prov_lock "$d" "boot_id=${BOOT}\nsince=1800\n"
+expect "lock exactly 2 h old is stale (failed run) -> poweroff" "$d" POWEROFF "provisioning=stale-7200s"
+
+d="$(new_case prov-other-boot)"; prov_lock "$d" "boot_id=deadbeef\nsince=8970\n"
+expect "lock of another boot is never honoured -> poweroff" "$d" POWEROFF "provisioning=other-boot"
+
+d="$(new_case prov-none)"
+expect "no lock -> poweroff, line says provisioning=none" "$d" POWEROFF "provisioning=none"
+
+d="$(new_case prov-garbage)"; prov_lock "$d" "boot_id=${BOOT}\nsince=soon\n"
+expect "malformed lock of this boot -> keep" "$d" KEEP "provisioning lock unreadable (since)"
+
+d="$(new_case prov-future)"; prov_lock "$d" "boot_id=${BOOT}\nsince=9001\n"
+expect "lock from the future -> keep" "$d" KEEP "provisioning lock in the future"
+
+d="$(new_case prov-symlink)"; mkdir -p "$d/run/vdh-runner"
+printf 'boot_id=deadbeef\nsince=1\n' > "$d/elsewhere"; ln -s "$d/elsewhere" "$d/run/vdh-runner/provisioning"
+expect "lock is a symlink -> keep" "$d" KEEP "provisioning lock is not a regular file"
+
+d="$(new_case prov-dangling)"; mkdir -p "$d/run/vdh-runner"; ln -s missing "$d/run/vdh-runner/provisioning"
+expect "lock is a dangling symlink -> keep" "$d" KEEP "provisioning lock is not a regular file"
+
 # The test seam must be inert unless VDH_IDLE_TEST=1: with the variables set but the
 # switch off, the script must read the real (absent on macOS) /run/team-boot -> KEEP.
 d="$(new_case seam-off)"

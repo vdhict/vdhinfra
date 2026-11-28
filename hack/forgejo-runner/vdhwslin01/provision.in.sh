@@ -43,7 +43,12 @@
 #     (/run/team-boot with this boot_id), runner idle, no audio playback, no extra user
 #     sessions (one local seat0 autologin <= 180 s after boot is ignored), no
 #     local input for 60 min (xhci_hcd interrupts, vdh-input-sampler.service),
-#     uptime >= 2 h. Never a boot Sander started.
+#     uptime >= 2 h, no live provisioning lock. Never a boot Sander started.
+#   provisioning lock /run/vdh-runner/provisioning (chg-2026-11-28-001):
+#     (re)written before every step after preflight, removed after a
+#     successful run. idle-poweroff KEEPs while it is < 2 h old, so a timer
+#     tick between writing the new guard and restarting the sampler cannot
+#     power the box off mid-provisioning. A failed run leaves it to go stale.
 #   initramfs: controller's dropbear PUBLIC key + the vdh-teamboot wrapper
 #     (marks ssh-unlocked boots as team boots); rebuilds the initramfs.
 #   LUKS: NOT by default (2026-11-03). The Mini waker unlocks with the existing
@@ -103,6 +108,10 @@ REMOTE_UNLOCK_DIR=${REMOTE_UNLOCK_DIR:-/etc/remote-unlock}   # env override is f
 REMOTE_UNLOCK_BACKUP_DIR=${REMOTE_UNLOCK_BACKUP_DIR:-/var/backups/vdh-runner}
 REMOTE_UNLOCK_HOSTKEY=${REMOTE_UNLOCK_DIR}/dropbear_ed25519_host_key
 INITRD_SSHD=""; INITRD_KEYFILE=""; DNS_STUB=0; DNS_SERVERS=()
+# Provisioning lock honoured by src/idle-poweroff.sh (rule 2b). Tests re-point both after sourcing.
+PROV_LOCK=/run/vdh-runner/provisioning
+PROV_PROC=/proc
+PROV_LOCK_SAID=0
 
 say()  { echo "==> $*"; }
 info() { echo "    $*"; }
@@ -783,11 +792,46 @@ uninstall() {
   info "forge: Atlas deletes runner '${RUNNER_NAME}' on the forge"
 }
 
+# prov_lock_take: (re)write the provisioning lock with this boot's id and the
+# uptime now, atomically. idle-poweroff KEEPs while it is younger than 2 h.
+prov_lock_take() {
+  (( DRY )) && return 0
+  local dir boot up
+  dir="$(dirname "$PROV_LOCK")"
+  boot="$(tr -d '[:space:]' < "${PROV_PROC}/sys/kernel/random/boot_id")"
+  up="$(cut -d. -f1 < "${PROV_PROC}/uptime")"
+  [[ -n "$boot" && "$up" =~ ^[0-9]+$ ]] || die "cannot read boot_id/uptime for the provisioning lock"
+  [[ ! -L "$dir" ]] || die "$dir is a symlink; refusing"
+  [[ -d "$dir" ]] || mkdir -m 0755 "$dir"
+  [[ ! -L "$PROV_LOCK" && ! -L "${PROV_LOCK}.new" ]] || die "provisioning lock is a symlink; refusing"
+  printf 'boot_id=%s\nsince=%s\npid=%s\n' "$boot" "$up" "$$" > "${PROV_LOCK}.new"
+  mv -f "${PROV_LOCK}.new" "$PROV_LOCK"
+  (( PROV_LOCK_SAID )) || info "provisioning lock taken: $PROV_LOCK (idle-poweroff keeps the box on until it is released or 2 h stale)"
+  PROV_LOCK_SAID=1
+}
+
+# prov_lock_release: only after every step succeeded (the sampler has been
+# restarted by step_services by then). A failed run never gets here.
+prov_lock_release() {
+  (( DRY )) && return 0
+  [[ -e "$PROV_LOCK" ]] || return 0
+  rm -f -- "$PROV_LOCK"
+  info "provisioning lock released"
+}
+
+run_steps() {
+  local s
+  for s in "${STEPS[@]}"; do
+    [[ "$s" == preflight ]] || prov_lock_take
+    "step_${s}"
+  done
+  prov_lock_release
+}
+
 main() {
   parse_args "$@"
   if (( UNINSTALL )); then uninstall; exit 0; fi
-  local s
-  for s in "${STEPS[@]}"; do "step_${s}"; done
+  run_steps
   say "done$( (( DRY )) && echo ' (dry-run: nothing changed)')"
 }
 

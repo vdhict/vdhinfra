@@ -6,7 +6,13 @@
 #   1. /run/team-boot exists, says started_by=team and carries THIS boot's
 #      boot_id. It is written in the initramfs by the ssh unlock path
 #      (vdh-teamboot); Sander's own boots (console unlock) never have it.
-#   2. uptime >= 2 h.
+#   2. uptime >= 2 h, and no live provisioning lock (chg-2026-11-28-001):
+#      provision.sh writes /run/vdh-runner/provisioning (boot_id=, since= in
+#      seconds of uptime) before every step and removes it after a successful
+#      run. A lock of this boot younger than 2 h means KEEP; an older one is
+#      stale (a failed or killed run) and is ignored, so it never holds the box
+#      on for ever. /run is tmpfs: a reboot clears it. A malformed lock of this
+#      boot means KEEP (only root writes it, atomically, in a root-owned dir).
 #   3. the runner has no job (/run/forgejo-runner/job-active absent) and the
 #      last job ended >= 60 min ago.
 #   4. nobody else is using the box (rules shared with the estate, pka-run
@@ -50,6 +56,8 @@ INPUT_QUIET_MIN_S=3600
 INPUT_HEARTBEAT_MAX_S=30
 RUNNER_IDLE_MIN_S=3600
 UPTIME_MIN_S=7200
+# A provisioning lock older than this is stale: > the 5400 s timeout of the expect driver.
+PROV_LOCK_MAX_S=7200
 # Sessions of these users never block (agent = team ssh, runner = CI service).
 EXCLUDED_USERS=" agent runner "
 
@@ -70,6 +78,26 @@ grep -qx "boot_id=${boot_id}" "$marker" || keep "marker boot_id does not match t
 uptime_s="$(cut -d. -f1 < "${ROOT}/proc/uptime" 2>/dev/null || true)"
 [[ "$uptime_s" =~ ^[0-9]+$ ]] || keep "cannot read uptime"
 (( uptime_s >= UPTIME_MIN_S )) || keep "uptime ${uptime_s}s < ${UPTIME_MIN_S}s"
+
+# 2b. provisioning lock (chg-2026-11-28-001): provision.sh rewrites the guard and
+# restarts the sampler seconds apart; a tick in between must not power off.
+prov_lock="${ROOT}/run/vdh-runner/provisioning"
+provisioning="none"
+if [[ -e "$prov_lock" || -L "$prov_lock" ]]; then
+  [[ -f "$prov_lock" && ! -L "$prov_lock" ]] || keep "provisioning lock is not a regular file"
+  lock="$(cat "$prov_lock" 2>/dev/null)" || keep "provisioning lock unreadable"
+  lock_boot="$(sed -n 's/^boot_id=//p' <<<"$lock" | head -n1)"
+  lock_since="$(sed -n 's/^since=//p' <<<"$lock" | head -n1)"
+  if [[ "$lock_boot" != "$boot_id" ]]; then
+    provisioning="other-boot"   # cannot outlive a boot on tmpfs; never honoured
+  else
+    [[ "$lock_since" =~ ^[0-9]+$ ]] || keep "provisioning lock unreadable (since)"
+    lock_age=$(( uptime_s - lock_since ))
+    (( lock_age >= 0 )) || keep "provisioning lock in the future"
+    (( lock_age >= PROV_LOCK_MAX_S )) || keep "provisioning in progress (lock ${lock_age}s old < ${PROV_LOCK_MAX_S}s)"
+    provisioning="stale-${lock_age}s"
+  fi
+fi
 
 # --- 3. runner idle ---------------------------------------------------------
 # /run/forgejo-runner is runner-owned: never follow a symlink there as root.
@@ -179,7 +207,7 @@ done <<<"$inhibitors"
 (( header_seen == 1 )) || keep "inhibitor list empty or layout unknown"
 
 # --- 6. power off ------------------------------------------------------------
-echo "idle-poweroff: POWEROFF: started_by=team boot_id=${boot_id} uptime=${uptime_s}s input_quiet=${quiet_s}s runner_idle=${runner_idle}"
+echo "idle-poweroff: POWEROFF: started_by=team boot_id=${boot_id} uptime=${uptime_s}s input_quiet=${quiet_s}s runner_idle=${runner_idle} provisioning=${provisioning}"
 if ! "$SYSTEMCTL" poweroff --check-inhibitors=no; then
   echo "idle-poweroff: KEEP: systemctl poweroff refused"
 fi

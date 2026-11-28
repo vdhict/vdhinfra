@@ -97,6 +97,11 @@ unlock never passes through it. switch_root carries `/run` into the booted syste
 - **Team boot:** the controller unlocks, or Larry uses his unlock key.
 - **idle-poweroff:** acts only when the marker carries THIS boot's id and:
   - uptime is at least 2 h;
+  - no provisioning is running (chg-2026-11-28-001). `provision.sh` rewrites
+    `/run/vdh-runner/provisioning` (this boot's id and the uptime) before every step after preflight
+    and removes it after a successful run. A lock of this boot that is younger than 2 h keeps the box
+    on, so a tick between writing the new guard and restarting the sampler cannot power it off. A
+    failed run leaves the lock to go stale after 2 h. A lock of another boot is ignored;
   - no job is running, and the last job ended at least 60 min ago;
   - nobody else uses the box. Every session with a class starting with `user` counts, except sessions
     for `agent` and `runner`. At most one local `seat0` session that began within 180 s of boot is
