@@ -1,0 +1,20 @@
+---
+# chg-2026-11-28-112 Argus C3 (measured 2026-11-28 on Open WebUI v0.11.4): GET /api/v1/users/search and
+# GET /api/v1/users/{id}/info require only a VERIFIED user (routers/users.py:137, :814) and return every account's
+# id, name, email, role and groups. Any family or test account could enumerate everyone. Envoy answers 403 for both
+# on BOTH chat routes (LAN and tailnet); the request never reaches Open WebUI. Admins keep the admin-only
+# GET /api/v1/users/ (admin panel). Side effect: the user picker in access-grant/share dialogs finds nobody
+# (sharing is off for all groups anyway).
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/gateway.envoyproxy.io/httproutefilter_v1alpha1.json
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: HTTPRouteFilter
+metadata:
+  name: open-webui-user-directory-403
+spec:
+  directResponse:
+    contentType: text/plain
+    statusCode: 403
+    body:
+      type: Inline
+      inline: |
+        forbidden

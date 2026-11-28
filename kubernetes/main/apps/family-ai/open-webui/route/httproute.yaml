@@ -38,6 +38,20 @@ spec:
   hostnames:
     - chat.bluejungle.net
   rules:
+    # chg-2026-11-28-112 Argus C3: no user directory for non-admin sessions (httproutefilter-user-directory.yaml)
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/v1/users/search
+        - path:
+            type: RegularExpression
+            value: "^/api/v1/users/[^/]+/info/?$"
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: gateway.envoyproxy.io
+            kind: HTTPRouteFilter
+            name: open-webui-user-directory-403
     - matches:
         - path:
             type: PathPrefix

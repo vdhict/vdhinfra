@@ -7,3 +7,4 @@ resources:
   - ./httproute-gezin.yaml
   - ./httproutefilter-gezin.yaml
   - ./httproutefilter-agent-files.yaml
+  - ./httproutefilter-user-directory.yaml   # chg-2026-11-28-112 Argus C3
