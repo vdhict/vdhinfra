@@ -14,6 +14,11 @@
 # Cilium L2 announces this IP on the cluster subnet (172.16.2.0/23).
 # Used by the Mac Mini agent for direct rclone access without going
 # through the K8s API server proxy.
+#
+# S3 (:9000) only. The console (:9001) is deliberately NOT on the LAN: it is
+# plain HTTP, so a login would send the password in clear on the /23
+# (Argus M2, chg-2026-11-28-109). It stays on the ClusterIP `minio` Service;
+# reach it with `kubectl -n storage port-forward svc/minio 9001:9001`.
 apiVersion: v1
 kind: Service
 metadata:
@@ -32,8 +37,4 @@ spec:
     - name: s3
       port: 9000
       targetPort: 9000
-      protocol: TCP
-    - name: http
-      port: 9001
-      targetPort: 9001
       protocol: TCP
