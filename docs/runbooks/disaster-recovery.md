@@ -38,6 +38,7 @@ What was lost?
 | 9 | Forge restic password | 1Password `minio-forge-volsync` → `RESTIC_PASSWORD` | **Separate from #7.** Encrypts only `s3://forge-volsync/forgejo`. Lost = the forge's git object backups are unrecoverable even with the bucket intact. |
 | 10 | family-ai MinIO IAM + restic password (`family-ai-volsync`) | MinIO IAM on the Synology export (NOT in Git; `IAM_SET=family-ai hack/minio-iam/run.sh apply`); values in 1Password `minio-family-ai-volsync` (`ACCESS_KEY`, `SECRET_KEY`, `RESTIC_PASSWORD`) | Same as #8/#9 for `s3://family-ai-volsync/` (open-webui + three Hermes profiles). Lost `RESTIC_PASSWORD` = those backups unrecoverable. |
 | 11 | family-ai RAG model cache | PVC `family-ai/open-webui-models` - **NOT backed up by design** (reproducible). Only other copy: `~/family-ai-models` on the Mac Mini (HF cache layout, `SHA256SUMS` sha256 `e4d43631c08186772a7ebcd28829be55f8dcef6fa71f93aec046979de5f0a1b4`, 19 files) | Restore = re-copy `~/family-ai-models` into the new PVC (one-off pod + `kubectl cp`) OR re-download the pinned revisions (`sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2@e8f8c211226b894fcb81acc59f3b34ba3efd5f42`, `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1@1427fd652930e4ba29e8149678df786c240d8825`, same file subset), then `sha256sum -c SHA256SUMS` in the pod BEFORE Open WebUI mounts it. Without it Knowledge (RAG) fails; chat itself keeps working. |
+| 12 | **MinIO container image** (`RELEASE.2024-09-09T16-59-28Z`, linux/amd64 `sha256:820c1d8460a7b494442049a40d05c975325db89b420f1369489ee01def3bb2b9`) | Offline OCI image layout on the Mac Mini: `~/Code/homelab-migration/backups/minio-image/minio-RELEASE.2024-09-09T16-59-28Z-linux-amd64-820c1d84.oci.tar` (sha256 `c3b9707f963bb3f44238ab0dd5fb573d3dff6c328dbc4706adebaae73a1ff830`, sums file next to it) + forge registry `forge.bluejungle.net/vdhict/minio` (private). Upstream quay.io/docker.io no longer serve it (MinIO archived, anonymous pulls 401; chg-2026-11-28-106). | Without it MinIO cannot start on a rebuilt cluster, so NO backup can be restored (every VolSync repo, both CNPG archives). Load it from the offline copy FIRST, see §A.3b. |
 
 **Action item**: Make sure item #2 is on at least one offline medium. The literal contents:
 ```
@@ -104,6 +105,34 @@ This single command (defined in `kubernetes/main/bootstrap/mod.just`) does:
 9. `apps`: helmfile-syncs `01-apps.yaml` (cilium, coredns, spegel, cert-manager, flux-operator, flux-instance, onepassword-connect)
 
 After this completes, **Flux is running and reconciling from git**. Within minutes, it will start applying every app — including stateful ones with empty PVCs. This is the point where data recovery must begin.
+
+### A.3b. MinIO image: load from the offline OCI copy, BEFORE the forge
+
+Rebuild order matters (chg-2026-11-28-106, Argus B6). The forge restores from
+MinIO (forge-pg barman `s3://forge-backups`, forgejo VolSync `s3://forge-volsync`),
+and once MinIO's HelmRelease points at the forge mirror
+(`forge.bluejungle.net/vdhict/minio@sha256:820c1d84...`) MinIO pulls its image
+FROM the forge. With Ceph lost that is a deadlock. Upstream (quay.io, docker.io)
+no longer serves the image at all, and the Spegel node cache dies with the nodes.
+
+Order: MinIO image from the offline copy -> MinIO (NAS data) -> MinIO IAM
+(§A.4b) -> forge-pg + forgejo restore -> forge registry -> everything else.
+
+```bash
+cd ~/Code/homelab-migration/backups/minio-image
+shasum -a 256 -c minio-RELEASE.2024-09-09T16-59-28Z-linux-amd64-820c1d84.oci.tar.sha256
+tar -xf minio-RELEASE.2024-09-09T16-59-28Z-linux-amd64-820c1d84.oci.tar
+# Push the layout unchanged to any registry the new cluster can reach (a
+# temporary one is fine), keep the DIGEST, then point MinIO's HelmRelease at
+# <registry>/minio@sha256:820c1d8460a7b494442049a40d05c975325db89b420f1369489ee01def3bb2b9
+crane push minio-RELEASE.2024-09-09T16-59-28Z-linux-amd64-820c1d84 <registry>/minio:RELEASE.2024-09-09T16-59-28Z-linux-amd64
+crane digest <registry>/minio:RELEASE.2024-09-09T16-59-28Z-linux-amd64   # must print sha256:820c1d84...
+```
+
+The layout holds only the linux/amd64 manifest of upstream index
+`sha256:1ca1b68b...` (the node cache held no other platform; the index itself is
+kept as `source-index-quay-minio-1ca1b68b.json`). Unmodified upstream, AGPLv3,
+source github.com/minio/minio tag RELEASE.2024-09-09T16-59-28Z.
 
 ### A.4. **CRITICAL — Pause stateful apps before they start with empty data**
 
