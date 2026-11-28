@@ -177,6 +177,18 @@
       automerge: false,
     },
     {
+      // chg-2026-11-28-106 Argus A2/A5: any forge-pg operand image that brings
+      // barman >= 3.16 makes retention work again and would prune the backlog.
+      // Only safe once the 120d no-prune guard is live AND its dry run (A3)
+      // showed 0 deletions. Remove this rule when chg-106 closes A2+A3.
+      description: "HOLD forge-pg operand image: do not merge before the chg-2026-11-28-106 no-prune guard is live (A2+A3)",
+      matchFileNames: ["kubernetes/main/apps/devtools/forge-pg/**"],
+      matchPackageNames: ["ghcr.io/cloudnative-pg/postgresql"],
+      automerge: false,
+      addLabels: ["hold-chg-2026-11-28-106"],
+      prBodyNotes: ["**HOLD (chg-2026-11-28-106 A2/A5):** do not merge until the forge-pg no-prune guard (retentionPolicy 120d) is read back live and its dry run showed 0 deletions. A newer barman prunes the 2026-09-23 backlog otherwise."],
+    },
+    {
       description: "family-ai: Open WebUI app and its chat-retention CronJob MUST run the same image (same model code against the same SQLite DB) - one PR for both (Argus R4, chg-2026-09-26-001)",
       matchFileNames: ["kubernetes/main/apps/family-ai/**"],
       matchPackageNames: ["ghcr.io/open-webui/open-webui"],

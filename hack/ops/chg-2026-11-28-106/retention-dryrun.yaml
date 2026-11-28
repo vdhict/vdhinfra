@@ -1,0 +1,99 @@
+# chg-2026-11-28-106 A3: forge-pg retention dry run under the 120d no-prune guard.
+# SCRATCH ONLY: applied with kubectl by hack/ops/chg-2026-11-28-106-retention-dryrun.sh
+# AFTER the guard is live from origin/main; removed by
+# hack/ops/chg-2026-11-28-106-retention-dryrun-teardown.sh (called on its own).
+# Identity: the scoped MinIO user forge-pg (forge-pg-backup-secret, bucket
+# forge-backups only), never root. Credentials only via env (secretKeyRef);
+# the script never runs env/set -x and puts no secret in argv.
+# Every barman call uses --dry-run: nothing is deleted. The 14d run is a
+# POSITIVE CONTROL that must list deletions (proves the dry run would see them).
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: chg-2026-11-28-106-retention-dryrun
+  namespace: devtools
+  labels: {vdh.dryrun/chg: chg-2026-11-28-106}
+spec:
+  endpointSelector:
+    matchLabels: {app: chg-2026-11-28-106-retention-dryrun}
+  ingress:
+    - {}
+  egress:
+    - toEndpoints:
+        - matchLabels: {k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns}
+      toPorts:
+        - ports: [{port: "53", protocol: ANY}]
+          rules:
+            dns:
+              - matchPattern: "*.cluster.local"
+              - matchPattern: "*.*.cluster.local"
+              - matchPattern: "*.*.*.cluster.local"
+              - matchPattern: "*.*.*.*.cluster.local"
+              - matchPattern: "*.*.*.*.*.cluster.local"
+    - toEndpoints:
+        - matchLabels: {k8s:io.kubernetes.pod.namespace: storage, app.kubernetes.io/name: minio}
+      toPorts:
+        - ports: [{port: "9000", protocol: TCP}]
+  egressDeny:
+    - toEntities: [world]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: chg-2026-11-28-106-retention-dryrun
+  namespace: devtools
+  labels:
+    app: chg-2026-11-28-106-retention-dryrun
+    vdh.dryrun/chg: chg-2026-11-28-106
+spec:
+  restartPolicy: Never
+  activeDeadlineSeconds: 900
+  automountServiceAccountToken: false
+  enableServiceLinks: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 26
+    runAsGroup: 26
+    seccompProfile: {type: RuntimeDefault}
+  containers:
+    - name: dryrun
+      # = forge-pg spec.imageName on origin/main (barman-cloud 3.14); the run
+      # script refuses if the live Cluster uses a different image.
+      image: ghcr.io/cloudnative-pg/postgresql:16.9-22@sha256:cca50a94e2da46ddcaefb23260c805ed3b466763bd2a25e1617410176d5fd0ab
+      imagePullPolicy: IfNotPresent
+      env:
+        - {name: HOME, value: /tmp}
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom: {secretKeyRef: {name: forge-pg-backup-secret, key: AWS_ACCESS_KEY_ID}}
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom: {secretKeyRef: {name: forge-pg-backup-secret, key: AWS_SECRET_ACCESS_KEY}}
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          set -u
+          EP=http://minio.storage.svc.cluster.local:9000
+          SRC=s3://forge-backups/forge-pg
+          echo "BARMAN_VERSION $(barman-cloud-backup-list --version 2>&1 | tail -1)"
+          echo "=== LIST"
+          barman-cloud-backup-list --endpoint-url "$EP" "$SRC" forge-pg 2>&1
+          echo "=== LIST_EXIT $?"
+          echo "=== GUARD_120D"
+          barman-cloud-backup-delete --dry-run --retention-policy "RECOVERY WINDOW OF 120 DAYS" --endpoint-url "$EP" "$SRC" forge-pg 2>&1
+          echo "=== GUARD_120D_EXIT $?"
+          echo "=== CONTROL_14D"
+          barman-cloud-backup-delete --dry-run --retention-policy "RECOVERY WINDOW OF 14 DAYS" --endpoint-url "$EP" "$SRC" forge-pg 2>&1
+          echo "=== CONTROL_14D_EXIT $?"
+          echo "=== END"
+      resources:
+        requests: {cpu: 50m, memory: 128Mi}
+        limits: {memory: 512Mi}
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities: {drop: ["ALL"]}
+      volumeMounts:
+        - {name: tmp, mountPath: /tmp}
+  volumes:
+    - name: tmp
+      emptyDir: {sizeLimit: 64Mi}

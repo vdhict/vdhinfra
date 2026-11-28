@@ -1,0 +1,47 @@
+---
+# CNPG retention watch, chg-2026-11-28-106 (Argus A1-A6).
+# forge-pg retention silently deleted nothing for 66 days (barman 3.14 vs our
+# MinIO, MissingContentMD5); nothing alerted. These rules make both failure
+# modes loud:
+#   - CNPGRetentionNotPruning: oldest recovery point older than the policy in
+#     force + 2d. Thresholds are per job and must track retentionPolicy:
+#     forge-pg = no-prune guard 120d (cluster.yaml), postgres16 = 7d.
+#     When the owner sets forge-pg's real retention, set its threshold to
+#     <policy> + 2 in the same commit.
+#   - CNPGRetentionGuardExpiring: the forge-pg guard starts deleting at ~120d;
+#     fires at 110d (~2027-01-11) so the owner question cannot lapse (A1:
+#     raise the guard if unanswered, never let it run out).
+# `> 0` drops non-primary pods (they report 0). $labels/$value are not ${...},
+# so Flux postBuild substitution leaves them alone.
+# yaml-language-server: $schema=https://kubernetes-schemas.zinn.ca/monitoring.coreos.com/prometheusrule_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cnpg-retention
+  labels:
+    prometheus: k8s
+    role: alert-rules
+spec:
+  groups:
+    - name: cnpg-retention
+      rules:
+        - alert: CNPGRetentionNotPruning
+          expr: |-
+            (time() - max by (namespace, job) (cnpg_collector_first_recoverability_point{job="devtools/forge-pg"} > 0)) > (120 + 2) * 86400
+            or
+            (time() - max by (namespace, job) (cnpg_collector_first_recoverability_point{job="database/postgres16"} > 0)) > (7 + 2) * 86400
+          for: 6h
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.job }}: oldest recovery point {{ $value | humanizeDuration }} old, retention is not pruning"
+            description: "Check the instance log for 'Error invoking barman-cloud-backup-delete' (chg-2026-11-28-106)."
+        - alert: CNPGRetentionGuardExpiring
+          expr: |-
+            (time() - max by (namespace, job) (cnpg_collector_first_recoverability_point{job="devtools/forge-pg"} > 0)) > 110 * 86400
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "forge-pg: no-prune guard (120d) starts deleting recovery points in ~10 days; owner retention decision due"
+            description: "A1 (chg-2026-11-28-106): if the owner has not decided, raise retentionPolicy in devtools/forge-pg/app/cluster.yaml (e.g. 180d) and this threshold with it; never let the guard lapse."
