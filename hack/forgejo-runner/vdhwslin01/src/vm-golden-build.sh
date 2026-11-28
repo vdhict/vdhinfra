@@ -60,6 +60,22 @@ qemu_started() { # qemu_started <pid> <pidfile> <console log>
   echo "qemu (pid $pid) wrote no pidfile in 30 s"
   return 1
 }
+
+# Argus F4: never signal a pid that is not a qemu (a stale pidfile or a reused
+# pid). /proc/<pid>/comm of qemu-system-x86_64 reads "qemu-system-x86".
+qemu_is_ours() { # qemu_is_ours <pid>
+  local c
+  c="$(cat "/proc/$1/comm" 2>/dev/null)" || return 1
+  [[ "$c" == qemu-system-* ]]
+}
+# Argus F3: qemu died after it wrote its pidfile (e.g. KVM open failed); say so
+# with its exit code and the console tail instead of an ssh timeout.
+qemu_died() { # qemu_died <pid> <console log>
+  local pid="$1" con="$2" rc=0
+  wait "$pid" 2>/dev/null || rc=$?
+  echo "qemu (pid $pid) exited rc=${rc} while waiting for ssh; console tail:"
+  tail -c 2000 "$con" 2>/dev/null | tr -cd '\11\12\15\40-\176'; echo
+}
 if [[ "${1:-}" == --check-console ]]; then
   console_ok "${2:?console log}"; exit
 fi
@@ -159,7 +175,10 @@ qemu-system-x86_64 "${common[@]}" -name vdh-golden-verify -snapshot \
   -device virtio-net-pci,netdev=n0 \
   -pidfile "$B/verify.pid" </dev/null &
 vpid=$!
-stop_verify() { kill "$vpid" 2>/dev/null || true; wait "$vpid" 2>/dev/null || true; }
+stop_verify() {
+  if kill -0 "$vpid" 2>/dev/null && qemu_is_ours "$vpid"; then kill "$vpid" 2>/dev/null || true; fi
+  wait "$vpid" 2>/dev/null || true
+}
 trap stop_verify EXIT
 # Not in $(...): wait needs qemu to be a child of THIS shell to get its exit code.
 qemu_started "$vpid" "$B/verify.pid" "$B/verify-console.log" || { log "FAIL: verify VM did not start"; exit 1; }
@@ -173,13 +192,21 @@ sshv() {
 ok=0
 for _ in $(seq 1 90); do
   if sshv true 2>/dev/null; then ok=1; break; fi
+  if ! kill -0 "$vpid" 2>/dev/null; then qemu_died "$vpid" "$B/verify-console.log"; log "FAIL: verify VM died before ssh"; exit 1; fi
   sleep 2
 done
 [[ "$ok" == 1 ]] || { log "FAIL: no ssh in the verify boot"; exit 1; }
 sshv 'test -e /etc/cloud/cloud-init.disabled' || { log "FAIL: cloud-init still enabled"; exit 1; }
 sshv 'docker -H unix:///run/forgejo-runner/docker.sock info --format "{{.ServerVersion}}"' \
   || { log "FAIL: docker not answering on /run/forgejo-runner/docker.sock"; exit 1; }
-sshv 'ls /sys/bus/virtio/devices | wc -l; ls /dev/vsock 2>/dev/null || echo no-vsock; findmnt -t virtiofs,9p -n || echo no-host-share'
+# vsock = virtio device id 0x0013. The /dev/vsock node is NOT a probe: the
+# guest kernel creates it without any vsock device (wq-113).
+sshv 'ls /sys/bus/virtio/devices | wc -l; findmnt -t virtiofs,9p -n || echo no-host-share'
+# shellcheck disable=SC2016  # the remote command is expanded by the guest shell
+nvs="$(sshv 'n=0; for d in /sys/bus/virtio/devices/*/device; do [ "$(cat "$d" 2>/dev/null)" = 0x0013 ] && n=$((n + 1)); done; echo "$n"')" \
+  || { log "FAIL: vsock device probe did not run"; exit 1; }
+log "virtio-vsock devices (id 0x0013): ${nvs}"
+[[ "$nvs" == 0 ]] || { log "FAIL: the guest has a virtio-vsock device"; exit 1; }
 stop_verify
 trap - EXIT
 

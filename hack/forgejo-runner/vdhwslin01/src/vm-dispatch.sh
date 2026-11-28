@@ -65,6 +65,22 @@ qemu_started() { # qemu_started <pid> <pidfile> <console log>
   return 1
 }
 
+# Argus F4: never signal a pid that is not a qemu (a stale pidfile or a reused
+# pid). /proc/<pid>/comm of qemu-system-x86_64 reads "qemu-system-x86".
+qemu_is_ours() { # qemu_is_ours <pid>
+  local c
+  c="$(cat "/proc/$1/comm" 2>/dev/null)" || return 1
+  [[ "$c" == qemu-system-* ]]
+}
+# Argus F3: qemu died after it wrote its pidfile (e.g. KVM open failed); say so
+# with its exit code and the console tail instead of an ssh timeout.
+qemu_died() { # qemu_died <pid> <console log>
+  local pid="$1" con="$2" rc=0
+  wait "$pid" 2>/dev/null || rc=$?
+  echo "qemu (pid $pid) exited rc=${rc} while waiting for ssh; console tail:"
+  tail -c 2000 "$con" 2>/dev/null | tr -cd '\11\12\15\40-\176'; echo
+}
+
 tunnel_pid=""
 qemu_pid=""
 cleanup_vm() {
@@ -75,17 +91,27 @@ cleanup_vm() {
   if [[ -f "${STATE_DIR}/qemu.pid" ]]; then
     local pid; pid="$(cat "${STATE_DIR}/qemu.pid")"
     if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
-      kill -TERM "$pid" 2>/dev/null || true
-      for _ in $(seq 1 20); do kill -0 "$pid" 2>/dev/null || break; sleep 0.5; done
-      kill -KILL "$pid" 2>/dev/null || true
+      if qemu_is_ours "$pid"; then
+        kill -TERM "$pid" 2>/dev/null || true
+        for _ in $(seq 1 20); do kill -0 "$pid" 2>/dev/null || break; sleep 0.5; done
+        qemu_is_ours "$pid" && kill -KILL "$pid" 2>/dev/null
+      else
+        log "pidfile pid $pid is not a qemu; not signalled"
+      fi
     fi
   fi
   # Our own background qemu child: kill it by the pid bash recorded and reap it.
   if [[ -n "$qemu_pid" ]]; then
-    kill -TERM "$qemu_pid" 2>/dev/null || true
-    for _ in $(seq 1 20); do kill -0 "$qemu_pid" 2>/dev/null || break; sleep 0.5; done
-    kill -KILL "$qemu_pid" 2>/dev/null || true
-    wait "$qemu_pid" 2>/dev/null || true
+    if ! kill -0 "$qemu_pid" 2>/dev/null; then
+      wait "$qemu_pid" 2>/dev/null || true
+    elif qemu_is_ours "$qemu_pid"; then
+      kill -TERM "$qemu_pid" 2>/dev/null || true
+      for _ in $(seq 1 20); do kill -0 "$qemu_pid" 2>/dev/null || break; sleep 0.5; done
+      qemu_is_ours "$qemu_pid" && kill -KILL "$qemu_pid" 2>/dev/null
+      wait "$qemu_pid" 2>/dev/null || true
+    else
+      log "child pid $qemu_pid is not a qemu; not signalled"
+    fi
   fi
   qemu_pid=""
   # Literal paths only (no rm of variables).
@@ -132,6 +158,7 @@ start_vm() {
 wait_vm() {
   for _ in $(seq 1 90); do
     if vm_ssh fr@127.0.0.1 true 2>/dev/null; then return 0; fi
+    if ! kill -0 "$qemu_pid" 2>/dev/null; then qemu_died "$qemu_pid" "${STATE_DIR}/vm-console.log"; exit 1; fi
     sleep 2
   done
   log "VM ssh did not come up in 180s"; return 1
@@ -143,6 +170,7 @@ open_docker_tunnel() {
   tunnel_pid=$!
   for _ in $(seq 1 60); do
     if curl -fsS --max-time 2 --unix-socket "$SOCK" http://vm/_ping >/dev/null 2>&1; then return 0; fi
+    if ! kill -0 "$qemu_pid" 2>/dev/null; then qemu_died "$qemu_pid" "${STATE_DIR}/vm-console.log"; exit 1; fi
     sleep 1
   done
   log "VM docker did not answer in 60s"; return 1

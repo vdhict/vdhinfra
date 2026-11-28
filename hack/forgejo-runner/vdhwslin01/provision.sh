@@ -198,7 +198,7 @@ is_ipv4() { [[ "$1" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; }
 # ---------------------------------------------------------------------------
 # Embedded payloads (generated from src/ by build.sh; do not edit here)
 # ---------------------------------------------------------------------------
-# --- from src/vm-dispatch.sh (sha256 cc35e2d6b16cd60e)
+# --- from src/vm-dispatch.sh (sha256 cdc5f906e43d176c)
 payload_vm_dispatch() {
 cat <<'VDH_PAYLOAD_EOF'
 #!/usr/bin/env bash
@@ -268,6 +268,22 @@ qemu_started() { # qemu_started <pid> <pidfile> <console log>
   return 1
 }
 
+# Argus F4: never signal a pid that is not a qemu (a stale pidfile or a reused
+# pid). /proc/<pid>/comm of qemu-system-x86_64 reads "qemu-system-x86".
+qemu_is_ours() { # qemu_is_ours <pid>
+  local c
+  c="$(cat "/proc/$1/comm" 2>/dev/null)" || return 1
+  [[ "$c" == qemu-system-* ]]
+}
+# Argus F3: qemu died after it wrote its pidfile (e.g. KVM open failed); say so
+# with its exit code and the console tail instead of an ssh timeout.
+qemu_died() { # qemu_died <pid> <console log>
+  local pid="$1" con="$2" rc=0
+  wait "$pid" 2>/dev/null || rc=$?
+  echo "qemu (pid $pid) exited rc=${rc} while waiting for ssh; console tail:"
+  tail -c 2000 "$con" 2>/dev/null | tr -cd '\11\12\15\40-\176'; echo
+}
+
 tunnel_pid=""
 qemu_pid=""
 cleanup_vm() {
@@ -278,17 +294,27 @@ cleanup_vm() {
   if [[ -f "${STATE_DIR}/qemu.pid" ]]; then
     local pid; pid="$(cat "${STATE_DIR}/qemu.pid")"
     if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
-      kill -TERM "$pid" 2>/dev/null || true
-      for _ in $(seq 1 20); do kill -0 "$pid" 2>/dev/null || break; sleep 0.5; done
-      kill -KILL "$pid" 2>/dev/null || true
+      if qemu_is_ours "$pid"; then
+        kill -TERM "$pid" 2>/dev/null || true
+        for _ in $(seq 1 20); do kill -0 "$pid" 2>/dev/null || break; sleep 0.5; done
+        qemu_is_ours "$pid" && kill -KILL "$pid" 2>/dev/null
+      else
+        log "pidfile pid $pid is not a qemu; not signalled"
+      fi
     fi
   fi
   # Our own background qemu child: kill it by the pid bash recorded and reap it.
   if [[ -n "$qemu_pid" ]]; then
-    kill -TERM "$qemu_pid" 2>/dev/null || true
-    for _ in $(seq 1 20); do kill -0 "$qemu_pid" 2>/dev/null || break; sleep 0.5; done
-    kill -KILL "$qemu_pid" 2>/dev/null || true
-    wait "$qemu_pid" 2>/dev/null || true
+    if ! kill -0 "$qemu_pid" 2>/dev/null; then
+      wait "$qemu_pid" 2>/dev/null || true
+    elif qemu_is_ours "$qemu_pid"; then
+      kill -TERM "$qemu_pid" 2>/dev/null || true
+      for _ in $(seq 1 20); do kill -0 "$qemu_pid" 2>/dev/null || break; sleep 0.5; done
+      qemu_is_ours "$qemu_pid" && kill -KILL "$qemu_pid" 2>/dev/null
+      wait "$qemu_pid" 2>/dev/null || true
+    else
+      log "child pid $qemu_pid is not a qemu; not signalled"
+    fi
   fi
   qemu_pid=""
   # Literal paths only (no rm of variables).
@@ -335,6 +361,7 @@ start_vm() {
 wait_vm() {
   for _ in $(seq 1 90); do
     if vm_ssh fr@127.0.0.1 true 2>/dev/null; then return 0; fi
+    if ! kill -0 "$qemu_pid" 2>/dev/null; then qemu_died "$qemu_pid" "${STATE_DIR}/vm-console.log"; exit 1; fi
     sleep 2
   done
   log "VM ssh did not come up in 180s"; return 1
@@ -346,6 +373,7 @@ open_docker_tunnel() {
   tunnel_pid=$!
   for _ in $(seq 1 60); do
     if curl -fsS --max-time 2 --unix-socket "$SOCK" http://vm/_ping >/dev/null 2>&1; then return 0; fi
+    if ! kill -0 "$qemu_pid" 2>/dev/null; then qemu_died "$qemu_pid" "${STATE_DIR}/vm-console.log"; exit 1; fi
     sleep 1
   done
   log "VM docker did not answer in 60s"; return 1
@@ -397,7 +425,7 @@ while true; do
 done
 VDH_PAYLOAD_EOF
 }
-# --- from src/vm-golden-build.sh (sha256 3f7b1ef2694ed528)
+# --- from src/vm-golden-build.sh (sha256 5ae30f743f0ccfe2)
 payload_vm_golden_build() {
 cat <<'VDH_PAYLOAD_EOF'
 #!/usr/bin/env bash
@@ -461,6 +489,22 @@ qemu_started() { # qemu_started <pid> <pidfile> <console log>
   done
   echo "qemu (pid $pid) wrote no pidfile in 30 s"
   return 1
+}
+
+# Argus F4: never signal a pid that is not a qemu (a stale pidfile or a reused
+# pid). /proc/<pid>/comm of qemu-system-x86_64 reads "qemu-system-x86".
+qemu_is_ours() { # qemu_is_ours <pid>
+  local c
+  c="$(cat "/proc/$1/comm" 2>/dev/null)" || return 1
+  [[ "$c" == qemu-system-* ]]
+}
+# Argus F3: qemu died after it wrote its pidfile (e.g. KVM open failed); say so
+# with its exit code and the console tail instead of an ssh timeout.
+qemu_died() { # qemu_died <pid> <console log>
+  local pid="$1" con="$2" rc=0
+  wait "$pid" 2>/dev/null || rc=$?
+  echo "qemu (pid $pid) exited rc=${rc} while waiting for ssh; console tail:"
+  tail -c 2000 "$con" 2>/dev/null | tr -cd '\11\12\15\40-\176'; echo
 }
 if [[ "${1:-}" == --check-console ]]; then
   console_ok "${2:?console log}"; exit
@@ -561,7 +605,10 @@ qemu-system-x86_64 "${common[@]}" -name vdh-golden-verify -snapshot \
   -device virtio-net-pci,netdev=n0 \
   -pidfile "$B/verify.pid" </dev/null &
 vpid=$!
-stop_verify() { kill "$vpid" 2>/dev/null || true; wait "$vpid" 2>/dev/null || true; }
+stop_verify() {
+  if kill -0 "$vpid" 2>/dev/null && qemu_is_ours "$vpid"; then kill "$vpid" 2>/dev/null || true; fi
+  wait "$vpid" 2>/dev/null || true
+}
 trap stop_verify EXIT
 # Not in $(...): wait needs qemu to be a child of THIS shell to get its exit code.
 qemu_started "$vpid" "$B/verify.pid" "$B/verify-console.log" || { log "FAIL: verify VM did not start"; exit 1; }
@@ -575,13 +622,21 @@ sshv() {
 ok=0
 for _ in $(seq 1 90); do
   if sshv true 2>/dev/null; then ok=1; break; fi
+  if ! kill -0 "$vpid" 2>/dev/null; then qemu_died "$vpid" "$B/verify-console.log"; log "FAIL: verify VM died before ssh"; exit 1; fi
   sleep 2
 done
 [[ "$ok" == 1 ]] || { log "FAIL: no ssh in the verify boot"; exit 1; }
 sshv 'test -e /etc/cloud/cloud-init.disabled' || { log "FAIL: cloud-init still enabled"; exit 1; }
 sshv 'docker -H unix:///run/forgejo-runner/docker.sock info --format "{{.ServerVersion}}"' \
   || { log "FAIL: docker not answering on /run/forgejo-runner/docker.sock"; exit 1; }
-sshv 'ls /sys/bus/virtio/devices | wc -l; ls /dev/vsock 2>/dev/null || echo no-vsock; findmnt -t virtiofs,9p -n || echo no-host-share'
+# vsock = virtio device id 0x0013. The /dev/vsock node is NOT a probe: the
+# guest kernel creates it without any vsock device (wq-113).
+sshv 'ls /sys/bus/virtio/devices | wc -l; findmnt -t virtiofs,9p -n || echo no-host-share'
+# shellcheck disable=SC2016  # the remote command is expanded by the guest shell
+nvs="$(sshv 'n=0; for d in /sys/bus/virtio/devices/*/device; do [ "$(cat "$d" 2>/dev/null)" = 0x0013 ] && n=$((n + 1)); done; echo "$n"')" \
+  || { log "FAIL: vsock device probe did not run"; exit 1; }
+log "virtio-vsock devices (id 0x0013): ${nvs}"
+[[ "$nvs" == 0 ]] || { log "FAIL: the guest has a virtio-vsock device"; exit 1; }
 stop_verify
 trap - EXIT
 
@@ -1071,7 +1126,7 @@ HELPEOF
 }
 VDH_PAYLOAD_EOF
 }
-# --- from src/forgejo-runner-vm.service (sha256 cbd472671d63243b)
+# --- from src/forgejo-runner-vm.service (sha256 0cbc96717615a658)
 payload_forgejo_runner_vm_service() {
 cat <<'VDH_PAYLOAD_EOF'
 # vdhwslin01 (chg-2026-10-05-031): forgejo-runner, one job per throwaway KVM VM.
@@ -1090,6 +1145,8 @@ WorkingDirectory=/var/lib/forgejo-runner
 ExecStartPre=+/usr/local/libexec/vdh-runner/nft-guard check
 ExecStart=/usr/local/libexec/vdh-runner/vm-dispatch
 Restart=always
+# The dispatcher traps TERM and exits 143 on purpose (clean stop); not a failure.
+SuccessExitStatus=143
 RestartSec=30
 KillMode=control-group
 TimeoutStopSec=60

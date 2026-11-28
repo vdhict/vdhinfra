@@ -10,8 +10,8 @@
 # root:root copies, validates the sudoers drop-in with visudo, and starts a
 # 3 h backstop timer that removes the drop-in no matter what.
 set -euo pipefail
-PROV_SHA256=47c270a22abe69cdabd91f70d590e4d417e4c15ab69be0f3e4225576efcb7143
-WRAP_SHA256=75d097634b7984a8b26179ed5f5b1264cfecaa0677a0c6d825ebebf09c293355
+PROV_SHA256=6ac2fe2f5078dca833d3c18431b154822cc78b161fd9d07a4fead641699574a0
+WRAP_SHA256=65b8bdda169858256c49005a58a44f2133b940499044167c9ea580cb326ed09f
 DROPIN_SHA256=108c432d900bc4ed877df49877c3407152a4a1bde6fa35c5723eefc1c19b356b
 DROPIN=/etc/sudoers.d/90-agent-provision
 say() { echo "==> $*"; }

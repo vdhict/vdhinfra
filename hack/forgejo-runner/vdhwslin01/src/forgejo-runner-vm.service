@@ -14,6 +14,8 @@ WorkingDirectory=/var/lib/forgejo-runner
 ExecStartPre=+/usr/local/libexec/vdh-runner/nft-guard check
 ExecStart=/usr/local/libexec/vdh-runner/vm-dispatch
 Restart=always
+# The dispatcher traps TERM and exits 143 on purpose (clean stop); not a failure.
+SuccessExitStatus=143
 RestartSec=30
 KillMode=control-group
 TimeoutStopSec=60
