@@ -61,3 +61,16 @@ data:
           # list; superuser_exists is true once a user_level>=10 exists)
           fail_if_body_not_matches_regexp:
             - '"superuser_exists"\s*:\s*true'
+      # chg-2026-11-28-107 (G1 row P6): Forgejo's /api/healthz answers 200
+      # with "status": "pass" only when its own database and cache pings pass,
+      # so this module fails both on "forge down" and "forge up but its DB is
+      # gone". Used by devtools/forgejo/monitoring/probe.yaml.
+      http_forgejo_healthz:
+        prober: http
+        timeout: 5s
+        http:
+          preferred_ip_protocol: ip4
+          ip_protocol_fallback: false
+          valid_status_codes: [200]
+          fail_if_body_not_matches_regexp:
+            - '"status"\s*:\s*"pass"'

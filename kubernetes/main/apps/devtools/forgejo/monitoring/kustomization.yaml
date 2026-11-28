@@ -1,0 +1,11 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+# chg-2026-11-28-107 (G1 row P6): forge availability probes and backup
+# freshness alerts. Its own Flux Kustomization (forgejo-monitoring in
+# ../install.yaml) WITHOUT a dependsOn on forgejo: monitoring must keep
+# deploying while the forge itself is broken.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./probe.yaml
+  - ./prometheusrule.yaml

@@ -1,0 +1,164 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/prometheusrule_v1.json
+#
+# Forge availability + backup freshness (chg-2026-11-28-107, G1 row P6).
+# Story: is the forge up, and could we restore it from last night?
+#
+# ROUTING: every rule carries component=forge-monitoring, severity=warning.
+# Alertmanager sends that label to the team ntfy topic pka-team: priority 3
+# 07:00-23:00, priority 1 (no sound, no vibration, AGR-074) 23:00-07:00
+# Europe/Amsterdam. Never HA, never the owner "alerts" topic, never a card.
+# Route: kube-prometheus-stack/app/alertmanager-secret.yaml.
+#
+# Every expression was run with promtool against the live Prometheus on
+# 2026-11-28 (ops/evidence/chg-2026-11-28-107/). Label facts that shaped them:
+#   * VolSync metrics carry namespace="storage" (the operator); the app is
+#     obj_namespace/obj_name. VolSync has NO last-sync timestamp metric.
+#   * volsync v0.13.1 (statemachine/machine.go) observes
+#     volsync_sync_duration_seconds and clears volume_out_of_sync ONLY when a
+#     sync completes; out_of_sync goes 1 once a schedule deadline is missed.
+#   * cnpg_collector_last_available_backup_timestamp is the real value on
+#     the primary and 0 on the replica; archiver series exist on the primary.
+#   * WAL: archive_timeout keeps seconds_since_last_archival under ~7 min
+#     (7-day max 433 s), so 30 min is stale without being twitchy.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: forge-monitoring
+  labels:
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: forge.availability
+      interval: 1m
+      rules:
+        - alert: ForgeEndpointDown
+          # Any forge probe (in-cluster healthz, LAN HTTPS, SSH) failing,
+          # or the probes themselves gone for 10m (blackbox/scrape broken).
+          expr: |-
+            probe_success{target_role="code-forge"} == 0
+            or
+            absent_over_time(probe_success{target_role="code-forge", target_friendly="forgejo-https"}[10m])
+          for: 5m
+          labels:
+            severity: warning
+            component: forge-monitoring
+          annotations:
+            summary: "Forge endpoint down: {{ $labels.target_friendly }} ({{ $labels.instance }})"
+            description: |
+              Blackbox probe {{ $labels.target_friendly }} has failed for 5+ min.
+              forgejo-svc failing = Forgejo or its DB/cache is unhealthy;
+              forgejo-https alone = envoy-internal, DNS or cert; forgejo-ssh =
+              the SSH LoadBalancer. No series at all = probes not scraped.
+              Check: kubectl -n devtools get pods; kubectl -n devtools get hr forgejo
+
+    - name: forge.backup
+      interval: 5m
+      rules:
+        - alert: ForgeVolsyncNoRecentSync
+          # No COMPLETED restic sync of forgejo-data in 26h (hourly
+          # schedule). Two conditions, both required, so a volsync
+          # controller restart (new pod label, counter restarts) cannot
+          # fake "no sync": the completion counter did not move in 26h AND
+          # VolSync itself says a deadline was missed. Third branch: the
+          # series vanished for 26h (RS deleted, volsync gone).
+          expr: |-
+            (
+              sum by (obj_namespace, obj_name) (
+                increase(volsync_sync_duration_seconds_count{obj_namespace="devtools", obj_name="forgejo", role="source"}[26h])
+              ) == 0
+              and on (obj_namespace, obj_name)
+              max by (obj_namespace, obj_name) (
+                volsync_volume_out_of_sync{obj_namespace="devtools", obj_name="forgejo", role="source"}
+              ) == 1
+            )
+            or
+            absent_over_time(volsync_sync_duration_seconds_count{obj_namespace="devtools", obj_name="forgejo", role="source"}[26h])
+          for: 15m
+          labels:
+            severity: warning
+            component: forge-monitoring
+          annotations:
+            summary: "Forge git data: no successful VolSync backup in over 26h"
+            description: |
+              ReplicationSource devtools/forgejo (PVC forgejo-data, the git
+              object store) has not completed a restic sync in 26h. This repo
+              stays on-prem (no off-site copy, ar-002), so it is the only copy
+              outside Ceph.
+              Check: kubectl -n devtools get replicationsource forgejo -o yaml
+
+        - alert: ForgePgBackupStale
+          # max_over_time over 27h keeps the last good timestamp through a
+          # failover (the new primary may read 0 until its first backup).
+          expr: |-
+            (
+              time() - max by (namespace) (
+                max_over_time(cnpg_collector_last_available_backup_timestamp{namespace="devtools", job="devtools/forge-pg"}[27h])
+              ) > 26 * 3600
+            )
+            or
+            absent_over_time(cnpg_collector_last_available_backup_timestamp{namespace="devtools", job="devtools/forge-pg"}[1h])
+          for: 15m
+          labels:
+            severity: warning
+            component: forge-monitoring
+          annotations:
+            summary: "forge-pg: no successful base backup in over 26h"
+            description: |
+              The newest available barman backup of forge-pg is more than 26h
+              old (ScheduledBackup forge-pg-daily is daily).
+              Check: kubectl -n devtools get backups.postgresql.cnpg.io
+                     kubectl -n devtools get cluster forge-pg -o jsonpath='{.status.lastSuccessfulBackup}'
+
+        - alert: ForgePgBackupFailed
+          # The newest attempt failed (earlier signal than the 26h stale rule).
+          expr: |-
+            max by (namespace) (cnpg_collector_last_failed_backup_timestamp{namespace="devtools", job="devtools/forge-pg"})
+            >
+            max by (namespace) (cnpg_collector_last_available_backup_timestamp{namespace="devtools", job="devtools/forge-pg"})
+          for: 15m
+          labels:
+            severity: warning
+            component: forge-monitoring
+          annotations:
+            summary: "forge-pg: the most recent base backup attempt failed"
+            description: |
+              last_failed_backup is newer than last_available_backup.
+              Check: kubectl -n devtools get backups.postgresql.cnpg.io
+
+    - name: forge.wal
+      interval: 1m
+      rules:
+        - alert: ForgePgWalArchivingFailing
+          # Same test as CNPG's LastFailedArchiveTime, scoped to forge-pg.
+          expr: |-
+            max by (namespace) (cnpg_pg_stat_archiver_last_failed_time{namespace="devtools", job="devtools/forge-pg"})
+            >
+            max by (namespace) (cnpg_pg_stat_archiver_last_archived_time{namespace="devtools", job="devtools/forge-pg"})
+          for: 10m
+          labels:
+            severity: warning
+            component: forge-monitoring
+          annotations:
+            summary: "forge-pg: WAL archiving is failing"
+            description: |
+              The last WAL archive attempt failed after the last success, so
+              point-in-time recovery of the forge DB is degrading.
+              Check: kubectl -n devtools logs forge-pg-<primary> | grep -i archive
+
+        - alert: ForgePgWalArchivingStale
+          # No WAL archived for 30 min, or the archiver series gone 15 min
+          # (primary exporter down, so archiving cannot be confirmed).
+          expr: |-
+            max by (namespace) (cnpg_pg_stat_archiver_seconds_since_last_archival{namespace="devtools", job="devtools/forge-pg"}) > 1800
+            or
+            absent_over_time(cnpg_pg_stat_archiver_seconds_since_last_archival{namespace="devtools", job="devtools/forge-pg"}[15m])
+          for: 10m
+          labels:
+            severity: warning
+            component: forge-monitoring
+          annotations:
+            summary: "forge-pg: no WAL archived for over 30 min"
+            description: |
+              seconds_since_last_archival > 1800 (normal < 7 min).
+              Check: kubectl -n devtools get cluster forge-pg -o jsonpath='{.status.conditions}'

@@ -14,8 +14,11 @@ spec:
       rules:
         - alert: BlackboxProbeFailure
           # `probe_success == 0` for any target. Generic alert so future
-          # probes get coverage automatically.
-          expr: probe_success == 0
+          # probes get coverage automatically. Forge targets
+          # (target_role=code-forge) are excluded: they have their own
+          # ForgeEndpointDown rule routed to the team channel
+          # (chg-2026-11-28-107), and would otherwise also become a card.
+          expr: probe_success{target_role!="code-forge"} == 0
           for: 3m
           labels:
             severity: warning

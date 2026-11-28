@@ -1,0 +1,73 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/probe_v1.json
+#
+# Forge availability, probed by the shared blackbox-exporter (observability).
+# Lives in devtools: the live Prometheus has probeNamespaceSelector: {}.
+#
+# Two HTTP paths, one Probe (same module):
+#   forgejo-svc   in-cluster Service -> is Forgejo itself healthy?
+#   forgejo-https the HTTPRoute on envoy-internal, wildcard cert, TLS verified
+#                 -> reachable for clients on the LAN? Fails alone = gateway/DNS/cert.
+# Module http_forgejo_healthz needs 200 AND "status":"pass", which Forgejo
+# only returns when its DB and cache pings pass.
+# Measured from the running exporter 2026-11-28 (http_2xx, same targets):
+# probe_success 1, status 200, https probe_http_ssl 1.
+#
+# devtools has no NetworkPolicy today; when the default-deny owed by sec-03
+# lands it must admit blackbox-exporter -> forgejo-http:3000.
+#
+# Every target carries target_role=code-forge: ForgeEndpointDown keys on it
+# and the generic BlackboxProbeFailure excludes it.
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: forgejo-http
+spec:
+  jobName: blackbox-forge-http
+  prober:
+    url: blackbox-exporter.observability.svc.cluster.local:9115
+    path: /probe
+  module: http_forgejo_healthz
+  interval: 60s
+  scrapeTimeout: 10s
+  targets:
+    staticConfig:
+      static:
+        - http://forgejo-http.devtools.svc.cluster.local:3000/api/healthz
+        - https://forge.${SECRET_DOMAIN}/api/healthz
+      labels:
+        target_role: code-forge
+      relabelingConfigs:
+        - sourceLabels: [__param_target]
+          regex: "http://forgejo-http\\..*"
+          targetLabel: target_friendly
+          replacement: forgejo-svc
+        - sourceLabels: [__param_target]
+          regex: "https://forge\\..*"
+          targetLabel: target_friendly
+          replacement: forgejo-https
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.ok8.sh/monitoring.coreos.com/probe_v1.json
+#
+# Git over SSH: TCP connect to the forge-ssh LoadBalancer IP (P4-K2,
+# Service devtools/forgejo-ssh 172.16.2.248:22). Measured 2026-11-28:
+# probe_success 1. By IP so a DNS fault does not read as "SSH down".
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: forgejo-ssh
+spec:
+  jobName: blackbox-forge-ssh
+  prober:
+    url: blackbox-exporter.observability.svc.cluster.local:9115
+    path: /probe
+  module: tcp_lan_5s
+  interval: 60s
+  scrapeTimeout: 10s
+  targets:
+    staticConfig:
+      static:
+        - 172.16.2.248:22
+      labels:
+        target_role: code-forge
+        target_friendly: forgejo-ssh
