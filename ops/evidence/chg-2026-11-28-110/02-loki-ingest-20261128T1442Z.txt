@@ -1,0 +1,12 @@
+# Loki-side ingest, measured 2026-11-28T14:42:21Z via svc/loki:3100
+## loki own counters (lifetime of loki-0, 53d; Loki itself is NOT scraped by Prometheus)
+loki_discarded_samples_total{format="",policy="",reason="too_far_behind",retention_hours="336",tenant="fake"} 8684
+loki_discarded_samples_total{format="loki",policy="",reason="greater_than_max_sample_age",retention_hours="336",tenant="fake"} 16497
+loki_discarded_samples_total{format="loki",policy="",reason="line_too_long",retention_hours="336",tenant="fake"} 52
+loki_request_duration_seconds_count{method="POST",route="loki_api_v1_push",status_code="204"} 1.7244009e+07
+loki_request_duration_seconds_count{method="POST",route="loki_api_v1_push",status_code="400"} 53
+loki_request_duration_seconds_count{method="POST",route="loki_api_v1_push",status_code="500"} 93
+## log lines stored last 15m, all jobs
+"43459"
+## vector syslog stream last 1h
+"31790"

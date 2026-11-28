@@ -95,7 +95,12 @@ spec:
       extraVolumeMounts:
         - name: loki-rules
           mountPath: /etc/loki/rules/fake
+    # SingleBinary mode: every client (Grafana datasource, promtail, vector)
+    # talks to loki-headless:3100 directly. With only replicas: 0 the chart
+    # still rendered the loki-gateway Deployment/ConfigMap/Service, leaving a
+    # Service with no endpoints (wq-182). enabled: false removes all three.
     gateway:
+      enabled: false
       replicas: 0
     backend:
       replicas: 0

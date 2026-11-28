@@ -1,0 +1,37 @@
+# chg-2026-11-28-110 wq-182 loki-gateway diagnosis, measured 2026-11-28T14:42:11Z
+## live objects
+loki-gateway    ClusterIP   10.43.245.113   <none>   80/TCP              238d
+loki            ClusterIP   10.43.28.35     <none>   3100/TCP,9095/TCP   238d
+loki-headless   ClusterIP   None            <none>   3100/TCP            238d
+loki-gateway-thsdr   IPv4   <unset>   <unset>   238d
+loki-gateway   0/0   0     0     238d
+## selector
+{"app.kubernetes.io/component":"gateway","app.kubernetes.io/instance":"loki","app.kubernetes.io/name":"loki"}
+## loki pod labels
+{"app.kubernetes.io/component":"single-binary","app.kubernetes.io/instance":"loki","app.kubernetes.io/name":"loki","app.kubernetes.io/part-of":"memberlist","apps.kubernetes.io/pod-index":"0","controller-revision-hash":"loki-85ccdd49b7","statefulset.kubernetes.io/pod-name":"loki-0"}
+## cause: HelmRelease values (origin/main e684af58) set gateway.replicas: 0 but not gateway.enabled: false; chart 6.55.0 templates gate Service/ConfigMap/Deployment on gateway.enabled only
+## consumers (origin/main): grep loki-gateway in kubernetes/ = 0 hits; push/query URLs:
+kubernetes/main/apps/observability/grafana/app/helmrelease.yaml:171:            url: http://loki-headless.observability.svc.cluster.local:3100
+kubernetes/main/apps/observability/promtail/app/helmrelease.yaml:28:        - url: http://loki-headless.observability.svc.cluster.local:3100/loki/api/v1/push
+kubernetes/main/apps/observability/vector/app/helmrelease.yaml:227:          endpoint: http://loki-headless.observability.svc.cluster.local:3100
+## cluster objects referencing loki-gateway: only the chart's own Deployment/ConfigMap; NetworkPolicies 0
+## promtail push by host/status, increase 1h
+["loki-headless.observability.svc.cluster.local:3100","-1","0"]
+["loki-headless.observability.svc.cluster.local:3100","204","8035.93220338983"]
+["loki-headless.observability.svc.cluster.local:3100","500","0"]
+["loki-headless.observability.svc.cluster.local:3100","400","0"]
+## promtail dropped entries increase 24h by reason
+["ingester_error","0"]
+["line_too_long","0"]
+["rate_limited","0"]
+["stream_limited","0"]
+## loki own counters (lifetime of loki-0, 53d; Loki not scraped by Prometheus)
+## lines received per job last 15m (Loki)
+## render diff (helm template loki 6.55.0, values before/after): removed objects only
+4d3
+< ConfigMap/loki-gateway
+6d4
+< Deployment/loki-gateway
+8d5
+< Service/loki-gateway
+other objects byte-identical

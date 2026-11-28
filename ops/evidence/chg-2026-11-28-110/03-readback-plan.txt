@@ -1,0 +1,10 @@
+# chg-2026-11-28-110 readback plan (after Flux reconciles from origin/main)
+1. git cat-file -e origin/main:kubernetes/main/apps/observability/loki/app/helmrelease.yaml and grep 'enabled: false' under gateway.
+2. flux get hr -n observability loki -> Ready=True, new revision; helm history shows no rollback.
+3. kubectl -n observability get svc,deploy,cm loki-gateway -> NotFound (all three).
+4. loki-0 not restarted by this change (StatefulSet render byte-identical): kubectl get pod loki-0 age unchanged.
+5. Ingest unchanged: sum by (status_code) (increase(promtail_request_duration_seconds_count[15m])) -> only 204 > 0;
+   Loki sum(count_over_time({job=~".+"}[15m])) within the same order as baseline 43459; {job="syslog"} 1h > 0 (vector path).
+6. Grafana Loki datasource health: GET /api/datasources/uid/loki/health -> OK.
+Rollback: git revert of the commit; Flux re-renders the three objects (no state involved).
+Follow-up, not in this change: .claude/agents/observability-engineer.md still tells agents to port-forward svc/loki-gateway (agent files are Atlas-only); Loki itself has no ServiceMonitor, so push 5xx/discard counters are invisible to Prometheus.
